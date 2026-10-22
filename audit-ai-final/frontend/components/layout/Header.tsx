@@ -1,14 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 
 export const NAV_LINKS = [
-  { href: "#checks", label: "Checks" },
-  { href: "#process", label: "Process" },
-  { href: "#findings", label: "Findings" },
-  { href: "#sources", label: "Sources" },
-  { href: "#contact", label: "Contact" },
+  { href: "/#checks", label: "Checks" },
+  { href: "/#process", label: "Process" },
+  { href: "/#findings", label: "Findings" },
+  { href: "/#sources", label: "Sources" },
+  { href: "/#faq", label: "FAQ" },
 ] as const;
 
 /** Fixed 68px paper bar. Slides away on scroll-down, returns on scroll-up (500ms). Links collapse ≤767px. */
@@ -43,9 +44,9 @@ export function Header() {
   return (
     <header className="nav" data-hidden={hidden && !open ? "" : undefined} data-open={open ? "" : undefined}>
       <div className="nav__bar board">
-        <a className="nav__brand t-wordmark grain-text" data-text="Audit AI." href="#top" onClick={close}>
+        <Link className="nav__brand t-wordmark grain-text" data-text="Audit AI." href="/#top" onClick={close}>
           Audit AI.
-        </a>
+        </Link>
         <nav className="nav__menu" id={menuId} aria-label="Main">
           <ul className="nav__links">
             {NAV_LINKS.map((l) => (
@@ -56,7 +57,10 @@ export function Header() {
               </li>
             ))}
           </ul>
-          <Button href="#contact" className="nav__cta" onClick={close}>
+          <a className="link link--tap nav__signin" href="/login" onClick={close}>
+            Sign in
+          </a>
+          <Button href="/login" className="nav__cta" onClick={close}>
             Start a review
           </Button>
         </nav>

@@ -26,6 +26,7 @@
   --bad:  #6f1f12;  --bad-tint:  rgb(138 47 31 / .30);    /* contradicted 5.5:1 */
   --ok-on-dark: #a8b86a; --warn-on-dark: #e0a15f; --bad-on-dark: #e08a73;  /* on --surface */
   --protect-tint: rgb(31 20 11 / .10);
+  --sample-off-palette: #3d6f9e;  /* landing "Visuals" check only: the deliberately wrong colour being flagged */
 
   /* ---- Fonts [M] ---- */
   --font-display: "Gabarito Variable", "Gabarito", "Gabarito Fallback", Arial, sans-serif;

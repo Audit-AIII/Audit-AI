@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Button } from "@/components/primitives/Button";
@@ -70,6 +70,7 @@ export function Process() {
   const section = useRef<HTMLElement>(null);
   const channel = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLOListElement>(null);
+  const [active, setActive] = useState(0);
 
   useEffect(() => {
     const el = section.current;
@@ -79,27 +80,48 @@ export function Process() {
     const mm = gsap.matchMedia();
     mm.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
       el.setAttribute("data-track", "");
+      // The pinned section is split into one scroll band per step. Crossing into a band slides
+      // that step in with a short eased tween, so exactly one step is ever shown at rest.
       const distance = () => Math.max(0, tr.scrollWidth - ch.clientWidth);
+      const n = STEPS.length;
       const setDistance = () => el.style.setProperty("--process-distance", `${distance()}px`);
       setDistance();
-      const tween = gsap.to(tr, {
-        x: () => -distance(),
-        ease: "none",
-        scrollTrigger: {
-          trigger: el,
-          start: "top top",
-          end: "bottom bottom",
-          scrub: true,
-          invalidateOnRefresh: true,
-          onRefreshInit: setDistance,
+      let current = -1;
+      const show = (i: number, instant = false) => {
+        if (i === current) return;
+        current = i;
+        setActive(i);
+        gsap.to(tr, {
+          x: -(distance() / (n - 1)) * i,
+          duration: instant ? 0 : 0.7,
+          ease: "power2.inOut",
+          overwrite: true,
+        });
+      };
+      const trigger = ScrollTrigger.create({
+        trigger: el,
+        start: "top top",
+        end: "bottom bottom",
+        invalidateOnRefresh: true,
+        onRefreshInit: setDistance,
+        onRefresh: (self) => {
+          current = -1;
+          show(Math.min(n - 1, Math.floor(self.progress * n)), true);
         },
+        onUpdate: (self) => show(Math.min(n - 1, Math.floor(self.progress * n))),
       });
       ScrollTrigger.refresh();
       return () => {
-        tween.kill();
+        trigger.kill();
+        gsap.set(tr, { clearProps: "transform" });
         el.removeAttribute("data-track");
         el.style.removeProperty("--process-distance");
       };
+    });
+    mm.add("(max-width: 767px), (prefers-reduced-motion: reduce)", () => {
+      const onScroll = () => setActive(Math.round(ch.scrollLeft / Math.max(1, ch.clientWidth)));
+      ch.addEventListener("scroll", onScroll, { passive: true });
+      return () => ch.removeEventListener("scroll", onScroll);
     });
     return () => mm.revert();
   }, []);
@@ -116,17 +138,26 @@ export function Process() {
           <div ref={channel} className="process__channel ply">
             <ol ref={track} className="process__track">
               {STEPS.map((s, i) => (
-                <li key={s.title} className="process__step card">
-                  <span className="t-caption">Step {i + 1}</span>
-                  <h3 className="t-title process__name">{s.title}</h3>
-                  <p className="t-body process__copy">{s.copy}</p>
+                <li key={s.title} className="process__step card" aria-label={`Step ${i + 1} of ${STEPS.length}`}>
+                  <div className="process__text">
+                    <span className="t-caption">
+                      Step {i + 1} / {STEPS.length}
+                    </span>
+                    <h3 className="process__name">{s.title}</h3>
+                    <p className="t-lead process__copy">{s.copy}</p>
+                  </div>
                   <StepVisual kind={s.visual} />
                 </li>
               ))}
-              <li className="process__end">
-                <Button href="#contact">Try it on one draft</Button>
-              </li>
             </ol>
+          </div>
+          <div className="process__foot">
+            <ol className="process__dots" aria-hidden="true">
+              {STEPS.map((s, i) => (
+                <li key={s.title} className={i === active ? "is-on" : undefined} />
+              ))}
+            </ol>
+            <Button href="/login">Try it on one draft</Button>
           </div>
         </div>
       </div>

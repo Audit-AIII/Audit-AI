@@ -1,63 +1,80 @@
 /* ==========================================================================
-   Process — four raised step cards on a track inside a die-cut window (DESIGN.md §7.4)
+   Process — one step at a time inside a die-cut window; scroll moves to the next (DESIGN.md §7.4)
    ========================================================================== */
 .process { position: relative; padding-block: var(--section-pad); }
-.process__head { margin-bottom: clamp(32px, 4vh, 48px); }
+.process__head { margin-bottom: clamp(28px, 4vh, 44px); }
 .process__title { max-width: 14ch; margin: 0; }
 
 .process__channel {
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
-.process__track {
-  display: flex;
-  align-items: stretch;
-  gap: 3vw;
-  width: max-content;
-  margin: 0;
-  padding: 4vh 4vw;
-  list-style: none;
-}
-.process__step {
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
-  align-content: start;
-  gap: 10px;
-  width: min(33vw, 420px);
-  min-height: min(56vh, 477px);
-  padding: 26px 26px 22px;
-  scroll-snap-align: start;
-}
-.process__name { margin: 4px 0 0; }
-.process__copy { max-width: 36ch; margin: 0; }
-.process__end {
-  display: grid;
-  place-items: center;
-  width: min(26vw, 300px);
-  scroll-snap-align: end;
-}
+.process__channel::-webkit-scrollbar { display: none; }
+.process__track { display: flex; margin: 0; padding: 0; list-style: none; }
 
-/* Desktop pinned track */
-.process[data-track] { height: calc(100svh + var(--process-distance, 150vw)); padding: 0; }
+/* Each step fills the window, inset by a margin of dark board */
+.process__step {
+  --inset: clamp(16px, 2.6vw, 34px);
+  flex: 0 0 calc(100% - 2 * var(--inset));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: center;
+  min-height: min(52vh, 460px);
+  margin: var(--inset);
+  padding: clamp(28px, 4vw, 56px);
+  scroll-snap-align: center;
+}
+.process__step + .process__step { margin-left: calc(var(--inset) * 2); }
+.process__text { display: grid; gap: 14px; align-content: center; }
+.process__name {
+  margin: 0;
+  font: 700 clamp(30px, 3.4vw, 46px) / 1 var(--font-display);
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  text-shadow: var(--text-etched);
+}
+.process__copy { max-width: 32ch; margin: 0; }
+
+.process__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-top: 24px;
+}
+.process__dots { display: flex; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.process__dots li {
+  width: 12px;
+  aspect-ratio: 1;
+  border-radius: var(--r-round);
+  box-shadow: var(--shadow-well);
+  transition: box-shadow var(--dur-base) var(--ease-ui), background-color var(--dur-base);
+}
+.process__dots li.is-on { background-color: var(--canvas); box-shadow: var(--shadow-raised); }
+
+/* Desktop: section pins, scrolling moves one step per screen */
+.process[data-track] { height: calc(100svh + var(--process-distance, 300vh)); padding: 0; }
 .process[data-track] .process__stage {
   position: sticky;
   top: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   height: 100svh;
-  padding: calc(68px + 5vh) 0 6vh;
+  padding: calc(68px + 5vh) 0 5vh;
 }
-.process[data-track] .process__frame { min-height: 0; display: grid; }
+.process[data-track] .process__frame { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
 .process[data-track] .process__channel { overflow: hidden; }
 .process[data-track] .process__track { height: 100%; will-change: transform; }
 .process[data-track] .process__step { min-height: 0; }
 
-/* ---- Step visuals (CSS-drawn) ---- */
-.pv { align-self: end; display: flex; align-items: flex-end; min-height: 130px; padding-top: 18px; }
-.pv--import { flex-wrap: wrap; gap: 10px; }
+/* ---- Step visuals (CSS-drawn; larger now that each step has the whole window) ---- */
+.pv { display: flex; align-items: center; justify-content: center; min-height: 220px; }
+.pv--import { flex-wrap: wrap; gap: 14px; align-content: center; }
 .pv__tag {
-  padding: 8px 12px;
+  padding: 12px 16px;
   border-radius: var(--r-tag);
   background-color: var(--canvas);
   background-image: var(--grain);
@@ -68,46 +85,40 @@
 }
 .pv__page {
   display: grid;
-  gap: 10px;
-  width: 132px;
-  padding: 18px 16px;
+  gap: 14px;
+  width: min(100%, 240px);
+  padding: 28px 24px;
   border-radius: var(--r-ui);
   background-color: var(--canvas);
   background-image: var(--grain);
   box-shadow: var(--shadow-raised);
   rotate: -3deg;
 }
-.pv__page i { height: 6px; border-radius: var(--r-tag); box-shadow: var(--shadow-well); }
+.pv__page i { height: 8px; border-radius: var(--r-tag); box-shadow: var(--shadow-well); }
 .pv__page i:nth-child(2) { width: 80%; }
 .pv__page i:nth-child(4) { width: 55%; }
 .pv__window {
   display: grid;
-  gap: 10px;
-  width: 100%;
-  padding: 18px;
+  gap: 14px;
+  width: min(100%, 340px);
+  padding: 28px;
   border-radius: var(--r-ui);
   background-color: var(--surface);
   background-image: var(--grain-dark);
   box-shadow: var(--shadow-window);
 }
-.pv__window i { height: 6px; border-radius: var(--r-tag); background: color-mix(in srgb, var(--canvas) 35%, transparent); }
+.pv__window i { height: 8px; border-radius: var(--r-tag); background: color-mix(in srgb, var(--canvas) 35%, transparent); }
 .pv__window i:last-child { width: 60%; }
-.pv__window .pv__flag {
-  height: 14px;
-  width: 78%;
-  background: transparent;
-  outline: 1px dashed var(--canvas);
-  outline-offset: 2px;
-}
+.pv__window .pv__flag { height: 18px; width: 78%; background: transparent; outline: 1px dashed var(--canvas); outline-offset: 2px; }
 .pv__stamp {
   display: grid;
   place-items: center;
-  width: 112px;
+  width: 168px;
   aspect-ratio: 1;
   border-radius: var(--r-round);
   box-shadow: var(--shadow-well);
   color: var(--ink-2);
-  font: 700 14px / 1 var(--font-display);
+  font: 700 20px / 1 var(--font-display);
   letter-spacing: .08em;
   text-transform: uppercase;
   text-shadow: var(--text-pressed);
@@ -115,8 +126,8 @@
 }
 
 @media (max-width: 767px) {
-  .process__track { gap: 4vw; padding: 3vh 4vw; }
-  .process__step { width: 72vw; min-height: 420px; }
-  .process__copy { font-size: 15px; }
-  .process__end { width: 56vw; }
+  .process__step { grid-template-columns: minmax(0, 1fr); gap: 20px; min-height: 0; }
+  .pv { min-height: 150px; }
+  .process__foot { flex-direction: column-reverse; align-items: flex-start; }
 }
+@media (prefers-reduced-motion: reduce) { .process__dots li { transition: none; } }

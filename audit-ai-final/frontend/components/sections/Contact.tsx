@@ -1,19 +1,8 @@
-"use client";
-
-import { useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
-import { Field, Textarea } from "@/components/primitives/Field";
 import { TextLink } from "@/components/primitives/TextLink";
 
-/** Contact: label-box title + pressed-well form. No backend yet, so submitting only confirms locally. */
+/** Closing call to action: the landing page hands off to sign-in, where the review workflow lives. */
 export function Contact() {
-  const [sent, setSent] = useState(false);
-
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (e.currentTarget.reportValidity()) setSent(true);
-  };
-
   return (
     <section id="contact" className="section contact" aria-labelledby="contact-title">
       <div className="container">
@@ -31,17 +20,17 @@ export function Contact() {
         </h2>
 
         <div className="contact__body">
-          <form className="contact__form" onSubmit={onSubmit}>
-            <Field label="Your name" id="c-name" name="name" autoComplete="name" required />
-            <Field label="Email" id="c-email" name="email" type="email" autoComplete="email" required />
-            <Textarea label="What are you publishing?" id="c-what" name="what" className="contact__wide" required />
-            <div className="contact__submit">
-              <Button type="submit">Start a review</Button>
-              <p className="t-body contact__status" role="status" aria-live="polite">
-                {sent ? "Thanks. This demo form does not send anything yet." : ""}
-              </p>
+          <div className="contact__cta" data-r="up">
+            <p className="t-lead">
+              Sign in to upload a draft, run the six checks and see every finding with its source.
+            </p>
+            <div className="hero__actions">
+              <Button href="/login">Start a review</Button>
+              <TextLink href="/login?mode=signup" arrow>
+                Create an account
+              </TextLink>
             </div>
-          </form>
+          </div>
 
           <dl className="contact__aside">
             <div>

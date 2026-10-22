@@ -118,7 +118,7 @@ export function Hero() {
               Each finding shows its source, and a person makes the final call.
             </p>
             <div className="hero__actions">
-              <Button href="#contact">Start a review</Button>
+              <Button href="/login">Start a review</Button>
               <TextLink href="#findings" arrow>
                 See a sample finding
               </TextLink>

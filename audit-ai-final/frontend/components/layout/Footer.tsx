@@ -1,10 +1,10 @@
 import { TextLink } from "@/components/primitives/TextLink";
 
 const PRODUCT = [
-  { href: "#checks", label: "Checks" },
-  { href: "#process", label: "Process" },
-  { href: "#findings", label: "Findings" },
-  { href: "#sources", label: "Sources" },
+  { href: "/#checks", label: "Checks" },
+  { href: "/#process", label: "Process" },
+  { href: "/#findings", label: "Findings" },
+  { href: "/#sources", label: "Sources" },
 ];
 const TRUST = [
   { href: "#faq-data", label: "Data Passport" },

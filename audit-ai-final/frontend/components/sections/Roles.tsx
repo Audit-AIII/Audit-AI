@@ -44,7 +44,7 @@ export function Roles() {
             ))}
           </ul>
           <div className="roles__actions">
-            <Button href="#contact">Start a review</Button>
+            <Button href="/login">Start a review</Button>
             <TextLink href="#findings" arrow>
               See a sample finding
             </TextLink>

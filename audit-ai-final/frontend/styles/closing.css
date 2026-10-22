@@ -106,3 +106,31 @@
   .footer__cols { grid-template-columns: minmax(0, 1fr); }
   .footer__base { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---- Contact CTA ---- */
+.contact__cta { display: grid; gap: 26px; max-width: 520px; }
+.contact__cta p { margin: 0; }
+
+/* ---- Auth (sign in) + app placeholder ---- */
+.auth {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 32px;
+  min-height: 100svh;
+  padding: 48px 20px;
+}
+.auth__brand { color: var(--ink); font-size: 30px; text-decoration: none; text-shadow: var(--text-raised-canvas); }
+.auth__card { display: grid; gap: 24px; width: min(100%, 440px); padding: clamp(28px, 5vw, 44px); }
+.auth__title {
+  margin: 0;
+  font: 700 clamp(40px, 6vw, 56px) / .95 var(--font-display);
+  letter-spacing: .01em;
+  text-transform: uppercase;
+}
+.auth__form { display: grid; gap: 20px; }
+.auth__form .btn { justify-self: start; margin-top: 6px; }
+.auth__switch, .auth__card > .t-lead { margin: 0; }
+.auth__note { max-width: 44ch; margin: 0; text-align: center; color: var(--ink); font-size: 15px; }
+.auth__list { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.auth__list li { padding: 8px 12px; border-radius: var(--r-tag); outline: 1px dashed var(--ink); outline-offset: -1px; }
