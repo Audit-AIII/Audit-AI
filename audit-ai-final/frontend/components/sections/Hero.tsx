@@ -25,7 +25,7 @@ function RaisedLine({ word }: { word: string }) {
 function PressedLine({ word }: { word: string }) {
   return (
     <span className="hero__line hero__line--cut">
-      <span className="hero__word relief-pressed" style={len(word)}>
+      <span className="hero__word relief-pressed grain-text" data-text={word} style={len(word)}>
         {word}
       </span>
     </span>

@@ -10,6 +10,7 @@
   height: 100svh;
   min-height: 600px;
   background-color: var(--surface);
+  background-image: var(--grain-dark);
 }
 .hero__flap {
   position: absolute;
@@ -126,6 +127,7 @@
   z-index: var(--z-decor-under);
   height: 100svh;
   background-color: var(--surface);
+  background-image: var(--grain-dark);
 }
 .sheet-edge__flap {
   position: absolute;

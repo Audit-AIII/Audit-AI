@@ -13,11 +13,18 @@ type Props = {
  * pressed = debossed into the board (ink-2 + inner shadow); raised = lifted letters (canvas on dark).
  */
 export function Heading({ as: Tag = "h2", relief = "pressed", size = "heading", className, children, ...rest }: Props) {
-  const cls = [size === "heading" ? "t-heading" : "t-title", relief !== "flat" && `relief-${relief}`, className]
+  // Pressed headings with plain-text content also get grain inside the letters.
+  const grain = relief === "pressed" && typeof children === "string";
+  const cls = [
+    size === "heading" ? "t-heading" : "t-title",
+    relief !== "flat" && `relief-${relief}`,
+    grain && "grain-text",
+    className,
+  ]
     .filter(Boolean)
     .join(" ");
   return (
-    <Tag {...rest} className={cls}>
+    <Tag {...rest} className={cls} data-text={grain ? children : undefined}>
       {children}
     </Tag>
   );

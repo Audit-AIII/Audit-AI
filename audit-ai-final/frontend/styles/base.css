@@ -24,6 +24,7 @@
 
 html {
   background-color: var(--surface);
+  background-image: var(--grain-dark);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -73,7 +74,7 @@ body {
 .board { background-color: var(--canvas); background-image: var(--grain); color: var(--ink); }
 .ply {
   background-color: var(--surface);
-  background-image: var(--grain);
+  background-image: var(--grain-dark);
   color: var(--canvas);
   border-radius: var(--r-ui);
   box-shadow: var(--shadow-window);
@@ -127,6 +128,21 @@ body {
 
 /* Relief treatments for display type */
 .relief-pressed { color: var(--ink-2); text-shadow: var(--text-pressed); filter: url(#cut-relief); }
+/* Grain inside letters: a copy of the text (data-text) filled with --grain-ink specks, laid over the glyphs */
+.grain-text { position: relative; }
+.grain-text::after {
+  content: attr(data-text);
+  content: attr(data-text) / "";
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  color: transparent;
+  text-shadow: none;
+  background-image: var(--grain-ink);
+  -webkit-background-clip: text;
+  background-clip: text;
+  pointer-events: none;
+}
 .relief-raised { color: var(--canvas); text-shadow: var(--text-raised); }
 .relief-raised-canvas { color: var(--ink); text-shadow: var(--text-raised-canvas); }
 
