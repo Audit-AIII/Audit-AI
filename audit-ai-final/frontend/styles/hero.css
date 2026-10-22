@@ -1,0 +1,163 @@
+/* ==========================================================================
+   Hero — paper flap over a dark base; raised words in die-cut label boxes,
+   pressed words bottom-left, moving light + 16s sway (DESIGN.md §7.1)
+   ========================================================================== */
+.hero {
+  --hero-cap: min(16vh, 11.2vw);
+  --hero-room-raised: 58vw;
+  --hero-room-cut: 50vw;
+  position: relative;
+  height: 100svh;
+  min-height: 600px;
+  background-color: var(--surface);
+}
+.hero__flap {
+  position: absolute;
+  inset: 0 0 -1px;
+  overflow: hidden;
+  will-change: transform;
+}
+.hero__light {
+  position: absolute;
+  left: 34%;
+  top: 30%;
+  width: 80vmax;
+  height: 80vmax;
+  margin: -40vmax 0 0 -40vmax;
+  border-radius: var(--r-round);
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--paper-hi) 85%, transparent),
+    color-mix(in srgb, var(--paper-hi) 30%, transparent) 55%,
+    transparent
+  );
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+  animation: hero-light var(--dur-slow) ease-in-out infinite alternate;
+}
+.hero__wash {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-decor);
+  background-color: var(--deep);
+  opacity: 0;
+  pointer-events: none;
+}
+.hero__inner {
+  position: relative;
+  z-index: var(--z-decor-under);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 29vw);
+  grid-template-rows: minmax(0, 1fr) auto;
+  column-gap: 4vw;
+  height: 100%;
+  padding: calc(68px + 6vh) 6vw 7vh var(--gutter);
+}
+.hero__title {
+  grid-area: 1 / 1 / -1 / -1;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+}
+.hero__line { display: block; }
+.hero__line--raised { margin-left: 23vw; }
+.hero__line--raised + .hero__line--raised { margin-top: 1.4vh; }
+.hero__line--raised + .hero__line--cut { margin-top: 3.4vh; }
+.hero__channel { display: inline-block; }
+
+.hero__word {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-display);
+  line-height: .92;
+  padding: .07em .2em .02em .18em;
+  font-size: min(var(--hero-cap), calc(var(--hero-room-raised) / (var(--len) * .64)));
+  animation: hero-sway-raised var(--dur-slow) ease-in-out infinite alternate;
+}
+.hero__line--cut .hero__word {
+  padding: 0;
+  line-height: .96;
+  font-size: min(var(--hero-cap), calc(var(--hero-room-cut) / (var(--len) * .64)));
+  animation-name: hero-sway-cut;
+}
+
+.hero__aside {
+  grid-area: 2 / 2;
+  align-self: end;
+  display: grid;
+  gap: 26px;
+}
+.hero__aside p { margin: 0; }
+.hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 26px; }
+
+/* Load-in: raised lines lift, pressed lines sink, aside shifts up */
+.hero__line--raised { animation: hero-lift var(--dur-hero-in) var(--ease-hero) backwards; }
+.hero__line--raised + .hero__line--raised { animation-delay: 80ms; }
+.hero__line--cut { animation: hero-sink var(--dur-hero-in) var(--ease-hero) 140ms backwards; }
+.hero__line--cut + .hero__line--cut { animation-delay: 220ms; }
+.hero__aside { animation: hero-shift 900ms var(--ease-hero) 280ms backwards; }
+
+.hero[data-sinking] .hero__light,
+.hero[data-sinking] .hero__word { animation-play-state: paused; }
+
+@keyframes hero-light {
+  from { transform: translate(-18vw, -12vh); }
+  to { transform: translate(34vw, 16vh); }
+}
+@keyframes hero-sway-raised {
+  from { text-shadow: var(--text-raised); }
+  to { text-shadow: var(--text-raised-b); }
+}
+@keyframes hero-sway-cut {
+  from { text-shadow: var(--text-pressed); }
+  to { text-shadow: var(--text-pressed-b); }
+}
+@keyframes hero-lift { from { transform: translate(-4px, 16px) scale(.965); } }
+@keyframes hero-sink { from { transform: translate(5px, -10px) scale(1.02); } }
+@keyframes hero-shift { from { transform: translateY(14px); } }
+
+/* Placeholder for the next sheet's top edge — full statement band arrives in step 6 */
+.sheet-edge {
+  position: relative;
+  z-index: var(--z-decor-under);
+  height: 100svh;
+  background-color: var(--surface);
+}
+.sheet-edge__flap {
+  position: absolute;
+  inset: -1px 0;
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  box-shadow: var(--shadow-flap);
+  transform: scale(.94);
+  transform-origin: 50% 0;
+}
+
+@media (max-width: 767px) {
+  .hero {
+    --hero-cap: 22.5vw;
+    --hero-room-raised: 62vw;
+    --hero-room-cut: 86vw;
+    min-height: 640px;
+  }
+  .hero__inner {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    padding: calc(62px + 4vh) 20px 5vh;
+  }
+  .hero__title { grid-area: 1 / 1; }
+  .hero__line--raised { margin-left: 9vw; }
+  .hero__line--raised + .hero__line--cut { margin-top: 2.4vh; }
+  .hero__aside { grid-area: 3 / 1; gap: 20px; }
+  .hero__aside .t-lead { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__light,
+  .hero__word,
+  .hero__line,
+  .hero__aside { animation: none; }
+}
