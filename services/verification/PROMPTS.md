@@ -140,3 +140,108 @@ The same model output always gives the same ids.
   has not been measured: the Phase 3 dataset evaluates verification only, and no live model has
   been run. All tests use scripted replies.
 - **One sentence segmenter**, rule-based and English-oriented (see CONTRACTS.md, Retrieval).
+
+## Prompt: `verify-claim-v1`
+
+Code: [`prompts/verification.py`](src/inkloom_verify/prompts/verification.py) (prompt and schema),
+[`verification.py`](src/inkloom_verify/verification.py) (the verifier), and
+[`citation_guard.py`](src/inkloom_verify/citation_guard.py) (the guard).
+
+**One claim per call.** The model receives a `ClaimVerificationInput`: one claim and the 1–8
+passages retrieved for it. Each passage is shown only as a label (`P1`, `P2`, …) and its text.
+No document ids, other claims, other passages or the rest of the corpus are sent. A claim with
+no retrieved passages is answered `NOT_ENOUGH_EVIDENCE` without a model call.
+
+**Untrusted passages.** The system prompt is fixed. The claim and passages are sent as JSON inside
+`<verification_input_json>…</verification_input_json>`, with `<` and `>` escaped, so passage
+text can't end the block. The prompt says that text giving instructions, addressing an AI, or
+asking for a verdict or a quote is not evidence, and that links and files are never opened. The
+engine has no tools to open them anyway.
+
+**Output (strict JSON Schema):**
+
+```json
+{"verdict": "CONTRADICTED",
+ "citations": [{"passage": "P1", "quote": "up to 12 hours of playback per charge"}],
+ "rationale": "P1 gives 12 hours per charge, not 24."}
+```
+
+`verdict` is `SUPPORTED`, `CONTRADICTED` or `NOT_ENOUGH_EVIDENCE`; the model can't answer
+`ERROR`. **There is no confidence field.** A reply that adds one fails the schema, and nothing in
+the engine reads a confidence anyway. The prompt asks for `NOT_ENOUGH_EVIDENCE` when:
+
+- only some parts of the claim are supported;
+- the claim is vague;
+- a list in the passages isn't said to be complete;
+- the passages are about something else;
+- the passages disagree with each other.
+
+**Sampling.** The provider's temperature (0 by default) and seed apply. As with extraction, this
+makes runs more repeatable but not guaranteed identical.
+
+### Outcomes
+
+| Situation | Result |
+|---|---|
+| No passages retrieved | `NOT_ENOUGH_EVIDENCE`, no model call |
+| A retrieved passage doesn't match its document in this request | `ERROR` (`INTERNAL_ERROR`, stage `citation_validation`), no model call |
+| Timeout, rate limit, unavailable provider, missing configuration, credit or credential failure | `ERROR` with the provider's error code, `claim_id` and `retryable`. The retrieved evidence is kept for display. **Never shown as a verdict.** |
+| Reply doesn't fit the schema | One repair call listing the problems (never echoing the reply). Still invalid: `ERROR` (`MALFORMED_MODEL_OUTPUT`) |
+| Model answers `NOT_ENOUGH_EVIDENCE` | `NOT_ENOUGH_EVIDENCE`; any citations it gave are dropped |
+| Model answers `SUPPORTED`/`CONTRADICTED` and every citation passes the guard | That verdict, with the guard's verbatim citations |
+| Model answers `SUPPORTED`/`CONTRADICTED` with no citation, or with **any** citation the guard rejects | **Downgraded to `NOT_ENOUGH_EVIDENCE`.** `citation_guard` records the model's verdict and each rejection |
+
+Every result records `citation_guard.model_verdict`, so a reviewer can see when the model said
+"supported" but the evidence didn't hold up.
+
+### Citation guard
+
+Every quotation goes through `CitationGuard.check`. A quotation is accepted only if all of these
+hold:
+
+| # | Check | Rejection reason |
+|---|---|---|
+| 1 | The label names a passage retrieved for this claim | `unknown_passage` |
+| 2 | That passage is exactly the text of a reference document in **this request**: same `doc_id`, same text hash, same span | `passage_provenance_invalid` |
+| 3 | The quotation occurs in that passage after normalisation | `quote_not_found` |
+| 4 | It has at least two words (letters or digits; `12 hours` counts) | `quote_too_short` |
+| 5 | It doesn't start after a negation in the same clause ("dishwasher safe" from "is not dishwasher safe") | `partial_quote_drops_negation` |
+
+**Normalisation** (applied to both the quote and the passage, nothing else):
+
+- typographic quotation marks become `'` or `"`;
+- every whitespace run, including newlines and non-breaking spaces, becomes one space;
+- leading and trailing whitespace is removed.
+
+Case, hyphens, dashes, other punctuation and Unicode forms must match. An ellipsis is not a
+wildcard. The accepted citation stores the passage's **original** text at the matched location,
+with offsets into the source document. It is then checked against the document once more.
+
+**Policy:** strict. One rejected quotation downgrades the whole answer, even if other
+quotations are valid, because a fabricated quote is evidence the answer can't be trusted.
+Duplicate quotations are merged, not rejected. The `ClaimResult` contract enforces the same
+rule, so a result that breaks it can't be constructed.
+
+**What the guard does not do.** It proves the words are in the evidence. It doesn't prove they
+support the verdict. Three things pass it:
+
+- a verbatim fragment that drops a qualifier ("24 hours" from "up to 24 hours");
+- a valid quote from one of two conflicting passages;
+- a valid quote of injected text (dataset record `v1-032`).
+
+Verdict correctness is measured by the evaluation harness (EVAL.md), not inferred from citation
+validity.
+
+### Known limitations
+
+- **Not measured on a live model yet.** Every verifier test uses scripted replies. See EVAL.md,
+  "Phase 5".
+- **Lexical retrieval limits the verifier.** If BM25 misses the evidence (`v1-021`, `v1-027`), the
+  best possible answer is `NOT_ENOUGH_EVIDENCE`.
+- **Negation detection is narrow.** It only looks backwards within the quote's clause, and uses
+  the extraction negation list. Dropped qualifiers and conditions aren't detected.
+- **The first occurrence is used.** When the same text appears twice in a passage, the citation
+  points at the first occurrence.
+- **Strictness has a cost.** A correct answer with one sloppy extra quote is downgraded. That
+  costs accuracy, which the evaluation will show, but it never produces an unsupported verdict.
+- **Calls are sequential.** There is one model call per claim, and no parallelism yet (Phase 7).

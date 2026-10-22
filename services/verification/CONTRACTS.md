@@ -98,6 +98,16 @@ Additional rules:
 - `evidence` may be non-empty for `NOT_ENOUGH_EVIDENCE`. It shows the passages that were considered but did not settle the claim.
 - `error.claim_id`, when set, must equal the claim's id.
 - **`model_rationale` is not evidence.** It is model-written text, shown for display only and limited to 2,000 characters. No rule accepts it in place of a citation; a `SUPPORTED` verdict with a rationale and no citation is rejected.
+- **`citation_guard`** (optional; set by the verifier, added in Phase 5) records what the model answered (`model_verdict`), whether the citation guard downgraded it (`downgraded`), and every rejected citation (`rejected`, each with a `reason` and, when known, the `passage_id`). The contract enforces the policy:
+  - a downgraded result must be `NOT_ENOUGH_EVIDENCE`, and its `model_verdict` must have been `SUPPORTED` or `CONTRADICTED`;
+  - a downgrade must list at least one rejection;
+  - any rejection means a downgrade, so **a result whose citations failed the guard cannot be `SUPPORTED` or `CONTRADICTED`**;
+  - without a downgrade, `model_verdict` equals `verdict`;
+  - an `ERROR` result has no `citation_guard`.
+
+  Rejection reasons are `no_citation`, `unknown_passage`, `passage_provenance_invalid`,
+  `quote_not_found`, `quote_too_short` and `partial_quote_drops_negation`. See
+  [PROMPTS.md](PROMPTS.md#citation-guard).
 
 ### Corrections
 

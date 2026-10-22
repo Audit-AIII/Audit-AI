@@ -285,3 +285,48 @@ def test_cli(tmp_path, capsys):
 def test_cli_reports_input_errors(tmp_path, capsys):
     assert cli.main(["--dataset", str(tmp_path / "missing.jsonl"), "--baseline", "abstain"]) == 2
     assert "cannot read" in capsys.readouterr().err
+
+
+# --- The engine as a predictor (scripted provider: tests plumbing, not quality) ----------------
+
+
+def test_engine_predictor_runs_retrieval_verifier_and_guard(tmp_path, records):
+    from inkloom_verify.providers.base import ProviderTimeoutError
+    from inkloom_verify.providers.fake import ScriptedProvider
+
+    calls = {"n": 0}
+
+    def reply(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ProviderTimeoutError("slow")
+        return {"verdict": "NOT_ENOUGH_EVIDENCE", "citations": [], "rationale": "unsure"}
+
+    provider = ScriptedProvider(*([reply] * 100))
+    saved = tmp_path / "predictions.jsonl"
+    report = run(DATASET, engine_provider=provider, split="heldout", save_predictions=saved)
+    heldout = select_split(records, "heldout")
+    assert report.manifest.predictor.kind == "engine"
+    assert report.manifest.predictor.prompt_versions == ["verify-claim-v1"]
+    assert report.results.counts.examples == len(heldout)
+    # One model call per record with retrieved passages; records without passages never call it.
+    assert len(provider.calls) == len(heldout) - round(report.results.retrieval.empty_results.numerator)
+    assert report.results.counts.predicted[E] == 1  # the timeout is an ERROR, not a verdict
+    predictions = load_predictions(saved)
+    assert set(predictions) == {r.record_id for r in heldout}
+    assert all("expected_verdict" not in line for line in saved.read_text(encoding="utf-8").splitlines())
+
+
+def test_engine_requires_exactly_one_source():
+    from inkloom_verify.providers.fake import ScriptedProvider
+
+    with pytest.raises(EvaluationInputError, match="exactly one"):
+        run(DATASET, baseline="abstain", engine_provider=ScriptedProvider())
+
+
+def test_cli_verifier_without_configuration_fails_clearly(monkeypatch, capsys):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("INKLOOM_LLM_MODELS", raising=False)
+    assert cli.main(["--dataset", str(DATASET), "--verifier", "openrouter"]) == 2
+    err = capsys.readouterr().err
+    assert "OPENROUTER_API_KEY" in err and "INKLOOM_LLM_MODELS" in err

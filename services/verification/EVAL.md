@@ -18,6 +18,11 @@ PYTHONPATH=src python -m inkloom_verify.evaluation --dataset eval/data/verificat
 # A real system: write one EvalPrediction per line, then score it
 PYTHONPATH=src python -m inkloom_verify.evaluation --dataset eval/data/verification_v1.jsonl \
     --predictions predictions.jsonl --split heldout --out reports/run.json
+
+# The engine itself, live: BM25 retrieval -> LLM verifier -> citation guard.
+# Needs OPENROUTER_API_KEY and INKLOOM_LLM_MODELS (see PROMPTS.md). One model call per claim.
+PYTHONPATH=src python -m inkloom_verify.evaluation --dataset eval/data/verification_v1.jsonl \
+    --verifier openrouter --save-predictions reports/predictions.jsonl --out reports/run.json
 ```
 
 | Option | Meaning |
@@ -27,6 +32,8 @@ PYTHONPATH=src python -m inkloom_verify.evaluation --dataset eval/data/verificat
 | `--top-k N` | Number of passages retrieved per claim. |
 | `--examples N` | Failure examples kept per failure kind. |
 | `--out` | Write the full JSON report. |
+| `--verifier openrouter` | Run the engine live instead of reading predictions. |
+| `--save-predictions` | Write the predictions as JSONL, so the run can be re-scored without calling the model again. |
 
 The exit code is 2 when an input is invalid.
 
@@ -216,6 +223,38 @@ evidence for two records:
 
 These limitations were already known. They are recorded here instead of being tuned away:
 `v1-021` is held out, and tuning the gate to it would contaminate the held-out split.
+
+## Phase 5: verifier and citation guard (actual output, 2026-10-22)
+
+**Live verifier: not measured.** On this machine `OPENROUTER_API_KEY` and
+`INKLOOM_LLM_MODELS` are not set. The live run (`--verifier openrouter`) stops before any model
+call with the configuration error and exit code 2, and writes no report. There are therefore no
+verifier accuracy, per-class, abstention or citation-validity numbers yet, and none have been
+estimated or simulated. Run the command above once the provider is configured.
+
+**What was measured without a model:**
+
+The citation guard, run over every gold quote in dataset v1 (39 quotes in 36 records) inside the
+BM25 passage that contains it:
+
+| Quotation offered | Outcome |
+|---|---|
+| Gold quote, correct passage | 39/39 accepted |
+| Gold quote with curly quotes and extra whitespace | 39/39 accepted, stored as the original text |
+| A digit altered (28 quotes contain digits) | 28/28 rejected, `quote_not_found` |
+| A word appended | 39/39 rejected, `quote_not_found` |
+| Cited under a passage that does not contain it | 39/39 rejected, `quote_not_found` |
+| Cited under an invented passage id | 39/39 rejected, `unknown_passage` |
+| First word dropped (37 quotes have more than 2 words) | 37 accepted, 1 rejected (`partial_quote_drops_negation`: "suitable for swimming." from "Not suitable for swimming.") |
+
+The last row is the point of requirement 12: a fragment that exists in the passage passes the
+guard whether or not it supports the verdict. Only the dropped-negation case is caught. Whether
+the evidence actually justifies the verdict is measured by verdict accuracy and grounding, and
+needs the live run.
+
+**No-model path:** two records (`v1-043`, `v1-044`, both `irrelevant_references`) retrieve no
+passages. The engine returns `NOT_ENOUGH_EVIDENCE` for them without calling a model, which
+matches both labels.
 
 ## Limitations
 

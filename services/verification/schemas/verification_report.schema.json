@@ -39,6 +39,33 @@
       "title": "Citation",
       "type": "object"
     },
+    "CitationGuardReport": {
+      "additionalProperties": false,
+      "description": "What the model answered and what the citation guard did with it.\n\nPolicy: a SUPPORTED or CONTRADICTED answer stands only if it has at least one citation and\nevery citation passes the guard. Otherwise it is downgraded to NOT_ENOUGH_EVIDENCE.",
+      "properties": {
+        "downgraded": {
+          "title": "Downgraded",
+          "type": "boolean"
+        },
+        "model_verdict": {
+          "$ref": "#/$defs/Verdict"
+        },
+        "rejected": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RejectedCitation"
+          },
+          "title": "Rejected",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_verdict",
+        "downgraded"
+      ],
+      "title": "CitationGuardReport",
+      "type": "object"
+    },
     "Claim": {
       "additionalProperties": false,
       "description": "One atomic, checkable statement extracted from the content.\n\n``text`` is the claim as the verifier sees it and may be reworded to stand alone.\n``source_span`` locates the words it came from in ``InputContent.text``.",
@@ -68,8 +95,19 @@
     },
     "ClaimResult": {
       "additionalProperties": false,
-      "description": "The outcome for one claim.\n\nVerdict rules:\n\n* SUPPORTED / CONTRADICTED: at least one citation; no error.\n* NOT_ENOUGH_EVIDENCE: no citations, no correction, no error. ``evidence`` may still list\n  the passages that were considered.\n* ERROR: an error; no citations, no correction.\n* A correction is only allowed on CONTRADICTED, must stay inside the claim's source span,\n  and may only cite quotes that are also citations of this result.\n* Every citation must quote, verbatim, a passage listed in ``evidence``.",
+      "description": "The outcome for one claim.\n\nVerdict rules:\n\n* SUPPORTED / CONTRADICTED: at least one citation; no error.\n* NOT_ENOUGH_EVIDENCE: no citations, no correction, no error. ``evidence`` may still list\n  the passages that were considered.\n* ERROR: an error; no citations, no correction.\n* A correction is only allowed on CONTRADICTED, must stay inside the claim's source span,\n  and may only cite quotes that are also citations of this result.\n* Every citation must quote, verbatim, a passage listed in ``evidence``.\n* ``citation_guard``, when present, must agree with the verdict: a downgraded answer is\n  NOT_ENOUGH_EVIDENCE, and an accepted answer has the verdict the model gave.",
       "properties": {
+        "citation_guard": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CitationGuardReport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "citations": {
           "default": [],
           "items": {
@@ -288,6 +326,18 @@
       "title": "EvidencePassage",
       "type": "object"
     },
+    "GuardRejectionReason": {
+      "enum": [
+        "no_citation",
+        "unknown_passage",
+        "passage_provenance_invalid",
+        "quote_not_found",
+        "quote_too_short",
+        "partial_quote_drops_negation"
+      ],
+      "title": "GuardRejectionReason",
+      "type": "string"
+    },
     "PipelineStage": {
       "enum": [
         "request",
@@ -378,6 +428,46 @@
         "text_sha256"
       ],
       "title": "ReferenceDescriptor",
+      "type": "object"
+    },
+    "RejectedCitation": {
+      "additionalProperties": false,
+      "description": "A citation the model gave that the citation guard did not accept.",
+      "properties": {
+        "cited_as": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited As"
+        },
+        "passage_id": {
+          "anyOf": [
+            {
+              "pattern": "^psg_[A-Za-z0-9_-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
+        "reason": {
+          "$ref": "#/$defs/GuardRejectionReason"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "RejectedCitation",
       "type": "object"
     },
     "ReportStatus": {

@@ -385,6 +385,48 @@ def _citation_key(citation: Citation) -> tuple[str, int, int]:
     return (citation.passage_id, citation.quote_span.start, citation.quote_span.end)
 
 
+class GuardRejectionReason(str, Enum):
+    NO_CITATION = "no_citation"  # a definite verdict came with no citation at all
+    UNKNOWN_PASSAGE = "unknown_passage"  # cites a passage that was not given for this claim
+    PASSAGE_PROVENANCE_INVALID = "passage_provenance_invalid"  # passage does not match its document in this request
+    QUOTE_NOT_FOUND = "quote_not_found"  # quote is not in the cited passage, even after normalisation
+    QUOTE_TOO_SHORT = "quote_too_short"  # fewer than two words: too little to justify anything
+    PARTIAL_QUOTE_DROPS_NEGATION = "partial_quote_drops_negation"  # quote starts after a negation in its clause
+
+
+class RejectedCitation(_Contract):
+    """A citation the model gave that the citation guard did not accept."""
+
+    reason: GuardRejectionReason
+    passage_id: PassageId | None = None  # None when the model named a passage that does not exist
+    cited_as: Annotated[str, Field(max_length=64)] | None = None  # the passage label the model used
+
+
+class CitationGuardReport(_Contract):
+    """What the model answered and what the citation guard did with it.
+
+    Policy: a SUPPORTED or CONTRADICTED answer stands only if it has at least one citation and
+    every citation passes the guard. Otherwise it is downgraded to NOT_ENOUGH_EVIDENCE.
+    """
+
+    model_verdict: Verdict
+    downgraded: Annotated[bool, Field(strict=True)]
+    rejected: list[RejectedCitation] = []
+
+    @model_validator(mode="after")
+    def _check(self) -> CitationGuardReport:
+        if self.model_verdict is Verdict.ERROR:
+            raise ValueError("model_verdict cannot be ERROR; failures are reported as errors")
+        definite = self.model_verdict in (Verdict.SUPPORTED, Verdict.CONTRADICTED)
+        if self.downgraded and not definite:
+            raise ValueError("only a SUPPORTED or CONTRADICTED answer can be downgraded")
+        if self.downgraded and not self.rejected:
+            raise ValueError("a downgrade must list why")
+        if not self.downgraded and self.rejected:
+            raise ValueError("rejected citations always cause a downgrade")
+        return self
+
+
 class ClaimResult(_Contract):
     """The outcome for one claim.
 
@@ -397,6 +439,8 @@ class ClaimResult(_Contract):
     * A correction is only allowed on CONTRADICTED, must stay inside the claim's source span,
       and may only cite quotes that are also citations of this result.
     * Every citation must quote, verbatim, a passage listed in ``evidence``.
+    * ``citation_guard``, when present, must agree with the verdict: a downgraded answer is
+      NOT_ENOUGH_EVIDENCE, and an accepted answer has the verdict the model gave.
     """
 
     claim: Claim
@@ -407,10 +451,12 @@ class ClaimResult(_Contract):
     error: ProcessingError | None = None
     # Model-generated explanation, for display only. Never evidence; never checked against sources.
     model_rationale: Annotated[str, Field(max_length=MAX_RATIONALE_CHARS)] | None = None
+    citation_guard: CitationGuardReport | None = None
 
     @model_validator(mode="after")
     def _check(self) -> ClaimResult:
         self._check_verdict_shape()
+        self._check_guard()
         _require_unique_passages(self.evidence)
         self._check_citations()
         self._check_correction()
@@ -430,6 +476,17 @@ class ClaimResult(_Contract):
             raise ValueError("a correction is only allowed on a CONTRADICTED claim")
         if self.error is not None and self.error.claim_id not in (None, self.claim.claim_id):
             raise ValueError("error.claim_id does not match the claim")
+
+    def _check_guard(self) -> None:
+        guard = self.citation_guard
+        if guard is None:
+            return
+        if self.verdict is Verdict.ERROR:
+            raise ValueError("an ERROR result has no citation_guard; the model gave no usable answer")
+        if guard.downgraded and self.verdict is not Verdict.NOT_ENOUGH_EVIDENCE:
+            raise ValueError("a downgraded answer must be NOT_ENOUGH_EVIDENCE")
+        if not guard.downgraded and guard.model_verdict is not self.verdict:
+            raise ValueError("citation_guard.model_verdict differs from the verdict without a downgrade")
 
     def _check_citations(self) -> None:
         passages = {p.passage_id: p for p in self.evidence}

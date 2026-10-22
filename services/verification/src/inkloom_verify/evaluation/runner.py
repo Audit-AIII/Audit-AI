@@ -25,6 +25,8 @@ from inkloom_verify import __version__
 from inkloom_verify.chunking import ChunkingConfig
 from inkloom_verify.evaluation import metrics
 from inkloom_verify.evaluation.metrics import DEFINITE, GOLD_CLASSES, CitationProblem, ClassMetrics, MacroF1, Ratio
+from inkloom_verify.prompts import verification as verification_prompt
+from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.retrieval import BM25Retriever, RetrievalConfig
 from inkloom_verify.schemas import CONTRACT_VERSION, Claim, EvalCategory, EvalRecord, EvalSplit, SourceSpan, Verdict
 
@@ -84,6 +86,53 @@ class AbstainBaseline:
 
 
 BASELINES: dict[str, type[AbstainBaseline]] = {"abstain": AbstainBaseline}
+
+
+def _eval_claim(record: EvalRecord) -> Claim:
+    return Claim(claim_id="clm_eval", text=record.claim_text, source_span=SourceSpan(start=0, end=len(record.claim_text)))
+
+
+class EngineVerifierPredictor:
+    """The engine itself: BM25 retrieval over the record's references, then the LLM verifier and
+    citation guard. It sees the claim text and references only, never the label."""
+
+    def __init__(
+        self,
+        provider: LLMProvider,
+        chunking: ChunkingConfig | None = None,
+        retrieval: RetrievalConfig | None = None,
+    ) -> None:
+        self.provider = provider
+        self.name = f"engine/{provider.name}"
+        self.chunking = chunking or ChunkingConfig()
+        self.retrieval = retrieval or RetrievalConfig()
+        self.models: set[str] = set()
+
+    def predict(self, record: EvalRecord) -> EvalPrediction:
+        # Imported here: verification depends on extraction and providers, which the rest of the
+        # harness does not need.
+        from inkloom_verify.verification import ClaimVerifier, verify_claim
+
+        verifier = ClaimVerifier(self.provider, record.references)
+        retriever = BM25Retriever(record.references, chunking=self.chunking, config=self.retrieval)
+        result = verify_claim(_eval_claim(record), retriever, verifier)
+        self.models |= verifier.models_used
+        return EvalPrediction(
+            record_id=record.record_id,
+            verdict=result.verdict,
+            citations=[
+                PredictedCitation(
+                    doc_id=c.doc_id,
+                    quote=c.quote,
+                    quote_span=PredictedSpan(start=c.quote_span.start, end=c.quote_span.end),
+                    doc_text_sha256=c.doc_text_sha256,
+                    passage_id=c.passage_id,
+                )
+                for c in result.citations
+            ],
+            model_id=",".join(sorted(verifier.models_used)) or None,
+            prompt_version=verification_prompt.PROMPT_VERSION if verifier.models_used else None,
+        )
 
 
 # --- Loading -----------------------------------------------------------------------------------
@@ -340,12 +389,7 @@ def _retrieval_metrics(
     hits = full = with_gold = empty = 0
     for record in records:
         retriever = BM25Retriever(record.references, chunking=chunking, config=config)
-        claim = Claim(
-            claim_id="clm_eval",
-            text=record.claim_text,
-            source_span=SourceSpan(start=0, end=len(record.claim_text)),
-        )
-        passages = retriever.retrieve(claim)
+        passages = retriever.retrieve(_eval_claim(record))
         empty += not passages
         if record.gold_evidence:
             with_gold += 1
@@ -516,17 +560,26 @@ def run(
     split: str = "all",
     predictions_path: Path | None = None,
     baseline: str | None = None,
+    engine_provider: LLMProvider | None = None,
     retrieval: tuple[ChunkingConfig, RetrievalConfig] | None = (ChunkingConfig(), RetrievalConfig()),
     max_examples: int = 5,
+    save_predictions: Path | None = None,
 ) -> EvalReport:
-    """Loads the dataset and one source of predictions, evaluates, and records how the run was made."""
-    if (predictions_path is None) == (baseline is None):
-        raise EvaluationInputError("give exactly one of a predictions file or a baseline")
+    """Loads the dataset and one source of predictions, evaluates, and records how the run was made.
+
+    The source is a predictions file, a baseline, or the engine run live with ``engine_provider``.
+    ``save_predictions`` writes the predictions as JSONL, separate from the labels.
+    """
+    sources = [predictions_path is not None, baseline is not None, engine_provider is not None]
+    if sum(sources) != 1:
+        raise EvaluationInputError("give exactly one of a predictions file, a baseline or an engine provider")
     all_records = load_records(dataset_path)
     records = select_split(all_records, split)
     if not records:
         raise EvaluationInputError(f"no records in split {split!r}")
 
+    predictions: dict[str, EvalPrediction] = {}
+    predictor: PredictorInfo
     if predictions_path is not None:
         predictions = load_predictions(predictions_path)
         predictor = PredictorInfo(
@@ -537,12 +590,27 @@ def run(
             model_ids=sorted({p.model_id for p in predictions.values() if p.model_id}),
             prompt_versions=sorted({p.prompt_version for p in predictions.values() if p.prompt_version}),
         )
-    else:
+    if baseline is not None:
         if baseline not in BASELINES:
             raise EvaluationInputError(f"unknown baseline {baseline!r}; choose from {', '.join(BASELINES)}")
         model = BASELINES[baseline]()
         predictions = {r.record_id: model.predict(r) for r in records}
         predictor = PredictorInfo(kind="baseline", name=model.name)
+    if engine_provider is not None:
+        chunking, retrieval_config = retrieval if retrieval is not None else (ChunkingConfig(), RetrievalConfig())
+        engine = EngineVerifierPredictor(engine_provider, chunking, retrieval_config)
+        predictions = {r.record_id: engine.predict(r) for r in records}
+        predictor = PredictorInfo(
+            kind="engine",
+            name=engine.name,
+            model_ids=sorted(engine.models),
+            prompt_versions=[verification_prompt.PROMPT_VERSION],
+        )
+    if save_predictions is not None:
+        save_predictions.parent.mkdir(parents=True, exist_ok=True)
+        save_predictions.write_text(
+            "".join(p.model_dump_json(exclude_none=True) + "\n" for p in predictions.values()), encoding="utf-8"
+        )
 
     results = evaluate(
         records,

@@ -150,7 +150,7 @@ _MONTHS = re.compile(
     r"\b(january|february|march|april|may|june|july|august|september|october|november|december|"
     r"jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b"
 )
-_NEGATION = re.compile(r"\b(not|no|never|none|nor|neither|without|cannot)\b|n['’]t\b|\w-free\b")
+NEGATION = re.compile(r"\b(not|no|never|none|nor|neither|without|cannot)\b|n['’]t\b|\w-free\b")
 _QUALIFIERS = (
     "up to", "about", "approximately", "approx", "around", "at least", "at most", "more than",
     "less than", "fewer than", "nearly", "almost", "only", "roughly", "as much as", "as many as",
@@ -173,7 +173,7 @@ def rewrite_problems(claim: str, quote: str, content: str) -> list[str]:
     new_months = set(_MONTHS.findall(claim_cf)) - set(_MONTHS.findall(quote_cf))
     if new_months:
         problems.append(f"changes or adds months ({', '.join(sorted(new_months))})")
-    if _NEGATION.search(quote_cf) and not _NEGATION.search(claim_cf):
+    if NEGATION.search(quote_cf) and not NEGATION.search(claim_cf):
         problems.append("drops a negation")
     dropped = [q for q in _QUALIFIERS if _has(q, quote_cf) and not _has(q, claim_cf)]
     if dropped:
@@ -319,7 +319,7 @@ class ClaimExtractor:
         try:
             return _ModelOutput.model_validate(self._complete(request, stats))
         except ValidationError as error:
-            problems = _describe(error)
+            problems = describe_validation_error(error)
         repair = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
         try:
             return _ModelOutput.model_validate(self._complete(repair, stats))
@@ -412,7 +412,7 @@ class ClaimExtractor:
         return claims, by_sentence
 
 
-def _describe(error: ValidationError) -> str:
+def describe_validation_error(error: ValidationError) -> str:
     """The schema problems, without echoing any of the model's output."""
     parts = [
         f"{'.'.join(str(p) for p in e['loc']) or 'reply'}: {e['msg']}"

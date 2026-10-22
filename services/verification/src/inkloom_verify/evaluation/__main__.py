@@ -9,6 +9,8 @@ from pathlib import Path
 from inkloom_verify.chunking import ChunkingConfig
 from inkloom_verify.evaluation.metrics import GOLD_CLASSES, PREDICTED_CLASSES
 from inkloom_verify.evaluation.runner import BASELINES, EvalReport, EvaluationInputError, run
+from inkloom_verify.providers.base import ProviderError
+from inkloom_verify.providers.openrouter import OpenRouterProvider
 from inkloom_verify.retrieval import RetrievalConfig
 
 
@@ -19,10 +21,16 @@ def _parser() -> argparse.ArgumentParser:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--predictions", type=Path, help="EvalPrediction JSONL file from the system under test")
     source.add_argument("--baseline", choices=sorted(BASELINES), help="built-in baseline instead of a predictions file")
+    source.add_argument(
+        "--verifier",
+        choices=["openrouter"],
+        help="run the engine live (retrieval, LLM verifier, citation guard); needs OPENROUTER_API_KEY and INKLOOM_LLM_MODELS",
+    )
     parser.add_argument("--no-retrieval", action="store_true", help="skip the retrieval metrics")
     parser.add_argument("--top-k", type=int, default=RetrievalConfig().top_k, help="passages retrieved per claim")
     parser.add_argument("--examples", type=int, default=5, help="failure examples kept per failure kind")
     parser.add_argument("--out", type=Path, help="write the full JSON report here")
+    parser.add_argument("--save-predictions", type=Path, help="write the predictions as JSONL here")
     return parser
 
 
@@ -89,14 +97,20 @@ def summary(report: EvalReport) -> str:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        provider = OpenRouterProvider.from_env() if args.verifier == "openrouter" else None
         report = run(
             args.dataset,
             split=args.split,
             predictions_path=args.predictions,
             baseline=args.baseline,
+            engine_provider=provider,
             retrieval=None if args.no_retrieval else (ChunkingConfig(), RetrievalConfig(top_k=args.top_k)),
             max_examples=args.examples,
+            save_predictions=args.save_predictions,
         )
+    except ProviderError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
     except (EvaluationInputError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

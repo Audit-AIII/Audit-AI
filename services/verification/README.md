@@ -7,8 +7,9 @@ validates the citations, and proposes minimal evidence-backed corrections.
 The engine receives plain text. Uploads, document parsing, authentication and tenancy are
 handled by other members.
 
-**Status:** Phases 1–4 are done: contracts, evidence retrieval, the evaluation dataset and
-harness, and claim extraction with the OpenRouter provider. See [CONTRACTS.md](CONTRACTS.md),
+**Status:** Phases 1–5 are done: contracts, evidence retrieval, the evaluation dataset and
+harness, claim extraction with the OpenRouter provider, and claim verification with the citation
+guard. The verifier has not yet been evaluated against a live model. See [CONTRACTS.md](CONTRACTS.md),
 [EVAL.md](EVAL.md) and [PROMPTS.md](PROMPTS.md).
 
 ## Setup
@@ -35,6 +36,8 @@ a real provider.
 | `src/inkloom_verify/chunking.py` | Splits reference documents into traceable passages |
 | `src/inkloom_verify/retrieval.py` | `EvidenceRetriever` interface and the BM25 implementation |
 | `src/inkloom_verify/extraction.py` | Claim extraction and its meaning-preservation checks |
+| `src/inkloom_verify/verification.py` | Claim verification: one claim and its passages per model call |
+| `src/inkloom_verify/citation_guard.py` | Deterministic checks on every quotation offered as evidence |
 | `src/inkloom_verify/prompts/` | Versioned prompts and output schemas |
 | `src/inkloom_verify/providers/` | `LLMProvider` interface, OpenRouter adapter, scripted fake |
 | `src/inkloom_verify/security.py` | Credential redaction for logs and errors |
