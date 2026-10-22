@@ -4,15 +4,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Field } from "@/components/primitives/Field";
+import { signIn } from "@/lib/session";
 
-/** Sign in / create account card. Mock auth: a valid form goes straight to the workspace. */
+/** Sign in / create account card. Mock auth: a valid form stores the email as the session and opens the workspace. */
 export function LoginForm() {
   const router = useRouter();
   const signup = useSearchParams().get("mode") === "signup";
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (e.currentTarget.reportValidity()) router.push("/app");
+    const form = e.currentTarget;
+    if (!form.reportValidity()) return;
+    const data = new FormData(form);
+    const email = String(data.get("email") ?? "").trim();
+    const name = String(data.get("name") ?? "").trim() || undefined;
+    signIn({ email, name });
+    router.push("/app");
   };
 
   return (

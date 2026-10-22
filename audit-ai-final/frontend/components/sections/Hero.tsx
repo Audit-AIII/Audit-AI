@@ -12,7 +12,7 @@ const len = (word: string) => ({ "--len": word.length }) as CSSProperties;
 
 function RaisedLine({ word }: { word: string }) {
   return (
-    <span className="hero__line hero__line--raised">
+    <span className="hero__line hero__line--raised sand-edge">
       <span className="hero__channel ply">
         <span className="hero__word relief-raised" style={len(word)}>
           {word}

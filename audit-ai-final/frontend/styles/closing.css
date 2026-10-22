@@ -84,7 +84,7 @@
   border-top: 1px dashed color-mix(in srgb, var(--canvas) 45%, transparent);
 }
 .footer__disclosure h2 { margin: 0 0 10px; color: var(--gray-light); }
-.footer__disclosure p { margin: 0; color: var(--gray-light); font-size: 16px; }
+.footer__disclosure p { margin: 0; color: var(--gray-light); font-size: 15px; }
 
 .footer__base {
   display: flex;
@@ -134,3 +134,8 @@
 .auth__note { max-width: 44ch; margin: 0; text-align: center; color: var(--ink); font-size: 15px; }
 .auth__list { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .auth__list li { padding: 8px 12px; border-radius: var(--r-tag); outline: 1px dashed var(--ink); outline-offset: -1px; }
+
+/* ---- Signed-in state ---- */
+.auth__who { margin: 0; overflow-wrap: anywhere; }
+.auth__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; }
+button.link { border: 0; cursor: pointer; font: inherit; font-family: var(--font-body); font-size: var(--fs-link); font-weight: 600; color: inherit; }

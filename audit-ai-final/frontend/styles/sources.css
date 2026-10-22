@@ -35,7 +35,7 @@
 .sources__name { margin: 0; }
 .sources__meta { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 0; }
 .sources__meta dt { margin-bottom: 6px; }
-.sources__meta dd { margin: 0; font-size: 16px; line-height: 1.45; }
+.sources__meta dd { margin: 0; font-size: 15px; line-height: 1.4; }
 
 /* Source drawings (paper objects: raised = a thing you added) */
 .src { position: relative; display: flex; align-items: center; justify-content: center; gap: 14px; height: 120px; }

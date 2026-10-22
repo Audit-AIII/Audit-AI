@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { Button } from "@/components/primitives/Button";
+import { AccountNav } from "@/components/layout/AccountNav";
 
 export const NAV_LINKS = [
   { href: "/#checks", label: "Checks" },
@@ -57,12 +57,7 @@ export function Header() {
               </li>
             ))}
           </ul>
-          <a className="link link--tap nav__signin" href="/login" onClick={close}>
-            Sign in
-          </a>
-          <Button href="/login" className="nav__cta" onClick={close}>
-            Start a review
-          </Button>
+          <AccountNav onNavigate={close} />
         </nav>
         <button
           type="button"

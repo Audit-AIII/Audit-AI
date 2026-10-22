@@ -7,7 +7,7 @@ export function Contact() {
     <section id="contact" className="section contact" aria-labelledby="contact-title">
       <div className="container">
         <h2 id="contact-title" className="contact__title">
-          <span className="contact__line contact__line--raised" data-r="up">
+          <span className="contact__line contact__line--raised sand-edge" data-r="up">
             <span className="hero__channel ply">
               <span className="contact__word relief-raised">Check</span>
             </span>

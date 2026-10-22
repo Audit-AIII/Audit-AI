@@ -40,8 +40,9 @@ export function Checks() {
         rotation: (i) => TILT[i],
         scale: 0.81,
         ease: "none",
-        stagger: 0.04,
-        scrollTrigger: { trigger: list, start: "top 95%", end: "top 25%", scrub: true, invalidateOnRefresh: true },
+        stagger: 0.1,
+        // Deal finishes by the time the grid is mid-screen; stagger + light scrub lag keep it readable.
+        scrollTrigger: { trigger: list, start: "top 100%", end: "center 65%", scrub: 0.8, invalidateOnRefresh: true },
       });
     });
     return () => mm.revert();

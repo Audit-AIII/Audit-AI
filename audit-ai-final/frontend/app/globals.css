@@ -13,7 +13,6 @@
 @import "../styles/sources.css";
 @import "../styles/roles.css";
 @import "../styles/closing.css";
-@import "../styles/interactions.css";
 
 /* Tokens → Tailwind theme (utilities such as bg-canvas, text-ink, font-heading, rounded-ui).
    Values point at tokens.css so there is still one source of truth. */

@@ -72,21 +72,6 @@ export function Process() {
   const track = useRef<HTMLOListElement>(null);
   const [active, setActive] = useState(0);
 
-  /** Dot click: on desktop scroll to the middle of that step's band; on mobile slide the row. */
-  const goTo = (i: number) => {
-    const el = section.current;
-    const ch = channel.current;
-    if (!el || !ch) return;
-    const smooth = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-    if (el.hasAttribute("data-track")) {
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      const span = el.offsetHeight - window.innerHeight;
-      window.scrollTo({ top: top + (span * (i + 0.5)) / STEPS.length, behavior: smooth });
-    } else {
-      ch.scrollTo({ left: i * ch.clientWidth, behavior: smooth });
-    }
-  };
-
   useEffect(() => {
     const el = section.current;
     if (!el || !channel.current || !track.current) return;
@@ -99,8 +84,8 @@ export function Process() {
       // that step in with a short eased tween, so exactly one step is ever shown at rest.
       const distance = () => Math.max(0, tr.scrollWidth - ch.clientWidth);
       const n = STEPS.length;
-      // About 55% of a screen of scrolling per step.
-      const setDistance = () => el.style.setProperty("--process-scroll", `${(n - 1) * 55}vh`);
+      // About two screens of scrolling per step.
+      const setDistance = () => el.style.setProperty("--process-scroll", `${(n - 1) * 180}vh`);
       setDistance();
       let current = -1;
       const show = (i: number, instant = false) => {
@@ -109,7 +94,7 @@ export function Process() {
         setActive(i);
         gsap.to(tr, {
           x: -(distance() / (n - 1)) * i,
-          duration: instant ? 0 : 0.7,
+          duration: instant ? 0 : 1.8,
           ease: "power2.inOut",
           overwrite: true,
         });
@@ -168,16 +153,9 @@ export function Process() {
             </ol>
           </div>
           <div className="process__foot">
-            <ol className="process__dots" aria-label="Jump to step">
+            <ol className="process__dots" aria-hidden="true">
               {STEPS.map((s, i) => (
-                <li key={s.title}>
-                  <button
-                    type="button"
-                    aria-label={`Step ${i + 1}: ${s.title}`}
-                    aria-current={i === active ? "step" : undefined}
-                    onClick={() => goTo(i)}
-                  />
-                </li>
+                <li key={s.title} className={i === active ? "is-on" : undefined} />
               ))}
             </ol>
             <Button href="/login">Try it on one draft</Button>

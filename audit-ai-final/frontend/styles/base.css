@@ -35,7 +35,7 @@ body {
   background-image: var(--grain);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -84,6 +84,39 @@ body {
 /* Page sheet after the statement band: sits above the dark base */
 .sheet { position: relative; z-index: var(--z-decor-under); }
 
+/* Sand edge: a dark .ply box whose border dissolves into spilled sand.
+   The box itself feathers out over its last ~10px; ::before scatters grains past the edge,
+   densest at the border and thinning outward. Wrap the .ply in .sand-edge. */
+.sand-edge { position: relative; isolation: isolate; }
+.sand-edge > .ply {
+  --feather: 14px;
+  -webkit-mask:
+    linear-gradient(90deg, transparent, #000 var(--feather), #000 calc(100% - var(--feather)), transparent),
+    linear-gradient(180deg, transparent, #000 var(--feather), #000 calc(100% - var(--feather)), transparent);
+  -webkit-mask-composite: source-in;
+  mask:
+    linear-gradient(90deg, transparent, #000 var(--feather), #000 calc(100% - var(--feather)), transparent),
+    linear-gradient(180deg, transparent, #000 var(--feather), #000 calc(100% - var(--feather)), transparent);
+  mask-composite: intersect;
+}
+.sand-edge::before {
+  content: "";
+  position: absolute;
+  inset: -26px;
+  z-index: -1;  /* behind the box: grains only show where the box edge fades out */
+  pointer-events: none;
+  background-image: var(--grain-scatter);
+  /* full strength at the box border, fading to nothing 22px out; the box interior hides the specks */
+  -webkit-mask:
+    linear-gradient(90deg, transparent, #000 34px, #000 calc(100% - 34px), transparent),
+    linear-gradient(180deg, transparent, #000 34px, #000 calc(100% - 34px), transparent);
+  -webkit-mask-composite: source-in;
+  mask:
+    linear-gradient(90deg, transparent, #000 34px, #000 calc(100% - 34px), transparent),
+    linear-gradient(180deg, transparent, #000 34px, #000 calc(100% - 34px), transparent);
+  mask-composite: intersect;
+}
+
 /* ---- Layout primitives ---- */
 .container { width: min(100% - 2 * var(--gutter), var(--container)); margin-inline: auto; }
 .section { position: relative; padding-block: var(--section-pad); }
@@ -121,7 +154,7 @@ body {
   line-height: var(--lh-lead);
   letter-spacing: var(--ls-lead);
 }
-.t-body { font-size: 18px; line-height: 1.55; }
+.t-body { font-size: 17px; line-height: 1.55; }
 .t-caption {
   font-size: var(--fs-caption);
   font-weight: 600;
@@ -164,8 +197,6 @@ body {
 
 @media (max-width: 767px) {
   body { font-size: 17px; }
-  .t-body { font-size: 17px; }
-  .t-lead { font-size: 18px; }
   .head-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
 }
 
