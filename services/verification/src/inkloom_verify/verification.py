@@ -21,7 +21,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from inkloom_verify.citation_guard import CitationGuard
+from inkloom_verify.citation_guard import CitationGuard, support_problems
 from inkloom_verify.extraction import describe_validation_error
 from inkloom_verify.prompts import verification as prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
@@ -138,6 +138,9 @@ class ClaimVerifier:
                 citations.append(checked)
         if not output.citations:
             rejected.append(RejectedCitation(reason=GuardRejectionReason.NO_CITATION))
+        if model_verdict is Verdict.SUPPORTED and citations and not rejected:
+            # Valid quotes are necessary, not sufficient: they must also carry the claim's figures.
+            rejected.extend(RejectedCitation(reason=r) for r in support_problems(claim.text, [c.quote for c in citations]))
 
         if rejected:
             logger.info(

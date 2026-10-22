@@ -5,7 +5,8 @@ tenant management, storage, the HTTP API and hosting belong to other members. Wh
 depends on them, that dependency is listed as a requirement below, not assumed to be met.
 
 Tests: [`tests/test_security.py`](tests/test_security.py), plus the guard, extraction,
-verification, correction and adapter suites. Last run on 2026-10-22: 509 passed.
+verification, correction, budget, API and adapter suites. Last run on 2026-10-23 (Phase 7):
+791 passed, Python 3.14.6, Windows.
 
 ## What the engine guarantees, and what it assumes
 
@@ -65,6 +66,27 @@ verification, correction and adapter suites. Last run on 2026-10-22: 509 passed.
    - Every report is scope-checked against its request before it is returned, whatever engine
      produced it.
 
+10. **Each request has a bounded model-call budget** (Phase 7, `providers/budget.py`). By
+    default a request is limited to 200 calls, 1,000,000 estimated tokens and a 300 s deadline,
+    all configurable through `PipelineConfig.budget`. Provider-side retries count as calls.
+    - A refused call is `LIMIT_EXCEEDED`, which isn't retryable.
+    - At extraction it fails the report and stops further batches. At verification the claim
+      becomes `ERROR`. At correction the attempt is `FAILED` and the verdict is kept.
+    - Tests sweep every call limit from 1 to 8 and show that a budget stop never creates or
+      changes a verdict.
+11. **Reference-set access is checked by the backend's hook, before the engine runs** (Phase 7).
+    `create_verify_router(..., reference_set_access=...)` calls the backend's ownership check
+    with the *authenticated* tenant.
+    - A refusal is 404 (no probing for other tenants' ids), and an exception is 500. Either way
+      the engine is never called.
+    - The hook can't be installed without `authenticated_tenant`.
+    - The engine does not implement the ownership check itself; Member 3 does.
+12. **No failure becomes `SUPPORTED`.** A test sweeps every `ProviderError` type, unexpected
+    exceptions (`RuntimeError`, `ValueError`, `KeyError`) and malformed or verdict-shaped replies
+    at extraction and verification, using a model that would otherwise answer `SUPPORTED`. None
+    of them yields `SUPPORTED`, a `COMPLETED` report, or a report without an error and a review
+    flag.
+
 **Assumed, not proven by engine tests:**
 
 | Assumption | Why it isn't tested here | Who can close it |
@@ -75,7 +97,7 @@ verification, correction and adapter suites. Last run on 2026-10-22: 509 passed.
 | OpenRouter honours `data_collection: deny` and keeps traffic confidential | Third-party behaviour | Team / provider terms |
 | TLS verification and proxy settings | httpx defaults are used: TLS verified, and `HTTP(S)_PROXY` from the environment is honoured. Not tested. | Deployment owner |
 | Thread safety when one provider object is shared across threads | Not exercised; the secret registry is lock-protected and httpx clients are documented as thread-safe | Phase 8 pipeline |
-| Cost and denial-of-service bounds | Limits exist but haven't been load-tested. Worst case per request: about 2×⌈sentences/40⌉ extraction calls, 2 per claim for verification (with repair), and 4 per contradicted claim for correction and re-check, with at most 200 claims. | Member 3 rate limits; benchmarking |
+| Cost and denial-of-service bounds | The per-request budget (guarantee 10) caps calls and estimated tokens, and is tested with scripted providers. It hasn't been load-tested. Tokens are *estimated* (characters/4 plus the output allowance), not billed counts. The deadline is checked between calls, so one call already running can overrun it by up to models × (max_retries+1) × 30 s plus backoff. Nothing limits requests per tenant. | Member 3 rate limits; benchmarking with a key |
 | Unicode look-alike tags (`＜/content_json＞`) don't confuse a model | They pass through as data; how a model reads them is untested | Live evaluation |
 
 ## Integration requirements
@@ -128,14 +150,63 @@ verification, correction and adapter suites. Last run on 2026-10-22: 509 passed.
 
 ## Dependencies
 
-- Runtime dependencies: `pydantic>=2.10,<3`, `rank_bm25>=0.2.2,<0.3`, `httpx>=0.27,<1` (plus
-  their transitive dependencies, such as numpy). Version ranges only, with no lock file. A lock
-  file or hashes are recommended before deployment.
-- `pip-audit` (added to the dev extras) on 2026-10-22:
-  - the project's dependencies: **no known vulnerabilities**;
-  - the venv's own `pip` 26.1.2 had PYSEC-2026-3721; it was upgraded, and a re-run reports none.
+- `pyproject.toml` keeps compatible ranges (`pydantic>=2.10,<3`, `rank_bm25>=0.2.2,<0.3`,
+  `httpx>=0.27,<1`, extras `api` and `dev`), so Member 3's backend can resolve against them.
+- **`constraints.txt` (Phase 7)** pins every package to the exact version that was tested and
+  audited, from a `pip freeze` on Python 3.14.6. CI installs with `-c constraints.txt`.
+  - numpy 2.5.4 needs Python ≥ 3.12, so it is pinned only there; on 3.11 pip chooses numpy
+    itself.
+  - A `pip install --dry-run` for Linux resolved on 3.12 (numpy 2.5.4) and on 3.11 (numpy
+    2.4.6). The 3.11 simulation applied the marker by hand, because pip evaluates markers
+    against the running interpreter.
+  - Neither version has been run locally, and numpy 2.4.6 hasn't been audited locally either
+    (CI audits each lane).
+  - No hashes (`--require-hashes`) yet.
+- `pip-audit` 2.10.1 on 2026-10-23 (Phase 7), over the tested environment: **"No known
+  vulnerabilities found"**, exit 0. Earlier, on 2026-10-22, the venv's own `pip` 26.1.2 had
+  PYSEC-2026-3721; it was upgraded.
 
   Re-run `python -m pip_audit` before each release.
+
+## Phase 7 checklist (evaluated 2026-10-23)
+
+Status key:
+- **DONE**: implemented and covered by a test that was run.
+- **PARTIAL**: implemented here, but part of it depends on someone else or is untested.
+- **NOT DONE**: not implemented, or not verifiable here.
+
+Test names are in `tests/`.
+
+| # | Requirement | Status | Evidence |
+|---|---|---|---|
+| 1 | Prompt-injection tests, content and reference documents | DONE (scripted models) | `test_security::test_payloads_are_encoded_as_data_in_every_stage`, `test_pipeline::test_injected_content_cannot_produce_approved_claims`, `::test_injected_reference_document_is_evidence_text_not_instructions`, `test_verification::test_injected_passage_cannot_close_the_data_block_or_reach_the_system_prompt`, `test_retrieval::test_injected_*`, dataset injection records. **No live model has been tested.** |
+| 2 | Retrieved evidence is untrusted | DONE | Evidence goes only into escaped data blocks (guarantee 1); verbatim and provenance checks (guarantee 3); `test_security::test_system_prompts_never_contain_request_text` |
+| 3 | Document instructions can't override the rules | DONE in code; PARTIAL for model behaviour | The rules are enforced after the model, by the guard and scope checks, so an obeyed injection can only produce downgraded or valid-quote answers. `test_verification::test_compromised_model_fabricating_evidence_is_downgraded`. A valid quote of injected text with a wrong verdict still passes (Remaining risks). |
+| 4 | Model output triggers no tools, files, shell or URLs | DONE | `test_security::test_hostile_output_triggers_no_file_network_or_process_access`, `::test_engine_code_has_no_dangerous_capabilities`, `::test_redirects_are_not_followed_so_the_key_stays_put` |
+| 5 | Provider timeouts | DONE | 30 s per call (`INKLOOM_LLM_TIMEOUT_SECONDS`, ≤ 300); `test_openrouter::test_error_mapping`, `::test_network_failure`; plus the request deadline (guarantee 10) |
+| 6 | Bounded retries, only for retryable errors | DONE | 2 retries by default (≤ 5) with exponential backoff and a 20 s `Retry-After` cap. 400/404/413/422 move to the next model; 401/402/403 stop. `test_openrouter::test_transient_errors_are_retried_with_backoff`, `::test_request_rejection_moves_to_the_next_model_without_retrying`, `::test_account_errors_stop_immediately`, `::test_rate_limit_honours_retry_after_with_a_cap` |
+| 7 | Bounded request and document sizes | DONE | Content 100,000 characters, references 5,000,000 in total, 200 claims, body limit before parsing, a 2 MB response cap. `test_api::test_oversized_bodies_are_refused_before_parsing`, `test_inputs::test_reference_count_limit`, `::test_total_reference_size_limit`, `test_extraction::test_oversized_input_is_rejected_without_a_call`, `test_security::test_oversize_*` |
+| 8 | Cost or token limits | DONE (estimated tokens) | Guarantee 10; `test_budget.py` (21 tests). Tokens are estimated, not billed counts. |
+| 9 | Reference-set and tenant isolation at the real boundary | PARTIAL | Engine boundary: body tenant vs authenticated tenant (403), the reference-set hook (404), and report scope checks. Tests: `test_api::test_tenant_mismatch_is_forbidden`, `::test_another_tenants_reference_set_is_not_found_and_never_reaches_the_engine`, `test_retrieval::test_the_same_reference_set_id_in_two_tenants_never_shares_evidence`, `test_security::test_results_from_another_tenant_are_rejected_even_with_the_same_doc_id`. **The real boundary is Member 3's auth and database. They haven't mounted the router or supplied the hook, so end-to-end tenant isolation is not proven.** |
+| 10 | Coordinate with the auth owner, don't replace them | DONE | The router takes Member 3's dependency and hook; the engine has no auth code. Usage is documented in INTEGRATION.md. Member 3's files are untouched. |
+| 11 | Keys and sensitive data redacted from logs | DONE | `test_openrouter::test_key_never_appears_in_errors_or_logs`, `::test_content_is_not_logged`, `test_security::test_full_run_logs_no_content_evidence_or_credentials`, `::test_redaction_reaches_application_handlers`, `::test_no_credentials_in_source_or_examples`. The budget's usage log carries only counts. |
+| 12 | Dependencies pinned | DONE (no hashes) | `constraints.txt`; CI installs with it |
+| 13 | Vulnerability scan run | DONE | pip-audit 2.10.1: no known vulnerabilities (above) |
+| 14 | Malformed requests, fabricated citations, cross-request contamination, unauthorised reference sets | DONE | Malformed: `test_api::test_invalid_request_fixtures_get_a_safe_422`, `::test_malformed_bodies_get_a_safe_422`. Fabricated: `test_verification_eval::test_no_fabricated_quotation_survives_on_the_evaluation_set`, the evaluation's fabricator gate (0 accepted). Cross-request: `test_security::test_interleaved_requests_do_not_share_state`, `::test_citations_cannot_name_another_requests_passages`, `test_pipeline::test_foreign_evidence_inside_the_pipeline_fails_the_report`. Unauthorised set: the `test_api::test_reference_set_*` tests. |
+| 15 | Failures never silently become SUPPORTED | DONE | `test_security::test_no_failure_at_any_stage_becomes_a_supported_verdict` (32 cases), `::test_an_uncited_supported_answer_is_downgraded_not_accepted`, `test_budget::test_no_call_limit_ever_creates_or_changes_a_verdict`, 18/18 evaluation fault cases |
+| 16 | Assumptions and unresolved dependencies documented | DONE | This file: the assumptions table, the integration requirements and the list below |
+
+**Unresolved (Phase 7):**
+
+1. **Member 3** hasn't mounted the router, supplied `authenticated_tenant` or
+   `reference_set_access`, or run their database-level isolation tests. Tenant isolation end to
+   end is **not proven**.
+2. **No live model** has been red-teamed or evaluated (`OPENROUTER_API_KEY` is not set).
+3. **Python 3.11 and 3.12** haven't been run locally, and **the CI workflow hasn't run yet**:
+   the work is uncommitted.
+4. No per-tenant rate limits, load test or fuzzing. The token limit is an estimate.
+5. Confidential sources reaching a cloud model (integration requirement 5): needs a team
+   decision.
 
 ## File, network and process operations within Member 2's scope
 

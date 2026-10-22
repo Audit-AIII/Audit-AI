@@ -24,7 +24,6 @@
         }
       },
       "verdict": "ERROR",
-      "requires_human_review": true,
       "evidence": [
         {
           "passage_id": "psg_8e867c1c7432eba941fc5da9",
@@ -49,7 +48,9 @@
         "message": "The verification call did not finish within 30 seconds.",
         "retryable": true,
         "claim_id": "clm_0001"
-      }
+      },
+      "evidence_strength": "none",
+      "requires_human_review": true
     },
     {
       "claim": {
@@ -61,7 +62,6 @@
         }
       },
       "verdict": "CONTRADICTED",
-      "requires_human_review": true,
       "evidence": [
         {
           "passage_id": "psg_796412a63320eb0e15bd336c",
@@ -116,7 +116,9 @@
         "status": "proposed",
         "issues": [],
         "recheck_verdict": "SUPPORTED"
-      }
+      },
+      "evidence_strength": "moderate",
+      "requires_human_review": true
     },
     {
       "claim": {
@@ -128,9 +130,10 @@
         }
       },
       "verdict": "NOT_ENOUGH_EVIDENCE",
-      "requires_human_review": true,
       "evidence": [],
-      "citations": []
+      "citations": [],
+      "evidence_strength": "none",
+      "requires_human_review": true
     }
   ],
   "errors": [],

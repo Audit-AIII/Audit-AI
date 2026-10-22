@@ -37,3 +37,25 @@ class ScriptedProvider:
         if isinstance(reply, Exception):
             raise reply
         return JsonCompletion(data=reply, model=self.model, attempts=1)
+
+
+class ResponderProvider:
+    """Answers every call with ``respond(request)``: a dict (returned as the model's JSON) or an
+    exception (raised). For scripted evaluations and tests; never a real model."""
+
+    name = "scripted"
+
+    def __init__(self, respond: Callable[[JsonCompletionRequest], Any], model: str = "scripted/responder") -> None:
+        self.respond = respond
+        self.model = model
+        self.calls: list[JsonCompletionRequest] = []
+
+    def sampling(self) -> dict[str, Any]:
+        return {"temperature": 0.0, "seed": 0}
+
+    def complete_json(self, request: JsonCompletionRequest) -> JsonCompletion:
+        self.calls.append(request)
+        reply = self.respond(request)
+        if isinstance(reply, Exception):
+            raise reply
+        return JsonCompletion(data=reply, model=self.model, attempts=1)

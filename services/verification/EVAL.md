@@ -8,6 +8,83 @@ The only numbers below come from a baseline that always abstains, and from BM25 
 Code: [`src/inkloom_verify/evaluation/`](src/inkloom_verify/evaluation/).
 Dataset: [`eval/data/verification_v1.jsonl`](eval/data/verification_v1.jsonl).
 
+## Full evaluation run (Phase 6)
+
+```sh
+cd services/verification
+python eval/run_eval.py --check-baseline                         # deterministic; what CI runs
+python eval/run_eval.py --verdicts openrouter --check-baseline   # live engine; needs credentials
+python eval/run_eval.py --predictions saved.jsonl --check-baseline  # replay a saved live run
+```
+
+Every run writes `reports/<UTC timestamp>/report.md` (readable) and `report.json` (every number,
+with its numerator and denominator), and prints the Markdown. Exit codes: **0** everything ran
+and every gate passed; **1** a regression gate failed; **2** an input problem (changed label
+lock, invalid baseline, missing credentials for `--verdicts openrouter`).
+
+| Section | Input | What it measures | Model quality? |
+|---|---|---|---|
+| Verdicts | `eval/dataset.jsonl` | Accuracy, per-class P/R/F1, confusion matrix, abstention, error and false-SUPPORTED rates, citation validity, grounding, fully correct, by split | **Only** with `--verdicts openrouter` or `--predictions`. The default `abstain` is a floor and is labelled "not model accuracy". |
+| Retrieval | `eval/dataset.jsonl`, `eval/data/retrieval_v1.jsonl` | Recall@1/3/5, separately from verdicts | No: deterministic |
+| Corrections | `eval/data/corrections_v1.jsonl` | Deterministic checks on 46 labelled edits; the live corrector with `--verdicts openrouter` | Live part only |
+| Enforcement | `eval/dataset.jsonl` | Scripted adversaries (fabricator, valid-quote-always-SUPPORTED, valid-quote-always-CONTRADICTED) through the real verifier and citation guard | No: what the code enforces |
+| Error handling | `eval/fault_cases.json` | 18 provider faults (timeout, rate limit, unavailable, malformed JSON, invalid schema, not configured) at extraction, verification and correction | No: deterministic |
+| Gates | `eval/baseline.json` | PASS / FAIL / NOT ENFORCED / NOT APPLICABLE per gate | — |
+
+**The canonical dataset, `eval/dataset.jsonl`:**
+
+- 55 records: 20 `SUPPORTED`, 17 `CONTRADICTED`, 18 `NOT_ENOUGH_EVIDENCE`; dev 38, held-out 17.
+- The first 50 lines are `verification_v1.jsonl`, byte for byte (a test enforces this).
+- The 5 new records (`v2-c01`–`v2-c05`) cover **conflicting evidence**, using four new synthetic
+  documents: a firmware update note, a retail price list, a press release draft and board
+  minutes.
+- **Labelling rule for conflicts:** when the record's references disagree about the claim, the
+  label is `NOT_ENOUGH_EVIDENCE` and a person must decide (4 records). A conflict that doesn't
+  touch the claim leaves it decidable (`v2-c05`, `SUPPORTED`).
+- **Error cases** aren't labels (`ERROR` is an engine outcome, never a label), so they live in
+  `eval/fault_cases.json` and are evaluated by fault injection.
+- **"Manually checked" is not yet true.** Every label was written by Claude Code and checked
+  mechanically. `reviewed_by` is empty on all 55 records, and every report states "Human-reviewed
+  labels: 0/55".
+
+**Labels can't change silently.**
+- `eval/datasets.lock.json` holds a content hash (line endings normalised), the record count
+  and the label counts for each evaluation input.
+- `run_eval.py` refuses to run (exit 2) if any input differs, and a test fails too.
+- Changing a label therefore needs a matching lock change in the same, reviewed commit.
+
+**Regression gates (`eval/baseline.json`).**
+- Every value is copied from a measured run (2026-10-23, `reports/phase6-measure`).
+- `null` means no measured baseline or agreed threshold exists. Such a gate is reported as
+  `NOT ENFORCED`, not given an invented number.
+- Gates marked `model_run` apply only to `--verdicts openrouter` or `--predictions` runs; on the
+  abstain floor they report `NOT APPLICABLE`.
+- Metric paths are `/`-separated keys into `report.json`.
+
+| Gate | Requirement | Set from |
+|---|---|---|
+| Retrieval recall@5, dataset / retrieval_v1 | ≥ 1.0 / ≥ 1.0 | measured 37/37, 32/32 |
+| Retrieval recall@1, dataset | ≥ 36/37 | measured |
+| Fabricated quotes accepted | ≤ 0 | measured |
+| Accepted-citation validity (fabricator; valid-quote, always SUPPORTED) | ≥ 1.0 | measured 2/2, 21/21 |
+| False-SUPPORTED (fabricator; valid-quote, always SUPPORTED) | ≤ 1/35; ≤ 15/35 | measured |
+| Correction checks: bad edits rejected / false accepts / good edits accepted | ≥ 1.0 / ≤ 0 / ≥ 17/18 | measured |
+| Fault cases handled | ≥ 18/18 | measured |
+| **Citation validity (model run)** | **null: NOT ENFORCED** | no live run has been measured |
+| **CONTRADICTED recall (model run)** | **null: NOT ENFORCED** | no threshold agreed and no live run measured |
+
+**CI.** `.github/workflows/verification-engine.yml` runs on changes under
+`services/verification/` on Python 3.11 and 3.12:
+
+1. `pytest`;
+2. `run_eval.py --check-baseline`, failing on any gate or a changed label lock;
+3. `pip-audit`;
+4. upload of the evaluation report.
+
+It uses no secrets and makes no live calls. The two model-run gates fail CI only once someone
+sets their values and supplies predictions to replay. Tests show the mechanism does fail on
+lower `CONTRADICTED` recall or invalid citations.
+
 ## Running it
 
 ```sh
@@ -308,6 +385,69 @@ set here. Once they are set, the live report gives:
 
 Unsupported additions can't appear in an accepted proposal, because the checks reject them
 before a proposal is accepted.
+
+## Phase 6: evaluation harness (actual output, 2026-10-23)
+
+`python eval/run_eval.py --check-baseline`, exit 0. From `reports/phase6-gate/report.md`:
+
+| Section | Result |
+|---|---|
+| Verdicts (abstain floor, **not model accuracy**) | 55 examples; accuracy 32.7% (18/55); macro F1 0.164; abstention 100%; citation validity n/a (0/0) |
+| Retrieval recall@1 / @3 / @5, dataset.jsonl | 97.3% (36/37) / 100% (37/37) / 100% (37/37) |
+| Retrieval recall@1 / @3 / @5, retrieval_v1 | 100% (32/32) at every k |
+| Correction checks | bad rejected 28/28; good accepted 17/18; false accepts 0 |
+| Enforcement: fabricator | 53 definite answers, 2 accepted, 2/2 verbatim, 0 quotes not in any source, false-SUPPORTED 1/35 |
+| Enforcement: valid quote, always SUPPORTED | 21 accepted, 21/21 verbatim, false-SUPPORTED 15/35 |
+| Enforcement: valid quote, always CONTRADICTED | 53 accepted, 53/53 verbatim, false-SUPPORTED 0/35 |
+| Error handling | 18/18 fault cases handled |
+| Gates | 12 PASS; 2 model-run gates NOT APPLICABLE |
+
+**Live:** not run. The credentials are not configured.
+
+## Phase 5: corrector and scorer (actual output, 2026-10-23)
+
+**Live corrections: not measured.** `python -m inkloom_verify.evaluation.corrections --verifier
+openrouter` exits 2: the provider isn't configured.
+
+**Measured without a model:**
+
+- **Correction checks** on the 46 labelled candidate edits of `corrections_v1`: 28/28 bad edits
+  rejected, which includes every unsupported number, date, day, name, unit, currency, hedge and
+  promise candidate. 17/18 good edits accepted; the miss is the known over-strict `cannot`/`not`
+  case.
+- **Traceability:** through the full pipeline with a scripted model, the correction's citations
+  are a subset of the result's citations and are verbatim in their source documents. The
+  replaced text is the content at the target span and sits inside the claim's span. The original
+  claim is unchanged (`tests/test_scoring.py`).
+- **Evidence strength and review decisions** are covered rule by rule in `tests/test_scoring.py`.
+  How well the label predicts correctness isn't measured; that needs live results.
+
+## Phase 4: verifier and citation guard (actual output, 2026-10-23)
+
+**Live verifier: not measured.** `OPENROUTER_API_KEY` and `INKLOOM_LLM_MODELS` are not set
+here. `--verifier openrouter` exits 2 with the configuration message, and no report is
+written. There are no real-model accuracy, per-class, abstention or citation-validity figures.
+
+**What the code enforces, measured on all 50 records of `verification_v1`.** These use the real
+retrieval, verifier and citation guard, driven by **scripted adversarial models**. They are not
+model quality. `tests/test_verification_eval.py` reproduces them.
+
+| Scripted adversary | Definite answers | Accepted | Downgraded | Accepted quotes verbatim in source | False-SUPPORTED (/31) |
+|---|---|---|---|---|---|
+| Fabricator: quotes the claim itself as evidence | 48 | 2 | 46 (`quote_not_found`) | 2/2 | 1 (`v1-032`) |
+| Quotes real passage text, always SUPPORTED | 48 | 20 | 31 (28 `unsupported_quantity`, 3 `unsupported_date`) | 20/20 | 14 (45.2%) |
+| Quotes real passage text, always CONTRADICTED | 48 | 48 | 0 | 48/48 | 0 |
+
+- **No non-existent quotation survives.** The fabricator's two accepted "quotes" both exist
+  word for word in a source. `v1-007`'s claim is a sentence of the company facts. `v1-032`'s
+  claim is the planted injection trap: the supplier note contains it verbatim. That accepted
+  answer is the one false SUPPORTED, which is exactly the case verdict accuracy exists to catch.
+- **A valid quotation is not a correct verdict.** With real quotes and asserted verdicts,
+  false-SUPPORTED is 14/31 with the Phase 4 support checks, and **29/31 without them**. The
+  checks remove the number, unit, date and qualifier mismatches. The rest (no figures, or
+  look-alike text) needs a real model's judgement, measured only by a live run.
+- **Contradictions aren't held to the figure checks,** so an always-CONTRADICTED model loses
+  nothing at the guard. Its accuracy comes only from the labels (19/50).
 
 ## Retrieval phase: 200–400-token chunks (actual output, 2026-10-23)
 

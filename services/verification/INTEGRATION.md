@@ -92,7 +92,7 @@ findings = [finding_fields(r, content_version.text) for r in report.results]
 | `verification_status` | `SUPPORTED`→`supported`, `CONTRADICTED`→`contradicted`, `NOT_ENOUGH_EVIDENCE`→`unverified`, `ERROR`→`unverified` (your decision 2) |
 | `original_text`, `span` | the claim's `source_span` in the content (code points) |
 | `suggested_correction` | the source text with the correction applied (`integration.corrected_text`). Only set when `correction_attempt.status` is `proposed`. |
-| `requires_human_review` | true unless `SUPPORTED` |
+| `requires_human_review` | `result.requires_human_review`: true unless `SUPPORTED`, and true for `SUPPORTED` on `weak` evidence |
 | `explanation` | `model_rationale`: model-written, cleaned, never evidence |
 | `evidence[]` | the citations: `quote`, and `relation` (`supports` / `contradicts`). `doc_id` is whatever you passed as `doc_id`; the recommended value is `source_version_id`. |
 | `engine_claim_id` (your DB column) | `claim.claim_id` |
@@ -122,13 +122,30 @@ this change is theirs to make**:
 
 ```python
 from inkloom_verify.api import create_verify_router
-from inkloom_verify.fake_engine import FakeEngine          # Phase 2 only; replaced in Phase 4
+from inkloom_verify.pipeline import PipelineEngine
+from inkloom_verify.providers.openrouter import OpenRouterProvider
 
 def authenticated_tenant(auth: AuthContext = Depends(get_current_membership)) -> str:
     return str(auth.organisation_id)                        # the tenant comes from the token only
 
-app.include_router(create_verify_router(FakeEngine(), authenticated_tenant=authenticated_tenant))
+engine = PipelineEngine(OpenRouterProvider.from_env())     # raises ProviderNotConfiguredError if unset
+app.include_router(create_verify_router(engine, authenticated_tenant=authenticated_tenant))
 ```
+
+If requests name a `reference_set_id`, also pass your ownership check (Phase 7). The engine
+has no database, so it can't decide this itself:
+
+```python
+def reference_set_access(tenant_id: str, reference_set_id: str) -> bool:
+    ...  # True only if this organisation owns the set; your query, your session
+app.include_router(create_verify_router(engine, authenticated_tenant=authenticated_tenant,
+                                        reference_set_access=reference_set_access))
+```
+
+It is called with the authenticated tenant, never the body's. Anything but `True` gives 404
+`NOT_FOUND` (the same answer for "not yours" and "doesn't exist"), and an exception gives 500.
+In both cases the engine is never called. It is still your job to build `references` from that
+set: the engine checks the id, not that the documents belong to it.
 
 Your existing error handlers and `RequestIdMiddleware` then apply unchanged. A test mounts the
 router inside your real `install_error_handlers` and `RequestIdMiddleware` (imported read-only

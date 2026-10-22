@@ -162,6 +162,9 @@
           "title": "Evidence",
           "type": "array"
         },
+        "evidence_strength": {
+          "$ref": "#/$defs/EvidenceStrength"
+        },
         "model_rationale": {
           "anyOf": [
             {
@@ -485,6 +488,17 @@
       "title": "EvidencePassage",
       "type": "object"
     },
+    "EvidenceStrength": {
+      "description": "How strongly the accepted evidence backs a definite verdict. An ordinal label from fixed\nrules (``evidence_strength``), not a probability: it has not been calibrated.",
+      "enum": [
+        "strong",
+        "moderate",
+        "weak",
+        "none"
+      ],
+      "title": "EvidenceStrength",
+      "type": "string"
+    },
     "GuardRejectionReason": {
       "enum": [
         "no_citation",
@@ -492,7 +506,10 @@
         "passage_provenance_invalid",
         "quote_not_found",
         "quote_too_short",
-        "partial_quote_drops_negation"
+        "partial_quote_drops_negation",
+        "unsupported_quantity",
+        "unsupported_date",
+        "missing_qualifier"
       ],
       "title": "GuardRejectionReason",
       "type": "string"
@@ -751,7 +768,8 @@
         "unverified_claims",
         "processing_errors",
         "citations_rejected",
-        "corrections_need_review"
+        "corrections_need_review",
+        "weak_evidence"
       ],
       "title": "ReviewReason",
       "type": "string"

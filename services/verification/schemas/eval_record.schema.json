@@ -14,7 +14,8 @@
         "multi_document",
         "absent_fact",
         "irrelevant_references",
-        "prompt_injection"
+        "prompt_injection",
+        "conflicting_evidence"
       ],
       "title": "EvalCategory",
       "type": "string"

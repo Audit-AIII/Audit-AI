@@ -152,7 +152,7 @@ class ExtractionResult(BaseModel):
 
 # --- Meaning checks on a proposed rewrite ------------------------------------------------------
 
-_MONTHS = re.compile(
+MONTHS = re.compile(
     r"\b(january|february|march|april|may|june|july|august|september|october|november|december|"
     r"jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b"
 )
@@ -176,7 +176,7 @@ def rewrite_problems(claim: str, quote: str, content: str) -> list[str]:
     new_numbers = numbers_in(claim) - numbers_in(quote)
     if new_numbers:
         problems.append(f"changes or adds numbers ({', '.join(sorted(new_numbers))})")
-    new_months = set(_MONTHS.findall(claim_cf)) - set(_MONTHS.findall(quote_cf))
+    new_months = set(MONTHS.findall(claim_cf)) - set(MONTHS.findall(quote_cf))
     if new_months:
         problems.append(f"changes or adds months ({', '.join(sorted(new_months))})")
     if NEGATION.search(quote_cf) and not NEGATION.search(claim_cf):
@@ -272,7 +272,7 @@ class ClaimExtractor:
                 output = self._classify([(sid, sentences[sid].slice(text)) for sid in batch], stats)
             except ProviderError as error:
                 errors.append(error.to_processing_error(PipelineStage.EXTRACTION))
-                if isinstance(error, ACCOUNT_ERRORS):
+                if isinstance(error, ACCOUNT_ERRORS) or error.code is ErrorCode.LIMIT_EXCEEDED:
                     break  # every further call would fail the same way
                 continue
             proposed.extend(self._apply(output, batch, sentences, text, kinds, warnings))

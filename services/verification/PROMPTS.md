@@ -226,12 +226,29 @@ quotations are valid, because a fabricated quote is evidence the answer can't be
 Duplicate quotations are merged, not rejected. The `ClaimResult` contract enforces the same
 rule, so a result that breaks it can't be constructed.
 
-**What the guard does not do.** It proves the words are in the evidence. It doesn't prove they
-support the verdict. Three things pass it:
+**Support checks (Phase 4): SUPPORTED answers only.** After every quote has passed, a
+SUPPORTED answer stands only if the cited quotes actually carry the claim's figures:
 
-- a verbatim fragment that drops a qualifier ("24 hours" from "up to 24 hours");
+| Check | Rejection reason |
+|---|---|
+| Every number in the claim appears in the cited quotes, with the same unit or currency where the quotes give one. Units are normalised: `g`/`gram`/`grams`, `l`/`litre`/`liter`, `h`/`hours`, `%`/`percent`, `€`/`$`/`£`, and so on. Thousands separators are ignored. | `unsupported_quantity` |
+| Every date in the claim (a month next to a day or year number) appears in the cited quotes. The verb "may" isn't a month. | `unsupported_date` |
+| If a quote qualifies a figure the claim repeats ("up to 12 hours", "about", "at least", "more than", …), the claim keeps that qualifier | `missing_qualifier` |
+
+These checks are not applied to CONTRADICTED answers, whose figures differ from the evidence by
+definition. Numbers written as words ("two years") aren't checked.
+
+**What the guard still does not do.** It proves the words are in the evidence, and for
+SUPPORTED answers that the figures match. It doesn't prove the evidence supports the verdict.
+These pass it:
+
 - a valid quote from one of two conflicting passages;
-- a valid quote of injected text (dataset record `v1-032`).
+- a valid quote of injected text (dataset record `v1-032`);
+- a SUPPORTED claim with no figures, backed by a quote that says something else.
+
+Against a scripted model that always quotes real passage text and always answers SUPPORTED,
+the support checks cut false-SUPPORTED on evaluation set v1 from 29/31 to 14/31 (EVAL.md). The
+remainder is what only verdict accuracy, from a live run, can show.
 
 Verdict correctness is measured by the evaluation harness (EVAL.md), not inferred from citation
 validity.

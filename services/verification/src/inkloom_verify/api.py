@@ -16,6 +16,8 @@ Errors use the backend's shape, ``{"error": {"code", "message", "request_id"}}``
 * malformed JSON, a schema violation or an over-size body: 422 ``VALIDATION_ERROR``, listing field
   locations only, never the submitted values;
 * a body ``tenant_id`` that is not the authenticated tenant: 403 ``FORBIDDEN``;
+* a ``reference_set_id`` the authenticated tenant may not use: 404 ``NOT_FOUND`` (not 403, so
+  another tenant's set ids cannot be discovered by probing);
 * anything unexpected: 500 ``INTERNAL_ERROR``.
 
 A processing failure inside the engine (provider down, malformed model output, ...) is not an
@@ -65,6 +67,7 @@ def create_verify_router(
     engine: VerificationEngine,
     *,
     authenticated_tenant: Callable[..., Any] | None = None,
+    reference_set_access: Callable[[str, str], bool] | None = None,
 ) -> APIRouter:
     """The ``POST /v1/verify`` router.
 
@@ -72,7 +75,15 @@ def create_verify_router(
     backend authenticated it (for Member 3: the organisation id from ``get_current_membership``).
     When given, a request whose ``tenant_id`` differs is refused with 403. When omitted, nothing
     authenticates the caller: only the development app does that.
+
+    ``reference_set_access(tenant_id, reference_set_id)`` is the backend's ownership check for a
+    reference set (the engine has no database and cannot decide it). It is called for every
+    request that names a ``reference_set_id``, with the authenticated tenant, never the body's.
+    Anything but ``True`` is a refusal, and an exception from it is a 500: access fails closed.
+    It needs ``authenticated_tenant``; without one there is no trustworthy tenant to check.
     """
+    if reference_set_access is not None and authenticated_tenant is None:
+        raise ValueError("reference_set_access needs authenticated_tenant: the body's tenant_id is not trusted")
     router = APIRouter(tags=["verification"])
     tenant_dependency = authenticated_tenant or (lambda: None)
 
@@ -84,6 +95,7 @@ def create_verify_router(
         summary="Verify the claims in one piece of content against its reference documents",
         responses={
             403: {"description": "tenant_id is not the authenticated tenant"},
+            404: {"description": "reference_set_id is not a reference set the authenticated tenant can use"},
             422: {"description": "malformed or invalid request"},
         },
     )
@@ -94,6 +106,9 @@ def create_verify_router(
     ) -> VerificationReport:
         if tenant is not None and body.tenant_id != str(tenant):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "tenant_id does not match the authenticated organisation")
+        if reference_set_access is not None and body.reference_set_id is not None:
+            if reference_set_access(str(tenant), body.reference_set_id) is not True:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "reference set not found")
         response.headers[ENGINE_MODE_HEADER] = engine.mode
         report = engine.verify(body)
         # Responses are validated too: whatever engine is plugged in, a report that does not answer
@@ -140,20 +155,28 @@ def install_dev_error_handlers(app: FastAPI) -> None:
 def create_dev_app(engine: VerificationEngine | None = None) -> FastAPI:
     """A standalone app serving /v1/verify, for local development and tests. No authentication.
 
-    Without an explicit ``engine`` it reads INKLOOM_ENGINE_MODE. In Phase 2 the only engine is the
-    fake one, and it must be asked for (INKLOOM_ENGINE_MODE=fake): canned results are never served
-    by default.
+    Without an explicit ``engine`` it reads INKLOOM_ENGINE_MODE, which must be set:
+
+    * ``live``: the real engine (OpenRouter; needs OPENROUTER_API_KEY and INKLOOM_LLM_MODELS). If
+      those are missing, startup fails with the configuration message, not on the first request.
+    * ``fake``: canned, labelled verdicts over real retrieval, for work without a key. Never the default.
     """
     if engine is None:
         mode = os.environ.get(ENGINE_MODE_VAR, "").strip().lower()
-        if mode != "fake":
-            raise RuntimeError(
-                f"{ENGINE_MODE_VAR} is {mode or 'unset'}. The only engine available in this phase is the "
-                f"canned development engine; set {ENGINE_MODE_VAR}=fake to serve it."
-            )
-        from inkloom_verify.fake_engine import FakeEngine
+        if mode == "live":
+            from inkloom_verify.pipeline import PipelineEngine
+            from inkloom_verify.providers.openrouter import OpenRouterProvider
 
-        engine = FakeEngine()
+            engine = PipelineEngine(OpenRouterProvider.from_env())  # raises ProviderNotConfiguredError
+        elif mode == "fake":
+            from inkloom_verify.fake_engine import FakeEngine
+
+            engine = FakeEngine()
+        else:
+            raise RuntimeError(
+                f"{ENGINE_MODE_VAR} is {mode or 'unset'}. Set {ENGINE_MODE_VAR}=live for the real engine, "
+                f"or {ENGINE_MODE_VAR}=fake for canned development results."
+            )
     app = FastAPI(
         title="INKLOOM verification engine (development)",
         version=__version__,

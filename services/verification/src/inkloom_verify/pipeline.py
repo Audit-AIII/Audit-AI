@@ -30,6 +30,7 @@ from inkloom_verify.prompts import correction as correction_prompt
 from inkloom_verify.prompts import extraction as extraction_prompt
 from inkloom_verify.prompts import verification as verification_prompt
 from inkloom_verify.providers.base import LLMProvider, ProviderError
+from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
 from inkloom_verify.retrieval import BM25Retriever, RetrievalConfig
 from inkloom_verify.schemas import (
     ClaimResult,
@@ -65,6 +66,8 @@ class PipelineConfig(BaseModel):
     verification: VerificationConfig = Field(default_factory=VerificationConfig)
     correction: CorrectionConfig = Field(default_factory=CorrectionConfig)
     correct_contradicted: bool = True
+    # Per-request limits on model calls, estimated tokens and wall-clock time (providers/budget.py).
+    budget: CallBudget = Field(default_factory=CallBudget)
 
 
 def verify_request(
@@ -73,10 +76,12 @@ def verify_request(
     """Runs the full workflow for one request. All evidence comes from ``request.references``."""
     config = config or PipelineConfig()
     models: set[str] = set()
+    budgeted = BudgetedProvider(provider, config.budget)
     try:
-        results, errors = _run(request, provider, config, models)
+        results, errors = _run(request, budgeted, config, models)
         report = _report(request, provider, results, errors, models)
         check_report_scope(request, report)
+        logger.info("pipeline request=%s usage=%s", request.request_id, budgeted.usage())
         return report
     except ScopeViolation as violation:
         # Ids only (never text), so the violations are safe to log.
@@ -220,3 +225,18 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+class PipelineEngine:
+    """The real engine behind POST /v1/verify (the VerificationEngine protocol in api.py):
+    extraction, retrieval, verification, the citation guard, and (since Phase 5) minimal,
+    re-checked corrections of CONTRADICTED claims."""
+
+    mode = "live"
+
+    def __init__(self, provider: LLMProvider, config: PipelineConfig | None = None) -> None:
+        self.provider = provider
+        self.config = config or PipelineConfig()
+
+    def verify(self, request: VerificationRequest) -> VerificationReport:
+        return verify_request(request, self.provider, self.config)

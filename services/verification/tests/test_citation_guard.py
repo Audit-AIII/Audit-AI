@@ -207,3 +207,41 @@ def test_every_gold_quote_is_accepted_and_every_corruption_rejected():
         if wrong_label is not None:
             assert guard.check(wrong_label.passage_id, quote) == R.QUOTE_NOT_FOUND, record.record_id
         assert guard.check("psg_" + "0" * 24, quote) == R.UNKNOWN_PASSAGE
+
+
+# --- Support checks: valid quotes must also carry the claim's figures -------------------------
+
+from inkloom_verify.citation_guard import quantities, support_problems  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("claim", "quote", "expected"),
+    [
+        ("Pods offer up to 12 hours of playback.", "up to 12 hours of playback per charge", []),
+        ("Pods offer 24 hours of playback.", "up to 12 hours of playback per charge", [R.UNSUPPORTED_QUANTITY]),  # numeric conflict
+        ("Pods offer 12 hours of playback.", "up to 12 hours of playback per charge", [R.MISSING_QUALIFIER]),
+        ("The lamp weighs 1100 grams.", "The Lumen Lamp weighs 1100 g.", []),  # same unit, other spelling
+        ("The bottle holds 750 l.", "Capacity: 750 ml.", [R.UNSUPPORTED_QUANTITY]),  # unit conflict
+        ("Pods cost $129.", "Price: \u20ac129 (EU launch price).", [R.UNSUPPORTED_QUANTITY]),  # currency conflict
+        ("Pods cost \u20ac129.", "Price: \u20ac129 (EU launch price).", []),
+        ("Pods launch on 2 May 2026.", "Launch date: 2 April 2026", [R.UNSUPPORTED_DATE]),  # date conflict
+        ("Pods launch on 2 April 2026.", "Launch date: 2 April 2026", []),
+        ("Lumen was founded in 2015.", "Lumen Goods was founded in 2019", [R.UNSUPPORTED_QUANTITY]),  # year conflict
+        ("The bottle may be hand washed.", "Care: hand wash only.", []),  # "may" is not a month
+        ("The bottle is 70% recycled steel.", "70% recycled stainless steel", []),
+        ("The bottle is 90% recycled steel.", "70% recycled stainless steel", [R.UNSUPPORTED_QUANTITY]),
+    ],
+)
+def test_support_problems(claim, quote, expected):
+    assert support_problems(claim, [quote]) == expected
+
+
+def test_figures_may_come_from_any_cited_quote():
+    quotes = ["Colours: Graphite, Sand, Teal.", "Price: \u20ac129 (EU launch price)."]
+    assert support_problems("Pods come in Teal and cost \u20ac129.", quotes) == []
+
+
+def test_quantities_normalise_units_and_separators():
+    assert quantities("1,200 mAh, 5.2 g, 70%, \u20ac39, 24-hour") == {
+        ("1200", "mah"), ("5.2", "gram"), ("70", "percent"), ("39", "eur"), ("24", "hour"),
+    }

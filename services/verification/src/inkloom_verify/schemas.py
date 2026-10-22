@@ -440,9 +440,58 @@ class CorrectionAttempt(_Contract):
         return self
 
 
+class EvidenceStrength(str, Enum):
+    """How strongly the accepted evidence backs a definite verdict. An ordinal label from fixed
+    rules (``evidence_strength``), not a probability: it has not been calibrated."""
+
+    STRONG = "strong"
+    MODERATE = "moderate"
+    WEAK = "weak"
+    NONE = "none"
+
+
+_DIGIT = re.compile(r"\d")
+
+
+def evidence_strength(verdict: Verdict, claim_text: str, evidence: list[Any], citations: list[Any]) -> EvidenceStrength:
+    """The approved rules (Phase 5), in order:
+
+    * NONE: NOT_ENOUGH_EVIDENCE or ERROR (a downgraded answer is NOT_ENOUGH_EVIDENCE, so a
+      rejected citation can never be rescued by rank, score or model confidence);
+    * WEAK: a definite verdict, but no citation comes from the top-ranked passage;
+    * STRONG: a citation comes from the top-ranked passage, and either there are two or more
+      accepted citations, or the verdict is SUPPORTED and the claim has figures (digits), all of
+      which the support checks matched in the quotes;
+    * MODERATE: otherwise (one citation, from the top-ranked passage).
+
+    Retrieval only enters through rank; scores are never compared across claims.
+    """
+    if verdict not in (Verdict.SUPPORTED, Verdict.CONTRADICTED) or not citations:
+        return EvidenceStrength.NONE
+    ranks = {p.passage_id: p.retrieval.rank for p in evidence}
+    if not any(ranks.get(c.passage_id) == 1 for c in citations):
+        return EvidenceStrength.WEAK
+    if len(citations) >= 2 or (verdict is Verdict.SUPPORTED and _DIGIT.search(claim_text)):
+        return EvidenceStrength.STRONG
+    return EvidenceStrength.MODERATE
+
+
+def _strength_default(data: dict[str, Any]) -> EvidenceStrength:
+    if "verdict" not in data or "claim" not in data:
+        return EvidenceStrength.NONE
+    return evidence_strength(data["verdict"], data["claim"].text, data.get("evidence", []), data.get("citations", []))
+
+
+def review_needed(verdict: Verdict, strength: EvidenceStrength) -> bool:
+    """The approved review policy: every verdict except SUPPORTED, and SUPPORTED on weak evidence."""
+    return verdict is not Verdict.SUPPORTED or strength is EvidenceStrength.WEAK
+
+
 def _review_needed(data: dict[str, Any]) -> bool:
     """Default for ClaimResult.requires_human_review; True when the verdict is unknown."""
-    return data.get("verdict") is not Verdict.SUPPORTED
+    if "verdict" not in data:
+        return True
+    return review_needed(data["verdict"], data.get("evidence_strength", EvidenceStrength.NONE))
 
 
 class GuardRejectionReason(str, Enum):
@@ -452,6 +501,10 @@ class GuardRejectionReason(str, Enum):
     QUOTE_NOT_FOUND = "quote_not_found"  # quote is not in the cited passage, even after normalisation
     QUOTE_TOO_SHORT = "quote_too_short"  # fewer than two words: too little to justify anything
     PARTIAL_QUOTE_DROPS_NEGATION = "partial_quote_drops_negation"  # quote starts after a negation in its clause
+    # Support checks, applied to SUPPORTED answers after every quote passed (no passage_id):
+    UNSUPPORTED_QUANTITY = "unsupported_quantity"  # a number/unit in the claim is not in the cited quotes
+    UNSUPPORTED_DATE = "unsupported_date"  # a date in the claim is not in the cited quotes
+    MISSING_QUALIFIER = "missing_qualifier"  # the quotes qualify a figure ("up to 12") that the claim states flatly
 
 
 class RejectedCitation(_Contract):
@@ -505,9 +558,6 @@ class ClaimResult(_Contract):
 
     claim: Claim
     verdict: Verdict
-    # True for every verdict except SUPPORTED: missing evidence, contradictions and failures always
-    # go to a person. Filled in when omitted; rejected when it disagrees with the verdict.
-    requires_human_review: Annotated[bool, Field(strict=True)] = Field(default_factory=_review_needed)
     evidence: Annotated[list[EvidencePassage], Field(max_length=MAX_PASSAGES_PER_CLAIM)] = []
     citations: Annotated[list[Citation], Field(max_length=MAX_PASSAGES_PER_CLAIM)] = []
     correction: Correction | None = None
@@ -516,6 +566,12 @@ class ClaimResult(_Contract):
     model_rationale: Annotated[str, Field(max_length=MAX_RATIONALE_CHARS)] | None = None
     citation_guard: CitationGuardReport | None = None
     correction_attempt: CorrectionAttempt | None = None
+    # Both derived from the fields above by fixed rules: filled in when omitted, rejected when they
+    # disagree, so neither can be inflated by a caller or a model.
+    evidence_strength: EvidenceStrength = Field(default_factory=_strength_default)
+    # True for every verdict except SUPPORTED, and for SUPPORTED on weak evidence: missing evidence,
+    # contradictions, failures and thin support always go to a person.
+    requires_human_review: Annotated[bool, Field(strict=True)] = Field(default_factory=_review_needed)
 
     @model_validator(mode="after")
     def _check(self) -> ClaimResult:
@@ -526,8 +582,13 @@ class ClaimResult(_Contract):
         self._check_citations()
         self._check_correction()
         # Checked last so a structurally wrong result reports its structural error first.
-        if self.requires_human_review is not (self.verdict is not Verdict.SUPPORTED):
-            raise ValueError("requires_human_review must be false only for SUPPORTED")
+        expected = evidence_strength(self.verdict, self.claim.text, self.evidence, self.citations)
+        if self.evidence_strength is not expected:
+            raise ValueError(f"evidence_strength must be {expected.value} for this verdict and evidence")
+        if self.requires_human_review is not review_needed(self.verdict, self.evidence_strength):
+            raise ValueError(
+                "requires_human_review must be false only for SUPPORTED claims whose evidence is not weak"
+            )
         return self
 
     def _check_verdict_shape(self) -> None:
@@ -633,6 +694,7 @@ class ReviewReason(str, Enum):
     PROCESSING_ERRORS = "processing_errors"  # ERROR results or request-level errors
     CITATIONS_REJECTED = "citations_rejected"  # the guard downgraded at least one answer
     CORRECTIONS_NEED_REVIEW = "corrections_need_review"  # a correction could not be proposed safely
+    WEAK_EVIDENCE = "weak_evidence"  # a SUPPORTED claim rests only on weak evidence
 
 
 class ReportScore(_Contract):
@@ -673,6 +735,9 @@ class ReportScore(_Contract):
                 (ReviewReason.PROCESSING_ERRORS, errors > 0 or bool(report_errors)),
                 (ReviewReason.CITATIONS_REJECTED, rejected > 0),
                 (ReviewReason.CORRECTIONS_NEED_REVIEW, need_review > 0),
+                (ReviewReason.WEAK_EVIDENCE, any(
+                    r.verdict is Verdict.SUPPORTED and r.evidence_strength is EvidenceStrength.WEAK for r in results
+                )),
             )
             if applies
         ]
@@ -802,6 +867,7 @@ class EvalCategory(str, Enum):
     ABSENT_FACT = "absent_fact"  # references cover the topic but not the fact
     IRRELEVANT_REFERENCES = "irrelevant_references"  # references do not cover the topic at all
     PROMPT_INJECTION = "prompt_injection"  # a reference contains instructions aimed at the model
+    CONFLICTING_EVIDENCE = "conflicting_evidence"  # references disagree with each other
 
 
 class EvalRecord(_Contract):

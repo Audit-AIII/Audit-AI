@@ -28,7 +28,6 @@
         }
       },
       "verdict": "SUPPORTED",
-      "requires_human_review": false,
       "evidence": [
         {
           "passage_id": "psg_76ec399c78548ffb332783f7",
@@ -63,7 +62,9 @@
         "model_verdict": "SUPPORTED",
         "downgraded": false,
         "rejected": []
-      }
+      },
+      "evidence_strength": "strong",
+      "requires_human_review": false
     },
     {
       "claim": {
@@ -75,7 +76,6 @@
         }
       },
       "verdict": "CONTRADICTED",
-      "requires_human_review": true,
       "evidence": [
         {
           "passage_id": "psg_76ec399c78548ffb332783f7",
@@ -150,7 +150,9 @@
         "status": "proposed",
         "issues": [],
         "recheck_verdict": "SUPPORTED"
-      }
+      },
+      "evidence_strength": "moderate",
+      "requires_human_review": true
     },
     {
       "claim": {
@@ -162,7 +164,6 @@
         }
       },
       "verdict": "NOT_ENOUGH_EVIDENCE",
-      "requires_human_review": true,
       "evidence": [
         {
           "passage_id": "psg_76ec399c78548ffb332783f7",
@@ -186,7 +187,9 @@
         "model_verdict": "NOT_ENOUGH_EVIDENCE",
         "downgraded": false,
         "rejected": []
-      }
+      },
+      "evidence_strength": "none",
+      "requires_human_review": true
     },
     {
       "claim": {
@@ -198,7 +201,6 @@
         }
       },
       "verdict": "ERROR",
-      "requires_human_review": true,
       "evidence": [
         {
           "passage_id": "psg_ed9b8d830783f08dab2ad385",
@@ -223,7 +225,9 @@
         "message": "scripted/model did not answer within 30s",
         "retryable": true,
         "claim_id": "clm_0004"
-      }
+      },
+      "evidence_strength": "none",
+      "requires_human_review": true
     }
   ],
   "errors": [],

@@ -8,7 +8,6 @@
     }
   },
   "verdict": "SUPPORTED",
-  "requires_human_review": false,
   "evidence": [
     {
       "passage_id": "psg_796412a63320eb0e15bd336c",
@@ -63,5 +62,7 @@
     "status": "proposed",
     "issues": [],
     "recheck_verdict": "SUPPORTED"
-  }
+  },
+  "evidence_strength": "moderate",
+  "requires_human_review": false
 }

@@ -30,7 +30,7 @@ import re
 from collections.abc import Sequence
 
 from inkloom_verify.chunking import sentence_spans
-from inkloom_verify.extraction import NEGATION
+from inkloom_verify.extraction import MONTHS, NEGATION
 from inkloom_verify.schemas import (
     MAX_PASSAGE_CHARS,
     Citation,
@@ -133,3 +133,84 @@ class CitationGuard:
         if not citation.matches(self.documents[passage.doc_id]):
             return GuardRejectionReason.PASSAGE_PROVENANCE_INVALID
         return citation
+
+
+# --- Support checks: does the cited text actually carry the claim's figures? -------------------
+#
+# A verbatim quote proves the words exist, not that they support the claim. For a SUPPORTED
+# answer, every figure the claim depends on must therefore appear in the cited quotes: each
+# number with its unit, each date, and any qualifier the quotes put on a figure the claim
+# repeats ("up to 12 hours" cannot support "12 hours"). CONTRADICTED answers are not checked
+# this way: their figures differ from the evidence by definition.
+
+_NUMBER = r"\d+(?:[.,]\d+)*"
+_CURRENCY = {"\u20ac": "eur", "$": "usd", "\u00a3": "gbp"}
+_UNITS = {
+    "%": "percent", "percent": "percent", "per cent": "percent",
+    "g": "gram", "gram": "gram", "grams": "gram", "kg": "kilogram", "kilogram": "kilogram", "kilograms": "kilogram",
+    "mg": "milligram", "ml": "millilitre", "millilitre": "millilitre", "millilitres": "millilitre",
+    "l": "litre", "litre": "litre", "litres": "litre", "liter": "litre", "liters": "litre",
+    "h": "hour", "hr": "hour", "hrs": "hour", "hour": "hour", "hours": "hour",
+    "min": "minute", "mins": "minute", "minute": "minute", "minutes": "minute",
+    "day": "day", "days": "day", "week": "week", "weeks": "week", "month": "month", "months": "month",
+    "year": "year", "years": "year", "mm": "millimetre", "cm": "centimetre", "km": "kilometre",
+    "m": "metre", "metre": "metre", "metres": "metre", "meter": "metre", "meters": "metre",
+    "lumen": "lumen", "lumens": "lumen", "w": "watt", "watts": "watt", "mah": "mah", "gb": "gigabyte", "tb": "terabyte",
+}
+_QUANTITY = re.compile(
+    rf"(?P<cur>[\u20ac$\u00a3])?\s*(?P<num>{_NUMBER})(?:\s*-\s*|\s*)(?P<unit>per cent|%|[A-Za-z]+)?",
+)
+_DATE = re.compile(rf"\b(?:{_NUMBER}\s+)?({MONTHS.pattern[3:-3]})\b(?:\s+{_NUMBER})?", re.IGNORECASE)
+_FIGURE_QUALIFIERS = ("up to", "about", "approximately", "around", "at least", "at most", "more than",
+                      "less than", "fewer than", "nearly", "almost", "roughly", "as much as", "as many as")
+_QUALIFIED = re.compile(
+    rf"\b(?P<q>{'|'.join(re.escape(q) for q in _FIGURE_QUALIFIERS)})\s+[\u20ac$\u00a3]?\s*(?P<num>{_NUMBER})",
+    re.IGNORECASE,
+)
+
+
+def _number(token: str) -> str:
+    return token.replace(",", "")
+
+
+def quantities(text: str) -> set[tuple[str, str | None]]:
+    """(number, canonical unit or currency or None) for every number in ``text``."""
+    found = set()
+    for match in _QUANTITY.finditer(text):
+        unit = _CURRENCY.get(match["cur"] or "")
+        if unit is None and match["unit"]:
+            unit = _UNITS.get(match["unit"].casefold())
+        found.add((_number(match["num"]), unit))
+    return found
+
+
+def _dates(text: str) -> set[str]:
+    """Month names that appear next to a day or year number (so the verb "may" is not a month)."""
+    return {
+        m.group(1).casefold()[:3]
+        for m in _DATE.finditer(text)
+        if re.search(r"\d", m.group(0))
+    }
+
+
+def support_problems(claim: str, quotes: list[str]) -> list[GuardRejectionReason]:
+    """Why the cited quotes cannot carry a SUPPORTED verdict for ``claim``; empty if they can."""
+    evidence = " ".join(quotes)
+    problems = []
+    claim_quantities, evidence_quantities = quantities(claim), quantities(evidence)
+    evidence_units: dict[str, set[str | None]] = {}
+    for number, unit in evidence_quantities:
+        evidence_units.setdefault(number, set()).add(unit)
+    for number, unit in claim_quantities:
+        units = evidence_units.get(number)
+        if units is None or (unit is not None and unit not in units and None not in units):
+            problems.append(GuardRejectionReason.UNSUPPORTED_QUANTITY)
+            break
+    if not _dates(claim) <= _dates(evidence):
+        problems.append(GuardRejectionReason.UNSUPPORTED_DATE)
+    claim_cf, claim_numbers = claim.casefold(), {n for n, _ in claim_quantities}
+    for match in _QUALIFIED.finditer(evidence):
+        if _number(match["num"]) in claim_numbers and match["q"].casefold() not in claim_cf:
+            problems.append(GuardRejectionReason.MISSING_QUALIFIER)
+            break
+    return problems

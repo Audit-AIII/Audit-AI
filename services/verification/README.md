@@ -59,7 +59,10 @@ a real provider.
 | `examples/end_to_end/` | Request, report and mapped findings from one pipeline run (scripted model) |
 | `src/inkloom_verify/scope.py` | Checks that a report's evidence comes only from its own request |
 | `src/inkloom_verify/evaluation/` | Evaluation metrics, runner and command line (`python -m inkloom_verify.evaluation`) |
-| `eval/data/` | Labelled evaluation datasets (JSONL) |
+| `eval/dataset.jsonl` | Canonical evaluation set (55 records), locked by `eval/datasets.lock.json` |
+| `eval/run_eval.py` | Runs every evaluation and writes `reports/<timestamp>/report.md` and `report.json`; `--check-baseline` applies the gates in `eval/baseline.json` |
+| `eval/fault_cases.json` | Provider-fault cases for error handling |
+| `eval/data/` | The verification, retrieval and correction datasets |
 | `schemas/` | Generated JSON Schema files for integrators |
 | `examples/` | Validated sample payloads |
 | `tests/` | Contract tests |

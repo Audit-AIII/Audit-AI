@@ -452,3 +452,54 @@ def test_env_example_has_names_but_no_values():
 def test_env_files_are_ignored():
     ignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert ".env" in ignore and "!.env.example" in ignore
+
+
+# --- Failures never become SUPPORTED -----------------------------------------------------------
+
+
+def _would_support(stage: str, failure):
+    """A model that answers SUPPORTED with a valid quote for every claim, except at ``stage``."""
+    from e2e_support import careful_model
+
+    def respond(call):
+        if call.schema_name == stage:
+            if isinstance(failure, BaseException):
+                raise failure
+            return failure
+        return careful_model(call)
+    return respond
+
+
+def _failures():
+    from inkloom_verify.providers import base
+
+    errors = [cls("scripted failure") for cls in vars(base).values()
+              if isinstance(cls, type) and issubclass(cls, base.ProviderError)]
+    return errors + [RuntimeError("unexpected"), ValueError("unexpected"), KeyError("x"),
+                     {"verdict": "SUPPORTED"},
+                     {"verdict": "supported", "citations": [{"passage": "C1", "quote": "up to 12 hours"}]}, None, []]
+
+
+@pytest.mark.parametrize("stage", ["claim_extraction", "claim_verification"])
+@pytest.mark.parametrize("failure", _failures(), ids=lambda f: type(f).__name__ if isinstance(f, BaseException) else repr(f)[:30])
+def test_no_failure_at_any_stage_becomes_a_supported_verdict(stage, failure):
+    from e2e_support import SUPPORTED_CLAIM, RoutedProvider, request
+    from inkloom_verify.pipeline import verify_request
+    from inkloom_verify.schemas import ReportStatus
+
+    report = verify_request(request(SUPPORTED_CLAIM), RoutedProvider(_would_support(stage, failure)))
+    assert all(r.verdict is not Verdict.SUPPORTED for r in report.results)
+    assert report.status is not ReportStatus.COMPLETED and report.score.requires_human_review
+    assert report.errors or any(r.error for r in report.results)
+
+
+def test_an_uncited_supported_answer_is_downgraded_not_accepted():
+    """Not a failure but a well-formed answer without evidence: the guard downgrades it."""
+    from e2e_support import SUPPORTED_CLAIM, RoutedProvider, request
+    from inkloom_verify.pipeline import verify_request
+
+    answer = {"verdict": "SUPPORTED", "citations": [], "rationale": "trust me"}
+    report = verify_request(request(SUPPORTED_CLAIM), RoutedProvider(_would_support("claim_verification", answer)))
+    [result] = report.results
+    assert result.verdict is Verdict.NOT_ENOUGH_EVIDENCE and result.citation_guard.downgraded
+    assert result.requires_human_review and report.score.requires_human_review

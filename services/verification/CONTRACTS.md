@@ -58,7 +58,7 @@ rejects a passage id that doesn't.
 | `Citation` | `doc_id`, `doc_text_sha256`, `passage_id`, `quote`, `quote_span` (in **document** coordinates). |
 | `Correction` | `target_span` in the content, `original_text`, `replacement_text`, and 1 or more `citations`. |
 | `ProcessingError` | `code`, `stage`, client-safe `message`, `retryable`, optional `claim_id`. |
-| `ClaimResult` | One claim with its `verdict`, `requires_human_review`, `evidence`, `citations`, optional `correction`, optional `error`, optional `model_rationale`. |
+| `ClaimResult` | One claim with its `verdict`, `evidence`, `citations`, optional `correction`, optional `error`, optional `model_rationale`, `evidence_strength` and `requires_human_review`. |
 | `VerificationReport` | Engine → caller. `status`, `results`, request-level `errors`, `references` (descriptors), the request's `reference_set_id`, `provenance`, `score`. |
 | `EngineProvenance` | `engine_version`, `contract_version`, `retrieval_method`, `provider` (added in Phase 8), `model_id` (every model that answered, comma-separated), `prompt_versions`. |
 | `EvalRecord`, `GoldEvidence` | One labelled line of the evaluation JSONL. Gold evidence is located by `doc_id` + `span`, not by `passage_id`, so labels survive changes to how documents are split into passages. |
@@ -99,12 +99,16 @@ rejects a passage id that doesn't.
 
 Additional rules:
 
-- **`requires_human_review`** (added in the contract-reconciliation Phase 1) is `false` only for
-  `SUPPORTED` and `true` for every other verdict: missing evidence, contradictions and failures
-  always go to a person. If omitted it is filled in from the verdict, and a value that disagrees
-  with the verdict is rejected. It maps directly to Member 3's per-finding
-  `requires_human_review`. The report-level `score.requires_human_review` stays separate and
-  also covers request-level errors, citation downgrades and corrections that need review.
+- **`evidence_strength`** (Phase 5) is `strong`, `moderate`, `weak` or `none`: an ordinal label
+  from fixed rules, **not a probability and not calibrated** (see [Score](#score-verificationreportscore)).
+- **`requires_human_review`** is `true` for every verdict except `SUPPORTED`, **and for `SUPPORTED`
+  when `evidence_strength` is `weak`** (the approved Phase 5 policy). Missing evidence,
+  contradictions, failures and thin support therefore always go to a person.
+- **Neither field can be inflated.** Both are filled in from the other fields when omitted, and
+  a supplied value that disagrees with the rules is rejected. `requires_human_review` maps
+  directly to Member 3's per-finding flag. The report-level `score.requires_human_review` stays
+  separate, and also covers request-level errors, citation downgrades and corrections that need
+  review.
 - Every citation must point to a passage listed in `evidence`, from the same document and the same document hash.
 - The citation's `quote_span` must fall inside that passage's span, and `quote` must be **exactly** the passage text at that position. Paraphrases are rejected, and so are duplicate citations.
 - `evidence` may be non-empty for `NOT_ENOUGH_EVIDENCE`. It shows the passages that were considered but did not settle the claim.
@@ -118,7 +122,9 @@ Additional rules:
   - an `ERROR` result has no `citation_guard`.
 
   Rejection reasons are `no_citation`, `unknown_passage`, `passage_provenance_invalid`,
-  `quote_not_found`, `quote_too_short` and `partial_quote_drops_negation`. See
+  `quote_not_found`, `quote_too_short` and `partial_quote_drops_negation`. Since Phase 4 there
+  are also three support checks for SUPPORTED answers, which carry no `passage_id`:
+  `unsupported_quantity`, `unsupported_date` and `missing_qualifier`. See
   [PROMPTS.md](PROMPTS.md#citation-guard).
 
 ### Corrections
@@ -160,7 +166,7 @@ Additional rules:
 | Code | Typical stage | Retryable |
 |---|---|---|
 | `INVALID_REQUEST` | request | no |
-| `LIMIT_EXCEEDED` | request / extraction | no |
+| `LIMIT_EXCEEDED` | request / any LLM stage | no. Also the per-request model-call budget (calls, estimated tokens, deadline; Phase 7, `providers/budget.py`). A claim stopped by the budget is `ERROR`, never a verdict. |
 | `PROVIDER_NOT_CONFIGURED` | any LLM stage | no. Credentials or models aren't set, so AI checks are unavailable (added in Phase 4). |
 | `PROVIDER_TIMEOUT` | extraction / verification / correction | yes |
 | `PROVIDER_RATE_LIMITED` | any LLM stage | yes |
@@ -206,7 +212,8 @@ or truth probability. It answers three questions, each with its own numbers:
   - `contradicted_claims` or `unverified_claims`;
   - `processing_errors` (an `ERROR` result or a request-level error);
   - `citations_rejected` (the guard downgraded an answer);
-  - `corrections_need_review`.
+  - `corrections_need_review`;
+  - `weak_evidence` (a `SUPPORTED` claim rests only on weak evidence; Phase 5).
 
   It is a routing signal, never an approval. Approval always belongs to a person (Member 3's
   governance rules).
@@ -222,6 +229,39 @@ or truth probability. It answers three questions, each with its own numbers:
 | Verification verdict | `ClaimResult.verdict` | Yes, as counts |
 | Citation validity | `ClaimResult.citation_guard` | Only as a count of downgrades. A rejected citation can never raise coverage, because it turns the answer into `NOT_ENOUGH_EVIDENCE`. |
 | Model-reported confidence | Not collected. The verifier and corrector schemas have no confidence field, and a reply that adds one is rejected. | No |
+| Evidence strength | `ClaimResult.evidence_strength` | Only as the `weak_evidence` review reason |
+
+### Evidence strength (per claim, Phase 5)
+
+The approved stand-in for a confidence score. It's an ordinal label computed by
+`schemas.evidence_strength`, enforced by the contract, and **never a probability**. It has not
+been calibrated against outcomes. Rules, applied in order:
+
+| Label | When |
+|---|---|
+| `none` | The verdict is `NOT_ENOUGH_EVIDENCE` or `ERROR`. That includes every answer the citation guard downgraded, so **a rejected citation can't be rescued** by retrieval rank, retrieval score or anything the model says. |
+| `weak` | A definite verdict, but no accepted citation comes from the top-ranked retrieved passage |
+| `strong` | A citation comes from the top-ranked passage, **and** either there are two or more accepted citations, or the verdict is `SUPPORTED` and the claim contains figures (digits), all of which the support checks matched in the quotes |
+| `moderate` | Otherwise: one accepted citation, from the top-ranked passage |
+
+**Inputs:**
+- **The verifier's output:** only its verdict, after the guard.
+- **Citation-guard results:** accepted citations, and passing the support checks.
+- **Retrieval:** only the rank of cited passages. Raw BM25 scores aren't comparable across claims, so they're never used.
+
+**What it doesn't mean:**
+- `strong` isn't "probably true", and `weak` isn't "probably false".
+- It says how directly the accepted evidence was found, nothing more.
+
+**Threshold:** one, approved. A `SUPPORTED` claim with `weak` evidence requires human review.
+There are no other thresholds.
+
+**Limitations:**
+- Rank 1 depends on BM25, so a paraphrased or lexically distant source can make good evidence
+  look `weak`.
+- Two citations from the same passage count as two.
+- Whether the label predicts verdict correctness hasn't been measured; that needs live-model
+  results.
 
 ## Mapping to Member 3's shared values
 
@@ -258,8 +298,14 @@ Errors use the backend's shape (`contract/README.md`): `{"error": {"code", "mess
 
 The response header `X-Inkloom-Engine-Mode` names the engine that answered.
 
-**Until Phase 4, the endpoint serves only the fake engine**
-([`fake_engine.py`](src/inkloom_verify/fake_engine.py)).
+**Engines behind the endpoint.** Since Phase 4 the real engine is
+`pipeline.PipelineEngine` (`X-Inkloom-Engine-Mode: live`): extraction, retrieval, verification
+and the citation guard. Corrections are off until Phase 5. The development app serves it with
+`INKLOOM_ENGINE_MODE=live`, and fails at startup with the configuration message if
+`OPENROUTER_API_KEY` or `INKLOOM_LLM_MODELS` is missing. The labelled fake engine below remains
+for work without a key, and is used only with `INKLOOM_ENGINE_MODE=fake`.
+
+**The fake engine** ([`fake_engine.py`](src/inkloom_verify/fake_engine.py)).
 - **Evidence is retrieved for real:** BM25 over the request's own reference set, using the
   same request-scoped retriever as the pipeline. (Phase 3 replaced the Phase 2 hard-coded
   retriever, and the development-only `fixed` retrieval method was removed with it.)

@@ -336,3 +336,38 @@ def test_guard_report_contract_rules():
         ClaimResult.model_validate({**base, "verdict": "NOT_ENOUGH_EVIDENCE", "citations": [], "citation_guard": {"model_verdict": "SUPPORTED", "downgraded": True}})
     with pytest.raises(ValidationError, match="cannot be ERROR"):
         ClaimResult.model_validate({**base, "citation_guard": {"model_verdict": "ERROR", "downgraded": False}})
+
+
+# --- Support checks applied to SUPPORTED answers -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("claim_text", "quote", "reason"),
+    [
+        ("Lumen Pods offer up to 24 hours of playback per charge.", "up to 12 hours of playback per charge", R.UNSUPPORTED_QUANTITY),
+        ("Lumen Pods offer 12 hours of playback per charge.", "up to 12 hours of playback per charge", R.MISSING_QUALIFIER),
+        ("The Lumen Pods EU launch price is \u20ac99.", "Price: \u20ac129 (EU launch price).", R.UNSUPPORTED_QUANTITY),
+    ],
+)
+def test_a_valid_quote_that_does_not_carry_the_figure_is_downgraded(claim_text, quote, reason):
+    needle = quote.split()[0]
+    result, _ = verify(claim_text, answer("SUPPORTED", [(needle, quote)]))
+    assert result.verdict is N and result.citations == []
+    assert result.citation_guard.model_verdict is S and result.citation_guard.downgraded
+    assert [r.reason for r in result.citation_guard.rejected] == [reason]
+
+
+def test_date_conflict_is_downgraded():
+    launch = ReferenceDocument(doc_id="launch", text="Launch date: 2 April 2026 in Portugal, Spain and France.")
+    text = "Lumen Pods launch on 2 May 2026 in Portugal."
+    provider = ScriptedProvider(answer("SUPPORTED", [("Launch", "Launch date: 2 April 2026 in Portugal")]))
+    result = ClaimVerifier(provider, [launch]).verify(verifier_input(text, launch))
+    assert result.verdict is N and [r.reason for r in result.citation_guard.rejected] == [R.UNSUPPORTED_DATE]
+
+
+def test_contradicted_answers_are_not_held_to_the_figures_check():
+    result, _ = verify(
+        "Lumen Pods offer up to 24 hours of playback per charge.",
+        answer("CONTRADICTED", [("Battery", "up to 12 hours of playback per charge")]),
+    )
+    assert result.verdict is C and not result.citation_guard.downgraded

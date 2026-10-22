@@ -1,0 +1,146 @@
+[
+  {
+    "name": "extraction-timeout",
+    "stage": "extraction",
+    "fault": "timeout",
+    "expect_error_code": "PROVIDER_TIMEOUT",
+    "expect_report_status": "FAILED"
+  },
+  {
+    "name": "extraction-rate_limit",
+    "stage": "extraction",
+    "fault": "rate_limit",
+    "expect_error_code": "PROVIDER_RATE_LIMITED",
+    "expect_report_status": "FAILED"
+  },
+  {
+    "name": "extraction-unavailable",
+    "stage": "extraction",
+    "fault": "unavailable",
+    "expect_error_code": "PROVIDER_ERROR",
+    "expect_report_status": "FAILED"
+  },
+  {
+    "name": "extraction-malformed_json",
+    "stage": "extraction",
+    "fault": "malformed_json",
+    "expect_error_code": "MALFORMED_MODEL_OUTPUT",
+    "expect_report_status": "FAILED"
+  },
+  {
+    "name": "extraction-schema_invalid",
+    "stage": "extraction",
+    "fault": "schema_invalid",
+    "expect_error_code": "MALFORMED_MODEL_OUTPUT",
+    "expect_report_status": "FAILED"
+  },
+  {
+    "name": "extraction-not_configured",
+    "stage": "extraction",
+    "fault": "not_configured",
+    "expect_error_code": "PROVIDER_NOT_CONFIGURED",
+    "expect_report_status": "FAILED"
+  },
+  {
+    "name": "verification-timeout",
+    "stage": "verification",
+    "fault": "timeout",
+    "expect_error_code": "PROVIDER_TIMEOUT",
+    "expect_report_status": "PARTIAL",
+    "expect_claim_verdict": "ERROR"
+  },
+  {
+    "name": "verification-rate_limit",
+    "stage": "verification",
+    "fault": "rate_limit",
+    "expect_error_code": "PROVIDER_RATE_LIMITED",
+    "expect_report_status": "PARTIAL",
+    "expect_claim_verdict": "ERROR"
+  },
+  {
+    "name": "verification-unavailable",
+    "stage": "verification",
+    "fault": "unavailable",
+    "expect_error_code": "PROVIDER_ERROR",
+    "expect_report_status": "PARTIAL",
+    "expect_claim_verdict": "ERROR"
+  },
+  {
+    "name": "verification-malformed_json",
+    "stage": "verification",
+    "fault": "malformed_json",
+    "expect_error_code": "MALFORMED_MODEL_OUTPUT",
+    "expect_report_status": "PARTIAL",
+    "expect_claim_verdict": "ERROR"
+  },
+  {
+    "name": "verification-schema_invalid",
+    "stage": "verification",
+    "fault": "schema_invalid",
+    "expect_error_code": "MALFORMED_MODEL_OUTPUT",
+    "expect_report_status": "PARTIAL",
+    "expect_claim_verdict": "ERROR"
+  },
+  {
+    "name": "verification-not_configured",
+    "stage": "verification",
+    "fault": "not_configured",
+    "expect_error_code": "PROVIDER_NOT_CONFIGURED",
+    "expect_report_status": "PARTIAL",
+    "expect_claim_verdict": "ERROR"
+  },
+  {
+    "name": "correction-timeout",
+    "stage": "correction",
+    "fault": "timeout",
+    "expect_error_code": "PROVIDER_TIMEOUT",
+    "expect_report_status": "COMPLETED",
+    "expect_claim_verdict": "CONTRADICTED",
+    "expect_correction_status": "failed"
+  },
+  {
+    "name": "correction-rate_limit",
+    "stage": "correction",
+    "fault": "rate_limit",
+    "expect_error_code": "PROVIDER_RATE_LIMITED",
+    "expect_report_status": "COMPLETED",
+    "expect_claim_verdict": "CONTRADICTED",
+    "expect_correction_status": "failed"
+  },
+  {
+    "name": "correction-unavailable",
+    "stage": "correction",
+    "fault": "unavailable",
+    "expect_error_code": "PROVIDER_ERROR",
+    "expect_report_status": "COMPLETED",
+    "expect_claim_verdict": "CONTRADICTED",
+    "expect_correction_status": "failed"
+  },
+  {
+    "name": "correction-malformed_json",
+    "stage": "correction",
+    "fault": "malformed_json",
+    "expect_error_code": "MALFORMED_MODEL_OUTPUT",
+    "expect_report_status": "COMPLETED",
+    "expect_claim_verdict": "CONTRADICTED",
+    "expect_correction_status": "failed"
+  },
+  {
+    "name": "correction-schema_invalid",
+    "stage": "correction",
+    "fault": "schema_invalid",
+    "expect_error_code": "MALFORMED_MODEL_OUTPUT",
+    "expect_report_status": "COMPLETED",
+    "expect_claim_verdict": "CONTRADICTED",
+    "expect_correction_status": "failed"
+  },
+  {
+    "name": "correction-not_configured",
+    "stage": "correction",
+    "fault": "not_configured",
+    "expect_error_code": "PROVIDER_NOT_CONFIGURED",
+    "expect_report_status": "COMPLETED",
+    "expect_claim_verdict": "CONTRADICTED",
+    "expect_correction_status": "failed"
+  }
+]

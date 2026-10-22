@@ -24,7 +24,6 @@
         }
       },
       "verdict": "SUPPORTED",
-      "requires_human_review": false,
       "evidence": [
         {
           "passage_id": "psg_4b9cf0502e70e879061019a9",
@@ -54,7 +53,9 @@
           }
         }
       ],
-      "model_rationale": "FAKE ENGINE: canned development result; no AI verification was performed."
+      "model_rationale": "FAKE ENGINE: canned development result; no AI verification was performed.",
+      "evidence_strength": "strong",
+      "requires_human_review": false
     },
     {
       "claim": {
@@ -66,7 +67,6 @@
         }
       },
       "verdict": "CONTRADICTED",
-      "requires_human_review": true,
       "evidence": [
         {
           "passage_id": "psg_4b9cf0502e70e879061019a9",
@@ -96,7 +96,9 @@
           }
         }
       ],
-      "model_rationale": "FAKE ENGINE: canned development result; no AI verification was performed."
+      "model_rationale": "FAKE ENGINE: canned development result; no AI verification was performed.",
+      "evidence_strength": "moderate",
+      "requires_human_review": true
     },
     {
       "claim": {
@@ -108,7 +110,6 @@
         }
       },
       "verdict": "NOT_ENOUGH_EVIDENCE",
-      "requires_human_review": true,
       "evidence": [
         {
           "passage_id": "psg_4b9cf0502e70e879061019a9",
@@ -127,7 +128,9 @@
         }
       ],
       "citations": [],
-      "model_rationale": "FAKE ENGINE: canned development result; no AI verification was performed."
+      "model_rationale": "FAKE ENGINE: canned development result; no AI verification was performed.",
+      "evidence_strength": "none",
+      "requires_human_review": true
     },
     {
       "claim": {
@@ -139,7 +142,6 @@
         }
       },
       "verdict": "ERROR",
-      "requires_human_review": true,
       "evidence": [
         {
           "passage_id": "psg_4b9cf0502e70e879061019a9",
@@ -164,7 +166,9 @@
         "message": "FAKE ENGINE: canned ERROR result for development.",
         "retryable": false,
         "claim_id": "clm_0004"
-      }
+      },
+      "evidence_strength": "none",
+      "requires_human_review": true
     }
   ],
   "errors": [

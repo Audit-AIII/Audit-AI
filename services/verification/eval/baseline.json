@@ -1,0 +1,123 @@
+{
+  "note": "Regression gates for eval/run_eval.py --check-baseline. Every value comes from a measured run; null means no measured baseline or agreed threshold exists yet, and the gate is reported as NOT ENFORCED rather than invented. Metric paths are \"/\"-separated keys into report.json.",
+  "measured_run": {
+    "date": "2026-10-23",
+    "report": "reports/phase6-measure",
+    "commit": "9dd9da4 with uncommitted Phase 5-6 changes",
+    "verdict_source": "abstain (deterministic sections only)"
+  },
+  "gates": [
+    {
+      "name": "retrieval recall@5, eval/dataset.jsonl",
+      "metric": "retrieval/dataset.jsonl/recall_at_5",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 37/37"
+    },
+    {
+      "name": "retrieval recall@1, eval/dataset.jsonl",
+      "metric": "retrieval/dataset.jsonl/recall_at_1",
+      "op": ">=",
+      "value": 0.972972972972973,
+      "applies_to": "always",
+      "note": "measured 36/37"
+    },
+    {
+      "name": "retrieval recall@5, retrieval_v1",
+      "metric": "retrieval/retrieval_v1.jsonl/recall_at_5",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 32/32"
+    },
+    {
+      "name": "fabricated quotes accepted (fabricator)",
+      "metric": "enforcement/fabricator/accepted_quotes_not_in_any_source",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "always",
+      "note": "measured 0"
+    },
+    {
+      "name": "accepted-citation validity (fabricator)",
+      "metric": "enforcement/fabricator/citation_validity",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 2/2"
+    },
+    {
+      "name": "accepted-citation validity (valid-quote, always SUPPORTED)",
+      "metric": "enforcement/valid_quote_always_supported/citation_validity",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 21/21"
+    },
+    {
+      "name": "false-SUPPORTED (fabricator)",
+      "metric": "enforcement/fabricator/false_supported",
+      "op": "<=",
+      "value": 0.02857142857142857,
+      "applies_to": "always",
+      "note": "measured 1/35 (v1-032, the planted injection trap)"
+    },
+    {
+      "name": "false-SUPPORTED (valid-quote, always SUPPORTED)",
+      "metric": "enforcement/valid_quote_always_supported/false_supported",
+      "op": "<=",
+      "value": 0.42857142857142855,
+      "applies_to": "always",
+      "note": "measured 15/35 with the Phase 4 support checks"
+    },
+    {
+      "name": "correction checker: bad edits rejected",
+      "metric": "corrections/checker/correctly_rejected",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 28/28"
+    },
+    {
+      "name": "correction checker: false accepts",
+      "metric": "corrections/checker/false_accepts",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "always",
+      "note": "measured 0"
+    },
+    {
+      "name": "correction checker: good edits accepted",
+      "metric": "corrections/checker/correctly_accepted",
+      "op": ">=",
+      "value": 0.9444444444444444,
+      "applies_to": "always",
+      "note": "measured 17/18"
+    },
+    {
+      "name": "fault cases handled",
+      "metric": "faults/pass_rate",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 18/18"
+    },
+    {
+      "name": "citation validity (model run)",
+      "metric": "verdicts/citation_validity",
+      "op": ">=",
+      "value": null,
+      "applies_to": "model_run",
+      "note": "no live run has been measured yet; set this from the first live run"
+    },
+    {
+      "name": "CONTRADICTED recall (model run)",
+      "metric": "verdicts/per_class/CONTRADICTED/recall",
+      "op": ">=",
+      "value": null,
+      "applies_to": "model_run",
+      "note": "no threshold has been agreed and no live run measured"
+    }
+  ]
+}

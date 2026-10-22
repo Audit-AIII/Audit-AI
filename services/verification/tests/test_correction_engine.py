@@ -76,6 +76,7 @@ def test_corrector_is_never_invoked_for_other_verdicts(cases, verdict):
     data = base.model_dump()
     data["verdict"] = verdict
     data.pop("requires_human_review")  # re-derived from the new verdict
+    data.pop("evidence_strength")
     if verdict != "SUPPORTED":
         data["citations"] = []
     if verdict == "ERROR":
@@ -287,6 +288,7 @@ def results_with(verdicts: list[str], cases) -> list[ClaimResult]:
         data["claim"]["claim_id"] = f"clm_{i:04d}"
         data["verdict"] = verdict
         data.pop("requires_human_review")  # re-derived from the new verdict
+        data.pop("evidence_strength")
         if verdict in ("NOT_ENOUGH_EVIDENCE", "ERROR"):
             data["citations"] = []
         if verdict == "ERROR":
@@ -386,3 +388,15 @@ def test_correction_cli_checker_only(tmp_path, capsys):
     assert main(["--cases", str(CASES), "--out", str(out)]) == 0
     report = json.loads(out.read_text(encoding="utf-8"))
     assert report["checker"]["false_accepts"] == [] and "live" not in report
+
+
+@pytest.mark.parametrize(
+    ("original", "replacement", "quotes"),
+    [
+        ("340 g", "340 kg", ["Weight: 340 g."]),  # unit swapped for one the evidence never uses
+        ("750 ml", "0.75 litres", ["Capacity: 750 ml."]),  # unit conversion is a new fact
+        ("Lisbon", "Lisbon (Portugal) by Ana Ribeiro", ["Lumen Goods was founded in 2019 in Lisbon, Portugal"]),  # new name
+    ],
+)
+def test_new_units_and_names_are_unsupported_additions(original, replacement, quotes):
+    assert [i.code for i in correction_issues(original, replacement, quotes)][:1] == [I.UNSUPPORTED_ADDITION]

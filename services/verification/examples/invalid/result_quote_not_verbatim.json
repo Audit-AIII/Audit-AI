@@ -8,7 +8,6 @@
     }
   },
   "verdict": "SUPPORTED",
-  "requires_human_review": false,
   "evidence": [
     {
       "passage_id": "psg_8e867c1c7432eba941fc5da9",
@@ -38,5 +37,7 @@
       }
     }
   ],
-  "model_rationale": "The specification states cold retention of up to 24 hours."
+  "model_rationale": "The specification states cold retention of up to 24 hours.",
+  "evidence_strength": "strong",
+  "requires_human_review": false
 }
