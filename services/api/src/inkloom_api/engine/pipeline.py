@@ -26,17 +26,23 @@ from inkloom_verify.schemas import Claim, ClaimResult, Verdict
 from inkloom_verify.verification import ClaimVerifier, verify_claim
 from sqlalchemy.orm import Session
 
-from ..models import AuditEvent, ContentVersion, EvidenceLink, Finding, Review
-from ..statuses import CheckType, EvidenceRelation, ReviewState, Severity, VerificationStatus
+from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, Finding, Review
+from ..statuses import CheckType, EvidenceRelation, ExternalCallStatus, ReviewState, Severity, VerificationStatus
 from .corpus import CorpusEntry, build_corpus, corpus_lookup  # noqa: F401 (build_corpus re-exported for routers)
 from .evidence_validator import EvidenceIntegrityError, validate_all
 from .provider import build_provider
 
 STUB_EXPLANATION = (
-    "[STUB OUTPUT] No LLM provider is configured for this backend (set OPENROUTER_API_KEY and "
-    "INKLOOM_LLM_MODELS in services/api/.env). This finding is fixed placeholder content proving "
-    "the review pipeline end to end; no real claim extraction or verification ran on this content."
+    "[STUB OUTPUT] No LLM provider is configured for this backend (none of GEMINI_API_KEY, "
+    "GROQ_API_KEY, OPENROUTER_API_KEY or OLLAMA_MODEL are set in services/api/.env). This "
+    "finding is fixed placeholder content proving the review pipeline end to end; no real "
+    "claim extraction or verification ran on this content."
 )
+
+_EXTERNAL_CALL_STATUS_FOR_ERROR_CODE = {
+    "PROVIDER_TIMEOUT": ExternalCallStatus.TIMEOUT,
+    "PROVIDER_RATE_LIMITED": ExternalCallStatus.RATE_LIMITED,
+}
 
 INTEGRITY_REJECTED_EXPLANATION = (
     "The engine cited evidence that failed this backend's own independent check (wrong source, "
@@ -71,17 +77,18 @@ def run_review(db: Session, review: Review, content_version: ContentVersion, cor
         _finish(review, ReviewState.FAILED, "This brand has no approved sources to verify content against.")
         return
 
-    provider, unconfigured_reason = build_provider()
-    if provider is None:
+    organisation_id = content_version.content_item.organisation_id
+    provider = build_provider(on_attempt=_make_external_call_logger(db, review, organisation_id))
+    if not provider.configured_providers:
         review.engine_provider = "stub-unconfigured"
-        _write_stub_finding(db, review, content_version, unconfigured_reason)
+        reason = f"none configured (tried: {', '.join(provider.unconfigured)})"
+        _write_stub_finding(db, review, content_version, reason)
         _finish(review, ReviewState.NEEDS_HUMAN_REVIEW)
         return
 
     review.engine_provider = provider.name
     documents = [entry.document for entry in corpus]
     lookup = corpus_lookup(corpus)
-    organisation_id = content_version.content_item.organisation_id
 
     extractor = ClaimExtractor(provider)
     extraction = extractor.extract(content_version.text)
@@ -105,6 +112,32 @@ def run_review(db: Session, review: Review, content_version: ContentVersion, cor
         _write_finding(db, review, content_version, claim, result, lookup, organisation_id)
 
     _finish(review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED)
+
+
+def _make_external_call_logger(db: Session, review: Review, organisation_id: uuid.UUID):
+    """Phase 5 task 9: every external call, logged with provider/model/latency/error code
+    only — never prompt or reply content, never credentials, never a raw provider error."""
+
+    def on_attempt(*, provider: str, model: str | None, status: str, latency_ms: int, error_code: str | None) -> None:
+        call_status = (
+            ExternalCallStatus.SUCCESS
+            if status == "success"
+            else _EXTERNAL_CALL_STATUS_FOR_ERROR_CODE.get(error_code or "", ExternalCallStatus.ERROR)
+        )
+        db.add(
+            ExternalCallLog(
+                organisation_id=organisation_id,
+                review_id=review.id,
+                provider=provider,
+                model_id=model,
+                request_id=review.request_id or "",
+                status=call_status.value,
+                latency_ms=latency_ms,
+                error_code=error_code,
+            )
+        )
+
+    return on_attempt
 
 
 def _finish(review: Review, state: ReviewState, error_summary: str | None = None) -> None:

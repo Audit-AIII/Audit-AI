@@ -1,25 +1,30 @@
-"""Which LLM provider the pipeline uses.
+"""Assembles the Phase 5 provider fallback chain: Gemini Flash, Groq, OpenRouter `:free`, local
+Ollama, in that order (member3_backend/phase5_provider_adapter_cache_idempotency.md task 1).
 
-`OpenRouterProvider.from_env()` raises `ProviderNotConfiguredError` when `OPENROUTER_API_KEY` /
-`INKLOOM_LLM_MODELS` are not set. Phase 3's rule (member3_backend/phase3_vertical_slice.md task
-3): if the engine isn't usable, fall back to a clearly labelled stub rather than failing the
-whole route — see `pipeline.STUB_EXPLANATION` for what the stub produces and why.
+If none of the four are configured, `build_provider()` still returns a usable `FallbackProvider`
+— it simply has an empty `configured_providers` list. The caller (pipeline.py) checks that and
+falls back to a clearly labelled stub rather than failing the whole route (Phase 3 rule).
 """
 
 from __future__ import annotations
 
-import logging
+from collections.abc import Callable
 
-from inkloom_verify.providers.base import LLMProvider, ProviderNotConfiguredError
+from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.providers.openrouter import OpenRouterProvider
 
-logger = logging.getLogger(__name__)
+from .providers.fallback import AttemptObserver, FallbackProvider, noop_observer
+from .providers.gemini import GeminiProvider
+from .providers.groq import GroqProvider
+from .providers.ollama import OllamaProvider
+
+_BUILDERS: list[tuple[str, Callable[[], LLMProvider]]] = [
+    ("gemini", GeminiProvider.from_env),
+    ("groq", GroqProvider.from_env),
+    ("openrouter", OpenRouterProvider.from_env),
+    ("ollama", OllamaProvider.from_env),
+]
 
 
-def build_provider() -> tuple[LLMProvider | None, str | None]:
-    """(provider, None) when configured; (None, safe_reason) otherwise."""
-    try:
-        return OpenRouterProvider.from_env(), None
-    except ProviderNotConfiguredError as error:
-        logger.warning("LLM provider not configured, falling back to stub output: %s", error)
-        return None, str(error)
+def build_provider(on_attempt: AttemptObserver = noop_observer) -> FallbackProvider:
+    return FallbackProvider(_BUILDERS, on_attempt=on_attempt)
