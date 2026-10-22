@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://inkloom.ai/contract/review.schema.json",
+  "title": "Review",
+  "description": "Response body of GET /api/reviews/{id}.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "content_version_id", "status", "created_at", "updated_at", "findings"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "content_version_id": { "type": "string", "format": "uuid" },
+    "status": {
+      "enum": [
+        "draft",
+        "queued",
+        "analysing",
+        "completed",
+        "needs_human_review",
+        "changes_requested",
+        "approved",
+        "rejected",
+        "failed",
+        "source_changed"
+      ],
+      "description": "'completed' means the engine finished, never that a human approved it."
+    },
+    "report_status": {
+      "enum": ["COMPLETED", "PARTIAL", "FAILED", null],
+      "description": "The engine's own report status, once a report has been received."
+    },
+    "engine": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": ["string", "null"] },
+        "model_id": { "type": ["string", "null"] },
+        "prompt_version": { "type": ["string", "null"] },
+        "contract_version": { "type": ["string", "null"] }
+      }
+    },
+    "error_summary": {
+      "type": ["string", "null"],
+      "description": "Safe message only; never a raw provider error or stack trace."
+    },
+    "started_at": { "type": ["string", "null"], "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "finding.schema.json" }
+    }
+  }
+}

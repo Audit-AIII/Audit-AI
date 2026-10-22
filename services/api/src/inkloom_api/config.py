@@ -1,0 +1,27 @@
+"""Configuration loaded from the environment. See .env.example for the full list."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    database_url: str
+    auth_secret_key: str = ""
+    auth_token_ttl_minutes: int = 60 * 12
+    environment: str = "development"
+    log_level: str = "INFO"
+    cors_allow_origins: str = "http://localhost:3000"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

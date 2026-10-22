@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: inkloom
+      POSTGRES_PASSWORD: inkloom
+      POSTGRES_DB: inkloom
+    ports:
+      - "5432:5432"
+    volumes:
+      - inkloom_pg_data:/var/lib/postgresql/data
+
+volumes:
+  inkloom_pg_data:

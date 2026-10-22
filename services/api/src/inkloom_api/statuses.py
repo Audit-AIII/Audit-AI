@@ -1,0 +1,99 @@
+"""Every status string the backend defines, in one place.
+
+Mirrors how Member 2 keeps `inkloom_verify/schemas.py` as the single source for the engine's
+enums. These are exported to `contract/` (see `scripts/export_contract.py`) so Members 1 and 2
+read the same strings this module enforces as Postgres CHECK constraints
+(`migrations/versions/0001_initial_schema.py`).
+
+Values marked "proposed" are this member's draft and are not yet confirmed with the team; see
+`contract/README.md`.
+"""
+
+from __future__ import annotations
+
+from enum import Enum
+
+
+class VerificationStatus(str, Enum):
+    """Shared contract value (00_CONTEXT.md). Missing evidence means UNVERIFIED, never FALSE."""
+
+    SUPPORTED = "supported"
+    CONTRADICTED = "contradicted"
+    UNVERIFIED = "unverified"
+    CONFLICTING_SOURCES = "conflicting_sources"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class Severity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class EvidenceRelation(str, Enum):
+    SUPPORTS = "supports"
+    CONTRADICTS = "contradicts"
+    CONTEXT = "context"
+
+
+class ReviewState(str, Enum):
+    """`completed` never means approved. See 00_CONTEXT.md governance invariants."""
+
+    DRAFT = "draft"
+    QUEUED = "queued"
+    ANALYSING = "analysing"
+    COMPLETED = "completed"
+    NEEDS_HUMAN_REVIEW = "needs_human_review"
+    CHANGES_REQUESTED = "changes_requested"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    FAILED = "failed"
+    SOURCE_CHANGED = "source_changed"
+
+
+class CheckType(str, Enum):
+    RULE = "rule"
+    RETRIEVAL = "retrieval"
+    SEMANTIC = "semantic"
+
+
+class BrandSourceStatus(str, Enum):
+    DRAFT = "draft"
+    APPROVED = "approved"
+    SUPERSEDED = "superseded"
+    ARCHIVED = "archived"
+
+
+class BrandSourceSensitivity(str, Enum):
+    NORMAL = "normal"
+    CONFIDENTIAL = "confidential"
+
+
+class MembershipRole(str, Enum):
+    """Confirmed with the team for Phase 2 (member3_backend/phase2_auth_and_tenant_scoping.md
+    task 3). Permissions for each role live in `auth/permissions.py`, not here — this module is
+    only the stable set of names enforced by the `memberships.role` CHECK constraint."""
+
+    SUBMITTER = "submitter"
+    SOURCE_MANAGER = "source_manager"
+    REVIEWER = "reviewer"
+    APPROVER = "approver"
+    ADMIN = "admin"
+
+
+class ApprovalAction(str, Enum):
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CHANGES_REQUESTED = "changes_requested"
+
+
+class ExternalCallStatus(str, Enum):
+    SUCCESS = "success"
+    ERROR = "error"
+    TIMEOUT = "timeout"
+    RATE_LIMITED = "rate_limited"
+
+
+def values(enum_cls: type[Enum]) -> list[str]:
+    return [member.value for member in enum_cls]
