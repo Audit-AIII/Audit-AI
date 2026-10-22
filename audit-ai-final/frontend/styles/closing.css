@@ -84,7 +84,7 @@
   border-top: 1px dashed color-mix(in srgb, var(--canvas) 45%, transparent);
 }
 .footer__disclosure h2 { margin: 0 0 10px; color: var(--gray-light); }
-.footer__disclosure p { margin: 0; color: var(--gray-light); font-size: 15px; }
+.footer__disclosure p { margin: 0; color: var(--gray-light); font-size: 16px; }
 
 .footer__base {
   display: flex;

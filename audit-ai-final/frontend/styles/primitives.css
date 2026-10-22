@@ -144,7 +144,7 @@
   border-radius: var(--r-ui);
   background: transparent;
   color: var(--ink);
-  font: 400 17px/1.4 var(--font-body);
+  font: 400 18px/1.4 var(--font-body);
   box-shadow: var(--shadow-well);
   appearance: none;
 }
@@ -268,7 +268,7 @@ textarea.field__input { min-height: 150px; resize: vertical; }
   border-top: 1px dashed var(--ink);
 }
 .spec__row dt { margin: 0; font: 600 var(--fs-caption) / var(--lh-caption) var(--font-body); letter-spacing: var(--ls-caption); text-transform: uppercase; }
-.spec__row dd { margin: 0; font-size: 15px; line-height: 1.35; }
+.spec__row dd { margin: 0; font-size: 16px; line-height: 1.4; }
 
 /* ---- Disclosure (FAQ row) ---- */
 .disclosure { position: relative; }

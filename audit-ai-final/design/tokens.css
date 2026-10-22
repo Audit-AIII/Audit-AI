@@ -35,15 +35,15 @@
   /* ---- Type scale [M] (display sizes are desktop @1182px; fluid in [R]) ---- */
   --fs-display:   min(16vh, 11.2vw);  /* [M] 132.4px @1182x937 */  --lh-display:   .92; --ls-display:   .01em;   /* 1.32px */
   --fs-h-xl:      clamp(48px, 10.5vw, 124px);   --lh-h-xl:      .96; --ls-h-xl:      .01em;
-  --fs-h-lg:      clamp(40px, 6vw, 71px);       --lh-h-lg:      .92; --ls-h-lg:      .01em;   /* [M] 70.92px @1182 */
+  --fs-h-lg:      clamp(42px, 6.4vw, 76px);       --lh-h-lg:      .92; --ls-h-lg:      .01em;   /* [M] 70.92px @1182 */
   --fs-h:         40px;  --lh-h:  1.1;  --ls-h:  .02em;
   --fs-h-sm:      31px;  --lh-h-sm: 1.01; --ls-h-sm: .01em;
-  --fs-sub:       clamp(20px, 1.9vw, 23px);  --lh-sub: 1.05; --ls-sub: .02em;     /* [M] 22.46px @1182 */
+  --fs-sub:       clamp(21px, 2.1vw, 26px);  --lh-sub: 1.05; --ls-sub: .02em;     /* [M] 22.46px @1182 */
   --fs-body:      18px;  --lh-body: 1.55;                      /* long copy is 17px/26px */
   --fs-small:     16px;  --lh-small: 1;    --ls-small: .01em;     /* buttons [M] */
-  --fs-link:      15px;  --lh-link:  1.2;  --ls-link:  .01em;     /* nav / text links [M] */
-  --fs-lead:      18px;  --lh-lead:  1.45; --ls-lead:  -.005em;   /* hero / intro paragraph [M] */
-  --fs-caption:   13px;  --lh-caption: 1.35; --ls-caption: 1.04px;
+  --fs-link:      16px;  --lh-link:  1.2;  --ls-link:  .01em;     /* nav / text links [M] */
+  --fs-lead:      20px;  --lh-lead:  1.45; --ls-lead:  -.005em;   /* hero / intro paragraph [M] */
+  --fs-caption:   14px;  --lh-caption: 1.35; --ls-caption: 1.04px;
 
   /* ---- Layout [M] ---- */
   --container:     1160px;
