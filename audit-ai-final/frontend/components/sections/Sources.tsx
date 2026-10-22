@@ -1,4 +1,5 @@
 import { Heading } from "@/components/primitives/Heading";
+import { Shore, type ShellSpot } from "@/components/layout/Shore";
 
 type Kind = "guide" | "facts" | "claims" | "rules" | "logos";
 
@@ -72,9 +73,24 @@ function SourceVisual({ kind }: { kind: Kind }) {
   }
 }
 
+// Beach decor in the open sand around the heading (hidden below 900px).
+const SHELLS: ShellSpot[] = [
+  { kind: "dollar", x: "66%", y: "120px", size: 136, rotate: 8 },
+  { kind: "auger", x: "84%", y: "220px", size: 97, rotate: 38 },
+  { kind: "pebble", x: "81%", y: "112px", size: 24, rotate: 30 },
+  { kind: "pebble", x: "60%", y: "290px", size: 16 },
+  { kind: "conch", x: "56%", y: "250px", size: 82, rotate: 14 },
+  { kind: "glass", x: "79%", y: "60px", size: 39, rotate: 35, tone: "sea" },
+  { kind: "pearls", x: "90%", y: "330px", size: 45 },
+  { kind: "pebble", x: "76%", y: "300px", size: 30, rotate: -15, tone: "charcoal" },
+  { kind: "pebble", x: "92%", y: "110px", size: 33, rotate: 20, tone: "sage" },
+  { kind: "pebble", x: "62%", y: "80px", size: 24, tone: "terracotta" },
+];
+
 export function Sources() {
   return (
     <section id="sources" className="section sources" aria-labelledby="sources-title">
+      <Shore shells={SHELLS} />
       <div className="container">
         <div className="sources__head">
           <Heading id="sources-title" className="sources__title" data-r="up">
