@@ -33,10 +33,10 @@ const SAND = [0.85, 0.7, 0.55];
 // Canvas: soft tonal mottling, fine tooth, dense small dark/light specks, sparse coarse sand grains.
 const canvas = svg(360, [
   mottle("m", 0.011, 21, DEEP, 0.22),
-  tooth("t", 0.85, 2, [0.23, 0.15, 0.08], 0.55, -0.2),
-  speck("d", 0.55, 7, DEEP, 17, -11.7),
+  tooth("t", 0.85, 2, [0.19, 0.12, 0.06], 0.6, -0.2),
+  speck("d", 0.55, 7, [0.14, 0.08, 0.04], 17, -11.55),
   speck("l", 0.58, 3, PAPER, 17, -12.6),
-  speck("cd", 0.24, 13, INK, 22, -16.6),
+  speck("cd", 0.24, 13, [0.22, 0.14, 0.08], 22, -16.4),
   speck("cl", 0.26, 29, PAPER, 22, -17.2),
 ]);
 

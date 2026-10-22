@@ -43,7 +43,7 @@ export function Header() {
   return (
     <header className="nav" data-hidden={hidden && !open ? "" : undefined} data-open={open ? "" : undefined}>
       <div className="nav__bar board">
-        <a className="nav__brand t-wordmark" href="#top" onClick={close}>
+        <a className="nav__brand t-wordmark grain-text" data-text="Audit AI." href="#top" onClick={close}>
           Audit AI.
         </a>
         <nav className="nav__menu" id={menuId} aria-label="Main">

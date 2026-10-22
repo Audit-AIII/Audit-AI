@@ -24,9 +24,9 @@
 .nav__brand {
   margin-right: auto;
   color: var(--ink);
-  font-size: 22px;
+  font-size: 30px;
   line-height: 1;
-  letter-spacing: .02em;
+  letter-spacing: .025em;
   text-decoration: none;
   text-shadow: var(--text-etched);
   padding: 11px 0;
@@ -38,6 +38,7 @@
 @media (max-width: 900px) {
   .nav, .nav__bar { height: 62px; }
   .nav__bar { gap: 14px; padding: 0 12px 0 20px; }
+  .nav__brand { font-size: 26px; }
   .nav__menu { gap: 14px; }
   .nav__links { gap: 14px; }
 }
