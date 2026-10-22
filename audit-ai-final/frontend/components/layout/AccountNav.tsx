@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { signOut, useSession } from "@/lib/session";
@@ -9,11 +10,12 @@ import { signOut, useSession } from "@/lib/session";
  * Header account area. Signed out: Sign in + Sign up.
  * Signed in: the email (opens a small menu with Sign out) + Workspace button.
  */
-export function AccountNav({ onNavigate }: { onNavigate?: () => void }) {
+export function AccountNav({ onNavigate, inApp = false }: { onNavigate?: () => void; inApp?: boolean }) {
   const session = useSession();
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (!open) return;
@@ -70,15 +72,18 @@ export function AccountNav({ onNavigate }: { onNavigate?: () => void }) {
               setOpen(false);
               signOut();
               onNavigate?.();
+              if (inApp) router.push("/");
             }}
           >
             Sign out
           </button>
         </div>
       </div>
-      <Button href="/app" className="nav__cta" onClick={onNavigate}>
-        Workspace
-      </Button>
+      {!inApp && (
+        <Button href="/app" className="nav__cta" onClick={onNavigate}>
+          Workspace
+        </Button>
+      )}
     </div>
   );
 }
