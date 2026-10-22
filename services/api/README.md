@@ -7,6 +7,10 @@ context and the shared contract this backend enforces, and
 [`../../contract/README.md`](../../contract/README.md) for the status strings, role names and
 example payloads shared with Members 1 and 2.
 
+**Setting up locally and want to know exactly what's needed for the AI engine to actually run
+(API keys and all)? Start with [`API.md`](API.md)** — it has the full setup walkthrough and the
+complete route reference; this file is the project overview.
+
 **Status:** Phases 1-3 are built: project skeleton and migrations, auth and tenant scoping
 (email+password login, JWT, the permission table, tenant-scoped lookups), and the vertical
 slice — `POST /api/reviews` and `GET /api/reviews/{id}`, running analysis **synchronously**
@@ -26,8 +30,17 @@ thin call into it instead.
 **If no LLM provider is configured** (`OPENROUTER_API_KEY` / `INKLOOM_LLM_MODELS` unset),
 `POST /api/reviews` does not fail — it writes one clearly-labelled stub finding
 (`category: "stub"`, explanation prefixed `[STUB OUTPUT]`) so the full pipeline, storage and
-response shape can be exercised and demoed without real credentials. Never mistake that finding
-for a real verification result; see `src/inkloom_api/engine/pipeline.py`.
+response shape can be exercised and demoed without real credentials. **Stub mode is not real
+verification** — a `[STUB OUTPUT]` finding proves the plumbing works, nothing about the
+content; never treat it as an actual check against brand sources. See
+`src/inkloom_api/engine/pipeline.py`.
+
+**Span offsets are Unicode code points**, not UTF-16 code units — `finding.span.start`/`end`
+index into `text` the same way Python's own string indexing does, matching Member 2's engine
+convention exactly (`services/verification/CONTRACTS.md`, "Offsets"). A JavaScript client
+highlighting that range must convert (e.g. `Array.from(text).slice(start, end).join("")`), not
+index the string directly, whenever it may contain characters outside the Basic Multilingual
+Plane (emoji, etc.) — plain indexing silently misaligns on those.
 
 ## Setup
 

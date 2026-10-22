@@ -67,6 +67,15 @@ class BrandSourceSensitivity(str, Enum):
     CONFIDENTIAL = "confidential"
 
 
+class SourceFileType(str, Enum):
+    """What kind of file a brand source was uploaded as (Phase 4 task 3). Member 1's Brand
+    Knowledge screen shows this as the source's "type"."""
+
+    TXT = "txt"
+    PDF = "pdf"
+    DOCX = "docx"
+
+
 class MembershipRole(str, Enum):
     """Confirmed with the team for Phase 2 (member3_backend/phase2_auth_and_tenant_scoping.md
     task 3). Permissions for each role live in `auth/permissions.py`, not here — this module is

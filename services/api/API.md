@@ -1,0 +1,307 @@
+# INKLOOM AI backend — API reference and setup
+
+This answers two questions: **will the AI engine work right now**, and **exactly what do you
+need to put in to make it work**. Then it documents every route.
+
+## Will it work right now?
+
+**No — three things are missing, in order:**
+
+| # | What's missing | Without it |
+|---|---|---|
+| 1 | `services/api/.env` doesn't exist yet (only `.env.example`) | The app won't even start: `DATABASE_URL` is a required setting with no default. |
+| 2 | Docker/Postgres isn't confirmed running on this machine | `alembic upgrade head` and every DB-backed route fail to connect. |
+| 3 | `OPENROUTER_API_KEY` / `INKLOOM_LLM_MODELS` aren't set | The app **does** start and `POST /api/reviews` **does** return `201`, but every review gets one fixed placeholder finding instead of a real one — see "Stub mode" below. This is a safe fallback, not a crash. |
+
+Fix #1 and #2 and the server runs with real tenancy/auth/storage. Fix #3 on top of that and you
+get real AI-verified findings. Do all three in the order below.
+
+## Setup, start to finish
+
+### 1. Create `.env`
+
+```sh
+cd services/api
+cp .env.example .env
+```
+
+Open `.env` and fill in:
+
+- `AUTH_SECRET_KEY` — generate one:
+  ```sh
+  python -c "import secrets; print(secrets.token_urlsafe(32))"
+  ```
+- `DATABASE_URL` — leave the default (`postgresql+psycopg://inkloom:inkloom@localhost:5432/inkloom`)
+  if you use the provided `docker-compose.yml` unchanged.
+- `OPENROUTER_API_KEY` and `INKLOOM_LLM_MODELS` — leave blank for now if you don't have a key
+  yet; the server still runs, just in stub mode (see below). Fill these in once you have a key
+  — see "Getting an OpenRouter key" below for exactly what to put there.
+
+**Why `.env` alone is enough for the AI engine too:** `main.py` calls `load_dotenv()` before
+anything else runs, which loads every key in `.env` into the real process environment — not just
+the ones this app's own `Settings` class knows about. That matters because Member 2's engine
+(`inkloom_verify.providers.openrouter`) reads `OPENROUTER_API_KEY` / `INKLOOM_LLM_MODELS`
+directly from `os.environ`, not from anything this app passes it. (This wasn't wired until this
+pass — `pydantic-settings`' own `.env` parsing only populates its declared fields, and never
+touches `os.environ`, so without `load_dotenv()` a key placed in `.env` would silently never
+reach the engine. Fixed in `main.py`; verified by hand — see the repo's commit history for
+`main.py` around this doc's date if you want to see the exact check.)
+
+### 2. Start Postgres
+
+Needs Docker Desktop actually running (not just installed) — check with `docker ps` first.
+
+```sh
+docker compose up -d
+```
+
+### 3. Install dependencies and run migrations
+
+```sh
+cd services/api
+python -m venv .venv
+.venv/Scripts/python -m pip install -e ".[dev]"        # on macOS/Linux: .venv/bin/python
+.venv/Scripts/python -m pip install -e ../verification  # Member 2's engine, editable install
+
+.venv/Scripts/python -m alembic upgrade head
+```
+
+### 4. Create a user to log in as
+
+There's no seed script yet (that's Phase 8). Run this once, with the same `.env` in place:
+
+```sh
+cd services/api
+.venv/Scripts/python -c "
+from inkloom_api.db import get_session_factory
+from inkloom_api.auth.security import hash_password
+from inkloom_api.models import Organisation, User, Membership, BrandProfile, BrandSource, SourceVersion
+from inkloom_api.statuses import BrandSourceStatus
+import hashlib
+
+db = get_session_factory()()
+org = Organisation(name='Acme Corp', slug='acme')
+user = User(email='you@example.com', password_hash=hash_password('change-me'))
+db.add_all([org, user]); db.flush()
+db.add(Membership(organisation_id=org.id, user_id=user.id, role='admin', is_active=True))
+
+brand = BrandProfile(organisation_id=org.id, name='Acme Brand')
+db.add(brand); db.flush()
+source = BrandSource(brand_profile_id=brand.id, title='Product spec', status=BrandSourceStatus.APPROVED.value)
+db.add(source); db.flush()
+text = 'The Lumen Bottle keeps drinks cold for up to 24 hours. Body: 18/8 stainless steel with 70% recycled content.'
+db.add(SourceVersion(brand_source_id=source.id, version_number=1, text=text,
+                      text_sha256=hashlib.sha256(text.encode('utf-8')).hexdigest()))
+db.commit()
+print('organisation_id:', org.id)
+print('brand_id:', brand.id)
+print('login: you@example.com / change-me')
+"
+```
+
+Keep the two printed ids — you'll need `brand_id` for step 6. **Role must be one of:**
+`submitter`, `source_manager`, `reviewer`, `approver`, `admin` (`admin` can do everything, see
+"Roles and permissions" below) — use `admin` for yourself while testing.
+
+A review needs at least one **approved** `BrandSource` with a `SourceVersion` to check content
+against — that's what the `source`/`SourceVersion` lines above create. Without one, every review
+for that brand comes back `failed` (by design — see "What `POST /api/reviews` can return" below).
+
+### 5. Run the server
+
+```sh
+.venv/Scripts/python -m uvicorn inkloom_api.main:app --reload
+```
+
+`GET http://localhost:8000/health` should return `{"status": "ok"}`. If it doesn't, Postgres
+isn't reachable — go back to step 2.
+
+Interactive API docs are auto-published at `http://localhost:8000/docs` (Swagger UI) and
+`/redoc` — useful for trying requests by hand without `curl`.
+
+### 6. Log in, then submit a review
+
+```sh
+# Login
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "change-me"}'
+# -> copy "access_token" from the response
+
+TOKEN="<paste access_token here>"
+BRAND_ID="<paste brand_id from step 4 here>"
+
+curl -X POST http://localhost:8000/api/reviews \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d "{\"brand_id\": \"$BRAND_ID\", \"text\": \"The Lumen Bottle keeps drinks cold for up to 24 hours. It is made from 90% recycled steel.\"}"
+```
+
+- **No `OPENROUTER_API_KEY` set** → `201`, `status: "needs_human_review"`, one finding with
+  `category: "stub"` and an explanation starting `[STUB OUTPUT]`. This proves the whole pipeline
+  (auth → tenancy → storage → response shape) works; it is not a real verification.
+- **`OPENROUTER_API_KEY` set correctly** → the real engine runs: claims get extracted from the
+  text, each is checked against the brand's approved source text, and you get real
+  `supported`/`contradicted`/`unverified` findings with evidence quotes.
+
+## Getting an OpenRouter key (for real AI checks)
+
+1. Sign up and create a key at [openrouter.ai/keys](https://openrouter.ai/keys). Put it in
+   `.env` as `OPENROUTER_API_KEY`.
+2. Pick 1-5 model ids from [openrouter.ai/models](https://openrouter.ai/models) that support
+   **structured outputs** (JSON schema mode) — filter by that capability on the models page.
+   Member 2's team's stated preference (`services/verification/PROMPTS.md`): a Gemini Flash
+   model first, a Llama model as fallback. **Copy the exact current ids from that page** — they
+   change over time and none are hard-coded anywhere in this repo, by design. As of this
+   writing, ids of that shape look like `google/gemini-2.5-flash` and
+   `meta-llama/llama-3.1-8b-instruct`, but confirm on the models page before using them.
+3. Put them comma-separated in `.env` as `INKLOOM_LLM_MODELS`, e.g.:
+   ```
+   INKLOOM_LLM_MODELS=google/gemini-2.5-flash,meta-llama/llama-3.1-8b-instruct
+   ```
+4. Restart the server (env vars are read once at process start).
+
+**Cost and data note:** once a key is set, submitted content is sent to OpenRouter and on to
+whichever model answers (`INKLOOM_LLM_DATA_COLLECTION=deny`, the default, limits this to
+providers that don't retain prompt data, but the content still leaves the machine). Each call
+costs whatever OpenRouter charges for the model used. Don't point this at confidential content
+until that's acceptable for your use.
+
+## What `POST /api/reviews` can return
+
+Analysis is **synchronous** — the request blocks until one of these three outcomes is reached,
+and the response already reflects it:
+
+| `status` | When | `findings` |
+|---|---|---|
+| `completed` | Real engine ran; every claim came back `SUPPORTED` (or there was nothing to check) | Zero or more, all `supported` |
+| `needs_human_review` | Real engine ran and at least one claim needs a look, **or** no LLM provider is configured (stub mode) | Real findings, or one `category: "stub"` placeholder |
+| `failed` | The brand has no approved source to check against, or claim extraction itself could not run | Empty, with `error_summary` explaining why |
+
+`failed` here is a normal `201` response with `status: "failed"` in the body — not an HTTP error.
+The review resource was created; it just has nothing usable in it.
+
+## Full route reference
+
+All routes except `/health` and `/api/auth/login` require `Authorization: Bearer <access_token>`.
+
+### `GET /health`
+No auth. `200 {"status": "ok"}` if the database is reachable.
+
+### `POST /api/auth/login`
+No auth. Body: `{"email": "...", "password": "..."}`.
+
+**200:**
+```json
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  "user": {"id": "...", "email": "...", "display_name": null},
+  "organisation": {"id": "...", "name": "Acme Corp", "slug": "acme"},
+  "role": "admin"
+}
+```
+**401** (same message whether the email is unknown, the password is wrong, or the account has no
+active organisation membership — deliberately indistinguishable):
+```json
+{"error": {"code": "UNAUTHENTICATED", "message": "invalid email or password", "request_id": "..."}}
+```
+
+A token is scoped to **one organisation**, decided at login. A user in more than one
+organisation gets whichever membership was created first — no org switcher yet.
+
+### `GET /api/auth/me`
+Returns `{"user", "organisation", "role"}` (no token field) for the caller's current session.
+Use this to restore a session on page load rather than trusting a cached copy — a membership can
+be deactivated between requests.
+
+### `GET /api/brands/{brand_id}/sources`
+Any active member of the organisation may call this (no specific permission required). Returns
+a list of the brand's `BrandSource` rows:
+```json
+[{"id": "...", "brand_profile_id": "...", "title": "Product spec", "status": "approved", "sensitivity": "normal", "created_at": "...", "updated_at": "..."}]
+```
+`brand_id` belonging to another organisation returns `404`, identical to a `brand_id` that
+doesn't exist at all — this never reveals whether another tenant's data exists.
+
+### `POST /api/reviews`
+Body: `{"brand_id": "...", "title"?: "...", "text": "..."}` (`text` 1-100,000 characters).
+Returns `201` with the full `Review` shape below (see "What `POST /api/reviews` can return"
+above for what `status` ends up as). `brand_id` from another organisation: `404`.
+
+### `GET /api/reviews/{review_id}`
+Returns the same `Review` shape. Scoped to the caller's organisation (`404` for any other
+tenant's review, same indistinguishable-404 rule as brands).
+
+**Review shape** (both routes return this):
+```json
+{
+  "id": "...",
+  "content_version_id": "...",
+  "status": "needs_human_review",
+  "report_status": null,
+  "engine": {"provider": "openrouter", "model_id": "google/gemini-2.5-flash", "prompt_version": "extract-claims-v1", "contract_version": "0.1.0"},
+  "error_summary": null,
+  "started_at": "...", "completed_at": "...", "created_at": "...", "updated_at": "...",
+  "findings": [
+    {
+      "finding_id": "...",
+      "category": null,
+      "severity": "high",
+      "original_text": "It is made from 90% recycled steel.",
+      "span": {"start": 55, "end": 90},
+      "check_type": "retrieval",
+      "explanation": "P1 gives 70% recycled content, not 90%.",
+      "verification_status": "contradicted",
+      "suggested_correction": "It is made from 70% recycled steel.",
+      "requires_human_review": true,
+      "evidence": [
+        {"id": "...", "source_id": "...", "source_version_id": "...", "quote": "70% recycled content", "relation": "contradicts"}
+      ]
+    }
+  ]
+}
+```
+`span` offsets are Unicode **code points** into the submitted `text`, not UTF-16 code units — a
+JavaScript client highlighting text must account for that (see `contract/README.md`, "Offsets").
+
+### Error shape (every route, on failure)
+```json
+{"error": {"code": "NOT_FOUND", "message": "brand not found", "request_id": "6b2e9a1c..."}}
+```
+| HTTP | `code` | Meaning |
+|---|---|---|
+| 401 | `UNAUTHENTICATED` | No token, invalid/expired token, or a membership no longer active |
+| 403 | `FORBIDDEN` | Authenticated, but the role lacks the needed permission |
+| 404 | `NOT_FOUND` | Doesn't exist, or belongs to another organisation — indistinguishable on purpose |
+| 422 | `VALIDATION_ERROR` | Request body/params failed validation; lists field locations only, never the submitted value |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+Every response — success or error — carries `X-Request-ID`, echoed in `error.request_id` too.
+Match that to a server log line if something needs debugging.
+
+## Roles and permissions
+
+| Role | submit | manage_sources | review | approve | administer |
+|---|---|---|---|---|---|
+| `submitter` | yes | | | | |
+| `source_manager` | | yes | | | |
+| `reviewer` | | | yes | | |
+| `approver` | | | yes | yes | |
+| `admin` | yes | yes | yes | yes | yes |
+
+Neither route implemented so far (`GET /api/brands/{id}/sources`, `POST`/`GET /api/reviews`)
+requires a specific permission beyond being an active member — this table matters starting
+Phase 4+ (managing sources, approving content versions).
+
+## Known gaps (don't be surprised by these)
+
+- **No seed script yet** — step 4 above is the manual workaround until Phase 8.
+- **Not verified against a live database in this environment** — Docker hasn't been confirmed
+  running where this was built. Every claim above has been checked by reading the code and by
+  running what's runnable without a DB (imports, route registration, the `.env`→`os.environ`
+  fix, offline SQL generation, 18 DB-free unit tests). Run
+  `DATABASE_URL=... AUTH_SECRET_KEY=... .venv/Scripts/python -m pytest` once Postgres is up to
+  confirm the rest for real.
+- **No organisation switcher**, **no polling** (synchronous only), **no background jobs** —
+  all explicit, confirmed simplifications for this phase, not oversights. See
+  `services/api/README.md`'s "Open decisions" for the full list and the reasoning behind each.

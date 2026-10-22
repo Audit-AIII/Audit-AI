@@ -14,7 +14,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from .models import BrandProfile, ContentItem, ContentVersion, Review
+from .models import BrandProfile, BrandSource, ContentItem, ContentVersion, Review
 
 
 def not_found(detail: str = "not found") -> HTTPException:
@@ -26,6 +26,18 @@ def get_brand_profile_or_404(db: Session, organisation_id: uuid.UUID, brand_prof
     if profile is None or profile.organisation_id != organisation_id:
         raise not_found("brand not found")
     return profile
+
+
+def get_brand_source_or_404(
+    db: Session, organisation_id: uuid.UUID, brand_profile_id: uuid.UUID, source_id: uuid.UUID
+) -> BrandSource:
+    """Checks all three levels (source exists, belongs to this brand, brand belongs to this
+    organisation) and collapses any failure to the same 404 (task 7)."""
+    get_brand_profile_or_404(db, organisation_id, brand_profile_id)
+    source = db.get(BrandSource, source_id)
+    if source is None or source.brand_profile_id != brand_profile_id:
+        raise not_found("source not found")
+    return source
 
 
 def get_content_version_or_404(

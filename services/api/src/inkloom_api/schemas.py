@@ -36,14 +36,31 @@ class LoginResponse(SessionInfo):
     token_type: str = "bearer"
 
 
-class BrandSourceOut(_Out):
+class BrandSourceOut(BaseModel):
     id: uuid.UUID
     brand_profile_id: uuid.UUID
     title: str
     status: str
     sensitivity: str
+    source_type: str | None
+    latest_version: int | None
     created_at: datetime
     updated_at: datetime
+
+    @classmethod
+    def from_model(cls, source) -> "BrandSourceOut":
+        versions = sorted(source.versions, key=lambda v: v.version_number)
+        return cls(
+            id=source.id,
+            brand_profile_id=source.brand_profile_id,
+            title=source.title,
+            status=source.status,
+            sensitivity=source.sensitivity,
+            source_type=source.source_type,
+            latest_version=versions[-1].version_number if versions else None,
+            created_at=source.created_at,
+            updated_at=source.updated_at,
+        )
 
 
 # --- Reviews / findings / evidence: contract/schemas/review.schema.json, finding.schema.json --

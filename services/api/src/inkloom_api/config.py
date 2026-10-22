@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
     cors_allow_origins: str = "http://localhost:3000"
+    # Phase 4: brand source uploads. Never a public/static path - see .gitignore ("var/").
+    brand_source_storage_dir: str = "var/brand_sources"
+    max_source_upload_bytes: int = 10 * 1024 * 1024  # 10 MB
 
     @property
     def cors_origins(self) -> list[str]:

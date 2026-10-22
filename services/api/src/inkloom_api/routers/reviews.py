@@ -14,7 +14,8 @@ from inkloom_verify.schemas import CONTRACT_VERSION, MAX_CONTENT_CHARS
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..auth.dependencies import AuthContext, get_current_membership
+from ..auth.dependencies import AuthContext, get_current_membership, require_permission
+from ..auth.permissions import Permission
 from ..db import get_db
 from ..engine.pipeline import build_corpus, run_review
 from ..models import BrandSource, ContentItem, ContentVersion, Review, SourceVersion
@@ -56,7 +57,7 @@ def _latest_approved_sources(db: Session, brand_profile_id: uuid.UUID) -> list[t
 @router.post("", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
 def create_review(
     body: ReviewCreateRequest,
-    auth: AuthContext = Depends(get_current_membership),
+    auth: AuthContext = Depends(require_permission(Permission.SUBMIT)),
     db: Session = Depends(get_db),
 ) -> ReviewOut:
     if not body.text.strip():

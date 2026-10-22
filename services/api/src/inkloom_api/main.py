@@ -1,15 +1,23 @@
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
-from sqlalchemy.orm import Session
+from dotenv import load_dotenv
 
-from .config import get_settings
-from .db import get_db
-from .errors import install_error_handlers
-from .logging import RequestIdMiddleware, configure_logging
-from .routers import auth, brands, reviews
+# Must run before anything reads os.environ directly - our own Settings (config.py) parses
+# .env on its own via pydantic-settings, but that never touches the real process environment.
+# inkloom_verify.providers.openrouter.OpenRouterSettings.from_env() reads os.environ directly,
+# so OPENROUTER_API_KEY / INKLOOM_LLM_MODELS in .env would otherwise never reach it.
+load_dotenv()
+
+from fastapi import Depends, FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+
+from .config import get_settings  # noqa: E402
+from .db import get_db  # noqa: E402
+from .errors import install_error_handlers  # noqa: E402
+from .logging import RequestIdMiddleware, configure_logging  # noqa: E402
+from .routers import auth, brands, reviews  # noqa: E402
 
 settings = get_settings()
 configure_logging(settings.log_level)

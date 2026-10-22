@@ -33,6 +33,7 @@ class ReviewFixture:
     org_a: Organisation
     org_b: Organisation
     user_a: User
+    user_reviewer: User  # active member of org_a, but no `submit` permission
     brand_with_source: BrandProfile
     brand_without_source: BrandProfile
     brand_b: BrandProfile
@@ -44,10 +45,14 @@ def review_fixture(db_session):
     org_a = Organisation(name="Org A", slug=f"rev-org-a-{unique}")
     org_b = Organisation(name="Org B", slug=f"rev-org-b-{unique}")
     user_a = User(email=f"rev-user-a-{unique}@example.com", password_hash=hash_password(PASSWORD))
-    db_session.add_all([org_a, org_b, user_a])
+    user_reviewer = User(email=f"rev-user-reviewer-{unique}@example.com", password_hash=hash_password(PASSWORD))
+    db_session.add_all([org_a, org_b, user_a, user_reviewer])
     db_session.flush()
 
     db_session.add(Membership(organisation_id=org_a.id, user_id=user_a.id, role="submitter", is_active=True))
+    db_session.add(
+        Membership(organisation_id=org_a.id, user_id=user_reviewer.id, role="reviewer", is_active=True)
+    )
 
     brand_with_source = BrandProfile(organisation_id=org_a.id, name="Brand With Source")
     brand_without_source = BrandProfile(organisation_id=org_a.id, name="Brand Without Source")
@@ -78,14 +83,16 @@ def review_fixture(db_session):
             org_a=org_a,
             org_b=org_b,
             user_a=user_a,
+            user_reviewer=user_reviewer,
             brand_with_source=brand_with_source,
             brand_without_source=brand_without_source,
             brand_b=brand_b,
         )
     finally:
-        db_session.delete(org_a)  # cascades: membership, both brands, source, source_version
+        db_session.delete(org_a)  # cascades: both memberships, both brands, source, source_version
         db_session.delete(org_b)
         db_session.delete(user_a)
+        db_session.delete(user_reviewer)
         db_session.commit()
 
 
@@ -169,3 +176,77 @@ def test_get_review_is_scoped_to_organisation(client, monkeypatch, review_fixtur
 
     missing_auth = client.get(f"/api/reviews/{review_id}")
     assert missing_auth.status_code == 401
+
+
+@requires_db
+def test_post_reviews_requires_submit_permission(client, review_fixture: ReviewFixture) -> None:
+    """Phase 3 verification small fix: POST /api/reviews is gated on the `submit` permission,
+    which `reviewer` does not hold (contract/README.md's role table)."""
+    token = _login(client, review_fixture.user_reviewer.email)
+    response = client.post(
+        "/api/reviews",
+        json={"brand_id": str(review_fixture.brand_with_source.id), "text": "Some content."},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+    body = response.json()
+    assert body["error"]["code"] == "FORBIDDEN"
+    assert "submit" in body["error"]["message"]
+
+
+@requires_db
+def test_get_brand_sources_allows_any_active_role(client, review_fixture: ReviewFixture) -> None:
+    """Companion to the fix above: the read route must keep allowing any active member,
+    `reviewer` included, even though that role holds neither `submit` nor `manage_sources`."""
+    token = _login(client, review_fixture.user_reviewer.email)
+    response = client.get(
+        f"/api/brands/{review_fixture.brand_with_source.id}/sources",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+@requires_db
+def test_draft_source_is_never_used_as_evidence(db_session) -> None:
+    """Phase 4 required test 5: a draft source sits alongside an approved one on the same
+    brand; only the approved one's text may ever reach the corpus the engine is allowed to cite.
+    """
+    from inkloom_api.routers.reviews import _latest_approved_sources
+
+    unique = uuid.uuid4().hex[:8]
+    org = Organisation(name="Draft Source Org", slug=f"draft-src-{unique}")
+    db_session.add(org)
+    db_session.flush()
+    brand = BrandProfile(organisation_id=org.id, name="Brand")
+    db_session.add(brand)
+    db_session.flush()
+
+    draft = BrandSource(brand_profile_id=brand.id, title="Unreviewed draft", status=BrandSourceStatus.DRAFT.value)
+    approved = BrandSource(brand_profile_id=brand.id, title="Approved spec", status=BrandSourceStatus.APPROVED.value)
+    db_session.add_all([draft, approved])
+    db_session.flush()
+
+    draft_text = "SECRET DRAFT TEXT: never cite this."
+    approved_text = "The published fact: INKLOOM AI never auto-publishes a correction."
+    db_session.add_all(
+        [
+            SourceVersion(
+                brand_source_id=draft.id, version_number=1, text=draft_text,
+                text_sha256=hashlib.sha256(draft_text.encode("utf-8")).hexdigest(),
+            ),
+            SourceVersion(
+                brand_source_id=approved.id, version_number=1, text=approved_text,
+                text_sha256=hashlib.sha256(approved_text.encode("utf-8")).hexdigest(),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    try:
+        sources = _latest_approved_sources(db_session, brand.id)
+        assert [s.id for s, _ in sources] == [approved.id]
+        assert [v.text for _, v in sources] == [approved_text]
+    finally:
+        db_session.delete(org)  # cascades: brand, both sources, both source_versions
+        db_session.commit()

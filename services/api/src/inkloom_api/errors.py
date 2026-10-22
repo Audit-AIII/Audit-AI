@@ -63,6 +63,7 @@ def install_error_handlers(app: FastAPI) -> None:
             status.HTTP_403_FORBIDDEN: ErrorCode.FORBIDDEN,
             status.HTTP_404_NOT_FOUND: ErrorCode.NOT_FOUND,
             status.HTTP_409_CONFLICT: ErrorCode.CONFLICT,
+            status.HTTP_422_UNPROCESSABLE_ENTITY: ErrorCode.VALIDATION_ERROR,
         }.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
         message = exc.detail if isinstance(exc.detail, str) else "request failed"
         return JSONResponse(status_code=exc.status_code, content=_body(code, message))
