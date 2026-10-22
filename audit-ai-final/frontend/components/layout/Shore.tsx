@@ -249,3 +249,35 @@ export function SandDrift({ variant, className }: { variant: number; className?:
     </svg>
   );
 }
+
+/** One small beach find (shell, pebble, pearls…) as its own decorative SVG, for placing by hand. */
+export function BeachFind({
+  kind,
+  tone,
+  size,
+  rotate = 0,
+  className,
+}: {
+  kind: Exclude<Kind, "tide">;
+  tone?: Tone;
+  size: number;
+  rotate?: number;
+  className?: string;
+}) {
+  return (
+    <svg
+      className={`find${className ? ` ${className}` : ""}`}
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g filter={SMOOTH.has(kind) ? "url(#shell-shadow)" : "url(#shell-sand)"}>
+        <g transform={`rotate(${rotate} 50 50)`}>
+          <Shape kind={kind} tone={tone} />
+        </g>
+      </g>
+    </svg>
+  );
+}

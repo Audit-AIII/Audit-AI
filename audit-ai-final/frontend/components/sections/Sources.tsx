@@ -1,5 +1,5 @@
 import { Heading } from "@/components/primitives/Heading";
-import { Shore, type ShellSpot } from "@/components/layout/Shore";
+import { BeachFind, Shore, type ShellSpot } from "@/components/layout/Shore";
 
 type Kind = "guide" | "facts" | "claims" | "rules" | "logos";
 
@@ -87,6 +87,15 @@ const SHELLS: ShellSpot[] = [
   { kind: "pebble", x: "62%", y: "80px", size: 24, tone: "terracotta" },
 ];
 
+// A small find lying in the sand beside each row's drawing (same order as SOURCES).
+const FINDS: Parameters<typeof BeachFind>[0][][] = [
+  [{ kind: "scallop", size: 40, rotate: 18 }, { kind: "pebble", tone: "sage", size: 20, rotate: -12 }],
+  [{ kind: "pearls", size: 38 }],
+  [{ kind: "glass", tone: "sea", size: 30, rotate: 30 }, { kind: "pebble", tone: "terracotta", size: 18 }],
+  [{ kind: "spiral", size: 34, rotate: -20 }],
+  [{ kind: "star", size: 40, rotate: 12 }, { kind: "pebble", tone: "slate", size: 18, rotate: 20 }],
+];
+
 export function Sources() {
   return (
     <section id="sources" className="section sources" aria-labelledby="sources-title">
@@ -103,10 +112,13 @@ export function Sources() {
         </div>
 
         <ul className="sources__list">
-          {SOURCES.map((s) => (
+          {SOURCES.map((s, i) => (
             <li key={s.kind} className="sources__row" data-r="up">
-              <div aria-hidden="true">
+              <div className="sources__visual" aria-hidden="true">
                 <SourceVisual kind={s.kind} />
+                {FINDS[i]?.map((f, j) => (
+                  <BeachFind key={j} {...f} className={`sources__find sources__find--${j ? "b" : "a"}`} />
+                ))}
               </div>
               <h3 className="t-title sources__name">{s.name}</h3>
               <dl className="sources__meta">
