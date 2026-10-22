@@ -251,7 +251,7 @@ class ScorecardCandidates(_Model):
 
 class RetrievalMetrics(_Model):
     top_k: int
-    chunking: dict[str, int]
+    chunking: dict[str, int | str]
     config: dict[str, float | int | bool]
     evidence_hit_rate: Ratio
     full_evidence_coverage: Ratio

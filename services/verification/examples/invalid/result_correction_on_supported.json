@@ -1,0 +1,67 @@
+{
+  "claim": {
+    "claim_id": "clm_0002",
+    "text": "The Lumen Bottle is made from 90% recycled steel.",
+    "source_span": {
+      "start": 55,
+      "end": 90
+    }
+  },
+  "verdict": "SUPPORTED",
+  "requires_human_review": false,
+  "evidence": [
+    {
+      "passage_id": "psg_796412a63320eb0e15bd336c",
+      "doc_id": "spec-sheet",
+      "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+      "span": {
+        "start": 113,
+        "end": 166
+      },
+      "text": "Body: 18/8 stainless steel with 70% recycled content.",
+      "retrieval": {
+        "method": "bm25",
+        "score": 3.91,
+        "rank": 1
+      }
+    }
+  ],
+  "citations": [
+    {
+      "doc_id": "spec-sheet",
+      "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+      "passage_id": "psg_796412a63320eb0e15bd336c",
+      "quote": "70% recycled content",
+      "quote_span": {
+        "start": 145,
+        "end": 165
+      }
+    }
+  ],
+  "correction": {
+    "target_span": {
+      "start": 71,
+      "end": 74
+    },
+    "original_text": "90%",
+    "replacement_text": "70%",
+    "citations": [
+      {
+        "doc_id": "spec-sheet",
+        "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+        "passage_id": "psg_796412a63320eb0e15bd336c",
+        "quote": "70% recycled content",
+        "quote_span": {
+          "start": 145,
+          "end": 165
+        }
+      }
+    ]
+  },
+  "model_rationale": "The specification states 70% recycled content, not 90%.",
+  "correction_attempt": {
+    "status": "proposed",
+    "issues": [],
+    "recheck_verdict": "SUPPORTED"
+  }
+}

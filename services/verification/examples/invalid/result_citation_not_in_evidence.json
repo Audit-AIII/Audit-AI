@@ -1,0 +1,26 @@
+{
+  "claim": {
+    "claim_id": "clm_0001",
+    "text": "The Lumen Bottle keeps drinks cold for up to 24 hours.",
+    "source_span": {
+      "start": 0,
+      "end": 54
+    }
+  },
+  "verdict": "SUPPORTED",
+  "requires_human_review": false,
+  "evidence": [],
+  "citations": [
+    {
+      "doc_id": "spec-sheet",
+      "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+      "passage_id": "psg_8e867c1c7432eba941fc5da9",
+      "quote": "keeps drinks cold for up to 24 hours",
+      "quote_span": {
+        "start": 48,
+        "end": 84
+      }
+    }
+  ],
+  "model_rationale": "The specification states cold retention of up to 24 hours."
+}

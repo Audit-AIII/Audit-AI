@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from inkloom_verify.schemas import ProcessingError, Verdict, VerificationReport
+from inkloom_verify.schemas import ProcessingError, ReportScore, ReviewReason, Verdict, VerificationReport
 
 REQUEST_ERROR = {
     "code": "LIMIT_EXCEEDED",
@@ -9,6 +9,13 @@ REQUEST_ERROR = {
     "message": "Only the first 200 claims were verified.",
     "retryable": False,
 }
+
+
+@pytest.fixture
+def report_data(report_data):
+    """The example report without its score, so tests can change results freely."""
+    report_data.pop("score")
+    return report_data
 
 
 def check(data: dict, match: str) -> None:
@@ -123,3 +130,26 @@ def test_error_message_bounds():
 def test_unknown_error_code_rejected():
     with pytest.raises(ValidationError):
         ProcessingError.model_validate(dict(REQUEST_ERROR, code="SOMETHING_ELSE"))
+
+
+# --- Score -------------------------------------------------------------------------------------
+
+
+def test_example_score_matches_its_results():
+    from conftest import load_example
+
+    data = load_example("verification_report.json")
+    report = VerificationReport.model_validate(data)
+    assert report.score == ReportScore.compute(report.results, report.errors)
+    assert report.score.evidence_coverage.value == pytest.approx(1 / 3)
+    assert report.score.review_reasons == [ReviewReason.CONTRADICTED_CLAIMS, ReviewReason.UNVERIFIED_CLAIMS]
+
+
+def test_tampered_score_is_rejected():
+    from conftest import load_example
+
+    data = load_example("verification_report.json")
+    data["score"]["supported"] = 3
+    data["score"]["evidence_coverage"] = {"supported": 3, "checked": 3, "value": 1.0}
+    with pytest.raises(ValidationError, match="score does not match"):
+        VerificationReport.model_validate(data)

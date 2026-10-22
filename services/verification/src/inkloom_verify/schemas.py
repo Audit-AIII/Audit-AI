@@ -65,6 +65,9 @@ TenantId = Annotated[str, Field(pattern=_EXTERNAL_ID_PATTERN)]
 DocumentId = Annotated[str, Field(pattern=_EXTERNAL_ID_PATTERN)]
 RequestId = Annotated[str, Field(pattern=_EXTERNAL_ID_PATTERN)]
 RecordId = Annotated[str, Field(pattern=_EXTERNAL_ID_PATTERN)]
+# Names the set of reference documents a request is checked against. Issued by the backend and
+# opaque to the engine: the engine never looks it up, it only carries it and checks it matches.
+ReferenceSetId = Annotated[str, Field(pattern=_EXTERNAL_ID_PATTERN)]
 
 # Identifiers issued by the engine. The prefix makes a claim id and a passage id impossible to
 # confuse in logs or when one is passed where the other is expected.
@@ -182,6 +185,7 @@ class VerificationRequest(_Contract):
     contract_version: ContractVersion = CONTRACT_VERSION
     request_id: RequestId
     tenant_id: TenantId
+    reference_set_id: ReferenceSetId | None = None
     content: InputContent
     references: Annotated[list[ReferenceDocument], Field(min_length=1, max_length=MAX_REFERENCE_DOCS)]
 
@@ -385,6 +389,62 @@ def _citation_key(citation: Citation) -> tuple[str, int, int]:
     return (citation.passage_id, citation.quote_span.start, citation.quote_span.end)
 
 
+class CorrectionStatus(str, Enum):
+    PROPOSED = "proposed"  # a correction passed every check and is offered to the reviewer
+    NEEDS_HUMAN_REVIEW = "needs_human_review"  # no safe correction; a person must decide the fix
+    FAILED = "failed"  # the correction stage could not run (provider or output failure)
+
+
+class CorrectionIssueCode(str, Enum):
+    MODEL_DECLINED = "model_declined"  # the model said the evidence does not determine a fix
+    NO_CITATION = "no_citation"  # the proposal cites no evidence
+    UNKNOWN_CITATION = "unknown_citation"  # cites evidence that did not justify the contradiction
+    TARGET_NOT_FOUND = "target_not_found"  # the text to replace is not in the claim's source text
+    NO_CHANGE = "no_change"  # the replacement is blank or the same as the original
+    UNSUPPORTED_ADDITION = "unsupported_addition"  # adds words, numbers or symbols absent from the cited evidence
+    NOT_MINIMAL = "not_minimal"  # rewrites more than the minimality bound allows
+    DROPS_QUALIFIER = "drops_qualifier"  # removes a qualifier ("up to", "about") that the evidence also uses
+    RECHECK_NOT_SUPPORTED = "recheck_not_supported"  # the corrected claim did not verify as SUPPORTED
+    RECHECK_UNAVAILABLE = "recheck_unavailable"  # the re-check could not run
+    INVALID_CORRECTION = "invalid_correction"  # the proposal broke the Correction contract
+
+
+class CorrectionIssue(_Contract):
+    code: CorrectionIssueCode
+    detail: Annotated[str, Field(max_length=300)] | None = None
+
+
+class CorrectionAttempt(_Contract):
+    """What happened when a correction was attempted for a CONTRADICTED claim.
+
+    PROPOSED: a correction is attached to the result and passed every check (and the re-check,
+    when one ran). NEEDS_HUMAN_REVIEW: no correction is attached; ``issues`` says why.
+    FAILED: no correction is attached; ``error`` says why.
+    """
+
+    status: CorrectionStatus
+    issues: list[CorrectionIssue] = []
+    recheck_verdict: Verdict | None = None  # verdict of the corrected claim, when re-checked
+    error: ProcessingError | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> CorrectionAttempt:
+        if self.status is CorrectionStatus.PROPOSED and (self.issues or self.error):
+            raise ValueError("a PROPOSED correction has no issues and no error")
+        if self.status is CorrectionStatus.PROPOSED and self.recheck_verdict not in (None, Verdict.SUPPORTED):
+            raise ValueError("a PROPOSED correction must re-check as SUPPORTED")
+        if self.status is CorrectionStatus.NEEDS_HUMAN_REVIEW and (not self.issues or self.error):
+            raise ValueError("NEEDS_HUMAN_REVIEW lists issues and has no error")
+        if self.status is CorrectionStatus.FAILED and self.error is None:
+            raise ValueError("FAILED requires an error")
+        return self
+
+
+def _review_needed(data: dict[str, Any]) -> bool:
+    """Default for ClaimResult.requires_human_review; True when the verdict is unknown."""
+    return data.get("verdict") is not Verdict.SUPPORTED
+
+
 class GuardRejectionReason(str, Enum):
     NO_CITATION = "no_citation"  # a definite verdict came with no citation at all
     UNKNOWN_PASSAGE = "unknown_passage"  # cites a passage that was not given for this claim
@@ -445,6 +505,9 @@ class ClaimResult(_Contract):
 
     claim: Claim
     verdict: Verdict
+    # True for every verdict except SUPPORTED: missing evidence, contradictions and failures always
+    # go to a person. Filled in when omitted; rejected when it disagrees with the verdict.
+    requires_human_review: Annotated[bool, Field(strict=True)] = Field(default_factory=_review_needed)
     evidence: Annotated[list[EvidencePassage], Field(max_length=MAX_PASSAGES_PER_CLAIM)] = []
     citations: Annotated[list[Citation], Field(max_length=MAX_PASSAGES_PER_CLAIM)] = []
     correction: Correction | None = None
@@ -452,14 +515,19 @@ class ClaimResult(_Contract):
     # Model-generated explanation, for display only. Never evidence; never checked against sources.
     model_rationale: Annotated[str, Field(max_length=MAX_RATIONALE_CHARS)] | None = None
     citation_guard: CitationGuardReport | None = None
+    correction_attempt: CorrectionAttempt | None = None
 
     @model_validator(mode="after")
     def _check(self) -> ClaimResult:
         self._check_verdict_shape()
         self._check_guard()
+        self._check_correction_attempt()
         _require_unique_passages(self.evidence)
         self._check_citations()
         self._check_correction()
+        # Checked last so a structurally wrong result reports its structural error first.
+        if self.requires_human_review is not (self.verdict is not Verdict.SUPPORTED):
+            raise ValueError("requires_human_review must be false only for SUPPORTED")
         return self
 
     def _check_verdict_shape(self) -> None:
@@ -508,6 +576,16 @@ class ClaimResult(_Contract):
                 raise ValueError(f"duplicate citation of {citation.passage_id}")
             seen.add(key)
 
+    def _check_correction_attempt(self) -> None:
+        attempt = self.correction_attempt
+        if attempt is not None and self.verdict is not Verdict.CONTRADICTED:
+            raise ValueError("a correction is only attempted for a CONTRADICTED claim")
+        proposed = attempt is not None and attempt.status is CorrectionStatus.PROPOSED
+        if self.correction is not None and not proposed:
+            raise ValueError("a correction requires a correction_attempt with status PROPOSED")
+        if proposed and self.correction is None:
+            raise ValueError("a PROPOSED correction_attempt requires the correction")
+
     def _check_correction(self) -> None:
         if self.correction is None:
             return
@@ -527,12 +605,103 @@ class ReportStatus(str, Enum):
     FAILED = "FAILED"  # no results; see errors
 
 
+class EvidenceCoverage(_Contract):
+    """Share of checked claims backed by validated evidence: supported / checked.
+
+    ``checked`` counts claims with a SUPPORTED, CONTRADICTED or NOT_ENOUGH_EVIDENCE verdict;
+    ERROR results are not checked and are counted separately. ``value`` is null when nothing was
+    checked, never 0% or 100%.
+    """
+
+    supported: Annotated[int, Field(strict=True, ge=0)]
+    checked: Annotated[int, Field(strict=True, ge=0)]
+    value: float | None = None  # omitted means null; still must equal supported / checked
+
+    @model_validator(mode="after")
+    def _check(self) -> EvidenceCoverage:
+        if self.supported > self.checked:
+            raise ValueError("supported cannot exceed checked")
+        expected = self.supported / self.checked if self.checked else None
+        if self.value != expected:
+            raise ValueError("value must equal supported / checked (null when checked is 0)")
+        return self
+
+
+class ReviewReason(str, Enum):
+    CONTRADICTED_CLAIMS = "contradicted_claims"
+    UNVERIFIED_CLAIMS = "unverified_claims"  # NOT_ENOUGH_EVIDENCE
+    PROCESSING_ERRORS = "processing_errors"  # ERROR results or request-level errors
+    CITATIONS_REJECTED = "citations_rejected"  # the guard downgraded at least one answer
+    CORRECTIONS_NEED_REVIEW = "corrections_need_review"  # a correction could not be proposed safely
+
+
+class ReportScore(_Contract):
+    """The engine-side score of a report: counts, evidence coverage and review routing.
+
+    Deliberately not a confidence or quality score. Each number answers one question about the
+    verdicts and nothing else; retrieval scores stay on passages and citation outcomes stay on
+    each result's citation_guard. No thresholds are applied: ``requires_human_review`` is true
+    whenever any reason applies.
+    """
+
+    claims: Annotated[int, Field(strict=True, ge=0)]
+    supported: Annotated[int, Field(strict=True, ge=0)]
+    contradicted: Annotated[int, Field(strict=True, ge=0)]
+    not_enough_evidence: Annotated[int, Field(strict=True, ge=0)]
+    errors: Annotated[int, Field(strict=True, ge=0)]
+    evidence_coverage: EvidenceCoverage
+    citations_rejected: Annotated[int, Field(strict=True, ge=0)]
+    corrections_proposed: Annotated[int, Field(strict=True, ge=0)]
+    corrections_need_review: Annotated[int, Field(strict=True, ge=0)]
+    requires_human_review: Annotated[bool, Field(strict=True)]
+    review_reasons: list[ReviewReason]
+
+    @classmethod
+    def compute(cls, results: list[ClaimResult], report_errors: list[ProcessingError]) -> ReportScore:
+        counts = Counter(r.verdict for r in results)
+        attempts = [r.correction_attempt for r in results if r.correction_attempt is not None]
+        proposed = sum(a.status is CorrectionStatus.PROPOSED for a in attempts)
+        need_review = len(attempts) - proposed
+        rejected = sum(1 for r in results if r.citation_guard is not None and r.citation_guard.downgraded)
+        errors = counts[Verdict.ERROR]
+        checked = len(results) - errors
+        reasons = [
+            reason
+            for reason, applies in (
+                (ReviewReason.CONTRADICTED_CLAIMS, counts[Verdict.CONTRADICTED] > 0),
+                (ReviewReason.UNVERIFIED_CLAIMS, counts[Verdict.NOT_ENOUGH_EVIDENCE] > 0),
+                (ReviewReason.PROCESSING_ERRORS, errors > 0 or bool(report_errors)),
+                (ReviewReason.CITATIONS_REJECTED, rejected > 0),
+                (ReviewReason.CORRECTIONS_NEED_REVIEW, need_review > 0),
+            )
+            if applies
+        ]
+        return cls(
+            claims=len(results),
+            supported=counts[Verdict.SUPPORTED],
+            contradicted=counts[Verdict.CONTRADICTED],
+            not_enough_evidence=counts[Verdict.NOT_ENOUGH_EVIDENCE],
+            errors=errors,
+            evidence_coverage=EvidenceCoverage(
+                supported=counts[Verdict.SUPPORTED],
+                checked=checked,
+                value=counts[Verdict.SUPPORTED] / checked if checked else None,
+            ),
+            citations_rejected=rejected,
+            corrections_proposed=proposed,
+            corrections_need_review=need_review,
+            requires_human_review=bool(reasons),
+            review_reasons=reasons,
+        )
+
+
 class EngineProvenance(_Contract):
     """What produced a report, so results can be reproduced and compared across versions."""
 
     engine_version: Label
     contract_version: ContractVersion = CONTRACT_VERSION
     retrieval_method: RetrievalMethod
+    provider: Label | None = None  # the LLMProvider's name, e.g. "openrouter"
     model_id: Label | None = None
     prompt_versions: dict[Label, Label] = {}
 
@@ -543,6 +712,7 @@ class VerificationReport(_Contract):
     contract_version: ContractVersion = CONTRACT_VERSION
     request_id: RequestId
     tenant_id: TenantId
+    reference_set_id: ReferenceSetId | None = None  # the request's, echoed unchanged
     content_sha256: Sha256Hex
     content_length: Annotated[int, Field(strict=True, ge=1, le=MAX_CONTENT_CHARS)]
     references: Annotated[list[ReferenceDescriptor], Field(min_length=1, max_length=MAX_REFERENCE_DOCS)]
@@ -550,12 +720,16 @@ class VerificationReport(_Contract):
     results: Annotated[list[ClaimResult], Field(max_length=MAX_CLAIMS)] = []
     errors: list[ProcessingError] = []
     provenance: EngineProvenance
+    # Optional so earlier payloads stay valid; when present it must equal ReportScore.compute().
+    score: ReportScore | None = None
 
     @model_validator(mode="after")
     def _check(self) -> VerificationReport:
         self._check_status()
         self._check_claims()
         self._check_provenance()
+        if self.score is not None and self.score != ReportScore.compute(self.results, self.errors):
+            raise ValueError("score does not match the results; compute it with ReportScore.compute")
         return self
 
     def _check_status(self) -> None:

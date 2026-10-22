@@ -28,6 +28,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-retrieval", action="store_true", help="skip the retrieval metrics")
     parser.add_argument("--top-k", type=int, default=RetrievalConfig().top_k, help="passages retrieved per claim")
+    parser.add_argument(
+        "--chunking-strategy", choices=["tokens", "sentences"], default="tokens",
+        help="how reference documents are split into passages (default: 200-400 token chunks)",
+    )
     parser.add_argument("--examples", type=int, default=5, help="failure examples kept per failure kind")
     parser.add_argument("--out", type=Path, help="write the full JSON report here")
     parser.add_argument("--save-predictions", type=Path, help="write the predictions as JSONL here")
@@ -104,7 +108,9 @@ def main(argv: list[str] | None = None) -> int:
             predictions_path=args.predictions,
             baseline=args.baseline,
             engine_provider=provider,
-            retrieval=None if args.no_retrieval else (ChunkingConfig(), RetrievalConfig(top_k=args.top_k)),
+            retrieval=None if args.no_retrieval else (
+                ChunkingConfig(strategy=args.chunking_strategy), RetrievalConfig(top_k=args.top_k)
+            ),
             max_examples=args.examples,
             save_predictions=args.save_predictions,
         )

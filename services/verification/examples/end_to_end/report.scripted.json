@@ -1,0 +1,263 @@
+{
+  "contract_version": "0.1.0",
+  "request_id": "req-e2e-0001",
+  "tenant_id": "tenant-demo",
+  "content_sha256": "3c50cd21b86bf1cab8b203495c7b457e1cbe9075bd89bfabde9f1b6dbe507328",
+  "content_length": 199,
+  "references": [
+    {
+      "doc_id": "pods-fact-sheet",
+      "version": "v2",
+      "text_sha256": "80e92271ddb83d1de4af1d8c79381a3d1eb7c4607914c29e24110c38eb8da754"
+    },
+    {
+      "doc_id": "company-facts",
+      "version": "2026-01",
+      "text_sha256": "e97200b7cf87d488a853f5c4f0ba2792addff0e67e196a9774c206ed44a7d045"
+    }
+  ],
+  "status": "PARTIAL",
+  "results": [
+    {
+      "claim": {
+        "claim_id": "clm_0001",
+        "text": "Lumen Pods offer up to 12 hours of playback per charge.",
+        "source_span": {
+          "start": 0,
+          "end": 55
+        }
+      },
+      "verdict": "SUPPORTED",
+      "requires_human_review": false,
+      "evidence": [
+        {
+          "passage_id": "psg_76ec399c78548ffb332783f7",
+          "doc_id": "pods-fact-sheet",
+          "doc_text_sha256": "80e92271ddb83d1de4af1d8c79381a3d1eb7c4607914c29e24110c38eb8da754",
+          "span": {
+            "start": 0,
+            "end": 480
+          },
+          "text": "Lumen Pods - Product Fact Sheet (version 2, approved 2026-03-14)\n\nBattery life: up to 12 hours of playback per charge; up to 36 hours with the charging case.\nCharging: USB-C. A 10-minute charge gives up to 2 hours of playback.\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\nWeight: 5.2 g per earbud; charging case 48 g.\nColours: Graphite, Sand, Teal.\nPrice: €129 (EU launch price).\nLaunch date: 2 April 2026 in Portugal, Spain and France.\nWarranty: 2 years.",
+          "retrieval": {
+            "method": "bm25",
+            "score": 6.456376,
+            "rank": 1
+          }
+        }
+      ],
+      "citations": [
+        {
+          "doc_id": "pods-fact-sheet",
+          "doc_text_sha256": "80e92271ddb83d1de4af1d8c79381a3d1eb7c4607914c29e24110c38eb8da754",
+          "passage_id": "psg_76ec399c78548ffb332783f7",
+          "quote": "up to 12 hours of playback per charge",
+          "quote_span": {
+            "start": 80,
+            "end": 117
+          }
+        }
+      ],
+      "model_rationale": "Decided from 1 passage(s).",
+      "citation_guard": {
+        "model_verdict": "SUPPORTED",
+        "downgraded": false,
+        "rejected": []
+      }
+    },
+    {
+      "claim": {
+        "claim_id": "clm_0002",
+        "text": "The Lumen Pods price is €99.",
+        "source_span": {
+          "start": 56,
+          "end": 84
+        }
+      },
+      "verdict": "CONTRADICTED",
+      "requires_human_review": true,
+      "evidence": [
+        {
+          "passage_id": "psg_76ec399c78548ffb332783f7",
+          "doc_id": "pods-fact-sheet",
+          "doc_text_sha256": "80e92271ddb83d1de4af1d8c79381a3d1eb7c4607914c29e24110c38eb8da754",
+          "span": {
+            "start": 0,
+            "end": 480
+          },
+          "text": "Lumen Pods - Product Fact Sheet (version 2, approved 2026-03-14)\n\nBattery life: up to 12 hours of playback per charge; up to 36 hours with the charging case.\nCharging: USB-C. A 10-minute charge gives up to 2 hours of playback.\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\nWeight: 5.2 g per earbud; charging case 48 g.\nColours: Graphite, Sand, Teal.\nPrice: €129 (EU launch price).\nLaunch date: 2 April 2026 in Portugal, Spain and France.\nWarranty: 2 years.",
+          "retrieval": {
+            "method": "bm25",
+            "score": 1.741587,
+            "rank": 1
+          }
+        },
+        {
+          "passage_id": "psg_ed9b8d830783f08dab2ad385",
+          "doc_id": "company-facts",
+          "doc_text_sha256": "e97200b7cf87d488a853f5c4f0ba2792addff0e67e196a9774c206ed44a7d045",
+          "span": {
+            "start": 0,
+            "end": 402
+          },
+          "text": "Lumen Goods - Company Facts (approved 2026-01-10)\n\nLumen Goods was founded in 2019 in Lisbon, Portugal, by Ana Ribeiro and Tomás Silva.\nAna Ribeiro is the chief executive officer. Tomás Silva is the chief design officer.\nThe company employs 48 people across offices in Lisbon and Porto.\nLumen Goods has been a certified B Corporation since 2023.\nLumen Goods does not sell products in the United States.",
+          "retrieval": {
+            "method": "bm25",
+            "score": 0.344677,
+            "rank": 2
+          }
+        }
+      ],
+      "citations": [
+        {
+          "doc_id": "pods-fact-sheet",
+          "doc_text_sha256": "80e92271ddb83d1de4af1d8c79381a3d1eb7c4607914c29e24110c38eb8da754",
+          "passage_id": "psg_76ec399c78548ffb332783f7",
+          "quote": "Price: €129 (EU launch price).",
+          "quote_span": {
+            "start": 374,
+            "end": 404
+          }
+        }
+      ],
+      "correction": {
+        "target_span": {
+          "start": 80,
+          "end": 83
+        },
+        "original_text": "€99",
+        "replacement_text": "€129",
+        "citations": [
+          {
+            "doc_id": "pods-fact-sheet",
+            "doc_text_sha256": "80e92271ddb83d1de4af1d8c79381a3d1eb7c4607914c29e24110c38eb8da754",
+            "passage_id": "psg_76ec399c78548ffb332783f7",
+            "quote": "Price: €129 (EU launch price).",
+            "quote_span": {
+              "start": 374,
+              "end": 404
+            }
+          }
+        ]
+      },
+      "model_rationale": "Decided from 1 passage(s).",
+      "citation_guard": {
+        "model_verdict": "CONTRADICTED",
+        "downgraded": false,
+        "rejected": []
+      },
+      "correction_attempt": {
+        "status": "proposed",
+        "issues": [],
+        "recheck_verdict": "SUPPORTED"
+      }
+    },
+    {
+      "claim": {
+        "claim_id": "clm_0003",
+        "text": "Lumen Pods have active noise cancellation.",
+        "source_span": {
+          "start": 85,
+          "end": 127
+        }
+      },
+      "verdict": "NOT_ENOUGH_EVIDENCE",
+      "requires_human_review": true,
+      "evidence": [
+        {
+          "passage_id": "psg_76ec399c78548ffb332783f7",
+          "doc_id": "pods-fact-sheet",
+          "doc_text_sha256": "80e92271ddb83d1de4af1d8c79381a3d1eb7c4607914c29e24110c38eb8da754",
+          "span": {
+            "start": 0,
+            "end": 480
+          },
+          "text": "Lumen Pods - Product Fact Sheet (version 2, approved 2026-03-14)\n\nBattery life: up to 12 hours of playback per charge; up to 36 hours with the charging case.\nCharging: USB-C. A 10-minute charge gives up to 2 hours of playback.\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\nWeight: 5.2 g per earbud; charging case 48 g.\nColours: Graphite, Sand, Teal.\nPrice: €129 (EU launch price).\nLaunch date: 2 April 2026 in Portugal, Spain and France.\nWarranty: 2 years.",
+          "retrieval": {
+            "method": "bm25",
+            "score": 0.807519,
+            "rank": 1
+          }
+        }
+      ],
+      "citations": [],
+      "model_rationale": "Decided from 0 passage(s).",
+      "citation_guard": {
+        "model_verdict": "NOT_ENOUGH_EVIDENCE",
+        "downgraded": false,
+        "rejected": []
+      }
+    },
+    {
+      "claim": {
+        "claim_id": "clm_0004",
+        "text": "Lumen Goods was founded in 2019 in Lisbon.",
+        "source_span": {
+          "start": 128,
+          "end": 170
+        }
+      },
+      "verdict": "ERROR",
+      "requires_human_review": true,
+      "evidence": [
+        {
+          "passage_id": "psg_ed9b8d830783f08dab2ad385",
+          "doc_id": "company-facts",
+          "doc_text_sha256": "e97200b7cf87d488a853f5c4f0ba2792addff0e67e196a9774c206ed44a7d045",
+          "span": {
+            "start": 0,
+            "end": 402
+          },
+          "text": "Lumen Goods - Company Facts (approved 2026-01-10)\n\nLumen Goods was founded in 2019 in Lisbon, Portugal, by Ana Ribeiro and Tomás Silva.\nAna Ribeiro is the chief executive officer. Tomás Silva is the chief design officer.\nThe company employs 48 people across offices in Lisbon and Porto.\nLumen Goods has been a certified B Corporation since 2023.\nLumen Goods does not sell products in the United States.",
+          "retrieval": {
+            "method": "bm25",
+            "score": 4.222261,
+            "rank": 1
+          }
+        }
+      ],
+      "citations": [],
+      "error": {
+        "code": "PROVIDER_TIMEOUT",
+        "stage": "verification",
+        "message": "scripted/model did not answer within 30s",
+        "retryable": true,
+        "claim_id": "clm_0004"
+      }
+    }
+  ],
+  "errors": [],
+  "provenance": {
+    "engine_version": "0.1.0",
+    "contract_version": "0.1.0",
+    "retrieval_method": "bm25",
+    "provider": "scripted",
+    "model_id": "scripted/careful-v1",
+    "prompt_versions": {
+      "extract_claims": "extract-claims-v1",
+      "verify_claim": "verify-claim-v1",
+      "correct_claim": "correct-claim-v1"
+    }
+  },
+  "score": {
+    "claims": 4,
+    "supported": 1,
+    "contradicted": 1,
+    "not_enough_evidence": 1,
+    "errors": 1,
+    "evidence_coverage": {
+      "supported": 1,
+      "checked": 3,
+      "value": 0.3333333333333333
+    },
+    "citations_rejected": 0,
+    "corrections_proposed": 1,
+    "corrections_need_review": 0,
+    "requires_human_review": true,
+    "review_reasons": [
+      "contradicted_claims",
+      "unverified_claims",
+      "processing_errors"
+    ]
+  }
+}

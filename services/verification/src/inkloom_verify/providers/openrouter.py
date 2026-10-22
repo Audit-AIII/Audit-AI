@@ -37,7 +37,7 @@ from inkloom_verify.providers.base import (
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
-from inkloom_verify.security import RedactingFilter, redact
+from inkloom_verify.security import install_redaction, register_secret
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ _OPTIONAL_VARS = {
     "data_collection": "INKLOOM_LLM_DATA_COLLECTION",
 }
 _MAX_RETRY_AFTER_SECONDS = 20.0
+MAX_RESPONSE_BYTES = 2_000_000  # far above any reply max_tokens allows; guards memory
 _FENCED_JSON = re.compile(r"^\s*```(?:json)?\s*\n(.*)\n\s*```\s*$", re.DOTALL)
 
 
@@ -134,11 +135,12 @@ class OpenRouterProvider:
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.settings = settings
-        self._client = client or httpx.Client(timeout=settings.timeout_seconds)
+        # Redirects are never followed, so the Authorization header cannot be sent to another host.
+        self._client = client or httpx.Client(timeout=settings.timeout_seconds, follow_redirects=False)
         self._sleep = sleep
         self._secret = settings.api_key.get_secret_value()
-        if not any(isinstance(f, RedactingFilter) for f in logger.filters):
-            logger.addFilter(RedactingFilter(self._secret))
+        register_secret(self._secret)
+        install_redaction(logger)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> OpenRouterProvider:
@@ -211,6 +213,7 @@ class OpenRouterProvider:
                 json=self._body(model, request),
                 headers={"Authorization": f"Bearer {self._secret}"},
                 timeout=self.settings.timeout_seconds,
+                follow_redirects=False,
             )
         except httpx.TimeoutException:
             raise ProviderTimeoutError(f"{model} did not answer within {self.settings.timeout_seconds:g}s") from None
@@ -226,9 +229,11 @@ class OpenRouterProvider:
         return self._content(payload, model), str(payload.get("model") or model)
 
     def _json_body(self, response: httpx.Response, model: str) -> dict[str, Any]:
+        if len(response.content) > MAX_RESPONSE_BYTES:
+            raise ProviderUnavailableError(f"{model}: OpenRouter response exceeded {MAX_RESPONSE_BYTES} bytes")
         try:
             payload = response.json()
-        except ValueError:
+        except (ValueError, RecursionError):
             payload = None
         if isinstance(payload, dict):
             return payload
@@ -237,15 +242,19 @@ class OpenRouterProvider:
         return {}
 
     def _error(self, response: httpx.Response, payload: dict[str, Any], model: str) -> ProviderError:
+        """A ProviderError with a fixed, safe message.
+
+        The provider's own error text is deliberately dropped, not just redacted: it can echo
+        submitted content (moderation errors do), and errors are shown to clients and logged.
+        """
         error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
         status = response.status_code if response.status_code != 200 else error.get("code", 0)
         status = status if isinstance(status, int) else 0
-        detail = redact(str(error.get("message") or response.reason_phrase or "no detail"), self._secret)[:200]
-        message = f"{model}: OpenRouter error {status}: {detail}"
+        message = f"{model}: OpenRouter returned error {status}"
         if status == 401:
-            return ProviderAuthError(f"OpenRouter rejected the API key ({API_KEY_VAR}): {detail}")
+            return ProviderAuthError(f"OpenRouter rejected the API key ({API_KEY_VAR}).")
         if status == 402:
-            return ProviderQuotaError(f"OpenRouter account has insufficient credit: {detail}")
+            return ProviderQuotaError("OpenRouter account has insufficient credit.")
         if status == 403:
             return ProviderAuthError(message)
         if status == 408:
@@ -272,7 +281,7 @@ class OpenRouterProvider:
         fenced = _FENCED_JSON.match(content)
         try:
             data = json.loads(fenced.group(1) if fenced else content)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):  # RecursionError: pathologically nested JSON
             raise MalformedOutputError(f"{model}: reply is not valid JSON") from None
         if not isinstance(data, dict):
             raise MalformedOutputError(f"{model}: reply is JSON but not an object")
