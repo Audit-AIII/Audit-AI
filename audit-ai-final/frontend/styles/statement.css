@@ -1,0 +1,98 @@
+/* ==========================================================================
+   Statement band — paper sheet over the dark base, lines pressed in by a roller (DESIGN.md §7.4)
+   ========================================================================== */
+.statement {
+  position: relative;
+  z-index: var(--z-decor-under);
+  background-color: var(--surface);
+  background-image: var(--grain-dark);
+}
+.statement__stage { position: relative; height: 100svh; min-height: 600px; }
+.statement[data-press] { height: 250svh; }
+.statement[data-press] .statement__stage { position: sticky; top: 0; }
+
+.statement__flap {
+  position: absolute;
+  inset: -1px 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 27vw);
+  grid-template-rows: minmax(0, 1fr) auto;
+  column-gap: 4vw;
+  padding: calc(68px + 4vh) 6vw 8vh var(--gutter);
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  box-shadow: var(--shadow-flap);
+  transform-origin: 50% 0;
+}
+
+.statement__lines {
+  position: relative;
+  grid-area: 1 / 1 / auto / -1;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .1em;
+  margin: 0;
+  font-size: min(6.6vw, 11vh);
+}
+.statement__line {
+  display: block;
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-h-xl);
+  line-height: .96;
+  transition: opacity var(--dur-mid) var(--ease-enter);
+}
+.statement__line:nth-child(odd) { margin-left: 12vw; }
+
+/* Unpressed: faint, flat. Pressed: full deboss. */
+.statement[data-press] .statement__line[data-pressed="0"] { opacity: .32; filter: none; text-shadow: none; }
+.statement[data-press] .statement__line[data-pressed="0"]::after { opacity: 0; }
+
+.statement__roller {
+  display: none;
+  position: absolute;
+  z-index: 2;
+  left: -2vw;
+  right: -2vw;
+  top: 0;
+  height: 3px;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--deep) 55%, transparent) 0 50%,
+    color-mix(in srgb, var(--paper-hi) 85%, transparent) 50% 100%
+  );
+  mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
+  transition: opacity var(--dur-link) var(--ease-base);
+}
+.statement[data-press] .statement__roller { display: block; }
+
+.statement__note {
+  grid-area: 2 / 2;
+  align-self: end;
+  display: grid;
+  gap: 16px;
+}
+.statement__note p { margin: 0; }
+
+@media (max-width: 767px) {
+  .statement[data-press] { height: 200svh; }
+  .statement__flap {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    padding: calc(62px + 6vh) 20px 7vh;
+  }
+  .statement__lines { grid-row: 2; font-size: 9.6vw; }
+  .statement__line:nth-child(odd) { margin-left: 4vw; }
+  .statement__note { grid-area: 3 / 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statement__line, .statement__roller { transition: none; }
+}

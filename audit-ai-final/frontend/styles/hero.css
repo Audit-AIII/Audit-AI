@@ -137,23 +137,6 @@
 @keyframes hero-sink { from { transform: translate(5px, -10px) scale(1.02); } }
 @keyframes hero-shift { from { transform: translateY(14px); } }
 
-/* Placeholder for the next sheet's top edge — full statement band arrives in step 6 */
-.sheet-edge {
-  position: relative;
-  z-index: var(--z-decor-under);
-  height: 100svh;
-  background-color: var(--surface);
-  background-image: var(--grain-dark);
-}
-.sheet-edge__flap {
-  position: absolute;
-  inset: -1px 0;
-  border-radius: var(--r-panel) var(--r-panel) 0 0;
-  box-shadow: var(--shadow-flap);
-  transform: scale(.94);
-  transform-origin: 50% 0;
-}
-
 @media (max-width: 767px) {
   .hero {
     --hero-cap: 22.5vw;

@@ -5,6 +5,7 @@
 @import "../styles/primitives.css";
 @import "../styles/header.css";
 @import "../styles/hero.css";
+@import "../styles/statement.css";
 
 /* Tokens → Tailwind theme (utilities such as bg-canvas, text-ink, font-heading, rounded-ui).
    Values point at tokens.css so there is still one source of truth. */
