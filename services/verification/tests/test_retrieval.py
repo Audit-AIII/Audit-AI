@@ -1,6 +1,7 @@
 import builtins
 import math
 import socket
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -54,7 +55,7 @@ def claim(text: str, claim_id: str = "clm_0001") -> dict:
 def sentences(**settings) -> BM25Retriever:
     """A retriever over single-sentence passages, so expected passages are easy to state."""
     return BM25Retriever(
-        CORPUS, chunking=ChunkingConfig(sentences_per_passage=1, stride=1), config=RetrievalConfig(**settings)
+        CORPUS, chunking=ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1), config=RetrievalConfig(**settings)
     )
 
 
@@ -173,7 +174,7 @@ def test_malformed_claims_rejected(bad_claim):
 def test_repeated_passage_across_documents_is_returned_once():
     copy = ReferenceDocument(doc_id="spec-copy", text="Body: 18/8 stainless steel with 70% recycled content.")
     retriever = BM25Retriever(
-        [PRODUCT_SPEC, copy], chunking=ChunkingConfig(sentences_per_passage=1, stride=1)
+        [PRODUCT_SPEC, copy], chunking=ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1)
     )
     results = retriever.retrieve(claim("The body is 70% recycled stainless steel."))
     matching = [r for r in results if r.text == "Body: 18/8 stainless steel with 70% recycled content."]
@@ -186,17 +187,18 @@ def test_repeated_passage_within_a_document_is_returned_once():
         doc_id="repetitive",
         text="Hand wash only.\n\nThe lid is leak-proof.\n\nHand  wash   only.\n\nHAND WASH ONLY.",
     )
-    results = BM25Retriever([document]).retrieve(claim("The bottle is hand wash only."))
+    sentences = ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1)
+    results = BM25Retriever([document], chunking=sentences).retrieve(claim("The bottle is hand wash only."))
     assert [r.text for r in results] == ["Hand wash only."]
 
 
 def test_overlap_suppression_is_optional():
     claim_text = claim("Lumen Goods employs 48 people in Lisbon.")
-    overlapping = BM25Retriever([COMPANY_FACTS], chunking=ChunkingConfig(sentences_per_passage=2, stride=1))
+    overlapping = BM25Retriever([COMPANY_FACTS], chunking=ChunkingConfig(strategy="sentences", sentences_per_passage=2, stride=1))
     assert len(overlapping.retrieve(claim_text)) == 1  # two sentences fit in one window
     windows = BM25Retriever(
         [ReferenceDocument(doc_id="c", text=COMPANY_FACTS.text + " Its office is in Lisbon.")],
-        chunking=ChunkingConfig(sentences_per_passage=2, stride=1),
+        chunking=ChunkingConfig(strategy="sentences", sentences_per_passage=2, stride=1),
         config=RetrievalConfig(suppress_overlaps=True),
     )
     results = windows.retrieve(claim_text)
@@ -259,7 +261,8 @@ def test_bm25_retriever_satisfies_the_interface():
 
 def test_default_and_explicit_top_k():
     broad = claim("Lumen bottle drinks colour hex logo company people steel care dishwasher capacity.")
-    retriever = BM25Retriever(CORPUS, config=RetrievalConfig(min_term_coverage=0.0))
+    sentences = ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1)  # enough passages to cap
+    retriever = BM25Retriever(CORPUS, chunking=sentences, config=RetrievalConfig(min_term_coverage=0.0))
     assert len(retriever.retrieve(broad)) == 5
     assert len(retriever.retrieve(broad, top_k=2)) == 2
     assert len(retriever.retrieve(broad, top_k=8)) == 8
@@ -281,7 +284,7 @@ def test_passage_size_limit_is_respected():
     long_text = " ".join(f"Lumen fact number {i} about the bottle." for i in range(200))
     retriever = BM25Retriever(
         [ReferenceDocument(doc_id="long", text=long_text)],
-        chunking=ChunkingConfig(sentences_per_passage=10, stride=5, max_passage_chars=200),
+        chunking=ChunkingConfig(strategy="sentences", sentences_per_passage=10, stride=5, max_passage_chars=200),
     )
     results = retriever.retrieve(claim("Lumen bottle fact."), top_k=8)
     assert results and all(len(r.text) <= 200 for r in results)
@@ -290,7 +293,7 @@ def test_passage_size_limit_is_respected():
 def test_indexed_passage_limit(monkeypatch):
     monkeypatch.setattr(retrieval, "MAX_INDEXED_PASSAGES", 3)
     with pytest.raises(RetrievalLimitError):
-        BM25Retriever(CORPUS, chunking=ChunkingConfig(sentences_per_passage=1, stride=1))
+        BM25Retriever(CORPUS, chunking=ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1))
 
 
 # --- Untrusted document text -------------------------------------------------------------------
@@ -318,7 +321,7 @@ def test_injected_text_is_returned_verbatim_and_unexecuted_when_relevant(monkeyp
     def blocked(*args, **kwargs):
         raise AssertionError("retrieval must not open files or network connections")
 
-    retriever = BM25Retriever([PRODUCT_SPEC, INJECTION], chunking=ChunkingConfig(sentences_per_passage=1, stride=1))
+    retriever = BM25Retriever([PRODUCT_SPEC, INJECTION], chunking=ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1))
     monkeypatch.setattr(builtins, "open", blocked)
     monkeypatch.setattr(socket.socket, "connect", blocked)
     monkeypatch.setattr(socket, "create_connection", blocked)
@@ -348,3 +351,87 @@ def test_tokenize():
     assert tokenize("７０% recycled") == ["70", "recycled"]  # full-width digits
     assert tokenize("Café CAFÉ") == ["café", "café"]
     assert tokenize("It is what it is.") == []
+
+
+# --- Scoping by request: tenant_id + reference_set_id + references ----------------------------
+
+from inkloom_verify.schemas import VerificationRequest  # noqa: E402
+
+
+def scoped_request(tenant: str, reference_set: str, *documents: ReferenceDocument) -> VerificationRequest:
+    return VerificationRequest(
+        request_id=f"req-{tenant}-{reference_set}", tenant_id=tenant, reference_set_id=reference_set,
+        content={"text": "Lumen Goods was founded in 2019 in Lisbon."}, references=list(documents),
+    )
+
+
+def test_for_request_searches_exactly_the_requests_reference_set():
+    retriever = BM25Retriever.for_request(scoped_request("tenant-a", "refset-1", COMPANY_FACTS, BRAND_GUIDE))
+    assert retriever.scope == ("tenant-a", "refset-1")
+    assert {p.doc_id for p in retriever.passages} == {"company-facts", "brand-guide"}
+    results = retriever.retrieve(claim("Lumen Goods was founded in 2019 in Lisbon."))
+    assert results and all(r.doc_id in {"company-facts", "brand-guide"} for r in results)
+
+
+def test_the_same_reference_set_id_in_two_tenants_never_shares_evidence():
+    other_text = ReferenceDocument(doc_id="company-facts", text="Lumen Goods was founded in 2021 in Madrid.")
+    a = BM25Retriever.for_request(scoped_request("tenant-a", "refset-shared", COMPANY_FACTS))
+    b = BM25Retriever.for_request(scoped_request("tenant-b", "refset-shared", other_text))
+    query = claim("Lumen Goods was founded in Lisbon.")
+    assert {r.doc_text_sha256 for r in a.retrieve(query)} == {COMPANY_FACTS.text_sha256}
+    assert {r.doc_text_sha256 for r in b.retrieve(query)} == {other_text.text_sha256}
+
+
+def test_two_reference_sets_of_one_tenant_stay_separate():
+    pods = BM25Retriever.for_request(scoped_request("tenant-a", "refset-pods", PRODUCT_SPEC))
+    brand = BM25Retriever.for_request(scoped_request("tenant-a", "refset-brand", BRAND_GUIDE))
+    assert all(r.doc_id == "product-spec" for r in pods.retrieve(claim("Primary colour is Lumen Teal, hex #1A7F8E.")))
+    assert all(r.doc_id == "brand-guide" for r in brand.retrieve(claim("Primary colour is Lumen Teal.")))
+
+
+def test_retrievers_share_no_state():
+    """No index cache or class-level data that could carry one request's documents into another."""
+    mutable = [name for name, value in vars(BM25Retriever).items()
+               if not name.startswith("__") and isinstance(value, (list, dict, set))]
+    assert mutable == []
+    first, second = BM25Retriever([PRODUCT_SPEC]), BM25Retriever([BRAND_GUIDE])
+    assert first.passages is not second.passages and {p.doc_id for p in first.passages} == {"product-spec"}
+
+
+def test_passages_carry_doc_id_and_exact_location():
+    document = ReferenceDocument(doc_id="handbook", text=" ".join(f"Item {i} weighs {i} grams." for i in range(200)))
+    for result in BM25Retriever([document]).retrieve(claim("Item 150 weighs 150 grams.")):
+        assert result.doc_id == "handbook"
+        assert document.text[result.span.start : result.span.end] == result.text
+        assert 200 <= len(result.text.split()) <= 400
+
+
+# --- Ranking and duplicates with the default token chunks --------------------------------------
+
+from inkloom_verify.evaluation.runner import load_records  # noqa: E402
+
+HANDBOOK = load_records(Path(__file__).resolve().parents[1] / "eval" / "data" / "retrieval_v1.jsonl")[0].references[0]
+
+
+@pytest.mark.parametrize(
+    ("claim_text", "gold"),
+    [
+        ("The Lumen Watch is built from titanium.", "The Lumen Watch is made from titanium."),
+        ("The Lumen Lamp weighs 1100 grams.", "The Lumen Lamp weighs 1100 g."),
+        ("The Lumen Backpack has a 10-year warranty.", "The Lumen Backpack comes with a 10-year warranty."),
+        ("The Lumen Speaker launched on 20 November 2025.", "The Lumen Speaker launched on 20 November 2025."),
+    ],
+)
+def test_token_chunks_rank_the_right_product_section_first(claim_text, gold):
+    [top, *_] = BM25Retriever([HANDBOOK]).retrieve(claim(claim_text))
+    assert gold in top.text
+    assert HANDBOOK.text[top.span.start : top.span.end] == top.text
+    assert 200 <= len(top.text.split()) <= 400
+
+
+def test_duplicate_documents_under_token_chunks_are_returned_once():
+    copy = ReferenceDocument(doc_id="handbook-copy", text=HANDBOOK.text)
+    results = BM25Retriever([HANDBOOK, copy]).retrieve(claim("The Lumen Watch is made from titanium."), top_k=8)
+    texts = [r.text for r in results]
+    assert len(texts) == len(set(texts))
+    assert all(r.doc_id == HANDBOOK.doc_id for r in results)  # the earlier document wins ties

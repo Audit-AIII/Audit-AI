@@ -52,8 +52,12 @@ unavailable". Nothing falls back to fake output.
 ### Secrets and data
 
 - The key is a `SecretStr`, so it's hidden in reprs and dumps. Every log message from the adapter
-  passes through `RedactingFilter`, which removes the key and anything shaped like a bearer
-  token or OpenRouter key. Error messages are redacted and truncated to 200 characters.
+  passes through `RedactingFilter`, which removes every registered key and anything shaped like
+  a bearer token or OpenRouter key. Since Phase 7, error messages are fixed text, such as "a/b:
+  OpenRouter returned error 403". The provider's own error text is dropped because it can echo
+  content.
+- Redirects are never followed, responses over 2 MB are refused, and pathologically nested JSON
+  is treated as malformed output (SECURITY.md).
 - The adapter logs the model, HTTP status and latency, **never prompt or reply text**.
 - **Content leaves the machine.** Submitted text is sent to OpenRouter and on to the model's
   host. `data_collection: deny` limits which hosts receive it but doesn't stop sending.
@@ -245,3 +249,67 @@ validity.
 - **Strictness has a cost.** A correct answer with one sloppy extra quote is downgraded. That
   costs accuracy, which the evaluation will show, but it never produces an unsupported verdict.
 - **Calls are sequential.** There is one model call per claim, and no parallelism yet (Phase 7).
+
+## Prompt: `correct-claim-v1`
+
+Code: [`prompts/correction.py`](src/inkloom_verify/prompts/correction.py) (prompt and schema) and
+[`correction.py`](src/inkloom_verify/correction.py) (the checks).
+
+**When it runs.** Only for a `CONTRADICTED` result that has validated citations and no earlier
+correction attempt. `SUPPORTED`, `NOT_ENOUGH_EVIDENCE` and `ERROR` results are returned
+unchanged and the model is never called. Tests use a provider that raises if it is called.
+
+**What the model sees.** The author's sentence (the claim's source text), the claim, and the
+quotes that justified the contradiction, labelled `C1`, `C2`, …. It sees no other passages and
+no other documents. The data is sent as JSON inside `<correction_input_json>…</correction_input_json>`,
+with `<` and `>` escaped.
+
+**Output (strict JSON Schema):**
+
+```json
+{"status": "corrected", "original_text": "24", "replacement_text": "12",
+ "citations": ["C1"], "reason": "C1 gives 12 hours per charge."}
+```
+
+`status` is `corrected` or `needs_human_review`. The prompt asks for the smallest change, using
+only facts in the quotes. If the quotes don't say what the correct statement is, the model
+should answer `needs_human_review` instead of guessing.
+
+### Checks applied to a proposal
+
+Any failure means **no correction**: the result gets `correction_attempt.status:
+needs_human_review` with the issues. The original claim and text are never modified. A proposal
+is recorded separately as `correction`: `target_span`, `original_text`, `replacement_text`, and
+`citations` drawn from the result's own citations.
+
+| Check | Issue code |
+|---|---|
+| The model declined | `model_declined` |
+| The proposal cites nothing, or cites a label that wasn't provided | `no_citation`, `unknown_citation` |
+| `original_text` is found in the claim's source text (tolerating whitespace, quote marks and case) | `target_not_found` |
+| The replacement isn't blank and isn't the same as the original | `no_change` |
+| **Every word, number and currency or unit symbol (`€ $ £ ¥ % °`) the replacement adds appears in the cited quotes.** Only grammatical words are exempt: a, an, the, of, and, is, are, was, were, be, been, to, in, on, at, for, with, by, from, as, its, it, this, that, these, those, their, our. Modal and commitment words such as *will, can, may, always, only, guaranteed* are **not** exempt. | `unsupported_addition` |
+| A qualifier (`up to`, `about`, `only`, …) used by both the original and the evidence is still in the replacement | `drops_qualifier` |
+| Word-level edit distance ≤ max(4, ⌈original words / 2⌉) | `not_minimal` |
+| The `Correction` contract accepts it (for example, numbers must come from cited quotes) | `invalid_correction` |
+| **Re-check:** the corrected claim, verified against the same evidence passages with the verifier and citation guard, is `SUPPORTED` | `recheck_not_supported` (verdict recorded) or `recheck_unavailable` |
+
+The cheap checks run first, so a rejected proposal never spends a re-check call. If a provider
+fails, or the reply is still invalid after one repair, the result is `correction_attempt.status:
+failed` with the error. The verdict stays `CONTRADICTED`, and an error is never turned into a
+correction.
+
+### Known limitations
+
+- **Over-strict on paraphrase.** "can put" → "cannot put" is rejected because the evidence says
+  "not", not "cannot". Inflections ("hour" vs "hours") and number words ("two" vs "2") are
+  rejected too. These cases become `needs_human_review`, which is safe but costs a fix.
+- **Deletions are only checked by the re-check.** Removing words adds nothing, so the
+  deterministic checks allow a deletion of up to four words. Only the re-check catches a
+  deletion that changes the meaning, so turning the re-check off weakens this.
+- **Word-level checks can't see reordering or relations.** A replacement built only from quote
+  words could still pair them wrongly, for example the role of one person with the name of
+  another. The re-check is the defence.
+- **The minimality bound is a heuristic**, chosen without real author data. It isn't a
+  measure of style preservation.
+- **Not measured on a live model** (EVAL.md, Phase 6).

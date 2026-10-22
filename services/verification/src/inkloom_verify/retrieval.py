@@ -27,6 +27,7 @@ from inkloom_verify.schemas import (
     ReferenceDocument,
     RetrievalMethod,
     RetrievalProvenance,
+    VerificationRequest,
 )
 
 # Upper bound on passages indexed per corpus; MAX_TOTAL_REFERENCE_CHARS of short sentences
@@ -119,11 +120,25 @@ def _as_documents(documents: Iterable[ReferenceDocument | Mapping[str, Any]]) ->
 class BM25Retriever:
     """Lexical retrieval over the passages of one request's reference documents.
 
-    Build one retriever per request (or per tenant corpus). It holds only the documents it
-    was given, so evidence can never come from another tenant's documents.
+    Scoping: a retriever indexes only the documents it is given and keeps no state shared with
+    any other retriever: no index cache, no class-level data. Build it with ``for_request`` so it
+    searches exactly that request's reference set (``tenant_id`` + ``reference_set_id`` +
+    ``references``); evidence then cannot come from another tenant or another reference set.
     """
 
     method = RetrievalMethod.BM25
+
+    @classmethod
+    def for_request(
+        cls,
+        request: VerificationRequest,
+        chunking: ChunkingConfig | None = None,
+        config: RetrievalConfig | None = None,
+    ) -> BM25Retriever:
+        """A retriever over exactly ``request.references``, labelled with the request's scope."""
+        retriever = cls(request.references, chunking=chunking, config=config)
+        retriever.scope = (request.tenant_id, request.reference_set_id)
+        return retriever
 
     def __init__(
         self,
@@ -131,6 +146,8 @@ class BM25Retriever:
         chunking: ChunkingConfig | None = None,
         config: RetrievalConfig | None = None,
     ) -> None:
+        # (tenant_id, reference_set_id) when built for a request; ids only, for logs and checks.
+        self.scope: tuple[str, str | None] | None = None
         self.chunking = chunking or ChunkingConfig()
         self.config = config or RetrievalConfig()
         self.documents = _as_documents(documents)

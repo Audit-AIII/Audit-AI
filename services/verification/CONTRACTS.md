@@ -39,14 +39,14 @@ Claim ids are **unique only within one report**; they are not global ids.
 The retriever builds each passage id from the first 24 hex characters of
 `SHA-256(doc_id, doc_text_sha256, start, end)`. The same passage of the same document version
 therefore gets the same id in every run, whatever order the documents arrive in. Callers should
-still treat passage ids as opaque. The ids in `examples/` (`psg_spec-sheet_0001`) were written
-by hand for readability and do not follow this form.
+still treat passage ids as opaque. The ids in `examples/` follow this form, and the scope check
+rejects a passage id that doesn't.
 
 ## Models
 
 | Model | Purpose |
 |---|---|
-| `VerificationRequest` | Caller → engine. One piece of content plus 1–50 reference documents. |
+| `VerificationRequest` | Caller → engine. One piece of content plus 1–50 reference documents, and an optional `reference_set_id`. |
 | `InputContent` | The text under review. |
 | `ReferenceDocument` | One approved source of truth: `doc_id`, optional `version` and `title`, `text`, `text_sha256`. |
 | `ReferenceDescriptor` | A reference document without its text (`doc_id`, `version`, `text_sha256`). Used for provenance in reports. |
@@ -58,14 +58,20 @@ by hand for readability and do not follow this form.
 | `Citation` | `doc_id`, `doc_text_sha256`, `passage_id`, `quote`, `quote_span` (in **document** coordinates). |
 | `Correction` | `target_span` in the content, `original_text`, `replacement_text`, and 1 or more `citations`. |
 | `ProcessingError` | `code`, `stage`, client-safe `message`, `retryable`, optional `claim_id`. |
-| `ClaimResult` | One claim with its `verdict`, `evidence`, `citations`, optional `correction`, optional `error`, optional `model_rationale`. |
-| `VerificationReport` | Engine → caller. `status`, `results`, request-level `errors`, `references` (descriptors), `provenance`. |
-| `EngineProvenance` | `engine_version`, `contract_version`, `retrieval_method`, `model_id`, `prompt_versions`. |
+| `ClaimResult` | One claim with its `verdict`, `requires_human_review`, `evidence`, `citations`, optional `correction`, optional `error`, optional `model_rationale`. |
+| `VerificationReport` | Engine → caller. `status`, `results`, request-level `errors`, `references` (descriptors), the request's `reference_set_id`, `provenance`, `score`. |
+| `EngineProvenance` | `engine_version`, `contract_version`, `retrieval_method`, `provider` (added in Phase 8), `model_id` (every model that answered, comma-separated), `prompt_versions`. |
 | `EvalRecord`, `GoldEvidence` | One labelled line of the evaluation JSONL. Gold evidence is located by `doc_id` + `span`, not by `passage_id`, so labels survive changes to how documents are split into passages. |
 
 ## Validation rules
 
 ### Requests
+
+- `reference_set_id` (optional; added in the contract-reconciliation Phase 1) names the set of
+  reference documents the backend chose for this request. It's opaque: the engine never looks it
+  up, and the backend still sends the documents themselves in `references`. It uses the same
+  pattern as other caller-issued ids (UUIDs fit). The report echoes it unchanged, and the scope
+  check rejects a report whose `reference_set_id` differs from its request's.
 
 - `content.text` must be 1–100,000 characters and must not be whitespace-only.
 - There must be at least 1 and at most 50 references.
@@ -93,6 +99,12 @@ by hand for readability and do not follow this form.
 
 Additional rules:
 
+- **`requires_human_review`** (added in the contract-reconciliation Phase 1) is `false` only for
+  `SUPPORTED` and `true` for every other verdict: missing evidence, contradictions and failures
+  always go to a person. If omitted it is filled in from the verdict, and a value that disagrees
+  with the verdict is rejected. It maps directly to Member 3's per-finding
+  `requires_human_review`. The report-level `score.requires_human_review` stays separate and
+  also covers request-level errors, citation downgrades and corrections that need review.
 - Every citation must point to a passage listed in `evidence`, from the same document and the same document hash.
 - The citation's `quote_span` must fall inside that passage's span, and `quote` must be **exactly** the passage text at that position. Paraphrases are rejected, and so are duplicate citations.
 - `evidence` may be non-empty for `NOT_ENOUGH_EVIDENCE`. It shows the passages that were considered but did not settle the claim.
@@ -118,6 +130,14 @@ Additional rules:
 - **Any number the replacement introduces must appear in a cited quote.** Numbers already in the original don't need new support, and thousands separators are ignored (`1,200` counts as `1200`).
 
   This is the only fact check enforced by the contract itself. Checking names, units and meaning, and re-verifying the corrected text, is the correction stage's job (Phase 6).
+- **`correction_attempt`** (added in Phase 6) records every attempt:
+  - `status` is `proposed`, `needs_human_review` (with `issues`, each a `code` and an optional `detail`) or `failed` (with an `error`);
+  - `recheck_verdict` is the verdict of the corrected claim, when it was re-checked.
+- Contract rules for corrections:
+  - attempts exist only on `CONTRADICTED` results;
+  - a `correction` requires an attempt with status `proposed`, and a `proposed` attempt requires the `correction`;
+  - a `proposed` attempt has no issues and no error, and if it was re-checked the re-check was `SUPPORTED`.
+- Issue codes: `model_declined`, `no_citation`, `unknown_citation`, `target_not_found`, `no_change`, `unsupported_addition`, `drops_qualifier`, `not_minimal`, `recheck_not_supported`, `recheck_unavailable`, `invalid_correction`. See [PROMPTS.md](PROMPTS.md#prompt-correct-claim-v1).
 
 ### Reports
 
@@ -165,6 +185,97 @@ These evaluation fields were added in Phase 3. They are used only by the evaluat
 don't change any request or report that other members exchange with the engine. See
 [EVAL.md](EVAL.md).
 
+## Score (`VerificationReport.score`)
+
+The engine-side score is `ReportScore`, computed from the results by `ReportScore.compute`.
+The report rejects a score that doesn't match its results. It is **not** a confidence, quality
+or truth probability. It answers three questions, each with its own numbers:
+
+| Question | Fields |
+|---|---|
+| What did verification find? | `claims`, `supported`, `contradicted`, `not_enough_evidence`, `errors` |
+| How much of the checked content is backed by evidence? | `evidence_coverage`: `supported`, `checked`, `value` |
+| Does a person need to look, and why? | `requires_human_review`, `review_reasons`, plus `citations_rejected`, `corrections_proposed`, `corrections_need_review` |
+
+- **`evidence_coverage.value` = supported / checked.** *checked* counts `SUPPORTED`,
+  `CONTRADICTED` and `NOT_ENOUGH_EVIDENCE` results; `ERROR` results weren't checked and are
+  counted separately. The value is `null` when nothing was checked, never 0% or 100%. This is
+  the number behind the frontend's "Evidence coverage" bar (DESIGN.md §17C, "68% supported").
+  Unverified claims count against coverage, because missing evidence never counts as support.
+- **`requires_human_review`** is true when any reason applies:
+  - `contradicted_claims` or `unverified_claims`;
+  - `processing_errors` (an `ERROR` result or a request-level error);
+  - `citations_rejected` (the guard downgraded an answer);
+  - `corrections_need_review`.
+
+  It is a routing signal, never an approval. Approval always belongs to a person (Member 3's
+  governance rules).
+- **No thresholds.** None have been approved. The score never turns coverage into pass/fail; a
+  report with 99% coverage and one contradicted claim still requires review. The 85% / 15%
+  targets in DESIGN.md §17G are evaluation targets for the Trust Scorecard, not report thresholds.
+
+**Kept separate:**
+
+| Signal | Where it lives | Feeds the score? |
+|---|---|---|
+| Retrieval relevance (BM25 score, rank) | `EvidencePassage.retrieval` | No. It ranks passages for one claim only and isn't comparable across claims. |
+| Verification verdict | `ClaimResult.verdict` | Yes, as counts |
+| Citation validity | `ClaimResult.citation_guard` | Only as a count of downgrades. A rejected citation can never raise coverage, because it turns the answer into `NOT_ENOUGH_EVIDENCE`. |
+| Model-reported confidence | Not collected. The verifier and corrector schemas have no confidence field, and a reply that adds one is rejected. | No |
+
+## Mapping to Member 3's shared values
+
+Member 3's planning notes (`member3_backend/00_CONTEXT.md`) define the verification statuses
+`supported | contradicted | unverified | conflicting_sources | not_applicable`, and a findings
+table with `suggested_correction` and `requires_human_review`. The proposed mapping isn't agreed
+yet:
+
+| Engine | Member 3 |
+|---|---|
+| `SUPPORTED` | `supported` |
+| `CONTRADICTED` | `contradicted` |
+| `NOT_ENOUGH_EVIDENCE` | `unverified` |
+| `ERROR` | no finding status; the review should go to `failed` or `needs_human_review` (their rule: "never fail open") |
+| none | `conflicting_sources`: the verifier currently folds conflicting evidence into `NOT_ENOUGH_EVIDENCE` and can't report it separately |
+| `correction.replacement_text` (only when `correction_attempt.status` is `proposed`) | `suggested_correction` |
+| `ReportScore.requires_human_review` | review state `needs_human_review` |
+
+## HTTP endpoint: `POST /v1/verify` (walking skeleton, Phase 2)
+
+Code: [`api.py`](src/inkloom_verify/api.py). The body is a `VerificationRequest` and the 200
+response is a `VerificationReport` (`null` fields omitted). The engine ships a **router**, not a
+server. The backend mounts it inside its own app, where its authentication, request-id middleware
+and error handlers apply (INTEGRATION.md).
+
+Errors use the backend's shape (`contract/README.md`): `{"error": {"code", "message", "request_id"}}`.
+
+| Situation | HTTP | `error.code` |
+|---|---|---|
+| Malformed JSON, schema violation, or a body over the size limit | 422 | `VALIDATION_ERROR`. The message lists field locations only, never submitted values. |
+| Body `tenant_id` is not the authenticated tenant | 403 | `FORBIDDEN` |
+| Unexpected failure, including an engine returning a report that doesn't answer the request | 500 | `INTERNAL_ERROR` ("an internal error occurred") |
+| A processing failure inside the engine (provider down, malformed model output, …) | **200** | No HTTP error. The report's `status` is `PARTIAL` or `FAILED`, and its `errors` say what went wrong. |
+
+The response header `X-Inkloom-Engine-Mode` names the engine that answered.
+
+**Until Phase 4, the endpoint serves only the fake engine**
+([`fake_engine.py`](src/inkloom_verify/fake_engine.py)).
+- **Evidence is retrieved for real:** BM25 over the request's own reference set, using the
+  same request-scoped retriever as the pipeline. (Phase 3 replaced the Phase 2 hard-coded
+  retriever, and the development-only `fixed` retrieval method was removed with it.)
+- **Verdicts are canned,** assigned by claim position. A claim with no retrieved evidence is
+  always `NOT_ENOUGH_EVIDENCE`.
+
+**No AI verification is performed, and every response says so:**
+
+- the `X-Inkloom-Engine-Mode: fake` header;
+- `provenance.provider = "fake"`, `model_id = "fake/canned-v1"`;
+- a request-level `PROVIDER_NOT_CONFIGURED` error, so the status is never `COMPLETED` and
+  `score.requires_human_review` is always true;
+- `FAKE ENGINE` at the start of every rationale.
+
+The development server only serves it when asked: `INKLOOM_ENGINE_MODE=fake`.
+
 ## Limits (provisional)
 
 | Limit | Value |
@@ -196,14 +307,34 @@ contract change.
 
 ### Passage splitting (`ChunkingConfig`)
 
-1. Split the document into paragraphs at blank lines. Passages never cross a paragraph break.
-2. Split each paragraph into segments at line breaks and sentence ends (`.`, `!`, `?`, `…`
-   followed by whitespace). Common abbreviations such as `e.g.`, `Inc.` and `No.` don't end a
-   sentence. Decimals such as `4.5` are safe because no whitespace follows the dot.
-3. Split any segment longer than `max_passage_chars` at the last whitespace before the limit,
-   or cut it hard if there is no whitespace.
-4. Group consecutive segments into windows of `sentences_per_passage`, advancing by `stride`.
-   Shrink any window that exceeds `max_passage_chars`.
+Both strategies first split the document into paragraphs at blank lines, then into segments at
+line breaks and sentence ends (`.`, `!`, `?`, `…` followed by whitespace). Common abbreviations
+such as `e.g.`, `Inc.` and `No.` don't end a sentence. Decimals such as `4.5` are safe because no
+whitespace follows the dot.
+
+**`tokens` (the default since the retrieval phase): chunks of 200–400 tokens with overlap.**
+
+1. Any segment longer than `max_tokens` is cut into windows of `max_tokens` words.
+2. Consecutive segments are packed into a chunk until it reaches `target_tokens`. A chunk never
+   exceeds `max_tokens` or 4,000 characters. Chunks may cross paragraph breaks.
+3. Each next chunk starts early enough to repeat at least `overlap_tokens` of the previous one.
+   Overlap is whole sentences.
+4. A short final chunk is extended backwards to at least `min_tokens`, where the document is
+   long enough.
+5. A document shorter than `min_tokens` becomes a single chunk.
+
+Tokens are whitespace-separated words. That's an approximation of model tokens (roughly 1.3
+model tokens per English word), chosen so that chunking needs no tokenizer dependency.
+
+| Setting | Default | Allowed |
+|---|---|---|
+| `target_tokens` | 300 | 20–600, and `min_tokens` ≤ target ≤ `max_tokens` |
+| `min_tokens` | 200 | 10–600 |
+| `max_tokens` | 400 | 20–600 |
+| `overlap_tokens` | 50 | 0–300, and below `min_tokens` |
+
+**`sentences`** (the previous default, still available): windows of `sentences_per_passage`
+segments of one paragraph, advancing by `stride` and shrunk to fit `max_passage_chars`.
 
 | Setting | Default | Allowed |
 |---|---|---|
@@ -211,8 +342,15 @@ contract change.
 | `stride` | 1 | 1 to `sentences_per_passage` (a larger stride would skip text) |
 | `max_passage_chars` | 1,000 | 50–4,000 |
 
-With the defaults, each sentence appears in up to two overlapping passages. That gives the
-verifier the neighbouring sentence as context, for example for "It keeps drinks hot…".
+**Settings for the other strategy are refused, not ignored.** For example,
+`ChunkingConfig(sentences_per_passage=1)` without `strategy="sentences"` is an error, so a
+stale configuration can't silently change how documents are split.
+
+**Scoping.** `BM25Retriever.for_request(request)` indexes exactly the request's `references` and
+records `(tenant_id, reference_set_id)` as its scope; the pipeline uses it. Retrievers keep no
+shared state: no index cache and no class-level data. So two tenants, or two reference sets,
+never see each other's passages, even when they use the same `reference_set_id` or `doc_id`.
+The engine still never looks a reference set up; the backend sends the documents.
 
 ### Ranking (`RetrievalConfig`)
 
@@ -293,9 +431,36 @@ These files are full, validated examples. The tests load every one of them and c
 against each other: the report answers the request, and every passage, citation and correction
 matches the original text exactly.
 
-- [`examples/verification_request.json`](examples/verification_request.json)
-- [`examples/verification_report.json`](examples/verification_report.json): one `SUPPORTED`, one `CONTRADICTED` with a correction, one `NOT_ENOUGH_EVIDENCE`
+**Valid fixtures.** Each one validates and round-trips through JSON, and the request and reports
+pass the scope check against each other:
+
+- [`examples/verification_request.json`](examples/verification_request.json): includes a `reference_set_id`
+- [`examples/verification_report.json`](examples/verification_report.json): `COMPLETED`; one `SUPPORTED`, one `CONTRADICTED` with a proposed correction, one `NOT_ENOUGH_EVIDENCE`
+- [`examples/verification_report_failed.json`](examples/verification_report_failed.json): `FAILED` with `PROVIDER_NOT_CONFIGURED` and no results
 - [`examples/claim_result_error.json`](examples/claim_result_error.json): an `ERROR` result
+- [`examples/end_to_end/`](examples/end_to_end/): a `PARTIAL` report produced by the pipeline (scripted model), and its mapping to Member 3's findings
+
+**Invalid fixtures.** [`examples/invalid/`](examples/invalid/) holds 14 payloads, each with exactly
+one defect. [`examples/invalid/cases.json`](examples/invalid/cases.json) lists, for each one:
+
+- the model it targets;
+- what is wrong;
+- the text the engine's error summary (`describe_validation_error`) contains;
+- whether the exported **JSON Schema alone** rejects it.
+
+**JSON Schema catches only 5 of the 14.** The other nine break cross-field rules that only the
+Pydantic models enforce:
+
+- the content hash;
+- whitespace-only content;
+- citations that must point into `evidence`;
+- verbatim quotes;
+- the verdict/citation, correction and error rules;
+- the review flag;
+- report status.
+
+Member 3 (Python) should validate with `inkloom_verify.schemas`, not the JSON Schema files. Member 1
+receives Member 3's API, not engine payloads.
 - [`examples/eval_records.jsonl`](examples/eval_records.jsonl): evaluation records
 
 ### Request (abridged)
@@ -336,7 +501,7 @@ The hash values are shortened as `…` for readability; the example file has the
   "verdict": "CONTRADICTED",
   "evidence": [
     {
-      "passage_id": "psg_spec-sheet_0002",
+      "passage_id": "psg_796412a63320eb0e15bd336c",
       "doc_id": "spec-sheet",
       "doc_text_sha256": "4518ea23…",
       "span": { "start": 113, "end": 166 },
@@ -348,7 +513,7 @@ The hash values are shortened as `…` for readability; the example file has the
     {
       "doc_id": "spec-sheet",
       "doc_text_sha256": "4518ea23…",
-      "passage_id": "psg_spec-sheet_0002",
+      "passage_id": "psg_796412a63320eb0e15bd336c",
       "quote": "70% recycled content",
       "quote_span": { "start": 145, "end": 165 }
     }
@@ -381,6 +546,19 @@ recorded them here rather than settling them without you.
 6. **Tenant id.** Should `tenant_id` be in the request body (current design), or come only from the authenticated context? If it's in the body, the API layer must reject a body `tenant_id` that differs from the caller's.
 7. **Validation error responses.** FastAPI's default 422 response echoes the offending input, which can include document text. Who owns that error handler? The engine side plans to strip input values (Phase 7).
 8. **Request and report IDs.** Who generates `request_id`? Do reports need to be stored and looked up later? That would be outside Member 2's scope.
+
+**For Member 3 (from their planning notes, raised in Phase 6):**
+
+12. **Status mapping.** Do you accept the mapping above? Should the verifier report
+    `conflicting_sources` separately? That needs a contract change and a prompt change.
+13. **Provider ownership.** Your Phase 5 says Member 3 owns the provider adapter and the engine
+    must not call a provider directly. The engine already has an OpenRouter adapter behind the
+    `LLMProvider` interface (Member 2, Phase 4). Your adapter could implement that interface, and
+    the engine would accept it unchanged. Which one runs in production?
+14. **Confidential sources.** These must never reach a cloud provider. The engine doesn't see
+    source sensitivity today, so routing must be decided before the engine is called, or the
+    request needs a sensitivity field.
+15. **Severity.** Your findings have `severity`. The engine doesn't assign it. Who does?
 
 **For whoever owns the review queue UI:**
 

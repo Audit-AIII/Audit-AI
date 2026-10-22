@@ -21,7 +21,7 @@ from inkloom_verify.providers.openrouter import OpenRouterProvider, OpenRouterSe
 from inkloom_verify.schemas import ErrorCode, PipelineStage
 from inkloom_verify.security import RedactingFilter, redact
 
-KEY = "sk-or-v1-0123456789abcdef0123456789abcdef"
+KEY = "sk-or-v1-TEST-ONLY-NOT-A-REAL-KEY-000000"  # dummy; never a real credential
 REQUEST = JsonCompletionRequest(
     system="system prompt", user="user content", schema_name="claim_extraction", json_schema={"type": "object"}
 )

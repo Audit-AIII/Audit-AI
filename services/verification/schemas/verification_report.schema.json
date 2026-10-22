@@ -131,6 +131,17 @@
           ],
           "default": null
         },
+        "correction_attempt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CorrectionAttempt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -163,6 +174,10 @@
           ],
           "default": null,
           "title": "Model Rationale"
+        },
+        "requires_human_review": {
+          "title": "Requires Human Review",
+          "type": "boolean"
         },
         "verdict": {
           "$ref": "#/$defs/Verdict"
@@ -213,6 +228,102 @@
       "title": "Correction",
       "type": "object"
     },
+    "CorrectionAttempt": {
+      "additionalProperties": false,
+      "description": "What happened when a correction was attempted for a CONTRADICTED claim.\n\nPROPOSED: a correction is attached to the result and passed every check (and the re-check,\nwhen one ran). NEEDS_HUMAN_REVIEW: no correction is attached; ``issues`` says why.\nFAILED: no correction is attached; ``error`` says why.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcessingError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "issues": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CorrectionIssue"
+          },
+          "title": "Issues",
+          "type": "array"
+        },
+        "recheck_verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Verdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "$ref": "#/$defs/CorrectionStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "CorrectionAttempt",
+      "type": "object"
+    },
+    "CorrectionIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/CorrectionIssueCode"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "CorrectionIssue",
+      "type": "object"
+    },
+    "CorrectionIssueCode": {
+      "enum": [
+        "model_declined",
+        "no_citation",
+        "unknown_citation",
+        "target_not_found",
+        "no_change",
+        "unsupported_addition",
+        "not_minimal",
+        "drops_qualifier",
+        "recheck_not_supported",
+        "recheck_unavailable",
+        "invalid_correction"
+      ],
+      "title": "CorrectionIssueCode",
+      "type": "string"
+    },
+    "CorrectionStatus": {
+      "enum": [
+        "proposed",
+        "needs_human_review",
+        "failed"
+      ],
+      "title": "CorrectionStatus",
+      "type": "string"
+    },
     "EngineProvenance": {
       "additionalProperties": false,
       "description": "What produced a report, so results can be reproduced and compared across versions.",
@@ -257,6 +368,20 @@
           "title": "Prompt Versions",
           "type": "object"
         },
+        "provider": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
         "retrieval_method": {
           "$ref": "#/$defs/RetrievalMethod"
         }
@@ -282,6 +407,40 @@
       ],
       "title": "ErrorCode",
       "type": "string"
+    },
+    "EvidenceCoverage": {
+      "additionalProperties": false,
+      "description": "Share of checked claims backed by validated evidence: supported / checked.\n\n``checked`` counts claims with a SUPPORTED, CONTRADICTED or NOT_ENOUGH_EVIDENCE verdict;\nERROR results are not checked and are counted separately. ``value`` is null when nothing was\nchecked, never 0% or 100%.",
+      "properties": {
+        "checked": {
+          "minimum": 0,
+          "title": "Checked",
+          "type": "integer"
+        },
+        "supported": {
+          "minimum": 0,
+          "title": "Supported",
+          "type": "integer"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "supported",
+        "checked"
+      ],
+      "title": "EvidenceCoverage",
+      "type": "object"
     },
     "EvidencePassage": {
       "additionalProperties": false,
@@ -470,6 +629,81 @@
       "title": "RejectedCitation",
       "type": "object"
     },
+    "ReportScore": {
+      "additionalProperties": false,
+      "description": "The engine-side score of a report: counts, evidence coverage and review routing.\n\nDeliberately not a confidence or quality score. Each number answers one question about the\nverdicts and nothing else; retrieval scores stay on passages and citation outcomes stay on\neach result's citation_guard. No thresholds are applied: ``requires_human_review`` is true\nwhenever any reason applies.",
+      "properties": {
+        "citations_rejected": {
+          "minimum": 0,
+          "title": "Citations Rejected",
+          "type": "integer"
+        },
+        "claims": {
+          "minimum": 0,
+          "title": "Claims",
+          "type": "integer"
+        },
+        "contradicted": {
+          "minimum": 0,
+          "title": "Contradicted",
+          "type": "integer"
+        },
+        "corrections_need_review": {
+          "minimum": 0,
+          "title": "Corrections Need Review",
+          "type": "integer"
+        },
+        "corrections_proposed": {
+          "minimum": 0,
+          "title": "Corrections Proposed",
+          "type": "integer"
+        },
+        "errors": {
+          "minimum": 0,
+          "title": "Errors",
+          "type": "integer"
+        },
+        "evidence_coverage": {
+          "$ref": "#/$defs/EvidenceCoverage"
+        },
+        "not_enough_evidence": {
+          "minimum": 0,
+          "title": "Not Enough Evidence",
+          "type": "integer"
+        },
+        "requires_human_review": {
+          "title": "Requires Human Review",
+          "type": "boolean"
+        },
+        "review_reasons": {
+          "items": {
+            "$ref": "#/$defs/ReviewReason"
+          },
+          "title": "Review Reasons",
+          "type": "array"
+        },
+        "supported": {
+          "minimum": 0,
+          "title": "Supported",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "claims",
+        "supported",
+        "contradicted",
+        "not_enough_evidence",
+        "errors",
+        "evidence_coverage",
+        "citations_rejected",
+        "corrections_proposed",
+        "corrections_need_review",
+        "requires_human_review",
+        "review_reasons"
+      ],
+      "title": "ReportScore",
+      "type": "object"
+    },
     "ReportStatus": {
       "enum": [
         "COMPLETED",
@@ -510,6 +744,17 @@
       ],
       "title": "RetrievalProvenance",
       "type": "object"
+    },
+    "ReviewReason": {
+      "enum": [
+        "contradicted_claims",
+        "unverified_claims",
+        "processing_errors",
+        "citations_rejected",
+        "corrections_need_review"
+      ],
+      "title": "ReviewReason",
+      "type": "string"
     },
     "SourceSpan": {
       "additionalProperties": false,
@@ -575,6 +820,19 @@
     "provenance": {
       "$ref": "#/$defs/EngineProvenance"
     },
+    "reference_set_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reference Set Id"
+    },
     "references": {
       "items": {
         "$ref": "#/$defs/ReferenceDescriptor"
@@ -597,6 +855,17 @@
       "maxItems": 200,
       "title": "Results",
       "type": "array"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReportScore"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "status": {
       "$ref": "#/$defs/ReportStatus"

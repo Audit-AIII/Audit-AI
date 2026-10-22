@@ -1,0 +1,171 @@
+{
+  "contract_version": "0.1.0",
+  "request_id": "req-2026-10-22-0001",
+  "tenant_id": "tenant-acme",
+  "reference_set_id": "refset-lumen-launch",
+  "content_sha256": "02725cca51cca27153358eb4c162c3525dbaa8b1e31de7b346cf8114fa97fad0",
+  "content_length": 117,
+  "references": [
+    {
+      "doc_id": "spec-sheet",
+      "version": "v3",
+      "text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894"
+    }
+  ],
+  "results": [
+    {
+      "claim": {
+        "claim_id": "clm_0001",
+        "text": "The Lumen Bottle keeps drinks cold for up to 24 hours.",
+        "source_span": {
+          "start": 0,
+          "end": 54
+        }
+      },
+      "verdict": "SUPPORTED",
+      "requires_human_review": false,
+      "evidence": [
+        {
+          "passage_id": "psg_8e867c1c7432eba941fc5da9",
+          "doc_id": "spec-sheet",
+          "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+          "span": {
+            "start": 36,
+            "end": 112
+          },
+          "text": "Insulation: keeps drinks cold for up to 24 hours and hot for up to 12 hours.",
+          "retrieval": {
+            "method": "bm25",
+            "score": 4.82,
+            "rank": 1
+          }
+        }
+      ],
+      "citations": [
+        {
+          "doc_id": "spec-sheet",
+          "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+          "passage_id": "psg_8e867c1c7432eba941fc5da9",
+          "quote": "keeps drinks cold for up to 24 hours",
+          "quote_span": {
+            "start": 48,
+            "end": 84
+          }
+        }
+      ],
+      "model_rationale": "The specification states cold retention of up to 24 hours."
+    },
+    {
+      "claim": {
+        "claim_id": "clm_0002",
+        "text": "The Lumen Bottle is made from 90% recycled steel.",
+        "source_span": {
+          "start": 55,
+          "end": 90
+        }
+      },
+      "verdict": "CONTRADICTED",
+      "requires_human_review": true,
+      "evidence": [
+        {
+          "passage_id": "psg_796412a63320eb0e15bd336c",
+          "doc_id": "spec-sheet",
+          "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+          "span": {
+            "start": 113,
+            "end": 166
+          },
+          "text": "Body: 18/8 stainless steel with 70% recycled content.",
+          "retrieval": {
+            "method": "bm25",
+            "score": 3.91,
+            "rank": 1
+          }
+        }
+      ],
+      "citations": [
+        {
+          "doc_id": "spec-sheet",
+          "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+          "passage_id": "psg_796412a63320eb0e15bd336c",
+          "quote": "70% recycled content",
+          "quote_span": {
+            "start": 145,
+            "end": 165
+          }
+        }
+      ],
+      "correction": {
+        "target_span": {
+          "start": 71,
+          "end": 74
+        },
+        "original_text": "90%",
+        "replacement_text": "70%",
+        "citations": [
+          {
+            "doc_id": "spec-sheet",
+            "doc_text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894",
+            "passage_id": "psg_796412a63320eb0e15bd336c",
+            "quote": "70% recycled content",
+            "quote_span": {
+              "start": 145,
+              "end": 165
+            }
+          }
+        ]
+      },
+      "model_rationale": "The specification states 70% recycled content, not 90%.",
+      "correction_attempt": {
+        "status": "proposed",
+        "issues": [],
+        "recheck_verdict": "SUPPORTED"
+      }
+    },
+    {
+      "claim": {
+        "claim_id": "clm_0003",
+        "text": "Lumen was founded in 2015.",
+        "source_span": {
+          "start": 91,
+          "end": 117
+        }
+      },
+      "verdict": "NOT_ENOUGH_EVIDENCE",
+      "requires_human_review": true,
+      "evidence": [],
+      "citations": []
+    }
+  ],
+  "errors": [],
+  "provenance": {
+    "engine_version": "0.1.0",
+    "contract_version": "0.1.0",
+    "retrieval_method": "bm25",
+    "model_id": "provider-model-tbd",
+    "prompt_versions": {
+      "verify_claim": "verify-claim-v1",
+      "correct_claim": "correct-claim-v1"
+    }
+  },
+  "score": {
+    "claims": 3,
+    "supported": 1,
+    "contradicted": 1,
+    "not_enough_evidence": 1,
+    "errors": 0,
+    "evidence_coverage": {
+      "supported": 1,
+      "checked": 3,
+      "value": 0.3333333333333333
+    },
+    "citations_rejected": 0,
+    "corrections_proposed": 1,
+    "corrections_need_review": 0,
+    "requires_human_review": true,
+    "review_reasons": [
+      "contradicted_claims",
+      "unverified_claims"
+    ]
+  }
+}

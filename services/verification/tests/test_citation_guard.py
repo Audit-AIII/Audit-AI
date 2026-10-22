@@ -21,7 +21,7 @@ OTHER = ReferenceDocument(doc_id="company-facts", text="Lumen Goods was founded 
 
 
 def passages(*documents: ReferenceDocument) -> list[EvidencePassage]:
-    retriever = BM25Retriever(list(documents), chunking=ChunkingConfig(sentences_per_passage=1, stride=1))
+    retriever = BM25Retriever(list(documents), chunking=ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1))
     found = []
     for document in documents:
         for p in retriever.passages:

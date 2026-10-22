@@ -26,7 +26,9 @@ from inkloom_verify.extraction import describe_validation_error
 from inkloom_verify.prompts import verification as prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
 from inkloom_verify.retrieval import EvidenceRetriever
+from inkloom_verify.security import clean_display_text
 from inkloom_verify.schemas import (
+    MAX_PASSAGE_CHARS,
     MAX_RATIONALE_CHARS,
     Citation,
     CitationGuardReport,
@@ -51,14 +53,14 @@ class _Strict(BaseModel):
 
 
 class _ModelCitation(_Strict):
-    passage: str
-    quote: str
+    passage: str = Field(max_length=32)
+    quote: str = Field(max_length=MAX_PASSAGE_CHARS)
 
 
 class _ModelOutput(_Strict):
     verdict: Literal["SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE"]
     citations: list[_ModelCitation] = Field(max_length=20)
-    rationale: str
+    rationale: str = Field(max_length=8_000)
 
 
 class VerificationConfig(BaseModel):
@@ -111,7 +113,7 @@ class ClaimVerifier:
             return self._error(claim, passages, error.to_processing_error(PipelineStage.VERIFICATION, claim.claim_id))
 
         model_verdict = Verdict(output.verdict)
-        rationale = output.rationale.strip()[:MAX_RATIONALE_CHARS] or None
+        rationale = clean_display_text(output.rationale, MAX_RATIONALE_CHARS)
         if model_verdict is Verdict.NOT_ENOUGH_EVIDENCE:
             return ClaimResult(
                 claim=claim,
@@ -128,7 +130,7 @@ class ClaimVerifier:
             label = cited.passage.strip()
             checked = guard.check(labels.get(label), cited.quote)
             if isinstance(checked, GuardRejectionReason):
-                rejected.append(RejectedCitation(reason=checked, passage_id=labels.get(label), cited_as=label[:64] or None))
+                rejected.append(RejectedCitation(reason=checked, passage_id=labels.get(label), cited_as=clean_display_text(label, 64)))
                 continue
             key = (checked.passage_id, checked.quote_span.start, checked.quote_span.end)
             if key not in seen:

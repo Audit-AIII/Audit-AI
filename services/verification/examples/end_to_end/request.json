@@ -1,0 +1,26 @@
+{
+  "contract_version": "0.1.0",
+  "request_id": "req-e2e-0001",
+  "tenant_id": "tenant-demo",
+  "content": {
+    "content_id": "draft-e2e",
+    "text": "Lumen Pods offer up to 12 hours of playback per charge. The Lumen Pods price is €99. Lumen Pods have active noise cancellation. Lumen Goods was founded in 2019 in Lisbon. We think they sound amazing.",
+    "text_sha256": "3c50cd21b86bf1cab8b203495c7b457e1cbe9075bd89bfabde9f1b6dbe507328"
+  },
+  "references": [
+    {
+      "doc_id": "pods-fact-sheet",
+      "version": "v2",
+      "title": "Lumen Pods Product Fact Sheet",
+      "text": "Lumen Pods - Product Fact Sheet (version 2, approved 2026-03-14)\n\nBattery life: up to 12 hours of playback per charge; up to 36 hours with the charging case.\nCharging: USB-C. A 10-minute charge gives up to 2 hours of playback.\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\nWeight: 5.2 g per earbud; charging case 48 g.\nColours: Graphite, Sand, Teal.\nPrice: €129 (EU launch price).\nLaunch date: 2 April 2026 in Portugal, Spain and France.\nWarranty: 2 years.\n",
+      "text_sha256": "80e92271ddb83d1de4af1d8c79381a3d1eb7c4607914c29e24110c38eb8da754"
+    },
+    {
+      "doc_id": "company-facts",
+      "version": "2026-01",
+      "title": "Lumen Goods Company Facts",
+      "text": "Lumen Goods - Company Facts (approved 2026-01-10)\n\nLumen Goods was founded in 2019 in Lisbon, Portugal, by Ana Ribeiro and Tomás Silva.\nAna Ribeiro is the chief executive officer. Tomás Silva is the chief design officer.\nThe company employs 48 people across offices in Lisbon and Porto.\nLumen Goods has been a certified B Corporation since 2023.\nLumen Goods does not sell products in the United States.\n",
+      "text_sha256": "e97200b7cf87d488a853f5c4f0ba2792addff0e67e196a9774c206ed44a7d045"
+    }
+  ]
+}

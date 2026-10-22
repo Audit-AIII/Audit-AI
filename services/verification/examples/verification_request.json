@@ -2,6 +2,7 @@
   "contract_version": "0.1.0",
   "request_id": "req-2026-10-22-0001",
   "tenant_id": "tenant-acme",
+  "reference_set_id": "refset-lumen-launch",
   "content": {
     "content_id": "draft-launch-email-v2",
     "text": "The Lumen Bottle keeps drinks cold for up to 24 hours. It is made from 90% recycled steel. Lumen was founded in 2015.",

@@ -1,0 +1,100 @@
+[
+  {
+    "file": "request_missing_content.json",
+    "model": "VerificationRequest",
+    "description": "A required field is missing.",
+    "pydantic_error_contains": "content: Field required",
+    "json_schema_rejects": true
+  },
+  {
+    "file": "request_empty_content.json",
+    "model": "VerificationRequest",
+    "description": "Content is whitespace only.",
+    "pydantic_error_contains": "must contain non-whitespace text",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "request_no_references.json",
+    "model": "VerificationRequest",
+    "description": "No reference documents to verify against.",
+    "pydantic_error_contains": "at least 1 item",
+    "json_schema_rejects": true
+  },
+  {
+    "file": "request_bad_reference_set_id.json",
+    "model": "VerificationRequest",
+    "description": "reference_set_id contains characters an id may not.",
+    "pydantic_error_contains": "String should match pattern",
+    "json_schema_rejects": true
+  },
+  {
+    "file": "request_wrong_text_hash.json",
+    "model": "VerificationRequest",
+    "description": "The content hash does not match the content.",
+    "pydantic_error_contains": "text_sha256 does not match",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "result_invalid_verdict.json",
+    "model": "ClaimResult",
+    "description": "Not one of SUPPORTED, CONTRADICTED, NOT_ENOUGH_EVIDENCE, ERROR.",
+    "pydantic_error_contains": "verdict",
+    "json_schema_rejects": true
+  },
+  {
+    "file": "result_citation_not_in_evidence.json",
+    "model": "ClaimResult",
+    "description": "A citation names a passage the result does not include.",
+    "pydantic_error_contains": "not in evidence",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "result_quote_not_verbatim.json",
+    "model": "ClaimResult",
+    "description": "The quote is not the exact text of the passage at its span.",
+    "pydantic_error_contains": "not the verbatim text",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "result_supported_without_citation.json",
+    "model": "ClaimResult",
+    "description": "A factual verdict with no evidence.",
+    "pydantic_error_contains": "requires at least one citation",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "result_correction_on_supported.json",
+    "model": "ClaimResult",
+    "description": "Corrections exist only for CONTRADICTED claims.",
+    "pydantic_error_contains": "correction is only allowed on a CONTRADICTED claim",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "result_review_flag_contradicts_verdict.json",
+    "model": "ClaimResult",
+    "description": "The review flag disagrees with the verdict.",
+    "pydantic_error_contains": "requires_human_review must be false only for SUPPORTED",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "result_error_without_error.json",
+    "model": "ClaimResult",
+    "description": "A processing failure must say what failed.",
+    "pydantic_error_contains": "ERROR requires an error",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "report_missing_status.json",
+    "model": "VerificationReport",
+    "description": "A required field is missing.",
+    "pydantic_error_contains": "status: Field required",
+    "json_schema_rejects": true
+  },
+  {
+    "file": "report_error_marked_completed.json",
+    "model": "VerificationReport",
+    "description": "A report with an ERROR result cannot be COMPLETED.",
+    "pydantic_error_contains": "COMPLETED report must not contain",
+    "json_schema_rejects": false
+  }
+]

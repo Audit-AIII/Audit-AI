@@ -29,6 +29,7 @@ from inkloom_verify.providers.base import (
     ProviderError,
 )
 from inkloom_verify.retrieval import tokenize
+from inkloom_verify.security import clean_display_text
 from inkloom_verify.schemas import (
     MAX_CLAIM_CHARS,
     MAX_CLAIMS,
@@ -61,19 +62,24 @@ class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+# Caps on model output (see SECURITY.md). Claim text over MAX_CLAIM_CHARS but under the cap
+# still falls back to the sentence with a warning; anything over a cap fails validation.
+_MAX_MODEL_TEXT = 4_000
+
+
 class _ModelClaim(_Strict):
-    text: str
-    source_quote: str
+    text: str = Field(max_length=_MAX_MODEL_TEXT)
+    source_quote: str = Field(max_length=_MAX_MODEL_TEXT)
 
 
 class _ModelStatement(_Strict):
-    sentence_id: str
+    sentence_id: str = Field(max_length=32)
     kind: StatementKind
-    claims: list[_ModelClaim]
+    claims: list[_ModelClaim] = Field(max_length=50)
 
 
 class _ModelOutput(_Strict):
-    statements: list[_ModelStatement]
+    statements: list[_ModelStatement] = Field(max_length=400)
 
 
 # --- Configuration and result ------------------------------------------------------------------
@@ -151,7 +157,7 @@ _MONTHS = re.compile(
     r"jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b"
 )
 NEGATION = re.compile(r"\b(not|no|never|none|nor|neither|without|cannot)\b|n['’]t\b|\w-free\b")
-_QUALIFIERS = (
+QUALIFIERS = (
     "up to", "about", "approximately", "approx", "around", "at least", "at most", "more than",
     "less than", "fewer than", "nearly", "almost", "only", "roughly", "as much as", "as many as",
     "maximum", "minimum", "average", "typically", "estimated", "may", "might", "can", "could",
@@ -175,7 +181,7 @@ def rewrite_problems(claim: str, quote: str, content: str) -> list[str]:
         problems.append(f"changes or adds months ({', '.join(sorted(new_months))})")
     if NEGATION.search(quote_cf) and not NEGATION.search(claim_cf):
         problems.append("drops a negation")
-    dropped = [q for q in _QUALIFIERS if _has(q, quote_cf) and not _has(q, claim_cf)]
+    dropped = [q for q in QUALIFIERS if _has(q, quote_cf) and not _has(q, claim_cf)]
     if dropped:
         problems.append(f"drops qualifiers ({', '.join(dropped)})")
     if _ATTRIBUTION.search(quote_cf) and not _ATTRIBUTION.search(claim_cf):
@@ -338,7 +344,8 @@ class ClaimExtractor:
         warnings: list[ExtractionWarning],
     ) -> list[tuple[str, str, SourceSpan]]:
         def warn(code: WarningCode, sentence_id: str, message: str) -> None:
-            warnings.append(ExtractionWarning(code=code, sentence_id=sentence_id[:64], message=message))
+            sid = clean_display_text(sentence_id, 64) or "?"
+            warnings.append(ExtractionWarning(code=code, sentence_id=sid, message=message))
 
         proposed: list[tuple[str, str, SourceSpan]] = []
         expected = set(batch)
