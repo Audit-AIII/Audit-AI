@@ -223,13 +223,22 @@ textarea.draft__text {
 .legend__bad { color: var(--bad); }
 .problem.is-selected { background-color: var(--protect-tint); box-shadow: inset 3px 0 0 var(--ink); padding-left: 12px; }
 .sev { margin-left: 6px; font-size: 15px; letter-spacing: .04em; }
-.evidence { display: grid; gap: 12px; padding: 18px; border-radius: var(--r-ui); background-color: var(--surface); background-image: var(--grain-dark); box-shadow: var(--shadow-window); color: var(--canvas); }
+/* Evidence window: the dark die-cut, but smooth (no grain) so the quoted source reads clearly */
+.evidence {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: var(--r-ui);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--surface) 88%, var(--paper-hi)), var(--surface) 55%);
+  box-shadow: inset 4px 6px 12px rgb(31 20 11 / .55), inset -1px -1px 0 rgb(247 232 210 / .25);
+  color: var(--paper-hi);
+}
 .evidence p { margin: 0; }
-.evidence__src { color: var(--gray-light); }
-.evidence__quote { font-size: 18px; text-shadow: 0 1px 0 rgb(31 20 11 / .6); }
-.evidence__compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; }
-.evidence__compare dt { margin-bottom: 4px; color: var(--gray-light); }
-.evidence__compare dd { margin: 0; font: 700 24px / 1 var(--font-display); text-shadow: var(--text-raised); }
+.evidence .t-caption { color: var(--gray-light); }
+.evidence__quote { font-size: 19px; line-height: 1.45; color: var(--paper-hi); }
+.evidence__compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; padding-top: 14px; border-top: 1px dashed rgb(247 232 210 / .35); }
+.evidence__compare dt { margin-bottom: 6px; }
+.evidence__compare dd { margin: 0; color: var(--paper-hi); font: 700 26px / 1 var(--font-display); }
 .evidence__found dd { color: var(--bad-on-dark); }
 
 /* Decide */
