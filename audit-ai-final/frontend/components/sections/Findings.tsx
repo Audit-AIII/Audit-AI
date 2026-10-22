@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Heading } from "@/components/primitives/Heading";
 import { SpecTable } from "@/components/primitives/SpecTable";
+import { Shore, type ShellSpot } from "@/components/layout/Shore";
 
 type Status = "contradicted" | "unverified" | "supported" | "withdrawn";
 
@@ -146,9 +147,22 @@ function Snippet({ f }: { f: Finding }) {
 }
 
 /** Sample findings in alternating sleeve · snippet · text rows. */
+// Beach decor in the open sand around the heading (hidden below 900px).
+const SHELLS: ShellSpot[] = [
+  { kind: "star", x: "80%", y: "60px", size: 120, rotate: 16 },
+  { kind: "cockle", x: "60%", y: "150px", size: 71, rotate: -22 },
+  { kind: "pebble", x: "70%", y: "96px", size: 20 },
+  { kind: "tide", x: "40%", y: "0px", size: 560 },
+  { kind: "pearls", x: "56%", y: "90px", size: 48 },
+  { kind: "glass", x: "68%", y: "205px", size: 39, rotate: -30, tone: "slate" },
+  { kind: "pebble", x: "92%", y: "190px", size: 30, rotate: 15, tone: "rose" },
+  { kind: "pebble", x: "74%", y: "150px", size: 27, tone: "ochre" },
+];
+
 export function Findings() {
   return (
     <section id="findings" className="section findings" aria-labelledby="findings-title">
+      <Shore shells={SHELLS} />
       <div className="container">
         <div className="head-grid findings__head">
           <Heading id="findings-title" className="findings__title" data-r="up">

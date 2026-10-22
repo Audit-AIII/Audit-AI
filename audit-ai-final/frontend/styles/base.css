@@ -205,3 +205,80 @@ body {
   .js [data-r].is-in { opacity: 1; transform: none; transition: none; }
   .skip-link { transition: none; }
 }
+
+/* ---- Shore: shells half-buried in the sand sections (components/layout/Shore.tsx) ---- */
+.shell-face__hi { stop-color: color-mix(in srgb, var(--paper-hi) 85%, var(--canvas)); }
+.shell-face__mid { stop-color: color-mix(in srgb, var(--paper-hi) 42%, var(--canvas)); }
+.shell-face__lo { stop-color: color-mix(in srgb, var(--canvas) 85%, var(--ink-2)); }
+.shell-sand__shade { flood-color: var(--deep); flood-opacity: .38; }
+
+/* Sits under the section's content (inside the .sheet stacking context, above its sand) */
+.shore { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.shell {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--size);
+  height: var(--size);
+  overflow: visible;
+  /* the lower-right of each shell sinks into the sand */
+  -webkit-mask-image: linear-gradient(140deg, #000 50%, rgb(0 0 0 / .55) 72%, transparent 96%);
+  mask-image: linear-gradient(140deg, #000 50%, rgb(0 0 0 / .55) 72%, transparent 96%);
+}
+.shell__body { fill: url(#shell-face); }
+.shell__body--pebble { fill: color-mix(in srgb, var(--canvas) 88%, var(--ink-2)); }
+.shell__ear { fill: color-mix(in srgb, var(--paper-hi) 35%, var(--canvas)); }
+.shell__line { fill: none; stroke: color-mix(in srgb, var(--ink-2) 55%, transparent); stroke-width: 1.4; stroke-linecap: round; }
+.shell__line--strong { stroke-width: 2.2; stroke: color-mix(in srgb, var(--ink-2) 70%, transparent); }
+.shell__hole { fill: color-mix(in srgb, var(--ink-2) 75%, var(--canvas)); }
+.shell__dot { fill: color-mix(in srgb, var(--canvas) 60%, var(--ink-2)); }
+/* Beach palette: matte, mixed into the sand so nothing shouts. Sea and rose are the only
+   hues not already in tokens.css; the rest come from the status colours, softened. */
+.shore, .drift {
+  --beach-terracotta: color-mix(in srgb, var(--bad-on-dark) 60%, var(--canvas));
+  --beach-sage: color-mix(in srgb, var(--ok-on-dark) 62%, var(--canvas));
+  --beach-ochre: color-mix(in srgb, var(--warn-on-dark) 60%, var(--canvas));
+  --beach-slate: color-mix(in srgb, #5f7f8c 62%, var(--canvas));
+  --beach-sea: color-mix(in srgb, #6fa3a0 62%, var(--canvas));
+  --beach-rose: color-mix(in srgb, #d99a98 65%, var(--canvas));
+  --beach-charcoal: color-mix(in srgb, var(--ink-2) 62%, var(--canvas));
+}
+.tone--sand { fill: color-mix(in srgb, var(--canvas) 88%, var(--ink-2)); }
+.tone--terracotta { fill: var(--beach-terracotta); }
+.tone--sage { fill: var(--beach-sage); }
+.tone--ochre { fill: var(--beach-ochre); }
+.tone--slate { fill: var(--beach-slate); }
+.tone--sea { fill: var(--beach-sea); }
+.tone--rose { fill: var(--beach-rose); }
+.tone--charcoal { fill: var(--beach-charcoal); }
+.shell__sheen { fill: url(#shell-sheen-grad); }
+.shell-sheen__hi { stop-color: var(--paper-hi); stop-opacity: .38; }
+.shell-sheen__mid { stop-color: var(--paper-hi); stop-opacity: 0; }
+.shell-sheen__lo { stop-color: var(--deep); stop-opacity: .22; }
+.shell__tone--glass { fill-opacity: .78; }
+.shell__knob { fill: color-mix(in srgb, var(--paper-hi) 55%, var(--canvas)); stroke: color-mix(in srgb, var(--ink-2) 35%, transparent); stroke-width: .8; }
+.shell__pearl { fill: url(#shell-pearl); }
+.shell-pearl__hi { stop-color: var(--paper-hi); }
+.shell-pearl__mid { stop-color: color-mix(in srgb, var(--paper-hi) 78%, #d99a98); }
+.shell-pearl__lo { stop-color: color-mix(in srgb, var(--paper-hi) 45%, var(--canvas)); }
+
+/* Tide line: darker wet sand under a broken foam edge; fades out at both ends and drifts
+   very slowly in and out like a small wave (static with reduced motion). */
+.shell--tide {
+  height: calc(var(--size) / 4);
+  /* fade out at both ends and towards the dry sand below */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent), linear-gradient(180deg, #000 50%, transparent 98%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent), linear-gradient(180deg, #000 50%, transparent 98%);
+  mask-composite: intersect;
+  animation: tide-wash 9s var(--ease-ui) infinite alternate;
+}
+.tide__wet { fill: color-mix(in srgb, var(--beach-sea) 45%, var(--ink-2)); fill-opacity: .2; }
+.tide__foam { fill: none; stroke: var(--paper-hi); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 26 5 9 4; opacity: .85; }
+.tide__foam--faint { stroke-width: 1.4; stroke-dasharray: 14 8; opacity: .45; }
+.tide__bubble { fill: var(--paper-hi); opacity: .7; }
+@keyframes tide-wash { from { translate: 0 0; } to { translate: -6px 5px; } }
+@media (prefers-reduced-motion: reduce) { .shell--tide { animation: none; } }
+
+/* Phones and tablets stack the layout, so there is no empty sand to put shells in */
+@media (max-width: 900px) { .shore { display: none; } }

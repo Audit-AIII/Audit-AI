@@ -36,3 +36,46 @@
   .checks__item .swatch { transition: none; }
   .checks__item:hover .swatch { translate: none; }
 }
+
+/* ---- Beach cards: wind ripples in the sand around the edge of each card (centre kept clear
+   for the visual) and a sand drift with a small find banked against the base ---- */
+.checks__swatch > * { position: relative; z-index: 1; }
+.checks__swatch::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--paper-hi);
+  opacity: .42;
+  filter: drop-shadow(1px 1.5px 0 rgb(31 20 11 / .2));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='140'%20height='26'%3E%3Cpath%20d='M0%209%20C23%203%2047%2015%2070%209%20S117%203%20140%209'%20fill='none'%20stroke='black'%20stroke-width='1.7'/%3E%3Cpath%20d='M0%2022%20C23%2016%2047%2028%2070%2022%20S117%2016%20140%2022'%20fill='none'%20stroke='black'%20stroke-width='1.1'%20opacity='.55'/%3E%3C/svg%3E"), radial-gradient(ellipse 72% 70% at 50% 48%, transparent 50%, #000 92%);
+  -webkit-mask-composite: source-in;
+  mask-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='140'%20height='26'%3E%3Cpath%20d='M0%209%20C23%203%2047%2015%2070%209%20S117%203%20140%209'%20fill='none'%20stroke='black'%20stroke-width='1.7'/%3E%3Cpath%20d='M0%2022%20C23%2016%2047%2028%2070%2022%20S117%2016%20140%2022'%20fill='none'%20stroke='black'%20stroke-width='1.1'%20opacity='.55'/%3E%3C/svg%3E"), radial-gradient(ellipse 72% 70% at 50% 48%, transparent 50%, #000 92%);
+  mask-composite: intersect;
+  -webkit-mask-size: 140px 26px, 100% 100%;
+  mask-size: 140px 26px, 100% 100%;
+  pointer-events: none;
+}
+.checks__item:nth-child(2n) .checks__swatch::before { -webkit-mask-position: 37px 11px, 0 0; mask-position: 37px 11px, 0 0; }
+.checks__item:nth-child(3n) .checks__swatch::before { -webkit-mask-position: 81px 5px, 0 0; mask-position: 81px 5px, 0 0; }
+
+/* The drift's card line (y=44 of 70 on a 400-wide box) lines up with the card's bottom edge:
+   width 112% of the card → top = 100% − 44/400 × 112% of the card width. */
+.checks__item { position: relative; container-type: inline-size; }
+.checks__drift {
+  position: absolute;
+  left: -6%;
+  top: calc(100cqw - 12.32cqw);
+  z-index: 7; /* above the dealt cards' inline z-index */
+  width: 112%;
+  height: auto;
+  overflow: visible;
+  pointer-events: none;
+  /* fade out at both ends and below the card, into the board */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(180deg, #000 66%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(180deg, #000 66%, transparent 100%);
+  mask-composite: intersect;
+}
+.drift__sand { fill: color-mix(in srgb, var(--canvas) 82%, var(--paper-hi)); }
+.drift__crest { fill: none; stroke: var(--paper-hi); stroke-width: 1.6; stroke-linecap: round; opacity: .7; }
+@media (max-width: 767px) { .checks__drift { display: none; } }

@@ -5,6 +5,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Heading } from "@/components/primitives/Heading";
 import { Swatch, type CheckKind } from "@/components/primitives/Swatch";
+import { SandDrift, Shore, type ShellSpot } from "@/components/layout/Shore";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -21,6 +22,21 @@ const CHECKS: { kind: CheckKind; title: string; line: string }[] = [
 const TILT = [-7, 5, -3, 8, -5, 3];
 
 /** Six checks as six swatch cards. On desktop they are dealt from a stacked pile into the grid, scrubbed to scroll. */
+// Beach decor in the open sand around the heading (hidden below 900px).
+const SHELLS: ShellSpot[] = [
+  { kind: "scallop", x: "62%", y: "70px", size: 129, rotate: -14 },
+  { kind: "spiral", x: "79%", y: "150px", size: 67, rotate: 30 },
+  { kind: "pebble", x: "73%", y: "236px", size: 26, rotate: 12 },
+  { kind: "pebble", x: "86%", y: "92px", size: 18, rotate: -20 },
+  { kind: "tide", x: "44%", y: "6px", size: 600 },
+  { kind: "conch", x: "88%", y: "210px", size: 70, rotate: -18 },
+  { kind: "pearls", x: "75%", y: "60px", size: 54 },
+  { kind: "glass", x: "92%", y: "130px", size: 36, rotate: 20, tone: "sea" },
+  { kind: "pebble", x: "69%", y: "250px", size: 33, rotate: 10, tone: "terracotta" },
+  { kind: "pebble", x: "84%", y: "300px", size: 27, rotate: -25, tone: "sage" },
+  { kind: "pebble", x: "58%", y: "250px", size: 24, tone: "slate" },
+];
+
 export function Checks() {
   const grid = useRef<HTMLUListElement>(null);
 
@@ -44,12 +60,21 @@ export function Checks() {
         // Deal finishes by the time the grid is mid-screen; stagger + light scrub lag keep it readable.
         scrollTrigger: { trigger: list, start: "top 100%", end: "center 65%", scrub: 0.8, invalidateOnRefresh: true },
       });
+      // Sand drifts settle in around the cards once they have landed.
+      gsap.from(list.querySelectorAll(".checks__drift"), {
+        opacity: 0,
+        y: 10,
+        ease: "none",
+        stagger: 0.05,
+        scrollTrigger: { trigger: list, start: "center 72%", end: "center 58%", scrub: 0.8 },
+      });
     });
     return () => mm.revert();
   }, []);
 
   return (
     <section id="checks" className="section checks" aria-labelledby="checks-title">
+      <Shore shells={SHELLS} />
       <div className="container">
         <div className="head-grid checks__head">
           <Heading id="checks-title" className="checks__title" data-r="up">
@@ -60,9 +85,10 @@ export function Checks() {
           </p>
         </div>
         <ul ref={grid} className="checks__grid">
-          {CHECKS.map((c) => (
+          {CHECKS.map((c, i) => (
             <li key={c.kind} className="checks__item">
               <Swatch kind={c.kind} className="checks__swatch" />
+              <SandDrift variant={i} className="checks__drift" />
               <h3 className="t-title checks__name">{c.title}</h3>
               <p className="t-body checks__line">{c.line}</p>
             </li>
