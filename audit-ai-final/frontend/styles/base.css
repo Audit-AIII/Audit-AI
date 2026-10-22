@@ -81,6 +81,9 @@ body {
   box-shadow: var(--shadow-window);
 }
 
+/* Page sheet after the statement band: sits above the dark base */
+.sheet { position: relative; z-index: var(--z-decor-under); }
+
 /* ---- Layout primitives ---- */
 .container { width: min(100% - 2 * var(--gutter), var(--container)); margin-inline: auto; }
 .section { position: relative; padding-block: var(--section-pad); }

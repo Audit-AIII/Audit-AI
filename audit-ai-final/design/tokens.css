@@ -104,6 +104,8 @@
   /* raised headings on canvas (FAQ rows, prices): brighter rim, tighter drop */
   --text-raised-canvas: -1px -1px 0 rgb(247 232 210 / .90), 1px 1px 0 rgb(31 20 11 / .45),
                          3px 4px 3px rgb(31 20 11 / .30), 12px 17px 22px rgb(31 20 11 / .36);
+  /* small raised text on canvas (FAQ questions): same light, short drop so 20px type stays crisp */
+  --text-raised-sm: -1px -1px 0 rgb(247 232 210 / .90), 1px 1px 0 rgb(31 20 11 / .40), 2px 3px 3px rgb(31 20 11 / .22);
   /* pressed (debossed) letters, fill --ink-2 */
   --text-pressed:   1px 1px 0 rgb(247 232 210 / .90), -1px -1px 0 rgb(31 20 11 / .45),
                     0 0 0 rgb(31 20 11 / .30), 0 0 0 rgb(31 20 11 / .36);

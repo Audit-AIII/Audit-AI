@@ -6,6 +6,13 @@
 @import "../styles/header.css";
 @import "../styles/hero.css";
 @import "../styles/statement.css";
+@import "../styles/checks.css";
+@import "../styles/process.css";
+@import "../styles/findings.css";
+@import "../styles/oversight.css";
+@import "../styles/sources.css";
+@import "../styles/roles.css";
+@import "../styles/closing.css";
 
 /* Tokens → Tailwind theme (utilities such as bg-canvas, text-ink, font-heading, rounded-ui).
    Values point at tokens.css so there is still one source of truth. */

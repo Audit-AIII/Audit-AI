@@ -88,7 +88,7 @@
     grid-template-rows: auto minmax(0, 1fr) auto;
     padding: calc(62px + 6vh) 20px 7vh;
   }
-  .statement__lines { grid-row: 2; font-size: 9.6vw; }
+  .statement__lines { grid-row: 2; font-size: 8.6vw; }
   .statement__line:nth-child(odd) { margin-left: 4vw; }
   .statement__note { grid-area: 3 / 1; }
 }

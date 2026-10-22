@@ -1,0 +1,133 @@
+/* ==========================================================================
+   Findings we have caught — sleeve (evidence window) · UI snippet · text + spec (DESIGN.md §10 slot 5)
+   ========================================================================== */
+.findings__head { margin-bottom: clamp(64px, 9vw, 110px); }
+.findings__title { max-width: 9ch; margin: 0; }
+.findings__intro { max-width: 36ch; margin: 0; }
+.findings__badge {
+  display: inline-block;
+  margin: 0 10px 8px 0;
+  padding: 4px 8px;
+  border-radius: var(--r-tag);
+  outline: 1px dashed var(--ink);
+  outline-offset: -1px;
+  vertical-align: middle;
+}
+
+.findings__list { display: grid; gap: clamp(96px, 13vw, 160px); margin: 0; padding: 0; list-style: none; }
+.finding {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 3vw;
+  align-items: center;
+}
+.finding--mirror .finding__text { order: 1; }
+.finding--mirror .snip { order: 2; align-self: end; }
+.finding--mirror .finding__sleeve { order: 3; }
+
+/* Sleeve: raised card with a die-cut window that holds the evidence */
+.finding__sleeve {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  aspect-ratio: 1.25;
+  padding: 18px 20px;
+}
+.finding:nth-child(3) .finding__sleeve { aspect-ratio: .8; }
+.finding__window {
+  justify-self: center;
+  align-self: center;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  width: 58%;
+  aspect-ratio: 1.45;
+  padding: 14px;
+  border-radius: var(--r-ui);
+  background-color: var(--surface);
+  background-image: var(--grain-dark);
+  box-shadow: var(--shadow-window);
+  color: var(--canvas);
+  text-align: center;
+}
+.finding__window--circle { width: 48%; aspect-ratio: 1; border-radius: var(--r-round); padding: 18px; }
+.finding__excerpt-source { color: var(--gray-light); font-size: 10px; }
+.finding__excerpt {
+  font: 700 clamp(12px, 1.2vw, 15px) / 1.15 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  text-shadow: var(--text-raised);
+}
+.finding__label { font-size: 15px; }
+
+/* Snippet: a CSS-drawn crop of the review screen */
+.snip {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 16px 18px 18px;
+  border-radius: var(--r-ui);
+  background-color: var(--gray-light);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-raised);
+}
+.snip__bar {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--ink-2);
+}
+.snip__sample { flex: none; white-space: nowrap; padding: 2px 6px; border-radius: var(--r-tag); outline: 1px dashed var(--ink); outline-offset: -1px; }
+.snip__body { margin: 0; font-size: 16px; line-height: 1.5; }
+.snip__mark { padding: 1px 3px; border-radius: var(--r-tag); color: var(--ink); }
+.snip__mark--contradicted { background: var(--bad-tint); box-shadow: var(--shadow-well); }
+.snip__mark--unverified { background: transparent; outline: 1px dashed var(--warn); outline-offset: 1px; }
+.snip__rows { display: grid; gap: 8px; }
+.snip__rows > span { padding: 6px 10px; border-radius: var(--r-tag); background: var(--protect-tint); }
+.snip__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.snip__evidence {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-radius: var(--r-ui);
+  background-color: var(--surface);
+  background-image: var(--grain-dark);
+  box-shadow: var(--shadow-window);
+  color: var(--canvas);
+  font-size: 14px;
+}
+.snip__evidence .t-caption { color: var(--gray-light); }
+
+/* Status chips (§16: glyph + label + relief, never colour alone) */
+.chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: var(--r-tag);
+  font: 600 var(--fs-caption) / 1 var(--font-body);
+  letter-spacing: .04em;
+  color: var(--ink);
+}
+.chip--supported { background: var(--ok-tint); box-shadow: var(--shadow-raised); }
+.chip--unverified { background: var(--warn-tint); outline: 1px dashed var(--warn); outline-offset: -1px; }
+.chip--contradicted { background: var(--bad-tint); box-shadow: var(--shadow-well); }
+.chip--withdrawn { background-color: var(--surface); color: var(--canvas); box-shadow: var(--shadow-window); }
+
+.finding__title { margin: 0 0 12px; }
+.finding__copy { max-width: 38ch; margin: 0 0 20px; }
+
+@media (max-width: 900px) {
+  .finding { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .finding__text { grid-column: 1 / -1; }
+  .finding--mirror .finding__text { order: 3; }
+}
+@media (max-width: 767px) {
+  .finding, .finding--mirror { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .finding--mirror .finding__text, .finding--mirror .snip, .finding--mirror .finding__sleeve { order: 0; }
+  .finding__sleeve { aspect-ratio: 1.25; max-width: 360px; }
+  .finding:nth-child(3) .finding__sleeve { aspect-ratio: 1.25; }
+}

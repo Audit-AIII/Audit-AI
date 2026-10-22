@@ -1,0 +1,63 @@
+/* ==========================================================================
+   Three roles, one workflow — lid card + role sheet (DESIGN.md §10 slot 8)
+   ========================================================================== */
+.roles__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: var(--gap-grid);
+  align-items: start;
+}
+.roles__lid { display: grid; gap: 40px; align-content: center; padding: 56px 44px; min-height: 100%; }
+
+.roles__path { position: relative; display: grid; gap: 30px; margin: 0; padding: 0; list-style: none; }
+.roles__path::before {
+  content: "";
+  position: absolute;
+  left: 21px;
+  top: 22px;
+  bottom: 22px;
+  width: 3px;
+  border-radius: var(--r-tag);
+  box-shadow: var(--shadow-well);
+}
+.roles__step { position: relative; display: flex; align-items: center; gap: 20px; }
+.roles__dot {
+  width: 44px;
+  aspect-ratio: 1;
+  border-radius: var(--r-round);
+  background-color: var(--canvas);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-raised);
+}
+.roles__step--end .roles__dot { box-shadow: var(--shadow-well); }
+.roles__fork { margin: 0; color: var(--ink-2); line-height: 1.7; }
+
+.roles__sheet { padding: 56px 40px 40px; }
+.roles__title { max-width: 10ch; margin: 0 0 36px; }
+.roles__list { margin: 0; padding: 0; list-style: none; }
+.roles__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 20px;
+  padding: 24px 0;
+  border-top: 1px dashed var(--ink);
+}
+.roles__name { margin: 0; }
+.roles__does { grid-column: 1; margin: 0; max-width: 40ch; }
+.roles__gets { grid-column: 2; grid-row: 1 / span 2; display: grid; justify-items: end; gap: 6px; margin: 0; }
+.roles__gets-value {
+  font: 700 clamp(22px, 2.4vw, 31px) / 1 var(--font-display);
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  text-align: right;
+}
+.roles__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 26px; margin-top: 32px; }
+
+@media (max-width: 767px) {
+  .roles__grid { grid-template-columns: minmax(0, 1fr); }
+  .roles__lid { padding: 36px 26px; }
+  .roles__sheet { padding: 36px 22px 28px; }
+  .roles__row { grid-template-columns: minmax(0, 1fr); }
+  .roles__gets { grid-column: 1; grid-row: auto; justify-items: start; }
+  .roles__gets-value { text-align: left; }
+}

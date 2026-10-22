@@ -1,0 +1,38 @@
+/* ==========================================================================
+   Six checks — pressed H2 + intro, 3×2 swatch cards dealt from a stack (DESIGN.md §10 slot 3)
+   ========================================================================== */
+.checks { position: relative; z-index: var(--z-decor-under); }
+.checks__head { margin-bottom: clamp(56px, 8vw, 96px); }
+.checks__title { max-width: 11ch; margin: 0; }
+.checks__intro { max-width: 34ch; margin: 0; }
+
+.checks__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(56px, 7vw, 84px) var(--gap-grid);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.checks__swatch { margin-bottom: 28px; will-change: transform; }
+.checks__name { margin: 0 0 10px; }
+.checks__line { max-width: 34ch; margin: 0; }
+
+/* Hover: the card presses toward the board (cards are otherwise still, as in the reference) */
+.checks__item .swatch { transition: box-shadow var(--dur-base) var(--ease-ui), translate var(--dur-base) var(--ease-ui); }
+.checks__item:hover .swatch { box-shadow: var(--shadow-press); translate: 1px 2px; }
+
+@media (max-width: 900px) {
+  .checks__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .checks__grid { grid-template-columns: minmax(0, 1fr); gap: 48px; }
+  .checks__swatch { max-width: 360px; }
+  .checks__name { font-size: 19px; }
+  .checks__line { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .checks__item .swatch { transition: none; }
+  .checks__item:hover .swatch { translate: none; }
+}

@@ -1,0 +1,100 @@
+/* ==========================================================================
+   Five sources we read — cross-section rows + punch disc (DESIGN.md §10 slot 7, §6.13–6.14)
+   ========================================================================== */
+.sources__head {
+  display: grid;
+  grid-template-columns: minmax(0, 453px) minmax(0, 1fr);
+  gap: var(--gap-grid);
+  align-items: start;
+  margin-bottom: clamp(64px, 9vw, 104px);
+}
+.sources__title { max-width: 8ch; margin: 0; }
+.sources__photo { justify-self: end; width: min(100%, 460px); aspect-ratio: 1.5; }
+
+/* Neutral warm placeholder for photos still to come */
+.placeholder {
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-ui);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--orange-mid) 35%, transparent), transparent 60%),
+    var(--grain-dark),
+    var(--surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--gray-light);
+}
+
+.sources__list { margin: 0; padding: 0; list-style: none; border-top: 2px solid color-mix(in srgb, var(--ink-2) 70%, transparent); }
+.sources__row {
+  display: grid;
+  grid-template-columns: minmax(0, 324px) minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 36px;
+  align-items: center;
+  padding: 42px 0;
+  border-bottom: 2px solid color-mix(in srgb, var(--ink-2) 70%, transparent);
+}
+.sources__name { display: grid; gap: 6px; }
+.sources__name .t-title { margin: 0; }
+.sources__meta { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 0; }
+.sources__meta dt { margin-bottom: 6px; }
+.sources__meta dd { margin: 0; font-size: 15px; line-height: 1.4; }
+
+/* Cross-section glyphs */
+.xsec { display: grid; gap: 6px; }
+.xsec__bar {
+  display: block;
+  height: 10px;
+  border-radius: var(--r-tag);
+  background-color: var(--canvas);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-raised);
+}
+.xsec--stack { gap: 2px; }
+.xsec--stack .xsec__bar { height: 14px; }
+.xsec__flute { width: 100%; height: 28px; overflow: visible; }
+.xsec--deep .xsec__flute { height: 40px; }
+.xsec__flute path { fill: none; stroke: var(--ink-2); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.xsec__comb { display: flex; justify-content: space-between; height: 64px; padding-inline: 2px; }
+.xsec__comb i { width: 1px; background: var(--ink-2); }
+
+/* Punch disc: 296px raised ring with a debossed hole */
+.sources__punch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--gap-grid);
+  align-items: center;
+  margin-top: clamp(96px, 12vw, 140px);
+}
+.sources__punch-text { max-width: 440px; }
+.sources__punch-text .t-title { margin: 0 0 12px; }
+.sources__punch-text p { margin: 0; }
+.disc {
+  display: grid;
+  place-items: center;
+  width: 296px;
+  aspect-ratio: 1;
+  margin-right: 60px;
+  border-radius: var(--r-round);
+  background-color: var(--canvas);
+  background-image: var(--grain);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ink-2) 35%, transparent),
+    1px 1px 1px rgb(31 20 11 / .2),
+    2px 3px 5px rgb(31 20 11 / .26);
+}
+.disc__hole { width: 118px; aspect-ratio: 1; border-radius: var(--r-round); box-shadow: var(--shadow-well); }
+
+@media (max-width: 900px) {
+  .sources__row { grid-template-columns: minmax(0, 220px) minmax(0, 1fr); }
+  .sources__meta { grid-column: 2; }
+}
+@media (max-width: 767px) {
+  .sources__head { grid-template-columns: minmax(0, 1fr); }
+  .sources__photo { justify-self: start; }
+  .sources__row { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 32px 0; }
+  .sources__meta { grid-column: 1; }
+  .xsec { max-width: 260px; }
+  .sources__punch { grid-template-columns: minmax(0, 1fr); }
+  .disc { width: 220px; margin: 0; }
+  .disc__hole { width: 88px; }
+}

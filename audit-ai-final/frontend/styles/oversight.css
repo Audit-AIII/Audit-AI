@@ -1,0 +1,74 @@
+/* ==========================================================================
+   People stay in charge — dark inset panel (DESIGN.md §10 slot 6)
+   ========================================================================== */
+.oversight { padding: 18px; }
+.oversight__panel {
+  padding: clamp(72px, 12vw, 140px) 0;
+  border-radius: var(--r-panel);
+  background-color: var(--surface);
+  background-image: var(--grain-dark);
+  box-shadow: var(--shadow-window);
+  color: var(--canvas);
+}
+.oversight__grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 84px 28px;
+  width: min(100% - 2 * var(--gutter) + 36px, 975px);
+  margin-inline: auto;
+}
+.oversight__title { grid-column: 1 / span 6; max-width: 9ch; margin: 0; }
+.oversight__intro { grid-column: 8 / -1; align-self: end; max-width: 30ch; margin: 0; color: var(--gray-light); }
+
+.oversight__quote { grid-column: 1 / span 6; align-self: center; margin: 0; }
+.oversight__statement {
+  margin: 0 0 20px;
+  font: 700 clamp(26px, 2.8vw, 33px) / 1.08 var(--font-display);
+  letter-spacing: var(--ls-h-sm);
+  text-transform: uppercase;
+  text-shadow: var(--text-raised);
+  max-width: 18ch;
+}
+.oversight__cite { color: var(--gray-light); }
+
+.oversight__window {
+  grid-column: 8 / -1;
+  padding: 22px;
+  border-radius: var(--r-ui);
+  background-color: var(--deep-orange);
+  background-image: var(--grain-dark);
+  box-shadow: var(--shadow-window);
+}
+.passport { padding: 22px 22px 18px; }
+.passport__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--ink-2);
+}
+.passport__title { margin: 0; }
+.passport__rows { display: grid; margin: 0; padding: 0; list-style: none; }
+.passport__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--ink-2);
+  font-size: 15px;
+}
+.passport__row:last-child { border-bottom: 0; padding-bottom: 0; }
+.passport__step { font-weight: 600; }
+.passport__note { font-size: 11px; }
+
+@media (max-width: 767px) {
+  .oversight { padding: 10px; }
+  .oversight__grid { grid-template-columns: minmax(0, 1fr); gap: 32px; width: calc(100% - 40px); }
+  .oversight__title, .oversight__intro, .oversight__quote, .oversight__window { grid-column: 1; }
+  .oversight__quote { margin-top: 24px; }
+  .oversight__window { padding: 14px; }
+  .passport__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .passport__service { grid-column: 1; grid-row: 2; color: var(--ink); font-size: 14px; }
+}

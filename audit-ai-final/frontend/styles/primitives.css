@@ -233,14 +233,20 @@ textarea.field__input { min-height: 150px; resize: vertical; }
 
 /* ---- Disclosure (FAQ row) ---- */
 .disclosure { position: relative; }
-.disclosure__crease { position: absolute; left: 0; right: 0; top: 0; height: 3px; box-shadow: var(--shadow-well); }
+.disclosure::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 2px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--deep) 55%, transparent), 0 1px 0 color-mix(in srgb, var(--paper-hi) 80%, transparent);
+}
 .disclosure:last-child { padding-bottom: 3px; }
 .disclosure:last-child::after {
   content: "";
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  height: 3px;
-  box-shadow: var(--shadow-well);
+  height: 2px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--deep) 55%, transparent), 0 1px 0 color-mix(in srgb, var(--paper-hi) 80%, transparent);
 }
 .disclosure__summary {
   display: grid;
@@ -254,7 +260,7 @@ textarea.field__input { min-height: 150px; resize: vertical; }
 }
 .disclosure__summary::-webkit-details-marker { display: none; }
 .disclosure__summary:focus-visible { outline-offset: 4px; }
-.disclosure__question { font-size: clamp(19px, 1.9vw, 23px); }
+.disclosure__question { font-size: clamp(19px, 1.9vw, 23px); text-shadow: var(--text-raised-sm); }
 .disclosure__mark {
   position: relative;
   width: 38px;
