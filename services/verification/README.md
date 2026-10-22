@@ -1,0 +1,31 @@
+# INKLOOM verification engine
+
+This is Member 2's claim-verification engine. It extracts claims from content, retrieves
+evidence for each claim from the reference documents, verifies the claim against that evidence,
+validates the citations, and proposes minimal evidence-backed corrections.
+
+The engine receives plain text. Uploads, document parsing, authentication and tenancy are
+handled by other members.
+
+**Status:** Phase 1 (contracts) only. See [CONTRACTS.md](CONTRACTS.md).
+
+## Setup
+
+```sh
+cd services/verification
+python -m venv .venv
+.venv/Scripts/python -m pip install -e ".[dev]"   # on macOS/Linux: .venv/bin/python
+.venv/Scripts/python -m pytest
+```
+
+Requires Python 3.11+ and Pydantic 2.10+.
+
+## Layout
+
+| Path | Contents |
+|---|---|
+| `src/inkloom_verify/schemas.py` | All data contracts and their validation rules |
+| `src/inkloom_verify/json_schema.py` | Exports the contracts to `schemas/` as JSON Schema |
+| `schemas/` | Generated JSON Schema files for integrators |
+| `examples/` | Validated sample payloads |
+| `tests/` | Contract tests |
