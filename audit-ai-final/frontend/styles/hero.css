@@ -26,10 +26,11 @@
   height: 80vmax;
   margin: -40vmax 0 0 -40vmax;
   border-radius: var(--r-round);
+  /* Softened per review: warm paper tone (not near-white), low intensity, long falloff */
   background: radial-gradient(
     closest-side,
-    color-mix(in srgb, var(--paper-hi) 85%, transparent),
-    color-mix(in srgb, var(--paper-hi) 30%, transparent) 55%,
+    color-mix(in srgb, color-mix(in srgb, var(--paper-hi) 55%, var(--canvas)) 42%, transparent),
+    color-mix(in srgb, color-mix(in srgb, var(--paper-hi) 55%, var(--canvas)) 14%, transparent) 60%,
     transparent
   );
   mix-blend-mode: soft-light;
@@ -41,7 +42,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  transform: translate(calc(var(--px, 0) * 7vw), calc(var(--py, 0) * 7vh));
+  transform: translate(calc(var(--px, 0) * 4vw), calc(var(--py, 0) * 4vh));
 }
 .hero__wash {
   position: absolute;

@@ -259,7 +259,8 @@ Tap targets: pad small links to ≥44px hit area (originals are 20–28px high).
 - Wordmark: rests raised (`--text-raised-canvas`), hover → pressed (`--ink-2`, `--text-pressed`, `translate(1px,1px)`), 220ms.
 - Nav links: hover nudges `translateY(1px)`; any `.link:active` → `translateY(1px)`.
 - `TextLink arrow`: a trailing → slides 4px right on hover; the dashed underline stays on the label.
-- Hero light follows the pointer (fine pointers only): `--px/--py` eased 6% per frame, applied to `.hero__light-frame` as up to ±7vw/±7vh. The 16s drift keeps running inside it.
+- Hero light follows the pointer (fine pointers only): `--px/--py` eased 6% per frame, applied to `.hero__light-frame` as up to ±4vw/±4vh. The 16s drift keeps running inside it.
+- Hero light softened per review: a warm tone (55% `--paper-hi` mixed into `--canvas`) at 42% → 14% → 0, instead of near-white 85% → 30%. It should read as a sheen, never a glare.
 
 Dashed underline implementation:
 ```css
