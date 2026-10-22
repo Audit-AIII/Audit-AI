@@ -1,0 +1,134 @@
+{
+  "$defs": {
+    "InputContent": {
+      "additionalProperties": false,
+      "description": "The content under review, already converted to plain text by the caller.",
+      "properties": {
+        "content_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Id"
+        },
+        "text": {
+          "maxLength": 100000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Text Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "InputContent",
+      "type": "object"
+    },
+    "ReferenceDocument": {
+      "additionalProperties": false,
+      "description": "One approved source of truth, already converted to plain text by the caller.",
+      "properties": {
+        "doc_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 1000000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Text Sha256",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "doc_id",
+        "text"
+      ],
+      "title": "ReferenceDocument",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What a caller sends to verify one piece of content against its reference documents.",
+  "properties": {
+    "content": {
+      "$ref": "#/$defs/InputContent"
+    },
+    "contract_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "references": {
+      "items": {
+        "$ref": "#/$defs/ReferenceDocument"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "References",
+      "type": "array"
+    },
+    "request_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "tenant_id",
+    "content",
+    "references"
+  ],
+  "title": "VerificationRequest",
+  "type": "object"
+}

@@ -1,0 +1,164 @@
+{
+  "$defs": {
+    "GoldEvidence": {
+      "additionalProperties": false,
+      "description": "Where in a reference document the evidence for a labelled claim lies.\n\nGold evidence is located by document offsets, not passage ids, so the labels survive\nchanges to how documents are split into passages.",
+      "properties": {
+        "doc_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/$defs/SourceSpan"
+        }
+      },
+      "required": [
+        "doc_id",
+        "span"
+      ],
+      "title": "GoldEvidence",
+      "type": "object"
+    },
+    "ReferenceDocument": {
+      "additionalProperties": false,
+      "description": "One approved source of truth, already converted to plain text by the caller.",
+      "properties": {
+        "doc_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 1000000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Text Sha256",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "doc_id",
+        "text"
+      ],
+      "title": "ReferenceDocument",
+      "type": "object"
+    },
+    "SourceSpan": {
+      "additionalProperties": false,
+      "description": "A half-open ``[start, end)`` range of code points in one specific text.",
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "SourceSpan",
+      "type": "object"
+    },
+    "Verdict": {
+      "enum": [
+        "SUPPORTED",
+        "CONTRADICTED",
+        "NOT_ENOUGH_EVIDENCE",
+        "ERROR"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One labelled example for the claim-verification evaluation set (one JSONL line).",
+  "properties": {
+    "claim_text": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Claim Text",
+      "type": "string"
+    },
+    "expected_verdict": {
+      "$ref": "#/$defs/Verdict"
+    },
+    "gold_evidence": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/GoldEvidence"
+      },
+      "title": "Gold Evidence",
+      "type": "array"
+    },
+    "record_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Record Id",
+      "type": "string"
+    },
+    "references": {
+      "items": {
+        "$ref": "#/$defs/ReferenceDocument"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "References",
+      "type": "array"
+    },
+    "tags": {
+      "default": [],
+      "items": {
+        "maxLength": 64,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    }
+  },
+  "required": [
+    "record_id",
+    "claim_text",
+    "references",
+    "expected_verdict"
+  ],
+  "title": "EvalRecord",
+  "type": "object"
+}

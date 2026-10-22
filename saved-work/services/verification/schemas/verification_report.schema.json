@@ -1,0 +1,530 @@
+{
+  "$defs": {
+    "Citation": {
+      "additionalProperties": false,
+      "description": "An exact quote from one evidence passage, located in the original reference document.\n\n``quote_span`` is in reference-document coordinates (the same as ``EvidencePassage.span``),\nso a citation can be checked against the original text without the passage.",
+      "properties": {
+        "doc_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "doc_text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Doc Text Sha256",
+          "type": "string"
+        },
+        "passage_id": {
+          "pattern": "^psg_[A-Za-z0-9_-]{1,64}$",
+          "title": "Passage Id",
+          "type": "string"
+        },
+        "quote": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "quote_span": {
+          "$ref": "#/$defs/SourceSpan"
+        }
+      },
+      "required": [
+        "doc_id",
+        "doc_text_sha256",
+        "passage_id",
+        "quote",
+        "quote_span"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "description": "One atomic, checkable statement extracted from the content.\n\n``text`` is the claim as the verifier sees it and may be reworded to stand alone.\n``source_span`` locates the words it came from in ``InputContent.text``.",
+      "properties": {
+        "claim_id": {
+          "pattern": "^clm_[A-Za-z0-9_-]{1,64}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "source_span": {
+          "$ref": "#/$defs/SourceSpan"
+        },
+        "text": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_id",
+        "text",
+        "source_span"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "ClaimResult": {
+      "additionalProperties": false,
+      "description": "The outcome for one claim.\n\nVerdict rules:\n\n* SUPPORTED / CONTRADICTED: at least one citation; no error.\n* NOT_ENOUGH_EVIDENCE: no citations, no correction, no error. ``evidence`` may still list\n  the passages that were considered.\n* ERROR: an error; no citations, no correction.\n* A correction is only allowed on CONTRADICTED, must stay inside the claim's source span,\n  and may only cite quotes that are also citations of this result.\n* Every citation must quote, verbatim, a passage listed in ``evidence``.",
+      "properties": {
+        "citations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Citation"
+          },
+          "maxItems": 8,
+          "title": "Citations",
+          "type": "array"
+        },
+        "claim": {
+          "$ref": "#/$defs/Claim"
+        },
+        "correction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Correction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProcessingError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EvidencePassage"
+          },
+          "maxItems": 8,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "model_rationale": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Rationale"
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        }
+      },
+      "required": [
+        "claim",
+        "verdict"
+      ],
+      "title": "ClaimResult",
+      "type": "object"
+    },
+    "Correction": {
+      "additionalProperties": false,
+      "description": "A proposed replacement for part of the content, justified only by its citations.\n\nContract-level guard: any number the replacement introduces must appear in a cited quote.\nFull fact checking of the replacement (names, units, re-verification) is the correction\nstage's job; this rule only makes the most common fabrication unrepresentable.",
+      "properties": {
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/Citation"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Citations",
+          "type": "array"
+        },
+        "original_text": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "replacement_text": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Replacement Text",
+          "type": "string"
+        },
+        "target_span": {
+          "$ref": "#/$defs/SourceSpan"
+        }
+      },
+      "required": [
+        "target_span",
+        "original_text",
+        "replacement_text",
+        "citations"
+      ],
+      "title": "Correction",
+      "type": "object"
+    },
+    "EngineProvenance": {
+      "additionalProperties": false,
+      "description": "What produced a report, so results can be reproduced and compared across versions.",
+      "properties": {
+        "contract_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "engine_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Engine Version",
+          "type": "string"
+        },
+        "model_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Id"
+        },
+        "prompt_versions": {
+          "additionalProperties": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "default": {},
+          "propertyNames": {
+            "maxLength": 64,
+            "minLength": 1
+          },
+          "title": "Prompt Versions",
+          "type": "object"
+        },
+        "retrieval_method": {
+          "$ref": "#/$defs/RetrievalMethod"
+        }
+      },
+      "required": [
+        "engine_version",
+        "retrieval_method"
+      ],
+      "title": "EngineProvenance",
+      "type": "object"
+    },
+    "ErrorCode": {
+      "enum": [
+        "INVALID_REQUEST",
+        "LIMIT_EXCEEDED",
+        "PROVIDER_TIMEOUT",
+        "PROVIDER_RATE_LIMITED",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "PROVIDER_ERROR",
+        "MALFORMED_MODEL_OUTPUT",
+        "INTERNAL_ERROR"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "EvidencePassage": {
+      "additionalProperties": false,
+      "description": "A verbatim excerpt of one reference document, located by offsets into that document.",
+      "properties": {
+        "doc_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "doc_text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Doc Text Sha256",
+          "type": "string"
+        },
+        "passage_id": {
+          "pattern": "^psg_[A-Za-z0-9_-]{1,64}$",
+          "title": "Passage Id",
+          "type": "string"
+        },
+        "retrieval": {
+          "$ref": "#/$defs/RetrievalProvenance"
+        },
+        "span": {
+          "$ref": "#/$defs/SourceSpan"
+        },
+        "text": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "passage_id",
+        "doc_id",
+        "doc_text_sha256",
+        "span",
+        "text",
+        "retrieval"
+      ],
+      "title": "EvidencePassage",
+      "type": "object"
+    },
+    "PipelineStage": {
+      "enum": [
+        "request",
+        "extraction",
+        "retrieval",
+        "verification",
+        "citation_validation",
+        "correction",
+        "scoring"
+      ],
+      "title": "PipelineStage",
+      "type": "string"
+    },
+    "ProcessingError": {
+      "additionalProperties": false,
+      "description": "A failure the caller can act on.\n\n``message`` is shown to clients: it must never contain secrets, prompts, raw provider\nresponses or document text.",
+      "properties": {
+        "claim_id": {
+          "anyOf": [
+            {
+              "pattern": "^clm_[A-Za-z0-9_-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Id"
+        },
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "stage": {
+          "$ref": "#/$defs/PipelineStage"
+        }
+      },
+      "required": [
+        "code",
+        "stage",
+        "message",
+        "retryable"
+      ],
+      "title": "ProcessingError",
+      "type": "object"
+    },
+    "ReferenceDescriptor": {
+      "additionalProperties": false,
+      "description": "Identifies an exact reference text without carrying it. Used for provenance in reports.",
+      "properties": {
+        "doc_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Text Sha256",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "doc_id",
+        "text_sha256"
+      ],
+      "title": "ReferenceDescriptor",
+      "type": "object"
+    },
+    "ReportStatus": {
+      "enum": [
+        "COMPLETED",
+        "PARTIAL",
+        "FAILED"
+      ],
+      "title": "ReportStatus",
+      "type": "string"
+    },
+    "RetrievalMethod": {
+      "enum": [
+        "bm25"
+      ],
+      "title": "RetrievalMethod",
+      "type": "string"
+    },
+    "RetrievalProvenance": {
+      "additionalProperties": false,
+      "description": "How a passage was found. Scores are only comparable within one retrieval call.",
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/RetrievalMethod"
+        },
+        "rank": {
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "score",
+        "rank"
+      ],
+      "title": "RetrievalProvenance",
+      "type": "object"
+    },
+    "SourceSpan": {
+      "additionalProperties": false,
+      "description": "A half-open ``[start, end)`` range of code points in one specific text.",
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "SourceSpan",
+      "type": "object"
+    },
+    "Verdict": {
+      "enum": [
+        "SUPPORTED",
+        "CONTRADICTED",
+        "NOT_ENOUGH_EVIDENCE",
+        "ERROR"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What the engine returns for one VerificationRequest.",
+  "properties": {
+    "content_length": {
+      "maximum": 100000,
+      "minimum": 1,
+      "title": "Content Length",
+      "type": "integer"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "errors": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ProcessingError"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/EngineProvenance"
+    },
+    "references": {
+      "items": {
+        "$ref": "#/$defs/ReferenceDescriptor"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "References",
+      "type": "array"
+    },
+    "request_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "results": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ClaimResult"
+      },
+      "maxItems": 200,
+      "title": "Results",
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/ReportStatus"
+    },
+    "tenant_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "tenant_id",
+    "content_sha256",
+    "content_length",
+    "references",
+    "status",
+    "provenance"
+  ],
+  "title": "VerificationReport",
+  "type": "object"
+}
