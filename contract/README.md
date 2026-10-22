@@ -9,14 +9,15 @@ calls the engine in-process, then maps its `Verdict`/`ReportStatus` onto the sta
 before anything reaches the frontend. The engine's contract is not re-exported to the frontend
 directly.
 
-**Status: draft, Phase 1.** Nothing here is final until Members 1 and 2 have reviewed it. Items
+**Status: draft, Phase 3.** Nothing here is final until Members 1 and 2 have reviewed it. Items
 under [Open decisions](#open-decisions) are this member's proposal, not yet confirmed.
 
 ## Status strings
 
 These come from `00_CONTEXT.md`'s shared contract values and are enforced as Postgres CHECK
-constraints in [`services/api/src/inkloom_api/statuses.py`](../services/api/src/inkloom_api/statuses.py)
-(the single source of truth — this file is generated from it, not hand-maintained separately).
+constraints in [`services/api/src/inkloom_api/statuses.py`](../services/api/src/inkloom_api/statuses.py),
+which is the single source of truth. This file is hand-maintained to match it — there is no
+generator (unlike Member 2's `json_schema.py`) — so if a value changes there, update it here too.
 
 | Enum | Values |
 |---|---|
@@ -73,6 +74,26 @@ the content version's `text` — the same convention Member 2's engine uses
 units, so a JavaScript frontend highlighting text must convert
 (`Array.from(text).slice(start, end).join("")`), not index `text` directly, when the text
 contains characters outside the Basic Multilingual Plane (emoji, etc).
+
+## Submitting a review (Phase 3)
+
+- **`POST /api/reviews`** — body `{"brand_id", "title"? , "text"}`. `brand_id` must be a brand
+  in the caller's own organisation (404 otherwise, same as any other cross-tenant lookup).
+  `text` is 1-100,000 characters (`inkloom_verify`'s own limit).
+- **Synchronous.** Confirmed with the team for this phase: the request blocks until analysis
+  finishes, and the response body is a full `Review` (same shape as `GET /api/reviews/{id}`),
+  already in its final `status` — `completed`, `needs_human_review`, or `failed`. There is
+  nothing to poll yet; a later phase may move this to `queued` + polling for longer content.
+- **`failed` is a real, visible outcome**, not a 500. Two cases produce it today: the brand has
+  no **approved** brand source to check against, or claim extraction itself could not run. Both
+  come back as `201` with `status: "failed"` and a safe `error_summary` — the review resource
+  was still created, it just has nothing usable in it.
+- **Stub output.** If this backend has no LLM provider configured, it does not fail the
+  request — it returns one finding with `category: "stub"` and an explanation starting
+  `[STUB OUTPUT]`, so the UI can be built and demoed against a real response shape before an
+  OpenRouter key exists. Never render that finding as if it were a real result; check
+  `category !== "stub"` or `engine.provider !== "stub-unconfigured"` if you need to tell them
+  apart in the UI.
 
 ## Auth: login and session (Phase 2)
 

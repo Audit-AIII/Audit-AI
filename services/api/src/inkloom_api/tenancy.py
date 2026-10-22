@@ -14,7 +14,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from .models import BrandProfile
+from .models import BrandProfile, ContentItem, ContentVersion, Review
 
 
 def not_found(detail: str = "not found") -> HTTPException:
@@ -26,3 +26,23 @@ def get_brand_profile_or_404(db: Session, organisation_id: uuid.UUID, brand_prof
     if profile is None or profile.organisation_id != organisation_id:
         raise not_found("brand not found")
     return profile
+
+
+def get_content_version_or_404(
+    db: Session, organisation_id: uuid.UUID, content_version_id: uuid.UUID
+) -> ContentVersion:
+    version = db.get(ContentVersion, content_version_id)
+    if version is None:
+        raise not_found("content version not found")
+    item = db.get(ContentItem, version.content_item_id)
+    if item is None or item.organisation_id != organisation_id:  # verified parent
+        raise not_found("content version not found")
+    return version
+
+
+def get_review_or_404(db: Session, organisation_id: uuid.UUID, review_id: uuid.UUID) -> Review:
+    review = db.get(Review, review_id)
+    if review is None:
+        raise not_found("review not found")
+    get_content_version_or_404(db, organisation_id, review.content_version_id)  # raises if cross-tenant
+    return review

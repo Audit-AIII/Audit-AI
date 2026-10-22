@@ -9,7 +9,7 @@ from .config import get_settings
 from .db import get_db
 from .errors import install_error_handlers
 from .logging import RequestIdMiddleware, configure_logging
-from .routers import auth, brands
+from .routers import auth, brands, reviews
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -26,6 +26,7 @@ app.add_middleware(
 install_error_handlers(app)
 app.include_router(auth.router)
 app.include_router(brands.router)
+app.include_router(reviews.router)
 
 
 @app.get("/health")
