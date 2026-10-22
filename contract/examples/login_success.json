@@ -1,0 +1,15 @@
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZjFlOWEyZS0uLi4ifQ.signature",
+  "token_type": "bearer",
+  "user": {
+    "id": "6f1e9a2e-2d2b-4e34-9a5a-2e4f2d2c9c11",
+    "email": "reviewer@acme.example",
+    "display_name": "Alex Reviewer"
+  },
+  "organisation": {
+    "id": "b2a1f3c4-5d6e-4f70-8a9b-0c1d2e3f4a5b",
+    "name": "Acme Corp",
+    "slug": "acme"
+  },
+  "role": "reviewer"
+}

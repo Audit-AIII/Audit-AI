@@ -1,12 +1,9 @@
 """Every status string the backend defines, in one place.
 
 Mirrors how Member 2 keeps `inkloom_verify/schemas.py` as the single source for the engine's
-enums. These are exported to `contract/` (see `scripts/export_contract.py`) so Members 1 and 2
-read the same strings this module enforces as Postgres CHECK constraints
-(`migrations/versions/0001_initial_schema.py`).
-
-Values marked "proposed" are this member's draft and are not yet confirmed with the team; see
-`contract/README.md`.
+enums. `contract/README.md` is hand-maintained to match these values and the CHECK constraints
+in `migrations/versions/0001_initial_schema.py` — there is no generator (unlike Member 2's
+`json_schema.py`); keep all three in sync by hand when a value here changes.
 """
 
 from __future__ import annotations

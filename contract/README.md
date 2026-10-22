@@ -74,8 +74,41 @@ units, so a JavaScript frontend highlighting text must convert
 (`Array.from(text).slice(start, end).join("")`), not index `text` directly, when the text
 contains characters outside the Basic Multilingual Plane (emoji, etc).
 
+## Auth: login and session (Phase 2)
+
+For Member 1: this is what replaces the placeholder localStorage session in
+`frontend/lib/session.ts`.
+
+- **`POST /api/auth/login`** — body `{"email", "password"}`. On success, `200` with
+  `{"access_token", "token_type": "bearer", "user": {"id", "email", "display_name"}, "organisation": {"id", "name", "slug"}, "role"}`.
+  On failure, `401` with the standard error shape below — **the same message** whether the
+  email is unknown, the password is wrong, or the account has no active membership in any
+  organisation. Don't branch UI copy on the message text; there's deliberately nothing to
+  distinguish.
+- **Session.** Store `access_token` and send it as `Authorization: Bearer <token>` on every
+  request to a protected route. There is no refresh token yet — a token lasts
+  `AUTH_TOKEN_TTL_MINUTES` (12 hours by default); the client should send the user back to login
+  on a `401`, not try to silently refresh.
+- **`GET /api/auth/me`** — same bearer header, returns `{"user", "organisation", "role"}` (no
+  `access_token` field). Use it to restore a session on page load instead of trusting a stored
+  copy of `user`/`role`, since a membership can be deactivated between requests.
+- **One token = one organisation.** A token is scoped to a single organisation at login time. A
+  user who belongs to more than one organisation is logged into whichever membership was
+  created first — there is no organisation switcher yet. Flag if any real account needs
+  multi-organisation switching before this becomes a problem.
+
+**Error codes the frontend should branch on:**
+
+| HTTP status | `error.code` | Meaning |
+|---|---|---|
+| 401 | `UNAUTHENTICATED` | No token, an invalid/expired token, or a membership that is no longer active. Send the user to login. |
+| 403 | `FORBIDDEN` | Authenticated, but the role lacks the permission the action needs. Show "not allowed", not a login prompt. |
+| 404 | `NOT_FOUND` | The resource doesn't exist, or it belongs to another organisation — these are indistinguishable on purpose (CONTRACTS.md-style tenant isolation). |
+| 422 | `VALIDATION_ERROR` | The request body/params failed validation. `message` lists field locations only, never the submitted value. |
+
 ## Example responses
 
+- [`examples/login_success.json`](examples/login_success.json) — `POST /api/auth/login`.
 - [`examples/review_success.json`](examples/review_success.json) — `GET /api/reviews/{id}`, one
   `supported`, one `contradicted` finding (with evidence and a suggested correction), one
   `unverified` finding (no evidence).

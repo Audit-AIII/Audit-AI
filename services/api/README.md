@@ -7,9 +7,16 @@ context and the shared contract this backend enforces, and
 [`../../contract/README.md`](../../contract/README.md) for the status strings, role names and
 example payloads shared with Members 1 and 2.
 
-**Status:** Phase 1 (foundation and contract) is done: project skeleton, config, health check,
-structured logging with request IDs, the full migration set, and `contract/`. Auth, the actual
-routes and the engine wiring are later phases — see `00_CONTEXT.md`'s phase order.
+**Status:** Phase 1 (foundation and contract) and Phase 2 (auth and tenant scoping) are built:
+project skeleton, migrations, `contract/`, email+password login issuing a JWT scoped to one
+organisation, the auth dependency (re-checks the membership fresh from the database on every
+request), the permission table, the tenant-scoping helper, and one protected route
+(`GET /api/brands/{id}/sources`) proving the pattern end to end. **Not yet verified against a
+live database** — Docker wasn't up in this environment; the migration's generated SQL was
+checked offline, and the permission-table unit tests pass, but the DB-backed tenancy tests
+(`tests/test_tenant_scoping.py`) have only been reviewed, not run. Run them once Postgres is
+reachable before treating Phase 2 as done. The remaining routes and the engine wiring are later
+phases — see `00_CONTEXT.md`'s phase order.
 
 The engine (Member 2, [`services/verification`](../verification)) is called in-process: it is a
 plain importable Python package, not a separate HTTP service. See
@@ -33,10 +40,21 @@ cp .env.example .env   # fill in DATABASE_URL if you changed the compose default
 # GET http://localhost:8000/health -> {"status": "ok"}
 ```
 
-Run tests (they skip automatically if `DATABASE_URL` isn't set or Postgres isn't reachable):
+Run tests (DB-backed ones skip automatically if `DATABASE_URL` isn't set or Postgres isn't
+reachable; the permission-table tests always run, no DB needed):
 
 ```sh
-DATABASE_URL=postgresql+psycopg://inkloom:inkloom@localhost:5432/inkloom .venv/Scripts/python -m pytest
+DATABASE_URL=postgresql+psycopg://inkloom:inkloom@localhost:5432/inkloom AUTH_SECRET_KEY=test-secret .venv/Scripts/python -m pytest
+```
+
+Try a login by hand once the server is running and a user exists (Phase 8 adds a seed script —
+until then, insert one directly, e.g. via `python -c` using
+`inkloom_api.auth.security.hash_password`):
+
+```sh
+curl -X POST http://localhost:8000/api/auth/login -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "..."}'
+curl http://localhost:8000/api/brands/<brand-id>/sources -H "Authorization: Bearer <access_token>"
 ```
 
 ## Layout
@@ -50,8 +68,14 @@ DATABASE_URL=postgresql+psycopg://inkloom:inkloom@localhost:5432/inkloom .venv/S
 | `src/inkloom_api/db.py` | SQLAlchemy engine/session |
 | `src/inkloom_api/statuses.py` | Every status string and role name, as the single source of truth |
 | `src/inkloom_api/models/` | SQLAlchemy ORM models, one file per domain area |
+| `src/inkloom_api/schemas.py` | API response DTOs (never return a SQLAlchemy model directly) |
+| `src/inkloom_api/auth/security.py` | Password hashing, JWT creation/decoding |
+| `src/inkloom_api/auth/permissions.py` | The role → permission table |
+| `src/inkloom_api/auth/dependencies.py` | `get_current_membership` / `require_permission(...)`, the auth dependency every protected route uses |
+| `src/inkloom_api/tenancy.py` | "Fetch by id, then check it resolves to this organisation" helpers |
+| `src/inkloom_api/routers/` | Route modules (`auth`, `brands`) |
 | `migrations/` | Alembic migrations |
-| `tests/` | Tests against a real Postgres (see `docker-compose.yml`) |
+| `tests/` | Tests against a real Postgres (see `docker-compose.yml`), plus DB-free permission unit tests |
 
 ## Open decisions (see `contract/README.md`)
 
