@@ -5,7 +5,7 @@
 3. Quote not in the passage is rejected.               -> test_quote_not_in_source_is_rejected
 4. Valid quote with extra whitespace is accepted.      -> test_quote_with_extra_whitespace_is_accepted
 5. Draft source is never used as evidence.             -> covered end-to-end in test_reviews.py:
-   `_latest_approved_sources` only ever selects `status == "approved"`, so a draft source's text
+   `review_runner.latest_approved_sources` only ever selects `status == "approved"`, so a draft source's text
    can never reach `build_corpus` in the first place.
 
 None of this needs a database: `validate_citation` only takes plain values (a `CorpusEntry`

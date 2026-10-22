@@ -40,6 +40,13 @@ def get_brand_source_or_404(
     return source
 
 
+def get_content_item_or_404(db: Session, organisation_id: uuid.UUID, content_item_id: uuid.UUID) -> ContentItem:
+    item = db.get(ContentItem, content_item_id)
+    if item is None or item.organisation_id != organisation_id:
+        raise not_found("content not found")
+    return item
+
+
 def get_content_version_or_404(
     db: Session, organisation_id: uuid.UUID, content_version_id: uuid.UUID
 ) -> ContentVersion:

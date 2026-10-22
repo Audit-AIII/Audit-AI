@@ -54,3 +54,21 @@ def client():
 
     with TestClient(app) as test_client:
         yield test_client
+
+
+# Every env var any of the four fallback-chain providers (Phase 5) treats as "configured".
+# Deleting all of them is the only way to force stub mode in a test - deleting just OpenRouter's
+# pair leaves Gemini/Groq/Ollama able to pick up real credentials from the developer's own
+# .env and make a real network call during what's supposed to be an isolated test.
+_PROVIDER_ENV_VARS = (
+    "GEMINI_API_KEY", "GEMINI_MODEL",
+    "GROQ_API_KEY", "GROQ_MODEL",
+    "OPENROUTER_API_KEY", "INKLOOM_LLM_MODELS",
+    "OLLAMA_BASE_URL", "OLLAMA_MODEL",
+)
+
+
+@pytest.fixture
+def force_stub_mode(monkeypatch):
+    for name in _PROVIDER_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)

@@ -103,9 +103,7 @@ def _login(client, email: str) -> str:
 
 
 @requires_db
-def test_create_review_without_llm_provider_uses_labelled_stub(client, monkeypatch, review_fixture: ReviewFixture) -> None:
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.delenv("INKLOOM_LLM_MODELS", raising=False)
+def test_create_review_without_llm_provider_uses_labelled_stub(client, force_stub_mode, review_fixture: ReviewFixture) -> None:
     token = _login(client, review_fixture.user_a.email)
 
     response = client.post(
@@ -160,9 +158,7 @@ def test_create_review_rejects_brand_from_another_organisation(client, review_fi
 
 
 @requires_db
-def test_get_review_is_scoped_to_organisation(client, monkeypatch, review_fixture: ReviewFixture) -> None:
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.delenv("INKLOOM_LLM_MODELS", raising=False)
+def test_get_review_is_scoped_to_organisation(client, force_stub_mode, review_fixture: ReviewFixture) -> None:
     token = _login(client, review_fixture.user_a.email)
     created = client.post(
         "/api/reviews",
@@ -212,7 +208,7 @@ def test_draft_source_is_never_used_as_evidence(db_session) -> None:
     """Phase 4 required test 5: a draft source sits alongside an approved one on the same
     brand; only the approved one's text may ever reach the corpus the engine is allowed to cite.
     """
-    from inkloom_api.routers.reviews import _latest_approved_sources
+    from inkloom_api.review_runner import latest_approved_sources
 
     unique = uuid.uuid4().hex[:8]
     org = Organisation(name="Draft Source Org", slug=f"draft-src-{unique}")
@@ -244,7 +240,7 @@ def test_draft_source_is_never_used_as_evidence(db_session) -> None:
     db_session.commit()
 
     try:
-        sources = _latest_approved_sources(db_session, brand.id)
+        sources = latest_approved_sources(db_session, brand.id)
         assert [s.id for s, _ in sources] == [approved.id]
         assert [v.text for _, v in sources] == [approved_text]
     finally:

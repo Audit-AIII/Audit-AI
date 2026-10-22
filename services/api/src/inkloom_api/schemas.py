@@ -164,3 +164,56 @@ class ReviewOut(BaseModel):
             updated_at=review.updated_at,
             findings=[FindingOut.from_model(f) for f in review.findings],
         )
+
+
+# --- Phase 6: versioning, approval, audit --------------------------------------------------
+
+
+class NewVersionResponse(BaseModel):
+    content_version_id: uuid.UUID
+    version_number: int
+    is_current: bool
+    review: ReviewOut
+
+
+class ApprovalEventOut(BaseModel):
+    id: uuid.UUID
+    content_version_id: uuid.UUID
+    version_number: int | None = None  # only set when the caller has the version loaded already
+    action: str
+    actor_user_id: uuid.UUID
+    note: str | None
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, event, version_number: int | None = None) -> "ApprovalEventOut":
+        return cls(
+            id=event.id, content_version_id=event.content_version_id, version_number=version_number,
+            action=event.action, actor_user_id=event.actor_user_id, note=event.note, created_at=event.created_at,
+        )
+
+
+class ReviewSummaryOut(BaseModel):
+    id: uuid.UUID
+    status: str
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, review) -> "ReviewSummaryOut":
+        return cls(id=review.id, status=review.status, created_at=review.created_at)
+
+
+class ContentVersionHistoryOut(BaseModel):
+    id: uuid.UUID
+    version_number: int
+    is_current: bool
+    created_by: uuid.UUID | None
+    created_at: datetime
+    reviews: list[ReviewSummaryOut]
+    decisions: list[ApprovalEventOut]
+
+
+class ContentHistoryOut(BaseModel):
+    content_item_id: uuid.UUID
+    title: str
+    versions: list[ContentVersionHistoryOut]
