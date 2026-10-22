@@ -17,7 +17,8 @@
   --deep:            #1f140b; /* shadow colour + hero wash */
   --deep-orange:     #40260c;
   --paper-hi:        #f7e8d2; /* highlight colour for every light rim */
-  --light-glow:      #7b5b41; /* hero-light radial centre (0.481,0.357,0.257) */
+  --light-glow:      #7b5b41; /* burnish centre (imagery) */
+  /* hero light = --paper-hi radial, soft-light blended [M] — not --light-glow */
 
   /* ---- Evidence status (Audit AI app only; contrast verified vs #d4b08f) ---- */
   --ok:   #35441a;  --ok-tint:   rgb(91 107 42 / .30);    /* supported    5.2:1 */
@@ -31,14 +32,16 @@
   --font-body:    "Instrument Sans", "Instrument Sans Fallback", Arial, sans-serif;
 
   /* ---- Type scale [M] (display sizes are desktop @1182px; fluid in [R]) ---- */
-  --fs-display:   clamp(52px, 11.25vw, 133px);  --lh-display:   .92; --ls-display:   .01em;   /* 1.32px */
+  --fs-display:   min(16vh, 11.2vw);  /* [M] 132.4px @1182x937 */  --lh-display:   .92; --ls-display:   .01em;   /* 1.32px */
   --fs-h-xl:      clamp(48px, 10.5vw, 124px);   --lh-h-xl:      .96; --ls-h-xl:      .01em;
-  --fs-h-lg:      clamp(40px, 5.4vw, 64px);     --lh-h-lg:      .92; --ls-h-lg:      .01em;
+  --fs-h-lg:      clamp(40px, 6vw, 71px);       --lh-h-lg:      .92; --ls-h-lg:      .01em;   /* [M] 70.92px @1182 */
   --fs-h:         40px;  --lh-h:  1.1;  --ls-h:  .02em;
   --fs-h-sm:      31px;  --lh-h-sm: 1.01; --ls-h-sm: .01em;
-  --fs-sub:       23px;  --lh-sub: 1.05; --ls-sub: .02em;     /* card h3 ~22px */
+  --fs-sub:       clamp(20px, 1.9vw, 23px);  --lh-sub: 1.05; --ls-sub: .02em;     /* [M] 22.46px @1182 */
   --fs-body:      18px;  --lh-body: 1.55;                      /* long copy is 17px/26px */
-  --fs-small:     16px;  --lh-small: 1.2;  --ls-small: .15px;
+  --fs-small:     16px;  --lh-small: 1;    --ls-small: .01em;     /* buttons [M] */
+  --fs-link:      15px;  --lh-link:  1.2;  --ls-link:  .01em;     /* nav / text links [M] */
+  --fs-lead:      18px;  --lh-lead:  1.45; --ls-lead:  -.005em;   /* hero / intro paragraph [M] */
   --fs-caption:   13px;  --lh-caption: 1.35; --ls-caption: 1.04px;
 
   /* ---- Layout [M] ---- */
@@ -60,42 +63,65 @@
   --z-header: 50;
 
   /* ---- Light model: light comes from TOP-LEFT ---- */
-  --rim-hi: -1px -1px 0 rgb(247 232 210 / .80),
-             1px -1px 0 rgb(247 232 210 / .50),
-            -1px  1px 0 rgb(247 232 210 / .50),
-             1px  1px 0 rgb(247 232 210 / .75);
+  --rim-hi: -1px -1px 0 rgb(247 232 210 / .80), 1px 1px 0 rgb(31 20 11 / .22);   /* [M] first two terms of --shadow-raised */
 
-  /* ---- Elevation [R: first colour/blur values are measured, the rest calibrated] ---- */
-  --shadow-raised-sm: -1px -1px 0 rgb(247 232 210 / .80), 3px 5px 9px rgb(31 20 11 / .22);   /* buttons  (--shadow-sm)  */
-  --shadow-raised:    var(--rim-hi), 10px 16px 18px rgb(31 20 11 / .32);                      /* cards    (--shadow-14)  */
-  --shadow-press:     0 1px 0 rgb(247 232 210 / .70), 1px 2px 3px rgb(31 20 11 / .28);       /* hover/active (--shadow-12 / xl) */
-  --shadow-well:      inset 4px 6px 10px rgb(31 20 11 / .38), 1px 1px 0 rgb(247 232 210 / .75);  /* debossed (--shadow-md) */
-  --shadow-window:    inset 7px 10px 16px rgb(31 20 11 / .72), 1px 1px 0 rgb(247 232 210 / .70); /* die-cut  (--shadow-lg) */
-  --shadow-sheet:     inset 0 1px 0 rgb(247 232 210 / .75), 0 -1px 0 rgb(31 20 11 / .20);        /* nav bar  (--shadow-2xl) */
+  /* ---- Elevation [M — probed 2026-10-22, see design/probe.json] ---- */
+  /* raised: buttons, cards, swatches, sleeves, step cards (one recipe for all) */
+  --shadow-raised:    -1px -1px 0 rgb(247 232 210 / .80), 1px 1px 0 rgb(31 20 11 / .22),
+                       3px 5px 6px rgb(31 20 11 / .20), 12px 18px 28px rgb(31 20 11 / .26);
+  --shadow-raised-sm: var(--shadow-raised);                                        /* buttons use the same recipe */
+  /* press: hover/active end state — same 4 layers collapsed (keeps the transition smooth) */
+  --shadow-press:     0 0 0 rgb(247 232 210 / .80), 0 0 0 rgb(31 20 11 / .22),
+                      1px 1px 1px rgb(31 20 11 / .20), 2px 3px 5px rgb(31 20 11 / .26);
+  /* well: fields, debossed rings, button ::after on hover */
+  --shadow-well:      inset 4px 6px 10px rgb(31 20 11 / .38), inset 1px 1px 2px rgb(31 20 11 / .35),
+                      inset -1px -1px 0 rgb(247 232 210 / .85);
+  /* window: die-cut dark boxes (hero label boxes, evidence) */
+  --shadow-window:    inset 7px 10px 16px rgb(31 20 11 / .72), inset 2px 2px 3px rgb(31 20 11 / .55),
+                      1px 1px 0 rgb(247 232 210 / .85), -1px -1px 0 rgb(31 20 11 / .25);
+  /* sheet: fixed nav bar */
+  --shadow-sheet:     0 1px 0 rgb(247 232 210 / .70), 0 8px 18px rgb(31 20 11 / .28);
+  /* flap: a paper sheet sliding up over a darker layer (statement band, casts shadow upward) */
+  --shadow-flap:      inset 0 1px 0 rgb(247 232 210 / .75), 0 -2px 6px rgb(31 20 11 / .22), 0 -16px 40px rgb(31 20 11 / .42);
+  /* lift: single soft drop, for small floating things */
+  --shadow-lift:      10px 16px 18px rgb(31 20 11 / .32);
 
-  /* ---- Text relief [R] ---- */
-  --text-raised: -1px -1px 0 rgb(247 232 210 / .55), 2px 3px 4px rgb(31 20 11 / .45);
-  --text-pressed: 1px 1px 0 rgb(247 232 210 / .70), -1px -1px 1px rgb(31 20 11 / .40);
+  /* ---- Text relief [M] ---- */
+  /* raised letters (on dark windows / dark panels), light top-left */
+  --text-raised:   -1px -1px 0 rgb(247 232 210 / .60), 1px 2px 0 rgb(31 20 11 / .70),
+                    3px 5px 4px rgb(31 20 11 / .55), 10px 16px 22px rgb(31 20 11 / .62);
+  /* end of the 16s sway: light has travelled to the top-right */
+  --text-raised-b:  1px -1px 0 rgb(247 232 210 / .60), -1px 2px 0 rgb(31 20 11 / .70),
+                   -3px 5px 4px rgb(31 20 11 / .55), -10px 16px 22px rgb(31 20 11 / .62);
+  /* raised headings on canvas (FAQ rows, prices): brighter rim, tighter drop */
+  --text-raised-canvas: -1px -1px 0 rgb(247 232 210 / .90), 1px 1px 0 rgb(31 20 11 / .45),
+                         3px 4px 3px rgb(31 20 11 / .30), 12px 17px 22px rgb(31 20 11 / .36);
+  /* pressed (debossed) letters, fill --ink-2 */
+  --text-pressed:   1px 1px 0 rgb(247 232 210 / .90), -1px -1px 0 rgb(31 20 11 / .45),
+                    0 0 0 rgb(31 20 11 / .30), 0 0 0 rgb(31 20 11 / .36);
+  --text-pressed-b: -1px 1px 0 rgb(247 232 210 / .90), 1px -1px 0 rgb(31 20 11 / .45),
+                    0 0 0 rgb(31 20 11 / .30), 0 0 0 rgb(31 20 11 / .36);
+  /* small titles (h3): a single light bottom-right rim */
+  --text-etched:    1px 1px 0 rgb(247 232 210 / .75);
 
   /* ---- Motion [M] ---- */
   --dur-base: 220ms;
   --dur-link: 250ms;
   --dur-mid:  500ms;
-  --dur-slow: 16000ms;               /* hero light + sway loop */
+  --dur-slow: 16000ms;               /* hero light + sway loop (ease-in-out, alternate) */
+  --dur-hero-in: 1000ms;             /* hero lines lift/sink in on load */
   --ease-ui:    cubic-bezier(.3, .7, .2, 1);   /* buttons */
   --ease-enter: cubic-bezier(.2, .7, .2, 1);   /* reveals, nav bar */
   --ease-base:  ease;                          /* links, shadows */
+  --ease-hero:  cubic-bezier(.2, .75, .15, 1); /* hero load-in */
 }
 
 @media (max-width: 767px) { :root { --fs-h: 32px; --fs-h-sm: 26px; --gap-grid: 24px; } }
 
-/* Paper grain [R] — two prime-sized speckle grids (dark + light). Calibrate vs screenshots. */
-.paper {
-  background-color: var(--canvas);
-  background-image:
-    radial-gradient(rgb(31 20 11 / .35) .6px, transparent .9px),
-    radial-gradient(rgb(247 232 210 / .55) .6px, transparent .9px);
-  background-size: 13px 17px, 19px 11px;
-  background-position: 0 0, 7px 5px;
+/* Paper grain [M technique, own values] — SVG fractal noise: fine dark tooth + sparse dark and light specks.
+   Re-implemented; calibrated against reference screenshots. */
+:root {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .23 0 0 0 0 .15 0 0 0 0 .08 0 0 0 .45 -.18'/%3E%3C/filter%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.52' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .12 0 0 0 0 .06 17 0 0 0 -12.2'/%3E%3C/filter%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.56' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .94 0 0 0 0 .85 0 17 0 0 -12.6'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
 }
-.paper--dark { background-color: var(--surface); }
+.paper { background-color: var(--canvas); background-image: var(--grain); }
+.paper--dark { background-color: var(--surface); background-image: var(--grain); }

@@ -124,25 +124,29 @@ Hero headline = 4 lines across two treatments (§7.1). H1 sits at Gabarito; the 
 
 ---
 
-## 5. Elevation (repaired) — see `tokens.css`
+## 5. Elevation (calibrated) — see `tokens.css`
+
+> **Calibrated 2026-10-22** with Playwright against the live site at 1182×937 (raw data: `design/probe.json`). Values below are now **[M]**. `paper` = `rgb(247 232 210)`, `deep` = `rgb(31 20 11)`.
 
 | Token | Use | Value |
 |---|---|---|
-| `--shadow-raised-sm` | buttons | `-1px -1px 0 rgb(247 232 210/.8), 3px 5px 9px rgb(31 20 11/.22)` [R] |
-| `--shadow-raised` | cards, swatches, sleeves | rim (4 × 1px light offsets) + `10px 16px 18px rgb(31 20 11/.32)` [M for last term] |
-| `--shadow-press` | button hover/active | `0 1px 0 rgb(247 232 210/.7), 1px 2px 3px rgb(31 20 11/.28)` [R] |
-| `--shadow-well` | debossed ring, fields | `inset 4px 6px 10px rgb(31 20 11/.38), 1px 1px 0 rgb(247 232 210/.75)` [M+R] |
-| `--shadow-window` | die-cut windows, hero label boxes | `inset 7px 10px 16px rgb(31 20 11/.72), 1px 1px 0 rgb(247 232 210/.7)` [M+R] |
-| `--shadow-sheet` | sticky nav bar | `inset 0 1px 0 rgb(247 232 210/.75), 0 -1px 0 …` + soft drop [R] |
+| `--shadow-raised` (= `--shadow-raised-sm`) | buttons, cards, swatches, sleeves, step cards — **one recipe for all** | `-1px -1px 0 paper/.8, 1px 1px 0 deep/.22, 3px 5px 6px deep/.2, 12px 18px 28px deep/.26` |
+| `--shadow-press` | button / icon-button hover + active | same 4 layers collapsed: `0 0 0 paper/.8, 0 0 0 deep/.22, 1px 1px 1px deep/.2, 2px 3px 5px deep/.26` |
+| `--shadow-well` | fields, deboss rings, button `::after` overlay, FAQ creases | `inset 4px 6px 10px deep/.38, inset 1px 1px 2px deep/.35, inset -1px -1px 0 paper/.85` |
+| `--shadow-window` | die-cut dark boxes (hero label boxes, contact label box, evidence) | `inset 7px 10px 16px deep/.72, inset 2px 2px 3px deep/.55, 1px 1px 0 paper/.85, -1px -1px 0 deep/.25` |
+| `--shadow-sheet` | fixed nav bar | `0 1px 0 paper/.7, 0 8px 18px deep/.28` |
+| `--shadow-flap` | paper sheet sliding over a dark layer (statement band) | `inset 0 1px 0 paper/.75, 0 -2px 6px deep/.22, 0 -16px 40px deep/.42` |
+| `--shadow-lift` | single soft drop | `10px 16px 18px deep/.32` |
 
-Never stack more than rim + one drop. Calibrate every [R] by overlaying screenshots at the same viewport.
+Text relief [M]: `--text-raised` (on dark), `--text-raised-b` (sway end state), `--text-raised-canvas` (FAQ questions, prices, pressed statement lines), `--text-pressed` / `--text-pressed-b`, `--text-etched` (h3 and wordmark: `1px 1px 0 paper/.75`). **Pressed headings also need an inner-shadow SVG filter** (`filter: url(#cut-relief)`: inverted alpha → offset 3.5/4.5px → blur 2 → flood `--deep` → clip to glyph). Text-shadow alone looks flat.
 
 ---
 
 ## 6. Texture & effect recipes (CSS)
 
 ```css
-/* 6.1 Paper grain (canvas + dark bands) — see .paper in tokens.css */
+/* 6.1 Paper grain (canvas + dark bands) [M technique] — SVG fractal-noise data URL (--grain in tokens.css):
+       fine dark tooth + sparse dark specks + sparse light specks. Own filter values, re-implemented. */
 
 /* 6.2 Raised card / swatch */
 .card { background: var(--canvas); border-radius: var(--r-ui); box-shadow: var(--shadow-raised); }
@@ -169,8 +173,8 @@ Never stack more than rim + one drop. Calibrate every [R] by overlaying screensh
 /* 6.8 Burnish: soft dark radial bloom, no edge */
 .burnish { border-radius: 50%; background: radial-gradient(closest-side, #7b5b41, rgb(123 91 65 / 0)); filter: blur(2px); }
 
-/* 6.9 Pressed (debossed) headline — fill ink-2 */
-.h-pressed { color: var(--ink-2); text-shadow: var(--text-pressed); text-transform: uppercase; }
+/* 6.9 Pressed (debossed) headline — fill ink-2 + inner-shadow filter [M] */
+.h-pressed { color: var(--ink-2); text-shadow: var(--text-pressed); filter: url(#cut-relief); text-transform: uppercase; }
 /* 6.10 Raised headline on dark — fill canvas */
 .h-raised  { color: var(--canvas); text-shadow: var(--text-raised); text-transform: uppercase; }
 
@@ -193,17 +197,20 @@ Never stack more than rim + one drop. Calibrate every [R] by overlaying screensh
 Layout (1182×937): fixed header; word group 1 **"STAND OUT."** sits in two dark debossed label boxes (`--surface`, `--shadow-window`, radius 6px), letters in `--canvas` with `--text-raised`, boxes staggered right (start ≈ 30% from left; line 2 box shorter). Word group 2 **"PRESS IN."** sits bottom-left, two lines, debossed (`.h-pressed`). Paragraph + CTAs bottom-right (≈ 340px wide). A dark `hero__wash` vignette (`--deep`, absolute, z3) darkens the hero's lower edge.
 
 ```css
-/* moving light across the board: a radial hotspot drifting over the hero, soft-light blended */
-.hero__light { position:absolute; inset:-20%; z-index:var(--z-decor); pointer-events:none;
-  background: radial-gradient(closest-side, var(--light-glow), transparent);
-  mix-blend-mode: soft-light; animation: hero-light 16s linear infinite alternate; }
-@keyframes hero-light { from { transform: translate(-212.76px,-112.44px); } to { transform: translate(401.88px,149.92px); } }
+/* [M] moving light: an 80vmax paper-coloured disc, soft-light blended, centred at 34% / 30% */
+.hero__light { position:absolute; left:34%; top:30%; width:80vmax; height:80vmax; margin:-40vmax 0 0 -40vmax;
+  border-radius:50%; pointer-events:none; mix-blend-mode: soft-light;
+  background: radial-gradient(closest-side, rgb(247 232 210/.85), rgb(247 232 210/.3) 55%, transparent);
+  animation: hero-light 16s ease-in-out infinite alternate; }
+@keyframes hero-light { from { transform: translate(-18vw,-12vh); } to { transform: translate(34vw,16vh); } }
 ```
-- `hero-sway-raised` / `hero-sway-cut`: 16000ms linear on every `.hero__word`. [I] It animates the **text-shadow offsets** (a few px, ±) in sync with the light so the raised words' highlight/shadow rotate and the pressed words' inner shadow counter-rotates — the light "moves" over the letters. Implement with CSS variables `--lx/--ly` animated via `@property` (registered `<length>`), feeding `text-shadow`.
-- `hero__wash` ×3: opacity fade-ins (scroll/entrance), no movement.
+- [M] Layout: `.hero__inner` grid `minmax(0,1fr) minmax(280px,29vw)`, column-gap 4vw, padding `calc(68px + 6vh) 6vw 7vh var(--gutter)`. Words: `font-size: min(16vh, 11.2vw)`; raised lines `margin-left: 23vw`, second raised line `margin-top: 1.4vh`, first pressed line `margin-top: 3.4vh`. Raised word padding `.07em .2em .02em .18em`, lh .92; pressed lh .96, no padding. Aside bottom-right, gap 26px, paragraph 18px/1.45.
+- [M] Load-in: raised lines `hero-lift` (from `translate(-4px,16px) scale(.965)`), pressed lines `hero-sink` (from `translate(5px,-10px) scale(1.02)`), aside `hero-shift` (from `translateY(14px)`); 1s (aside .9s) `cubic-bezier(.2,.75,.15,1)`, delays 0 / .08 / .14 / .22 / .28s, `animation-fill-mode: backwards`.
+- [M] `hero-sway-raised` / `hero-sway-cut`: 16s ease-in-out infinite alternate on every `.hero__word`, interpolating `text-shadow` from `--text-raised` → `--text-raised-b` (x offsets mirror) and `--text-pressed` → `--text-pressed-b`. Plain keyframes on `text-shadow` interpolate fine, so no `@property` is needed.
+- [M] Scroll: the hero is a paper **flap** over a `--surface` base. On scroll the flap stays pinned and scales to ≈.94 while `.hero__wash` (`--deep`) fades in (≈.16 opacity at 360px): the board sinks back as the next sheet slides over it. Light and sway pause while sinking.
 
 ### 7.2 Nav bar [M]
-Header fixed, 68px, transparent at top; after first scroll the bar gets `--canvas` + `--shadow-sheet`. `div.nav__bar` animates `transform` over **500ms `cubic-bezier(.2,.7,.2,1)`** on scroll [I: hides on scroll-down, returns on scroll-up]. Links: 15px/600, dashed underline (see §6 links). `PT` language item. At ≤900px nav height 62px, column-gap 14px; at ≤767px links collapse behind `.nav__toggle`.
+Header fixed, 68px. [M] The bar is **always** paper (`--canvas` + grain + `--shadow-sheet`), never transparent. `.nav__bar` hides on scroll-down with `translateY(calc(-100% - 32px))` and returns on scroll-up, **500ms `cubic-bezier(.2,.7,.2,1)`**. Bar: flex, gap 30px, padding `0 3vw 0 var(--gutter)`; links gap 26px; wordmark Gabarito 22px caps with `--text-etched`. Links: 15px/600, dashed underline (see §6 links). `PT` language item. At ≤900px nav height 62px, column-gap 14px; at ≤767px links collapse behind `.nav__toggle`.
 
 ### 7.3 Scroll reveals [M]
 31 reveals measured per pass: **slideUp ×18, scale-in ×11, fade ×3**, each fired once (no replay).
@@ -217,9 +224,9 @@ Header fixed, 68px, transparent at top; after first scroll the bar gets `--canva
 Observer: `threshold: .15`, `rootMargin: "0px 0px -10% 0px"`, unobserve after first hit. Stagger children 60–90ms. Use slideUp for text blocks & rows, scale-in for swatches/cards/images, fade for decor.
 
 ### 7.4 Scroll-linked bands [I — verify]
-- **Craft band** (dark, 2343px, 2fr/1fr grid): 27 `.craft__flap` elements animate `transform` scrubbed to scroll (ScrollTrigger `scrub`, 0ms own duration). Reads as flaps/lines sliding or folding as three huge words "Ink fades. / Foil peels. / Pressure stays." (Gabarito 123–124px, `--canvas` raised on `--surface`) pass. Screenshot of this band is empty because content was hidden pre-reveal.
-- **Finishes swatches:** a deliberate staggered Y-offset (one swatch measured −520px) that resolves to 0 → implement as scrubbed/sequenced slide-in, columns staggered.
-- **Process band** (2560px, 4 step cards 390×477): also scroll-driven (not captured). Implement as sticky stacked cards that press down one by one.
+- **Statement band** [M, corrected]: it is *not* raised-on-dark. The section bg is `--surface`, height 250svh, with a sticky 100svh stage holding ONE paper **flap** (`--canvas` + grain, top corners `--r-panel`, `--shadow-flap`) that rises from scale .94 to 1 over the sinking hero. On it, three huge **pressed** lines (Gabarito ≈123px, `--ink-2`, lines 1–2 indented 15vw) start faint (masked to ≈40–50% alpha). A **roller** presses them in one by one: a 3px line, dark top half / paper bottom half, faded ends, travelling down the stage, scrubbed to scroll. Pressed lines take `--text-raised-canvas`. A short note sits bottom-right (grid `1fr minmax(260px,27vw)`).
+- **Finishes swatches** [M]: they enter as a **dealt stack of cards** (scale ≈.81, rotated ±5–9°, piled near the centre, z-index descending) and fan out to their grid cells, scrubbed to scroll.
+- **Process band** [M, corrected]: a **horizontal track** inside a large die-cut window (`--surface`, `--shadow-window`, radius 6). Section height = `100svh + track distance`, sticky stage. The track holds intro text on dark (`--gray-light`), then 4 raised step cards (33vw wide, padding 26/26/22: caption "STEP 1", h3, copy, small visual), then an end CTA, translated on X and scrubbed to scroll.
 - **Work rows:** the `work__rim` decor (z3) frames the window; photo likely drifts behind the sleeve (parallax ±20px).
 
 ### 7.5 Reduced motion
@@ -231,11 +238,11 @@ Honour `prefers-reduced-motion`: disable Lenis, hero light/sway, scrubs; keep en
 
 | Element | Base | Hover | Active | Focus-visible |
 |---|---|---|---|---|
-| `.m-btn` (192×52, padding 0 26, radius 6, 16/600) | `--shadow-raised-sm` | `--shadow-press` + `translate(1px,2px)` | same + `::after{opacity:1}` [I: slight darkening overlay] | `outline: 3px solid var(--accent); outline-offset: 2px` |
-| `.m-icon-btn` (circle 50%) | raised | `--shadow-press`; glyph `scaleX(.8)` | — | 3px outline |
-| `.m-link-2` nav/text link (15/600, padding 4px 0 5px) | dashed 1px underline drawn with `background-image` | `background-size` transition 250ms ease [I: dashed → fuller/solid line] | — | 3px outline |
-| `.m-field__input` (54px, textarea 150px, radius 6, padding 14 16, 17px) | transparent + `--shadow-well` (border none) [I] | none | — | 2px outline `--accent` offset 2 |
-| FAQ `details > summary.faq__summary` (padding 28px 0, 17px) | row with rule below | none measured; chevron/plus glyph | — | 4px outline |
+| `.m-btn` (min-height 52, padding 0 26, radius 6, 16/600, lh 1, ls .01em) [M] | `--shadow-raised` | `--shadow-press` + `translate(1px,2px)` **and** `::after { opacity: 1 }`, where `::after` is a `--shadow-well` overlay (opacity transition .22s) [M] | same as hover | `outline: 3px solid var(--accent); outline-offset: 2px` |
+| `.m-icon-btn` (46px circle; FAQ mark 38px) [M] | raised | `--shadow-press` + well overlay; glyph `scaleX(.8)` | — | 3px outline |
+| `.m-link-2` nav/text link (15/600, lh 1.2, ls .01em, padding 4px 0 5px) [M] | `linear-gradient(90deg, currentColor 55%, transparent 0)` at `background-size: 7px 1px`, repeat-x, bottom | `background-size: 3px 2px` (dashes get denser and thicker), 250ms [M] | — | 3px outline |
+| `.m-field__input` (54px, textarea 150px, radius 6, padding 14 16, 17px) | transparent + `--shadow-well`, no border [M] | none | — | 2px outline `--accent`, offset 2 |
+| FAQ `details > summary` (padding 28px 0; question in Gabarito caps with `--text-raised-canvas`) [M] | rows separated by 3px `--shadow-well` creases; raised 38px circle with a plus | — | open: circle switches to `--shadow-well`, vertical bar rotates 90°→0 (.3s `--ease-ui`) | 3px outline, offset 4 |
 | Cards/swatches | raised | **none measured** — the site is deliberately still. Optional: 2px lift via `--shadow-raised` only if brief demands. | | 3px outline |
 
 Transition recipes:
@@ -247,9 +254,10 @@ Tap targets: pad small links to ≥44px hit area (originals are 20–28px high).
 
 Dashed underline implementation:
 ```css
-.link { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px) 0 100% / 100% 1px no-repeat;
+/* [M] */
+.link { background: linear-gradient(90deg, currentColor 55%, transparent 0) 0 100% / 7px 1px repeat-x;
         padding: 4px 0 5px; transition: background-size .25s ease; }
-.link:hover { background-size: 100% 2px; }
+.link:hover { background-size: 3px 2px; }
 ```
 
 ---
