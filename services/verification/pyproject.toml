@@ -7,7 +7,7 @@ name = "inkloom-verify"
 version = "0.1.0"
 description = "INKLOOM AI claim-verification engine"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2.10,<3", "rank_bm25>=0.2.2,<0.3"]
+dependencies = ["pydantic>=2.10,<3", "rank_bm25>=0.2.2,<0.3", "httpx>=0.27,<1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

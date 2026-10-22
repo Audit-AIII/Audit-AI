@@ -131,6 +131,7 @@ Additional rules:
 |---|---|---|
 | `INVALID_REQUEST` | request | no |
 | `LIMIT_EXCEEDED` | request / extraction | no |
+| `PROVIDER_NOT_CONFIGURED` | any LLM stage | no. Credentials or models aren't set, so AI checks are unavailable (added in Phase 4). |
 | `PROVIDER_TIMEOUT` | extraction / verification / correction | yes |
 | `PROVIDER_RATE_LIMITED` | any LLM stage | yes |
 | `PROVIDER_QUOTA_EXCEEDED` | any LLM stage | no |

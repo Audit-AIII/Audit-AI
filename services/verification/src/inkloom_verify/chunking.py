@@ -130,6 +130,18 @@ def _segments(text: str, start: int, end: int, limit: int) -> list[tuple[int, in
     return segments
 
 
+def sentence_spans(text: str, max_chars: int) -> list[SourceSpan]:
+    """Every sentence or line of ``text`` in order, split at whitespace when longer than ``max_chars``.
+
+    The same segmentation passages are built from, exposed for claim extraction.
+    """
+    return [
+        SourceSpan(start=start, end=end)
+        for para_start, para_end in _split_at(_PARAGRAPH_BREAK, text, 0, len(text))
+        for start, end in _segments(text, para_start, para_end, max_chars)
+    ]
+
+
 def _window_starts(count: int, size: int, stride: int) -> list[int]:
     if count <= size:
         return [0]
