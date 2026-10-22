@@ -73,6 +73,9 @@
   /* press: hover/active end state — same 4 layers collapsed (keeps the transition smooth) */
   --shadow-press:     0 0 0 rgb(247 232 210 / .80), 0 0 0 rgb(31 20 11 / .22),
                       1px 1px 1px rgb(31 20 11 / .20), 2px 3px 5px rgb(31 20 11 / .26);
+  /* press-deep: click / active — fully seated, no drop left */
+  --shadow-press-deep: 0 0 0 rgb(247 232 210 / 0), 0 0 0 rgb(31 20 11 / 0),
+                       0 0 0 rgb(31 20 11 / 0), 1px 1px 2px rgb(31 20 11 / .22);
   /* well: fields, debossed rings, button ::after on hover */
   --shadow-well:      inset 4px 6px 10px rgb(31 20 11 / .38), inset 1px 1px 2px rgb(31 20 11 / .35),
                       inset -1px -1px 0 rgb(247 232 210 / .85);
@@ -80,6 +83,10 @@
   --shadow-window:    inset 9px 13px 20px rgb(31 20 11 / .82), inset 2px 2px 4px rgb(31 20 11 / .62),
                       1px 1px 0 rgb(247 232 210 / .85), -1px -1px 0 rgb(31 20 11 / .35),
                       0 0 16px rgb(31 20 11 / .22);                                  /* tuned darker per review */
+  /* window-press: hovered die-cut box — the hole reads deeper */
+  --shadow-window-press: inset 12px 17px 24px rgb(31 20 11 / .9), inset 3px 3px 5px rgb(31 20 11 / .7),
+                         1px 1px 0 rgb(247 232 210 / .9), -1px -1px 0 rgb(31 20 11 / .4),
+                         0 0 22px rgb(31 20 11 / .3);
   /* sheet: fixed nav bar */
   --shadow-sheet:     0 1px 0 rgb(247 232 210 / .70), 0 3px 6px rgb(31 20 11 / .18), 0 12px 28px rgb(31 20 11 / .40);  /* tuned darker per review */
   /* flap: a paper sheet sliding up over a darker layer (statement band, casts shadow upward) */

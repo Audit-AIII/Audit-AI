@@ -36,6 +36,13 @@
   pointer-events: none;
   animation: hero-light var(--dur-slow) ease-in-out infinite alternate;
 }
+/* Pointer-follow: the light's frame leans toward the cursor (--px/--py in −1..1, set by Hero.tsx) */
+.hero__light-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translate(calc(var(--px, 0) * 7vw), calc(var(--py, 0) * 7vh));
+}
 .hero__wash {
   position: absolute;
   inset: 0;
@@ -66,7 +73,15 @@
 .hero__line--raised { margin-left: 23vw; }
 .hero__line--raised + .hero__line--raised { margin-top: 1.4vh; }
 .hero__line--raised + .hero__line--cut { margin-top: 3.4vh; }
-.hero__channel { display: inline-block; }
+.hero__channel {
+  display: inline-block;
+  transition: box-shadow var(--dur-mid) var(--ease-ui);
+}
+.hero__channel .hero__word { transition: transform var(--dur-mid) var(--ease-ui); }
+.hero__channel:hover { box-shadow: var(--shadow-window-press); }
+.hero__channel:hover .hero__word { transform: translate(1px, 2px); }
+.hero__line--cut .hero__word { transition: transform var(--dur-mid) var(--ease-ui); }
+.hero__line--cut .hero__word:hover { filter: url(#cut-relief-deep); transform: translate(1px, 1px); }
 
 .hero__word {
   display: block;
@@ -162,4 +177,7 @@
   .hero__word,
   .hero__line,
   .hero__aside { animation: none; }
+  .hero__light-frame { transform: none; }
+  .hero__channel, .hero__channel .hero__word, .hero__line--cut .hero__word { transition: none; }
+  .hero__channel:hover .hero__word, .hero__line--cut .hero__word:hover { transform: none; }
 }

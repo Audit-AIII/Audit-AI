@@ -20,6 +20,21 @@ export function ReliefDefs() {
           <feMergeNode in="inner" />
         </feMerge>
       </filter>
+      {/* Hover state: the same cut, pressed deeper (longer offset, softer edge, darker) */}
+      <filter id="cut-relief-deep" x="-4%" y="-6%" width="108%" height="112%" colorInterpolationFilters="sRGB">
+        <feComponentTransfer in="SourceAlpha" result="outside">
+          <feFuncA type="table" tableValues="1 0" />
+        </feComponentTransfer>
+        <feOffset in="outside" dx="5.5" dy="7" result="shifted" />
+        <feGaussianBlur in="shifted" stdDeviation="2.6" result="soft" />
+        <feFlood className="relief-defs__shade relief-defs__shade--deep" result="shade" />
+        <feComposite in="shade" in2="soft" operator="in" result="cast" />
+        <feComposite in="cast" in2="SourceAlpha" operator="in" result="inner" />
+        <feMerge>
+          <feMergeNode in="SourceGraphic" />
+          <feMergeNode in="inner" />
+        </feMerge>
+      </filter>
     </svg>
   );
 }

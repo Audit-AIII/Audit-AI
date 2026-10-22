@@ -252,6 +252,15 @@ Transition recipes:
 - Cursor: `pointer` on buttons/links/summary; the site also sets pointer on many non-interactive nodes — don't copy that.
 Tap targets: pad small links to ≥44px hit area (originals are 20–28px high).
 
+**Audit AI additions (review 2026-10-22, not in the reference)**. All follow "interaction = moving toward pressed", and none apply under reduced motion:
+- Button `:active` → `--shadow-press-deep` + `translate(2px,3px)`, 90ms (hover stays `--shadow-press`).
+- Hero label boxes (`.hero__channel`) on hover → `--shadow-window-press`, letters `translate(1px,2px)`, 500ms `--ease-ui`.
+- Hero pressed words on hover → `filter: url(#cut-relief-deep)` + `translate(1px,1px)`.
+- Wordmark: rests raised (`--text-raised-canvas`), hover → pressed (`--ink-2`, `--text-pressed`, `translate(1px,1px)`), 220ms.
+- Nav links: hover nudges `translateY(1px)`; any `.link:active` → `translateY(1px)`.
+- `TextLink arrow`: a trailing → slides 4px right on hover; the dashed underline stays on the label.
+- Hero light follows the pointer (fine pointers only): `--px/--py` eased 6% per frame, applied to `.hero__light-frame` as up to ±7vw/±7vh. The 16s drift keeps running inside it.
+
 Dashed underline implementation:
 ```css
 /* [M] */

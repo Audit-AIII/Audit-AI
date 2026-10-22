@@ -48,6 +48,7 @@ body {
 
 .relief-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 .relief-defs__shade { flood-color: var(--deep); flood-opacity: .62; }
+.relief-defs__shade--deep { flood-opacity: .78; }
 
 .skip-link {
   position: fixed;

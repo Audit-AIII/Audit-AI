@@ -62,10 +62,51 @@ export function Hero() {
     return () => mm.revert();
   }, []);
 
+  // Pointer-follow light: eased toward the cursor (fine pointers only, never with reduced motion).
+  useEffect(() => {
+    const el = section.current;
+    if (!el) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)").matches) return;
+
+    const target = { x: 0, y: 0 };
+    const pos = { x: 0, y: 0 };
+    let frame = 0;
+    const step = () => {
+      pos.x += (target.x - pos.x) * 0.06;
+      pos.y += (target.y - pos.y) * 0.06;
+      el.style.setProperty("--px", pos.x.toFixed(4));
+      el.style.setProperty("--py", pos.y.toFixed(4));
+      frame = Math.abs(target.x - pos.x) + Math.abs(target.y - pos.y) > 0.001 ? requestAnimationFrame(step) : 0;
+    };
+    const kick = () => {
+      if (!frame) frame = requestAnimationFrame(step);
+    };
+    const onMove = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      target.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      target.y = ((e.clientY - r.top) / r.height) * 2 - 1;
+      kick();
+    };
+    const onLeave = () => {
+      target.x = 0;
+      target.y = 0;
+      kick();
+    };
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+    };
+  }, []);
+
   return (
     <section ref={section} id="top" className="hero" aria-labelledby="hero-title">
       <div ref={flap} className="hero__flap board">
-        <div className="hero__light" aria-hidden="true" />
+        <div className="hero__light-frame" aria-hidden="true">
+          <div className="hero__light" />
+        </div>
         <div className="hero__inner">
           <h1 id="hero-title" className="hero__title">
             <RaisedLine word="Check" /> <RaisedLine word="first." /> <PressedLine word="Publish" />{" "}
@@ -78,7 +119,9 @@ export function Hero() {
             </p>
             <div className="hero__actions">
               <Button href="#contact">Start a review</Button>
-              <TextLink href="#findings">See a sample finding</TextLink>
+              <TextLink href="#findings" arrow>
+                See a sample finding
+              </TextLink>
             </div>
           </div>
         </div>
