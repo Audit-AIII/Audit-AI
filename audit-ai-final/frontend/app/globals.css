@@ -2,6 +2,8 @@
 @import "../../design/tokens.css";
 @import "lenis/dist/lenis.css";
 @import "../styles/base.css";
+@import "../styles/primitives.css";
+@import "../styles/header.css";
 
 /* Tokens → Tailwind theme (utilities such as bg-canvas, text-ink, font-heading, rounded-ui).
    Values point at tokens.css so there is still one source of truth. */

@@ -1,0 +1,79 @@
+/* ==========================================================================
+   Header — fixed paper bar, hide on scroll-down (DESIGN.md §7.2)
+   ========================================================================== */
+.nav {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: var(--z-header);
+  height: 68px;
+  pointer-events: none;
+}
+.nav__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  height: 68px;
+  padding: 0 3vw 0 var(--gutter);
+  box-shadow: var(--shadow-sheet);
+  pointer-events: auto;
+  transition: transform var(--dur-mid) var(--ease-enter);
+}
+.nav[data-hidden] .nav__bar { transform: translateY(calc(-100% - 32px)); }
+
+.nav__brand {
+  margin-right: auto;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: .02em;
+  text-decoration: none;
+  text-shadow: var(--text-etched);
+  padding: 11px 0;
+}
+.nav__menu { display: flex; align-items: center; gap: 30px; }
+.nav__links { display: flex; gap: 26px; margin: 0; padding: 0; list-style: none; }
+.nav__toggle { display: none; }
+
+@media (max-width: 900px) {
+  .nav, .nav__bar { height: 62px; }
+  .nav__bar { gap: 14px; padding: 0 12px 0 20px; }
+  .nav__menu { gap: 14px; }
+  .nav__links { gap: 14px; }
+}
+
+@media (max-width: 767px) {
+  .nav__toggle { display: inline-grid; width: 44px; height: 44px; }
+  .nav__menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 24px;
+    padding: 20px 20px 28px;
+    background-color: var(--canvas);
+    background-image: var(--grain);
+    box-shadow: var(--shadow-sheet);
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-12px);
+    transition:
+      opacity var(--dur-mid) var(--ease-enter),
+      transform var(--dur-mid) var(--ease-enter),
+      visibility 0s linear var(--dur-mid);
+  }
+  .nav[data-open] .nav__menu {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition-delay: 0s;
+  }
+  .nav__links { flex-direction: column; gap: 4px; }
+  .nav__links .link { display: inline-block; padding-block: 12px 9px; font-size: 17px; }
+  .nav__cta { justify-self: start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav__bar, .nav__menu { transition: none; }
+}
