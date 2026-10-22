@@ -34,7 +34,13 @@ these contracts.
 | `passage_id` | Engine | `psg_` + 1–64 characters from `[A-Za-z0-9_-]` |
 
 The prefixes stop a claim id from being accepted where a passage id is expected, and the reverse.
-Claim and passage ids are **unique only within one report**. They are not global ids.
+Claim ids are **unique only within one report**; they are not global ids.
+
+The retriever builds each passage id from the first 24 hex characters of
+`SHA-256(doc_id, doc_text_sha256, start, end)`. The same passage of the same document version
+therefore gets the same id in every run, whatever order the documents arrive in. Callers should
+still treat passage ids as opaque. The ids in `examples/` (`psg_spec-sheet_0001`) were written
+by hand for readability and do not follow this form.
 
 ## Models
 
@@ -152,6 +158,115 @@ Stages: `request`, `extraction`, `retrieval`, `verification`, `citation_validati
 | Characters per claim | 1,000 |
 | Passages per claim | 8 |
 | Characters per passage | 4,000 |
+| Passages indexed per corpus | 50,000 (retrieval) |
+
+## Retrieval
+
+Code: [`chunking.py`](src/inkloom_verify/chunking.py) and
+[`retrieval.py`](src/inkloom_verify/retrieval.py).
+
+Retrieval takes one claim plus the reference documents of one request and returns up to
+`top_k` `EvidencePassage`s, best first. It is lexical (BM25), deterministic, and never calls a
+model. Every returned passage is an exact slice of a supplied document. Nothing is summarised,
+rewritten or generated.
+
+**Interface.** Callers depend on the `EvidenceRetriever` protocol: a `method` attribute and
+`retrieve(claim, top_k=None) -> list[EvidencePassage]`. `BM25Retriever` is the only
+implementation. Adding another method also requires a new `RetrievalMethod` value, which is a
+contract change.
+
+### Passage splitting (`ChunkingConfig`)
+
+1. Split the document into paragraphs at blank lines. Passages never cross a paragraph break.
+2. Split each paragraph into segments at line breaks and sentence ends (`.`, `!`, `?`, `…`
+   followed by whitespace). Common abbreviations such as `e.g.`, `Inc.` and `No.` don't end a
+   sentence. Decimals such as `4.5` are safe because no whitespace follows the dot.
+3. Split any segment longer than `max_passage_chars` at the last whitespace before the limit,
+   or cut it hard if there is no whitespace.
+4. Group consecutive segments into windows of `sentences_per_passage`, advancing by `stride`.
+   Shrink any window that exceeds `max_passage_chars`.
+
+| Setting | Default | Allowed |
+|---|---|---|
+| `sentences_per_passage` | 2 | 1–10 |
+| `stride` | 1 | 1 to `sentences_per_passage` (a larger stride would skip text) |
+| `max_passage_chars` | 1,000 | 50–4,000 |
+
+With the defaults, each sentence appears in up to two overlapping passages. That gives the
+verifier the neighbouring sentence as context, for example for "It keeps drinks hot…".
+
+### Ranking (`RetrievalConfig`)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `top_k` | 5 | Number of passages returned, 1–8 (the contract's per-claim maximum). It can be overridden per call. |
+| `k1`, `b` | 1.5, 0.75 | Standard BM25 parameters. |
+| `min_matched_terms` | 1 | Minimum number of distinct claim terms a passage must contain. |
+| `min_term_coverage` | 0.25 | Minimum fraction of the claim's distinct terms a passage must contain. |
+| `suppress_overlaps` | off | Skip a passage that overlaps one already selected from the same document. |
+
+- **Tokenisation.** Text is NFKC-normalised and case-folded, and split into word and number
+  tokens. Thousands separators are removed (`1,200` becomes `1200`) and decimals stay whole
+  (`4.5`). A small English stopword list is dropped; it deliberately keeps negations such as
+  `not`, `no` and `never`. Each claim term is counted once.
+- **IDF.** Scoring uses `rank_bm25.BM25Okapi` with the Lucene IDF,
+  `log(1 + (N − n + 0.5)/(n + 0.5))`, in place of rank_bm25's floored Okapi IDF. The stock IDF
+  goes negative on small corpora: with a single passage, every term scores below zero. With
+  the Lucene IDF, a passage that shares no terms scores exactly 0, and any shared term scores
+  above 0.
+- **Ordering.** Results are ordered by score; ties go to the earlier document, then the earlier
+  position.
+- **Duplicates.** Passages whose text is identical after case-folding and whitespace collapsing
+  are returned once. The highest-ranked copy wins, which on a tie is the earliest document.
+- **No relevant passage.** If no passage passes the relevance gate, `retrieve` returns `[]`. The
+  claim then goes to `NOT_ENOUGH_EVIDENCE` without reaching the verifier.
+
+### Input handling
+
+| Input | Result |
+|---|---|
+| Empty list of documents | The retriever builds, and every claim gets `[]`. |
+| Missing, blank or malformed `doc_id`; blank `text`; wrong `text_sha256` | `pydantic.ValidationError`, raised by the `ReferenceDocument` contract. |
+| A single document, mapping or string passed in place of a list | `RetrievalError` |
+| Duplicate `doc_id`s | `RetrievalError` |
+| A document with no searchable terms (only symbols or stopwords) | Indexed as nothing; it never matches. |
+| Malformed claim | `pydantic.ValidationError` |
+| `top_k` outside 1–8, or not an integer | `RetrievalError` |
+| More than 50,000 passages | `RetrievalLimitError` |
+
+### Untrusted text
+
+Document text is only tokenised and counted. It is never interpreted, followed, fetched or
+executed, and retrieval opens no files or network connections. Tests block `open` and sockets
+to prove this. Passage ids and scores are computed from offsets and counts, so text that
+imitates them, such as `"passage_id": "psg_fake"`, has no effect.
+
+An injected instruction is still returned **verbatim** when it is lexically relevant to a claim,
+because evidence is never edited. The defences against such text reaching the model are in later
+phases: the verifier prompt marks passages as untrusted data (Phase 5), and citations are checked
+deterministically against the source (Phases 1 and 5).
+
+### Known limitations
+
+- **Lexical only.** BM25 misses paraphrases and synonyms ("dishwasher safe" vs. "machine
+  washable"), and there's no stemming ("hour" doesn't match "hours"). Retrieval recall@k will be
+  measured in Phase 8. A dense or hybrid retriever would be a scope change.
+- **English-only stopwords.** Other languages still tokenise, but common words in them are not
+  removed.
+- **Keyword stuffing.** A passage that repeats a claim's words ranks high. BM25's term-frequency
+  saturation limits this but doesn't stop it, so the verifier must still judge the content.
+- **Ranking favours shared names.** For "The Lumen Bottle is made from 90% recycled steel", a
+  header sentence that only names the product can outrank the sentence about the steel. The
+  defaults return both (`top_k` = 5), but with a small `top_k` the evidence can be pushed out.
+- **Overlap suppression is off by default.** With overlapping windows it dropped the
+  evidence-bearing window in testing, so overlapping passages are returned and use up `top_k`
+  slots.
+- **Rule-based sentence splitting.** It can split after unlisted abbreviations, and it does not
+  split sentences that have no whitespace after the full stop.
+- **Code-point offsets.** These need conversion in a JavaScript UI (integration question 1).
+- **One index per corpus.** The index is built in memory for each retriever; nothing is
+  persisted or shared between requests. Scoring is a Python loop over all passages per query
+  term, so very large corpora with many claims will be slow. This has not been benchmarked yet.
 
 ## Sample payloads
 
