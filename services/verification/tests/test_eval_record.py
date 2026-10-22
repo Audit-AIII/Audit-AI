@@ -54,3 +54,39 @@ def test_gold_evidence_must_fit_the_document(records):
 def test_duplicate_references_rejected(records):
     records[0]["references"].append(records[0]["references"][0])
     check(records[0], "duplicate reference doc_id")
+
+
+def test_gold_quote_must_be_the_text_at_its_span(records):
+    records[0]["gold_evidence"][0]["quote"] = "75% recycled content"
+    check(records[0], "quote is not the text at its span")
+
+
+def test_gold_quote_is_required(records):
+    del records[0]["gold_evidence"][0]["quote"]
+    check(records[0], "quote")
+
+
+def test_label_rationale_is_required(records):
+    del records[0]["label_rationale"]
+    check(records[0], "label_rationale")
+    records[1]["label_rationale"] = "   "
+    check(records[1], "label_rationale")
+
+
+def test_categories_must_be_known_and_unique(records):
+    records[0]["categories"] = ["numeric", "spicy"]
+    check(records[0], "categories")
+    records[1]["categories"] = ["date", "date"]
+    check(records[1], "duplicate category")
+
+
+def test_split_defaults_to_dev_and_must_be_known(records):
+    assert EvalRecord.model_validate(records[0]).split.value == "dev"
+    records[0]["split"] = "test"
+    check(records[0], "split")
+
+
+def test_reviewed_by_is_optional(records):
+    assert EvalRecord.model_validate(records[0]).reviewed_by is None
+    records[0]["reviewed_by"] = "brand-team-lead"
+    assert EvalRecord.model_validate(records[0]).reviewed_by == "brand-team-lead"

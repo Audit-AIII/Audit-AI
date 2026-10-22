@@ -541,22 +541,54 @@ class GoldEvidence(_Contract):
     """Where in a reference document the evidence for a labelled claim lies.
 
     Gold evidence is located by document offsets, not passage ids, so the labels survive
-    changes to how documents are split into passages.
+    changes to how documents are split into passages. ``quote`` repeats the text at ``span`` so
+    a reviewer can check the label without counting characters; it must match exactly.
     """
 
     doc_id: DocumentId
     span: SourceSpan
+    quote: PassageText
+
+
+class EvalSplit(str, Enum):
+    DEV = "dev"  # used while building and tuning the engine
+    HELDOUT = "heldout"  # reported separately; not used for tuning prompts or thresholds
+
+
+class EvalCategory(str, Enum):
+    """What makes an example hard. Independent of the expected verdict."""
+
+    NUMERIC = "numeric"
+    DATE = "date"
+    NAMED_ENTITY = "named_entity"
+    COMPOUND = "compound"  # more than one checkable part
+    AMBIGUOUS = "ambiguous"  # vague or open to more than one reading
+    NEGATION = "negation"
+    PARAPHRASE = "paraphrase"  # same fact, different wording from the source
+    DISTRACTOR = "distractor"  # references contain similar but non-matching facts
+    MULTI_DOCUMENT = "multi_document"  # evidence is spread across documents
+    ABSENT_FACT = "absent_fact"  # references cover the topic but not the fact
+    IRRELEVANT_REFERENCES = "irrelevant_references"  # references do not cover the topic at all
+    PROMPT_INJECTION = "prompt_injection"  # a reference contains instructions aimed at the model
 
 
 class EvalRecord(_Contract):
-    """One labelled example for the claim-verification evaluation set (one JSONL line)."""
+    """One labelled example for the claim-verification evaluation set (one JSONL line).
+
+    Labels only: an EvalRecord never carries a prediction, and a prediction never carries a label.
+    """
 
     record_id: RecordId
+    split: EvalSplit = EvalSplit.DEV
     claim_text: ClaimText
     references: Annotated[list[ReferenceDocument], Field(min_length=1, max_length=MAX_REFERENCE_DOCS)]
     expected_verdict: Verdict
     gold_evidence: list[GoldEvidence] = []
+    label_rationale: ClaimText
+    categories: list[EvalCategory] = []
     tags: list[Label] = []
+    # Who checked this label by hand. None means not yet reviewed by a person.
+    reviewed_by: Label | None = None
 
     @model_validator(mode="after")
     def _check(self) -> EvalRecord:
@@ -567,6 +599,8 @@ class EvalRecord(_Contract):
             raise ValueError(f"{self.expected_verdict.value} label requires gold_evidence")
         if not needs_evidence and self.gold_evidence:
             raise ValueError("NOT_ENOUGH_EVIDENCE label must not have gold_evidence")
+        if len(set(self.categories)) != len(self.categories):
+            raise ValueError("duplicate category")
         documents = {d.doc_id: d for d in self.references}
         if len(documents) != len(self.references):
             raise ValueError("duplicate reference doc_id")
@@ -576,4 +610,6 @@ class EvalRecord(_Contract):
                 raise ValueError(f"gold_evidence names unknown doc_id {gold.doc_id}")
             if not gold.span.fits(len(document.text)):
                 raise ValueError(f"gold_evidence span exceeds document {gold.doc_id}")
+            if gold.span.slice(document.text) != gold.quote:
+                raise ValueError(f"gold_evidence quote is not the text at its span in {gold.doc_id}")
         return self

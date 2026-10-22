@@ -145,6 +145,14 @@ Stages: `request`, `extraction`, `retrieval`, `verification`, `citation_validati
 - `ERROR` is never a valid label.
 - A `SUPPORTED` or `CONTRADICTED` label requires gold evidence. A `NOT_ENOUGH_EVIDENCE` label must not have any.
 - Gold evidence must name a reference document in the record, and its span must fit inside that document.
+- Each gold evidence `quote` must be exactly the document text at its span.
+- `label_rationale` is required. `categories` must use known `EvalCategory` values, with no
+  duplicates. `split` is `dev` (the default) or `heldout`. `reviewed_by` stays empty until a
+  person has checked the label.
+
+These evaluation fields were added in Phase 3. They are used only by the evaluation harness and
+don't change any request or report that other members exchange with the engine. See
+[EVAL.md](EVAL.md).
 
 ## Limits (provisional)
 

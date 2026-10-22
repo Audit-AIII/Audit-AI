@@ -1,12 +1,45 @@
 {
   "$defs": {
+    "EvalCategory": {
+      "description": "What makes an example hard. Independent of the expected verdict.",
+      "enum": [
+        "numeric",
+        "date",
+        "named_entity",
+        "compound",
+        "ambiguous",
+        "negation",
+        "paraphrase",
+        "distractor",
+        "multi_document",
+        "absent_fact",
+        "irrelevant_references",
+        "prompt_injection"
+      ],
+      "title": "EvalCategory",
+      "type": "string"
+    },
+    "EvalSplit": {
+      "enum": [
+        "dev",
+        "heldout"
+      ],
+      "title": "EvalSplit",
+      "type": "string"
+    },
     "GoldEvidence": {
       "additionalProperties": false,
-      "description": "Where in a reference document the evidence for a labelled claim lies.\n\nGold evidence is located by document offsets, not passage ids, so the labels survive\nchanges to how documents are split into passages.",
+      "description": "Where in a reference document the evidence for a labelled claim lies.\n\nGold evidence is located by document offsets, not passage ids, so the labels survive\nchanges to how documents are split into passages. ``quote`` repeats the text at ``span`` so\na reviewer can check the label without counting characters; it must match exactly.",
       "properties": {
         "doc_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
           "title": "Doc Id",
+          "type": "string"
+        },
+        "quote": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Quote",
           "type": "string"
         },
         "span": {
@@ -15,7 +48,8 @@
       },
       "required": [
         "doc_id",
-        "span"
+        "span",
+        "quote"
       ],
       "title": "GoldEvidence",
       "type": "object"
@@ -109,8 +143,16 @@
     }
   },
   "additionalProperties": false,
-  "description": "One labelled example for the claim-verification evaluation set (one JSONL line).",
+  "description": "One labelled example for the claim-verification evaluation set (one JSONL line).\n\nLabels only: an EvalRecord never carries a prediction, and a prediction never carries a label.",
   "properties": {
+    "categories": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvalCategory"
+      },
+      "title": "Categories",
+      "type": "array"
+    },
     "claim_text": {
       "maxLength": 1000,
       "minLength": 1,
@@ -128,6 +170,12 @@
       "title": "Gold Evidence",
       "type": "array"
     },
+    "label_rationale": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Label Rationale",
+      "type": "string"
+    },
     "record_id": {
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
       "title": "Record Id",
@@ -141,6 +189,24 @@
       "minItems": 1,
       "title": "References",
       "type": "array"
+    },
+    "reviewed_by": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reviewed By"
+    },
+    "split": {
+      "$ref": "#/$defs/EvalSplit",
+      "default": "dev"
     },
     "tags": {
       "default": [],
@@ -157,7 +223,8 @@
     "record_id",
     "claim_text",
     "references",
-    "expected_verdict"
+    "expected_verdict",
+    "label_rationale"
   ],
   "title": "EvalRecord",
   "type": "object"
