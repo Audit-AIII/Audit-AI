@@ -22,7 +22,7 @@ export function Contact() {
         <div className="contact__body">
           <div className="contact__cta" data-r="up">
             <p className="t-lead">
-              Sign in to upload a draft, run the six checks and see every finding with its source.
+              Sign in to upload a draft, run the six checks and see every problem with the reason behind it.
             </p>
             <div className="hero__actions">
               <Button href="/login">Start a review</Button>
@@ -36,7 +36,7 @@ export function Contact() {
             <div>
               <dt className="t-caption">Sample</dt>
               <dd>
-                <TextLink href="#findings">See a sample finding</TextLink>
+                <TextLink href="#findings">See an example</TextLink>
               </dd>
             </div>
             <div>

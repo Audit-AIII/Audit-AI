@@ -9,12 +9,12 @@ import { Swatch, type CheckKind } from "@/components/primitives/Swatch";
 gsap.registerPlugin(ScrollTrigger);
 
 const CHECKS: { kind: CheckKind; title: string; line: string }[] = [
-  { kind: "tone", title: "Tone", line: "Does it sound like you?" },
-  { kind: "terminology", title: "Terminology", line: "Your words, spelled your way." },
-  { kind: "facts", title: "Facts", line: "Numbers match the approved sheet." },
-  { kind: "claims", title: "Claims", line: "Big promises need evidence." },
-  { kind: "visual", title: "Visuals", line: "Colours and logos stay on palette." },
-  { kind: "accessibility", title: "Accessibility", line: "Readable by everyone, first time." },
+  { kind: "tone", title: "Tone", line: "Does it sound like your brand?" },
+  { kind: "terminology", title: "Wording", line: "Product names and terms, spelled your way." },
+  { kind: "facts", title: "Facts", line: "Numbers and dates match what you approved." },
+  { kind: "claims", title: "Claims", line: "Big promises need proof." },
+  { kind: "visual", title: "Visuals", line: "Colours and logos match your brand." },
+  { kind: "accessibility", title: "Easy to read", line: "Clear for everyone, first time." },
 ];
 
 // Resting tilt of each card while stacked (deg), so the pile looks hand-dealt.
@@ -55,7 +55,7 @@ export function Checks() {
             Six checks before anything ships
           </Heading>
           <p className="t-lead checks__intro" data-r="up">
-            Every draft passes six checks. Each finding names the rule or source behind it.
+            Every draft goes through six checks. Each problem we flag tells you which rule or document it came from.
           </p>
         </div>
         <ul ref={grid} className="checks__grid">

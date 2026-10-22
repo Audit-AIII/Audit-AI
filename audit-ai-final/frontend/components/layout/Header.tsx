@@ -7,8 +7,8 @@ import { Button } from "@/components/primitives/Button";
 export const NAV_LINKS = [
   { href: "/#checks", label: "Checks" },
   { href: "/#process", label: "Process" },
-  { href: "/#findings", label: "Findings" },
-  { href: "/#sources", label: "Sources" },
+  { href: "/#findings", label: "Examples" },
+  { href: "/#sources", label: "What we check" },
   { href: "/#faq", label: "FAQ" },
 ] as const;
 

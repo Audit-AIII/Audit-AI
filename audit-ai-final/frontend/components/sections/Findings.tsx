@@ -5,10 +5,10 @@ import { SpecTable } from "@/components/primitives/SpecTable";
 type Status = "contradicted" | "unverified" | "supported" | "withdrawn";
 
 const STATUS: Record<Status, { glyph: string; label: string }> = {
-  supported: { glyph: "✓", label: "Supported" },
-  unverified: { glyph: "?", label: "Unverified" },
-  contradicted: { glyph: "≠", label: "Contradicted" },
-  withdrawn: { glyph: "↻", label: "Source withdrawn" },
+  supported: { glyph: "✓", label: "Matches" },
+  unverified: { glyph: "?", label: "Not proven yet" },
+  contradicted: { glyph: "≠", label: "Doesn’t match" },
+  withdrawn: { glyph: "↻", label: "Rule changed" },
 };
 
 function Chip({ status, children }: { status: Status; children?: ReactNode }) {
@@ -36,11 +36,11 @@ const FINDINGS: Finding[] = [
   {
     label: "Facts",
     window: "rect",
-    source: "Fact sheet v3",
+    source: "Approved facts, v3",
     excerpt: "Battery life: 12 hours",
     title: "“Lasts 24 hours”",
-    copy: "A product page promised a full day. The approved fact sheet says twelve hours, so the finding shows both values side by side.",
-    spec: { check: "Facts", source: "Fact sheet v3", result: "Contradicted (approved: 12 hours)" },
+    copy: "A product page promised a full day. Your approved facts say 12 hours, so Audit AI shows both numbers side by side.",
+    spec: { check: "Facts", source: "Approved facts, v3", result: "Doesn’t match (approved: 12 hours)" },
     snippet: {
       channel: "Product page",
       body: (
@@ -55,11 +55,11 @@ const FINDINGS: Finding[] = [
   {
     label: "Claims",
     window: "circle",
-    source: "Green-claims pack",
-    excerpt: "Superlatives need dated, independent proof.",
+    source: "Eco-claim rules",
+    excerpt: "“Best” or “number one” needs recent, independent proof.",
     title: "“India’s number-one eco-friendly solution”",
-    copy: "No approved evidence backs the superlative. Audit AI suggests a qualified version and leaves the choice to the reviewer.",
-    spec: { check: "Claims", source: "Green-claims pack", result: "Unsupported — qualifier needed" },
+    copy: "Nothing you have approved backs up “number one”. Audit AI suggests softer wording, and a reviewer decides.",
+    spec: { check: "Claims", source: "Eco-claim rules", result: "Not proven yet: needs softer wording" },
     snippet: {
       channel: "Social post",
       body: (
@@ -68,17 +68,17 @@ const FINDINGS: Finding[] = [
           everyday cleaning.
         </>
       ),
-      chips: <Chip status="unverified">Unsupported</Chip>,
+      chips: <Chip status="unverified" />,
     },
   },
   {
     label: "Tone",
     window: "rect",
-    source: "Accessibility + tone rules",
-    excerpt: "Sentence case for calls to action. One exclamation mark at most.",
+    source: "Readability and tone rules",
+    excerpt: "Write buttons in normal case. One exclamation mark at most.",
     title: "“BUY NOW!!!”",
-    copy: "One line, two findings: all caps is harder to read for many people, and the shouting breaks the brand’s tone rules.",
-    spec: { check: "Accessibility, tone", source: "Accessibility + tone rules", result: "Two findings" },
+    copy: "One line, two problems: all capitals are harder to read for many people, and shouting does not fit the brand’s voice.",
+    spec: { check: "Easy to read, tone", source: "Readability and tone rules", result: "Two problems" },
     snippet: {
       channel: "Email",
       body: (
@@ -88,8 +88,8 @@ const FINDINGS: Finding[] = [
       ),
       chips: (
         <>
-          <Chip status="contradicted">Accessibility</Chip>
-          <Chip status="contradicted">Tone</Chip>
+          <Chip status="contradicted">Hard to read</Chip>
+          <Chip status="contradicted">Off-brand tone</Chip>
         </>
       ),
     },
@@ -98,10 +98,10 @@ const FINDINGS: Finding[] = [
     label: "Source Watch",
     window: "circle",
     source: "Brand Guide v4",
-    excerpt: "v3 → v4 · 3 approved items re-flagged",
-    title: "Brand Guide v4 uploaded",
-    copy: "When the brand guide changed, three pieces that were already approved went back to review instead of staying live on old rules.",
-    spec: { check: "Source Watch", source: "Brand Guide v4", result: "3 approved items re-flagged" },
+    excerpt: "Guide changed · 3 pieces sent back",
+    title: "Brand guide updated",
+    copy: "When the brand guide changed, Source Watch sent three already-approved pieces back for review, so nothing stays live on old rules.",
+    spec: { check: "Source Watch", source: "Brand guide, v4", result: "3 approved pieces sent back for review" },
     snippet: {
       channel: "Source Watch",
       body: (
@@ -138,7 +138,7 @@ function Snippet({ f }: { f: Finding }) {
       <p className="snip__body">{f.snippet.body}</p>
       <div className="snip__chips">{f.snippet.chips}</div>
       <div className="snip__evidence">
-        <span className="t-caption">Evidence</span>
+        <span className="t-caption">Based on</span>
         <span>{f.source}</span>
       </div>
     </figure>
@@ -152,12 +152,12 @@ export function Findings() {
       <div className="container">
         <div className="head-grid findings__head">
           <Heading id="findings-title" className="findings__title" data-r="up">
-            Findings we have caught
+            Problems we have caught
           </Heading>
           <p className="t-lead findings__intro" data-r="up">
             <span className="findings__badge t-caption">Sample data</span>
-            Four examples, made up to show how a finding reads: what was flagged, which source decided it, and the
-            result.
+            Four made-up examples that show what Audit AI flags, which document it checked against, and what
+            happened next.
           </p>
         </div>
         <ol className="findings__list">
@@ -171,8 +171,8 @@ export function Findings() {
                 <SpecTable
                   rows={[
                     { label: "Check", value: f.spec.check },
-                    { label: "Source", value: f.spec.source },
-                    { label: "Result", value: f.spec.result },
+                    { label: "Based on", value: f.spec.source },
+                    { label: "Outcome", value: f.spec.result },
                   ]}
                 />
               </div>

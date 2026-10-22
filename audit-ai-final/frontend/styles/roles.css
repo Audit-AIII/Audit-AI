@@ -29,7 +29,13 @@
   background-image: var(--grain);
   box-shadow: var(--shadow-raised);
 }
-.roles__step--end .roles__dot { box-shadow: var(--shadow-well); }
+.roles__dot { display: grid; place-items: center; }
+/* Approved: raised with a tick. While the seal is travelling it waits as an empty pressed socket. */
+.roles__step--end .roles__dot { transition: box-shadow var(--dur-mid) var(--ease-ui), background-color var(--dur-mid); background-color: var(--ok-tint); }
+.roles__tick { color: var(--ok); font: 700 20px / 1 var(--font-body); transition: opacity var(--dur-base) var(--ease-ui), scale var(--dur-mid) var(--ease-ui); }
+[data-seal-anim] .roles__step--end:not(.is-sealed) .roles__dot { background-color: transparent; box-shadow: var(--shadow-well); }
+[data-seal-anim] .roles__step--end:not(.is-sealed) .roles__tick { opacity: 0; scale: .6; }
+@media (prefers-reduced-motion: reduce) { .roles__step--end .roles__dot, .roles__tick { transition: none; } }
 .roles__fork { margin: 0; color: var(--ink-2); line-height: 1.7; }
 
 .roles__sheet { padding: 56px 40px 40px; }

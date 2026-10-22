@@ -3,8 +3,8 @@ import { TextLink } from "@/components/primitives/TextLink";
 const PRODUCT = [
   { href: "/#checks", label: "Checks" },
   { href: "/#process", label: "Process" },
-  { href: "/#findings", label: "Findings" },
-  { href: "/#sources", label: "Sources" },
+  { href: "/#findings", label: "Examples" },
+  { href: "/#sources", label: "What we check" },
 ];
 const TRUST = [
   { href: "#faq-data", label: "Data Passport" },
@@ -24,7 +24,7 @@ export function Footer() {
         <div className="footer__cols">
           <div className="footer__col">
             <h2 className="t-caption">Audit AI</h2>
-            <p className="t-body">Brand governance that checks content before it is published.</p>
+            <p className="t-body">Checks your content against your brand before it goes live.</p>
           </div>
           <nav className="footer__col" aria-label="Product">
             <h2 className="t-caption">Product</h2>
@@ -57,7 +57,7 @@ export function Footer() {
             AI &amp; services
           </h2>
           <p className="t-body">
-            Audit AI uses AI models to propose findings and suggestions, and people make every decision. Each
+            Audit AI uses AI to spot problems and suggest fixes, and people make every decision. Each
             review&rsquo;s Data Passport lists the models and services involved. This site&rsquo;s frontend code was
             generated with Claude Code and reviewed by the team. Its visual system is modelled on the public style of
             relevovinco.com, re-implemented from scratch, with no code, copy or images copied.

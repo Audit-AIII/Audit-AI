@@ -1,42 +1,75 @@
 import { Heading } from "@/components/primitives/Heading";
 
-type Glyph = "liner" | "stack" | "fine" | "deep" | "comb";
+type Kind = "guide" | "facts" | "claims" | "rules" | "logos";
 
-const SOURCES: { name: string; usedFor: string; reads: string; glyph: Glyph }[] = [
-  { name: "Brand guidelines", usedFor: "Tone, terms", reads: "PDF, DOCX", glyph: "liner" },
-  { name: "Fact sheet", usedFor: "Numbers, dates", reads: "CSV", glyph: "stack" },
-  { name: "Approved claims", usedFor: "Safe wording, expiry", reads: "Library", glyph: "fine" },
-  { name: "Regulation packs", usedFor: "Claims law", reads: "India green claims first", glyph: "deep" },
-  { name: "Approved assets", usedFor: "Palette, logos", reads: "PNG, SVG", glyph: "comb" },
+const SOURCES: { kind: Kind; name: string; checks: string; add: string }[] = [
+  { kind: "guide", name: "Brand guide", checks: "Your voice and the words you use", add: "PDF or Word file" },
+  { kind: "facts", name: "Key facts", checks: "Prices, numbers and dates", add: "Spreadsheet (CSV)" },
+  { kind: "claims", name: "Approved claims", checks: "Promises you are allowed to make, and until when", add: "Added inside Audit AI" },
+  { kind: "rules", name: "Advertising rules", checks: "What the law lets you claim", add: "Built in, starting with India’s eco-claim rules" },
+  { kind: "logos", name: "Logos and colours", checks: "Brand colours and how the logo is used", add: "PNG or SVG images" },
 ];
 
-/** Cross-section glyph: raised liner bars around a flute (wave) or honeycomb core, after DESIGN.md §6.13. */
-function Section({ glyph }: { glyph: Glyph }) {
-  return (
-    <div className={`xsec xsec--${glyph}`} aria-hidden="true">
-      <span className="xsec__bar" />
-      {glyph === "stack" && <span className="xsec__bar" />}
-      {(glyph === "fine" || glyph === "deep") && (
-        <svg className="xsec__flute" viewBox="0 0 320 28" preserveAspectRatio="none">
-          <path
-            d={
-              glyph === "fine"
-                ? "M0 14 " + Array.from({ length: 16 }, (_, i) => `q 10 ${i % 2 ? 12 : -12} 20 0`).join(" ")
-                : "M0 14 " + Array.from({ length: 9 }, (_, i) => `q 18 ${i % 2 ? 18 : -18} 36 0`).join(" ")
-            }
-          />
-        </svg>
-      )}
-      {glyph === "comb" && (
-        <span className="xsec__comb">
-          {Array.from({ length: 14 }, (_, i) => (
-            <i key={i} />
-          ))}
-        </span>
-      )}
-      <span className="xsec__bar" />
-    </div>
-  );
+/** A small paper drawing of each source, so the row shows what it is. */
+function SourceVisual({ kind }: { kind: Kind }) {
+  switch (kind) {
+    case "guide":
+      return (
+        <div className="src src--guide">
+          <span className="src-page">
+            <b>Aa</b>
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className="src-page src-page--back" />
+        </div>
+      );
+    case "facts":
+      return (
+        <div className="src src--facts">
+          <span className="src-table">
+            <span>Battery</span>
+            <b>12 h</b>
+            <span>Price</span>
+            <b>₹2,499</b>
+            <span>Launch</span>
+            <b>1 Mar</b>
+          </span>
+        </div>
+      );
+    case "claims":
+      return (
+        <div className="src src--claims">
+          <span className="src-claim">
+            <span className="src-claim__tick">✓</span>
+            <span>“Made with 30% recycled plastic”</span>
+          </span>
+          <span className="src-expiry">Valid until Dec 2026</span>
+        </div>
+      );
+    case "rules":
+      return (
+        <div className="src src--rules">
+          <span className="src-book">
+            <b>§</b>
+          </span>
+          <span className="src-book src-book--2" />
+          <span className="src-book src-book--3" />
+        </div>
+      );
+    case "logos":
+      return (
+        <div className="src src--logos">
+          <span className="src-logo">A.</span>
+          <span className="src-swatches">
+            <i style={{ background: "var(--canvas)" }} />
+            <i style={{ background: "var(--ink-2)" }} />
+            <i style={{ background: "var(--surface)" }} />
+          </span>
+        </div>
+      );
+  }
 }
 
 export function Sources() {
@@ -45,29 +78,29 @@ export function Sources() {
       <div className="container">
         <div className="sources__head">
           <Heading id="sources-title" className="sources__title" data-r="up">
-            Five sources we read
+            Five things we check against
           </Heading>
-          {/* TODO: replace with a warm-graded photo of real source documents (webp, lazy, alt text). */}
-          <div className="sources__photo placeholder" role="img" aria-label="Placeholder for a photo of source documents" data-r="scale">
-            <span className="t-caption">Photo — TODO</span>
-          </div>
+          <p className="t-lead sources__intro" data-r="up">
+            You add these once. Every draft is then checked against them, and each flag tells you which one it came
+            from.
+          </p>
         </div>
 
         <ul className="sources__list">
           {SOURCES.map((s) => (
-            <li key={s.name} className="sources__row" data-r="up">
-              <Section glyph={s.glyph} />
-              <div className="sources__name">
-                <h3 className="t-title">{s.name}</h3>
+            <li key={s.kind} className="sources__row" data-r="up">
+              <div aria-hidden="true">
+                <SourceVisual kind={s.kind} />
               </div>
+              <h3 className="t-title sources__name">{s.name}</h3>
               <dl className="sources__meta">
                 <div>
-                  <dt className="t-caption">Used for</dt>
-                  <dd>{s.usedFor}</dd>
+                  <dt className="t-caption">Checks</dt>
+                  <dd>{s.checks}</dd>
                 </div>
                 <div>
-                  <dt className="t-caption">Reads</dt>
-                  <dd>{s.reads}</dd>
+                  <dt className="t-caption">You add</dt>
+                  <dd>{s.add}</dd>
                 </div>
               </dl>
             </li>
@@ -76,11 +109,13 @@ export function Sources() {
 
         <div className="sources__punch">
           <div className="sources__punch-text" data-r="up">
-            <h3 className="t-title">Confidential stays local.</h3>
-            <p className="t-body">Sources marked confidential never go to an external model.</p>
+            <h3 className="t-title">Private stays private.</h3>
+            <p className="t-body">
+              Documents you mark as private are only read on your own server. They are never sent to an outside AI.
+            </p>
           </div>
           <div className="disc" data-r="scale" aria-hidden="true">
-            <span className="disc__hole" />
+            <span className="disc__hole" data-seal-source />
           </div>
         </div>
       </div>

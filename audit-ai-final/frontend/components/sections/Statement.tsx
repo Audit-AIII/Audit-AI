@@ -80,8 +80,8 @@ export function Statement() {
           </h2>
           {/* COPY TO REVIEW: §15 gives no text for this note. */}
           <div className="statement__note">
-            <p className="t-lead">Every finding points to the approved source behind it.</p>
-            <p className="t-body">When no source exists, the line stays unverified until a person decides.</p>
+            <p className="t-lead">Every flag points to the document behind it.</p>
+            <p className="t-body">If nothing proves a line, it is marked “not proven yet”, never “wrong”, until a person decides.</p>
           </div>
         </div>
       </div>

@@ -6,27 +6,27 @@ const FAQ = [
   {
     id: "faq-rewrite",
     q: "Does Audit AI rewrite my content?",
-    a: "No. It suggests edits and keeps the parts you lock, such as prices, dates and product names. Nothing changes until a person accepts it.",
+    a: "No. It suggests changes and never touches the parts you lock, such as prices, dates and product names. Nothing changes until a person accepts it.",
   },
   {
     id: "faq-data",
     q: "Where does my data go?",
-    a: "Drafts and sources stay in your workspace. Each review has a Data Passport that lists every model or service that read the text, and whether it was redacted first.",
+    a: "Your drafts and documents stay in your workspace. Each review comes with a Data Passport: a simple list of every AI service that read your text, and whether personal details were hidden first.",
   },
   {
     id: "faq-evidence",
-    q: "What if there is no evidence?",
-    a: "The line is marked unverified, never false. A reviewer decides whether to add a source, soften the claim or remove it.",
+    q: "What if there is no proof?",
+    a: "The line is marked “not proven yet”, never “wrong”. A reviewer decides whether to add proof, soften the wording or remove it.",
   },
   {
     id: "faq-confidential",
-    q: "How are confidential files handled?",
-    a: "Sources marked confidential are read by a local model only. They are never sent to an external service.",
+    q: "How are private files handled?",
+    a: "Files you mark as private are only read on your own server. They are never sent to an outside AI service.",
   },
   {
     id: "faq-legal",
     q: "Is this legal advice?",
-    a: "No. Regulation packs are guidance that helps reviewers spot risk. Your legal or compliance team makes the final call.",
+    a: "No. The built-in advertising rules help reviewers spot risks. Your legal team still makes the final call.",
   },
 ];
 

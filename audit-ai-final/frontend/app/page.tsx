@@ -1,3 +1,4 @@
+import { ApprovalSeal } from "@/components/layout/ApprovalSeal";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { Reveal } from "@/components/layout/Reveal";
@@ -32,6 +33,7 @@ export default function Home() {
           <Roles />
           <Faq />
           <Contact />
+          <ApprovalSeal />
         </div>
       </main>
       <div className="board">

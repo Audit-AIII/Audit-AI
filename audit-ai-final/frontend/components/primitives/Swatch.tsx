@@ -18,7 +18,7 @@ function Visual({ kind }: { kind: CheckKind }) {
             <span className="sv-tone__range" />
             <span className="sv-tone__knob" />
           </div>
-          <span className="sv-tag sv-tag--bad">Off-voice</span>
+          <span className="sv-tag sv-tag--bad">Not your voice</span>
         </div>
       );
     case "terminology":
@@ -38,7 +38,7 @@ function Visual({ kind }: { kind: CheckKind }) {
       return (
         <div className="sv sv--facts">
           <div className="sv-window">
-            <span className="sv-window__label">Fact sheet v3</span>
+            <span className="sv-window__label">Your approved facts</span>
             <span className="sv-window__row">
               <span>Approved</span>
               <b>12 h</b>
@@ -55,7 +55,7 @@ function Visual({ kind }: { kind: CheckKind }) {
       return (
         <div className="sv sv--claims">
           <span className="sv-claim">“No. 1 eco-friendly”</span>
-          <span className="sv-slot">? Evidence</span>
+          <span className="sv-slot">? No proof yet</span>
         </div>
       );
     case "visual":
@@ -74,9 +74,9 @@ function Visual({ kind }: { kind: CheckKind }) {
         <div className="sv sv--a11y">
           <span className="sv-ring">
             <b>Aa</b>
-            <span>4.8 : 1</span>
+            <span>Strong contrast</span>
           </span>
-          <span className="sv-tag">AA pass</span>
+          <span className="sv-tag">Easy to read</span>
         </div>
       );
   }

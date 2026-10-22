@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = { title: "Workspace — Audit AI" };
 
 // Placeholder until the review workspace is built (prompts/02-app-later.md, DESIGN.md §17).
-const NEXT = ["New submission", "Review with evidence", "Decide and record", "Library", "Source Watch", "Trust Scorecard"];
+const NEXT = ["Send a draft", "See what needs fixing", "Approve and keep a record", "Your approved documents", "Source Watch", "Trust Scorecard"];
 
 export default function AppPage() {
   return (

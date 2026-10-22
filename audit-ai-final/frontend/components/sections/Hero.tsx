@@ -114,13 +114,13 @@ export function Hero() {
           </h1>
           <div className="hero__aside">
             <p className="t-lead">
-              Audit AI reviews every draft against your approved guidelines, facts and assets before it goes live.
-              Each finding shows its source, and a person makes the final call.
+              Audit AI checks every draft against your brand rules, approved facts and logos before it goes live. It
+              shows why each problem was flagged, and a person always makes the final call.
             </p>
             <div className="hero__actions">
               <Button href="/login">Start a review</Button>
               <TextLink href="#findings" arrow>
-                See a sample finding
+                See an example
               </TextLink>
             </div>
           </div>

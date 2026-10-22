@@ -10,14 +10,14 @@ gsap.registerPlugin(ScrollTrigger);
 
 // COPY TO REVIEW: step descriptions expand the §15 parentheticals into sentences.
 const STEPS = [
-  { title: "Import what's approved", copy: "Bring in your guidelines, fact sheet, approved claims and assets.", visual: "import" },
-  { title: "Submit the draft", copy: "Paste text or upload a document or an image.", visual: "submit" },
+  { title: "Add what's approved", copy: "Upload your brand guide, key facts, approved claims and logos. You only do this once.", visual: "import" },
+  { title: "Send in your draft", copy: "Paste the text, or upload a document or an image.", visual: "submit" },
   {
-    title: "Review with evidence",
-    copy: "Each finding explains itself, suggests a fix and re-checks it.",
+    title: "See what needs fixing",
+    copy: "Each problem comes with the reason, the document it is based on and a suggested fix.",
     visual: "review",
   },
-  { title: "Approve and record", copy: "The right role signs off, and every decision lands in the audit trail.", visual: "approve" },
+  { title: "Approve and keep a record", copy: "The right person signs it off, and every decision is saved so you can show it later.", visual: "approve" },
 ] as const;
 
 function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {
@@ -25,7 +25,7 @@ function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {
     case "import":
       return (
         <div className="pv pv--import">
-          {["Guidelines", "Fact sheet", "Claims", "Assets"].map((t) => (
+          {["Brand guide", "Key facts", "Claims", "Logos"].map((t) => (
             <span key={t} className="pv__tag">
               {t}
             </span>
@@ -84,7 +84,8 @@ export function Process() {
       // that step in with a short eased tween, so exactly one step is ever shown at rest.
       const distance = () => Math.max(0, tr.scrollWidth - ch.clientWidth);
       const n = STEPS.length;
-      const setDistance = () => el.style.setProperty("--process-distance", `${distance()}px`);
+      // About 40% of a screen of scrolling per step.
+      const setDistance = () => el.style.setProperty("--process-scroll", `${(n - 1) * 40}vh`);
       setDistance();
       let current = -1;
       const show = (i: number, instant = false) => {
@@ -115,7 +116,7 @@ export function Process() {
         trigger.kill();
         gsap.set(tr, { clearProps: "transform" });
         el.removeAttribute("data-track");
-        el.style.removeProperty("--process-distance");
+        el.style.removeProperty("--process-scroll");
       };
     });
     mm.add("(max-width: 767px), (prefers-reduced-motion: reduce)", () => {
@@ -131,7 +132,7 @@ export function Process() {
       <div className="process__stage">
         <div className="container process__head">
           <Heading id="process-title" className="process__title" data-r="up">
-            Draft to approved in four moves
+            Draft to approved in four steps
           </Heading>
         </div>
         <div className="container process__frame">

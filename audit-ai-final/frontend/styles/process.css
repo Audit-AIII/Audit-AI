@@ -56,7 +56,7 @@
 .process__dots li.is-on { background-color: var(--canvas); box-shadow: var(--shadow-raised); }
 
 /* Desktop: section pins, scrolling moves one step per screen */
-.process[data-track] { height: calc(100svh + var(--process-distance, 300vh)); padding: 0; }
+.process[data-track] { height: calc(100svh + var(--process-scroll, 120vh)); padding: 0; }
 .process[data-track] .process__stage {
   position: sticky;
   top: 0;
