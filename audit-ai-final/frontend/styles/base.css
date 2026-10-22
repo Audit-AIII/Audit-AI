@@ -1,0 +1,154 @@
+/* ==========================================================================
+   Base: document, fallbacks, focus, layout primitives, type roles, reveals.
+   Every value comes from design/tokens.css.
+   ========================================================================== */
+
+/* Metric-matched fallbacks so the swap to the web fonts causes no layout shift.
+   size-adjust values measured with qa/font-metrics.mjs (Arial vs. the variable fonts). */
+@font-face {
+  font-family: "Gabarito Fallback";
+  src: local("Arial");
+  size-adjust: 91.2%;
+  ascent-override: 98%;
+  descent-override: 26%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Instrument Sans Fallback";
+  src: local("Arial");
+  size-adjust: 99.5%;
+  ascent-override: 98%;
+  descent-override: 25%;
+  line-gap-override: 0%;
+}
+
+html {
+  background-color: var(--surface);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+  background-color: var(--canvas);
+  background-image: var(--grain);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--surface); color: var(--canvas); }
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.relief-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.relief-defs__shade { flood-color: var(--deep); flood-opacity: .62; }
+
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: calc(var(--z-header) + 1);
+  padding: 14px 20px;
+  border-radius: var(--r-ui);
+  background-color: var(--canvas);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-raised);
+  font-weight: 600;
+  transform: translateY(-160%);
+  transition: transform var(--dur-base) var(--ease-ui);
+}
+.skip-link:focus-visible { transform: none; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---- Surfaces ---- */
+.board { background-color: var(--canvas); background-image: var(--grain); color: var(--ink); }
+.ply {
+  background-color: var(--surface);
+  background-image: var(--grain);
+  color: var(--canvas);
+  border-radius: var(--r-ui);
+  box-shadow: var(--shadow-window);
+}
+
+/* ---- Layout primitives ---- */
+.container { width: min(100% - 2 * var(--gutter), var(--container)); margin-inline: auto; }
+.section { position: relative; padding-block: var(--section-pad); }
+.head-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--gap-grid);
+  align-items: end;
+}
+
+/* ---- Type roles ---- */
+.t-display,
+.t-heading,
+.t-title,
+.t-wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-style: normal;
+}
+.t-heading {
+  font-size: var(--fs-h-lg);
+  line-height: var(--lh-h-lg);
+  letter-spacing: var(--ls-h-lg);
+  text-wrap: balance;
+}
+.t-title {
+  font-size: var(--fs-sub);
+  line-height: var(--lh-sub);
+  letter-spacing: var(--ls-sub);
+  text-shadow: var(--text-etched);
+}
+.t-lead {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  letter-spacing: var(--ls-lead);
+}
+.t-body { font-size: 17px; line-height: 1.55; }
+.t-caption {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  line-height: var(--lh-caption);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* Relief treatments for display type */
+.relief-pressed { color: var(--ink-2); text-shadow: var(--text-pressed); filter: url(#cut-relief); }
+.relief-raised { color: var(--canvas); text-shadow: var(--text-raised); }
+.relief-raised-canvas { color: var(--ink); text-shadow: var(--text-raised-canvas); }
+
+/* ---- Reveals: fire once (components/layout/Reveal.tsx adds .is-in) ---- */
+.js [data-r] { opacity: 0; }
+.js [data-r="up"] { transform: translateY(28px); }
+.js [data-r="scale"] { transform: scale(.94); }
+.js [data-r].is-in {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-mid) var(--ease-enter) var(--d, 0ms),
+    transform var(--dur-mid) var(--ease-enter) var(--d, 0ms);
+}
+
+@media (max-width: 767px) {
+  body { font-size: 17px; }
+  .head-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js [data-r],
+  .js [data-r].is-in { opacity: 1; transform: none; transition: none; }
+  .skip-link { transition: none; }
+}

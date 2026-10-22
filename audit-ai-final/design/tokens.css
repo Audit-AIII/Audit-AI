@@ -28,8 +28,8 @@
   --protect-tint: rgb(31 20 11 / .10);
 
   /* ---- Fonts [M] ---- */
-  --font-display: "Gabarito", "Gabarito Fallback", Arial, sans-serif;
-  --font-body:    "Instrument Sans", "Instrument Sans Fallback", Arial, sans-serif;
+  --font-display: "Gabarito Variable", "Gabarito", "Gabarito Fallback", Arial, sans-serif;
+  --font-body:    "Instrument Sans Variable", "Instrument Sans", "Instrument Sans Fallback", Arial, sans-serif;
 
   /* ---- Type scale [M] (display sizes are desktop @1182px; fluid in [R]) ---- */
   --fs-display:   min(16vh, 11.2vw);  /* [M] 132.4px @1182x937 */  --lh-display:   .92; --ls-display:   .01em;   /* 1.32px */
@@ -121,7 +121,7 @@
 /* Paper grain [M technique, own values] — SVG fractal noise: fine dark tooth + sparse dark and light specks.
    Re-implemented; calibrated against reference screenshots. */
 :root {
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .23 0 0 0 0 .15 0 0 0 0 .08 0 0 0 .45 -.18'/%3E%3C/filter%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.52' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .12 0 0 0 0 .06 17 0 0 0 -12.2'/%3E%3C/filter%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.56' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .94 0 0 0 0 .85 0 17 0 0 -12.6'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .23 0 0 0 0 .15 0 0 0 0 .08 0 0 0 .55 -.2'/%3E%3C/filter%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.52' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .12 0 0 0 0 .06 17 0 0 0 -11.85'/%3E%3C/filter%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.56' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .94 0 0 0 0 .85 0 17 0 0 -12.7'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
 }
 .paper { background-color: var(--canvas); background-image: var(--grain); }
 .paper--dark { background-color: var(--surface); background-image: var(--grain); }
