@@ -111,9 +111,9 @@ function ReviewView({
     () => [...review.findings].sort((a, b) => (ORDER[a.verification_status] ?? 2) - (ORDER[b.verification_status] ?? 2)),
     [review.findings],
   );
-  // The server doesn't return the submitted text. Use the copy kept in this browser, or the stub
-  // finding (its original_text is the whole text, span 0..end).
-  const fullText = savedText ?? review.findings.find(isStub)?.original_text ?? null;
+  // The text the spans point into: from the API first; older backends don't send it, so fall
+  // back to this browser's copy, then the stub finding (its original_text is the whole text).
+  const fullText = review.text ?? savedText ?? review.findings.find(isStub)?.original_text ?? null;
   const current = findings.find((f) => f.finding_id === selected) ?? findings[0] ?? null;
 
   return (

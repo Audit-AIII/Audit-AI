@@ -317,8 +317,6 @@ textarea.draft__text {
 .app-empty { display: grid; justify-items: start; gap: 16px; max-width: 560px; padding: 28px; }
 .app-empty p { margin: 0; }
 .panel__hint { margin: -6px 0 0; color: var(--ink-2); }
-.brand-form { display: grid; gap: 16px; }
-.brand-form .btn { justify-self: start; }
 .brand-pill { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 14px; border-radius: var(--r-ui); box-shadow: var(--shadow-well); }
 .brand-pill__id { font: 600 16px / 1.2 var(--font-body); font-variant-numeric: tabular-nums; }
 .draft__count { margin: -8px 0 0; justify-self: end; color: var(--ink-2); }
@@ -359,3 +357,15 @@ button.rows__item:focus-visible { outline: 2px solid var(--accent); outline-offs
 .rows__item .tag { flex-shrink: 1; max-width: 55%; line-height: 1.3; white-space: normal; text-align: right; }
 .timeline__item { grid-template-columns: 92px minmax(0, 1fr); }
 .timeline__at { letter-spacing: .02em; }
+
+/* Dropzone states */
+.dropzone.is-over { outline-color: var(--ink); background-color: var(--protect-tint); }
+.dropzone.has-file .dropzone__hint { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.dropzone.is-disabled { cursor: not-allowed; opacity: .6; }
+.dropzone:focus-within { box-shadow: var(--shadow-well), 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent); }
+.upload-form { display: grid; gap: 16px; }
+.upload-form > .btn { justify-self: start; }
+.rows__side { display: grid; justify-items: end; gap: 8px; flex: none; }
+.decision--small { min-height: 40px; padding: 0 14px; font-size: 15px; }
+select.field__input { cursor: pointer; }
+.draft__remove { justify-self: start; border: 0; background: none; padding: 0; color: var(--ink); font: 600 15px / 1.3 var(--font-body); cursor: pointer; }

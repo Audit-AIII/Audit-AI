@@ -4,23 +4,25 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
-import { Panel, Panels } from "@/components/app/Stage";
+import { Dropzone, Panel, Panels } from "@/components/app/Stage";
 import { canSubmit, roleName } from "@/components/app/roles";
-import { ApiError, api } from "@/lib/api/client";
+import { ACCEPTED_FILE_TYPES, ApiError, MAX_UPLOAD_BYTES, api } from "@/lib/api/client";
+import { useActiveBrand } from "@/lib/brand";
 import { useSession } from "@/lib/session";
-import { getBrandId, rememberReviewText } from "@/lib/workspace";
+import { rememberReviewText } from "@/lib/workspace";
 
 const MAX = 100_000; // backend limit, in characters (code points)
 
-/** New review: sends the draft to POST /api/reviews and opens the result on the Review stage. */
+/** New review: pasted text -> POST /api/reviews, or a file -> POST /api/reviews/upload. */
 export function DraftForm() {
   const router = useRouter();
   const role = useSession()?.role ?? "";
   const allowed = canSubmit(role);
-  // Workspace stages render only on the client (AppShell waits for the session), so reading
-  // localStorage in an initialiser is safe here.
-  const [brandId] = useState(getBrandId);
+  const active = useActiveBrand();
+  const brand = active.state === "ready" ? active.brand : null;
+
   const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,27 +32,42 @@ export function DraftForm() {
 
   useEffect(() => {
     idemKey.current = "";
-  }, [text, title, brandId]);
+  }, [text, title, file, brand?.id]);
 
   const length = [...text].length;
+
+  const pick = (f: File) => {
+    if (f.size > MAX_UPLOAD_BYTES) return setError(`That file is ${(f.size / 1024 / 1024).toFixed(1)} MB. The limit is 10 MB.`);
+    if (!/\.(pdf|docx|txt)$/i.test(f.name)) return setError("Only PDF, Word (.docx) or text (.txt) files can be read.");
+    setError(null);
+    setFile(f);
+  };
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (busy) return;
-    if (!brandId) return setError("Choose your brand on the Sources stage first.");
-    if (!text.trim()) return setError("Paste the text you want checked.");
-    if (length > MAX) return setError(`The text is too long (${length.toLocaleString()} of ${MAX.toLocaleString()} characters).`);
+    if (!brand) return setError("Your brand hasn’t loaded yet. Please wait a moment or reload the page.");
+    if (!file && !text.trim()) return setError("Paste the text you want checked, or upload a file.");
+    if (!file && length > MAX) return setError(`The text is too long (${length.toLocaleString()} of ${MAX.toLocaleString()} characters).`);
     idemKey.current ||= crypto.randomUUID();
     setBusy(true);
     setError(null);
     try {
-      const review = await api.createReview({ brand_id: brandId, text, ...(title.trim() ? { title: title.trim() } : {}) }, idemKey.current);
-      rememberReviewText(review.id, text);
+      const t = title.trim() || undefined;
+      const review = file
+        ? await api.createReviewFromFile(brand.id, file, idemKey.current, t)
+        : await api.createReview({ brand_id: brand.id, text, ...(t ? { title: t } : {}) }, idemKey.current);
+      // Fallback for backends that don't return ReviewOut.text yet.
+      if (!review.text && !file) rememberReviewText(review.id, text);
       router.push(`/app/review?id=${review.id}`);
     } catch (err) {
       setBusy(false);
-      if (err instanceof ApiError && err.status === 404) {
-        setError("That brand wasn’t found in your organisation. Check the brand on the Sources stage.");
+      if (err instanceof ApiError && err.status === 422 && file) {
+        setError(
+          `We couldn’t read that file${/limit|exceeds/i.test(err.message) ? ` (${err.message})` : ""}. Use a PDF with selectable text, a Word (.docx) or a text (.txt) file, or paste the text instead.`,
+        );
+      } else if (err instanceof ApiError && err.status === 404) {
+        setError("Your brand wasn’t found. Reload the page and try again.");
       } else {
         setError(err instanceof ApiError ? err.userMessage : "Something went wrong. Please try again.");
       }
@@ -67,13 +84,29 @@ export function DraftForm() {
               className="field__input draft__text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Paste or type your text here"
-              required
+              placeholder={file ? "A file is chosen below. Remove it to paste text instead." : "Paste or type your text here"}
+              disabled={!!file}
             />
           </label>
-          <p className={`draft__count t-caption${length > MAX ? " is-over" : ""}`}>
-            {length.toLocaleString()} / {MAX.toLocaleString()} characters
-          </p>
+          {!file && (
+            <p className={`draft__count t-caption${length > MAX ? " is-over" : ""}`}>
+              {length.toLocaleString()} / {MAX.toLocaleString()} characters
+            </p>
+          )}
+          <Dropzone
+            small
+            title="Upload a file instead"
+            hint="PDF, Word (.docx) or text · up to 10 MB"
+            accept={ACCEPTED_FILE_TYPES}
+            onFile={pick}
+            fileName={file ? file.name : null}
+            disabled={busy}
+          />
+          {file && (
+            <button type="button" className="draft__remove" onClick={() => setFile(null)}>
+              Remove the file and paste text instead
+            </button>
+          )}
         </Panel>
 
         <Panel n="02" label="Details" title="Name it">
@@ -83,15 +116,30 @@ export function DraftForm() {
           </label>
           <div className="brand-pill">
             <span className="t-caption">Checked against</span>
-            {brandId ? (
-              <span className="brand-pill__id">Brand {brandId.slice(0, 8)}…</span>
-            ) : (
-              <span className="brand-pill__id">No brand chosen</span>
-            )}
+            <span className="brand-pill__id">
+              {active.state === "loading"
+                ? "Loading…"
+                : brand
+                  ? `${brand.name} · ${brand.approved_source_count} approved document${brand.approved_source_count === 1 ? "" : "s"}`
+                  : "No brand"}
+            </span>
             <Link className="link link--tap" href="/app/sources">
-              {brandId ? "Change" : "Choose"}
+              Manage documents
             </Link>
           </div>
+          {brand && brand.approved_source_count === 0 && (
+            <p className="app-alert" role="status">
+              {brand.name} has no approved documents yet, so a check would come back as “couldn’t check”.{" "}
+              <Link className="link" href="/app/sources">
+                Upload one first
+              </Link>
+            </p>
+          )}
+          {active.state === "error" && (
+            <p className="app-alert app-alert--bad" role="alert">
+              {active.message}
+            </p>
+          )}
           <p className="t-body panel__note">Your text is checked against the approved documents saved for this brand.</p>
         </Panel>
 
@@ -111,7 +159,7 @@ export function DraftForm() {
               {error}
             </p>
           )}
-          <Button type="submit" disabled={busy || !allowed} aria-busy={busy}>
+          <Button type="submit" disabled={busy || !allowed || !brand} aria-busy={busy}>
             {busy ? "Checking…" : "Check my draft →"}
           </Button>
         </Panel>

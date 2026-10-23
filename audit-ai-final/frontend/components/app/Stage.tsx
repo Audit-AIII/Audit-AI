@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 
 /** Stage page header: big pressed title + a dashed status pill. */
 export function StageHead({ title, status, children }: { title: string; status?: string; children?: ReactNode }) {
@@ -41,17 +43,67 @@ export function Panel({
   );
 }
 
-/** File drop: a pressed, dashed well with a real (visually hidden) file input behind it. */
-export function Dropzone({ title, hint, small = false }: { title: string; hint: string; small?: boolean }) {
+/**
+ * File drop: a pressed, dashed well with a real (visually hidden) file input behind it.
+ * Click / keyboard opens the picker; files can also be dragged onto it. `onFile` receives the
+ * first file; the input is reset afterwards so picking the same file again still fires.
+ */
+export function Dropzone({
+  title,
+  hint,
+  small = false,
+  onFile,
+  accept,
+  fileName,
+  disabled = false,
+}: {
+  title: string;
+  hint: string;
+  small?: boolean;
+  onFile?: (file: File) => void;
+  accept?: string;
+  /** Name of the file already chosen, shown in place of the hint. */
+  fileName?: string | null;
+  disabled?: boolean;
+}) {
+  const [over, setOver] = useState(false);
+  const take = (files: FileList | null | undefined) => {
+    const file = files?.[0];
+    if (file && onFile && !disabled) onFile(file);
+  };
   return (
-    <label className={`dropzone${small ? " dropzone--small" : ""}`}>
-      <input type="file" className="sr-only" />
+    <label
+      className={`dropzone${small ? " dropzone--small" : ""}${over ? " is-over" : ""}${fileName ? " has-file" : ""}${disabled ? " is-disabled" : ""}`}
+      onDragOver={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        take(e.dataTransfer?.files);
+      }}
+    >
+      <input
+        type="file"
+        className="sr-only"
+        accept={accept}
+        disabled={disabled}
+        onChange={(e) => {
+          take(e.currentTarget.files);
+          e.currentTarget.value = "";
+        }}
+      />
       <svg className="dropzone__icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 16V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
       </svg>
-      <span className="dropzone__title">{title}</span>
-      <span className="dropzone__hint">{hint}</span>
-      <span className="dropzone__btn">Choose a file</span>
+      <span className="dropzone__title">{fileName ? "File chosen" : title}</span>
+      <span className="dropzone__hint" aria-live="polite">
+        {fileName ?? hint}
+      </span>
+      <span className="dropzone__btn">{fileName ? "Choose another" : "Choose a file"}</span>
     </label>
   );
 }
