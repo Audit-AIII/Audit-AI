@@ -24,7 +24,9 @@ const TOP_FOAM = "M340 130 C420 90 470 60 560 72 C660 86 700 40 800 52 C900 64 9
 // Deterministic scatter for the spilling grains (same on server and client).
 const GRAINS = Array.from({ length: 44 }, (_, i) => {
   const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) * 43758.5453) % 1 + 1) % 1;
-  return { left: r(1) * 100, size: 3 + r(2) * 6, delay: r(3) * 0.2, drift: (r(4) - 0.5) * 60 };
+  // Rounded so the server-rendered style strings match the browser's exactly (hydration).
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return { left: round(r(1) * 100), size: round(3 + r(2) * 6), delay: r(3) * 0.2, drift: (r(4) - 0.5) * 60 };
 });
 
 // Whole transition ≈ 1.9 s: cover 0.8 + paint gap ~0.1 + reveal ~1.0 (grains finish last).
@@ -170,7 +172,7 @@ export function SandWave() {
       </div>
       <div ref={grains} className="sandwave__grains">
         {GRAINS.map((p, i) => (
-          <span key={i} className="sandwave__grain" style={{ left: `${p.left}%`, width: p.size, height: p.size }} />
+          <span key={i} className="sandwave__grain" style={{ left: `${p.left}%`, width: `${p.size}px`, height: `${p.size}px` }} />
         ))}
       </div>
     </div>
