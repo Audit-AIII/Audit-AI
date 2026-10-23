@@ -1,0 +1,636 @@
+{
+  "$defs": {
+    "CaseOut": {
+      "additionalProperties": false,
+      "properties": {
+        "agrees": {
+          "title": "Agrees",
+          "type": "boolean"
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/CitationOut"
+          },
+          "title": "Citations",
+          "type": "array"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/ClaimOut"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "corrections": {
+          "items": {
+            "$ref": "#/$defs/CorrectionOut"
+          },
+          "title": "Corrections",
+          "type": "array"
+        },
+        "expected": {
+          "title": "Expected",
+          "type": "string"
+        },
+        "outcome": {
+          "title": "Outcome",
+          "type": "string"
+        },
+        "passages": {
+          "items": {
+            "$ref": "#/$defs/PassageOut"
+          },
+          "title": "Passages",
+          "type": "array"
+        },
+        "predicted": {
+          "title": "Predicted",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        },
+        "record_id": {
+          "title": "Record Id",
+          "type": "string"
+        },
+        "requires_human_review": {
+          "title": "Requires Human Review",
+          "type": "boolean"
+        },
+        "split": {
+          "title": "Split",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_id",
+        "split",
+        "content",
+        "claims",
+        "expected",
+        "predicted",
+        "agrees",
+        "outcome",
+        "reason",
+        "passages",
+        "citations",
+        "corrections",
+        "requires_human_review"
+      ],
+      "title": "CaseOut",
+      "type": "object"
+    },
+    "CitationOut": {
+      "additionalProperties": false,
+      "properties": {
+        "doc_id": {
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        },
+        "resolves": {
+          "title": "Resolves",
+          "type": "boolean"
+        },
+        "supports": {
+          "title": "Supports",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "doc_id",
+        "quote",
+        "resolves",
+        "supports"
+      ],
+      "title": "CitationOut",
+      "type": "object"
+    },
+    "ClaimOut": {
+      "additionalProperties": false,
+      "properties": {
+        "requires_human_review": {
+          "title": "Requires Human Review",
+          "type": "boolean"
+        },
+        "review_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Review Reasons",
+          "type": "array"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "verdict": {
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "verdict",
+        "requires_human_review",
+        "review_reasons"
+      ],
+      "title": "ClaimOut",
+      "type": "object"
+    },
+    "CorrectionOut": {
+      "additionalProperties": false,
+      "properties": {
+        "issues": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Issues",
+          "type": "array"
+        },
+        "replacement_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Replacement Text"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "replacement_text",
+        "issues"
+      ],
+      "title": "CorrectionOut",
+      "type": "object"
+    },
+    "GateOut": {
+      "additionalProperties": false,
+      "properties": {
+        "applies_to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Applies To"
+        },
+        "baseline": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Baseline"
+        },
+        "change": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Change"
+        },
+        "current": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Current"
+        },
+        "enforced": {
+          "title": "Enforced",
+          "type": "boolean"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "op": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Op"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Status"
+        },
+        "violated": {
+          "title": "Violated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "applies_to",
+        "op",
+        "current",
+        "baseline",
+        "change",
+        "status",
+        "enforced",
+        "violated",
+        "note"
+      ],
+      "title": "GateOut",
+      "type": "object"
+    },
+    "Limitation": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "finding": {
+          "title": "Finding",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "measured",
+            "suspected",
+            "unsupported",
+            "not_implemented"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "topic": {
+          "title": "Topic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic",
+        "status",
+        "finding"
+      ],
+      "title": "Limitation",
+      "type": "object"
+    },
+    "MetricOut": {
+      "additionalProperties": false,
+      "properties": {
+        "denominator": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Denominator"
+        },
+        "display": {
+          "title": "Display",
+          "type": "string"
+        },
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "numerator": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Numerator"
+        },
+        "unavailable_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unavailable Reason"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "explanation",
+        "display",
+        "value",
+        "numerator",
+        "denominator",
+        "unavailable_reason"
+      ],
+      "title": "MetricOut",
+      "type": "object"
+    },
+    "PassageOut": {
+      "additionalProperties": false,
+      "properties": {
+        "doc_id": {
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "doc_id",
+        "title",
+        "text",
+        "truncated"
+      ],
+      "title": "PassageOut",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/CaseOut"
+      },
+      "maxItems": 6,
+      "title": "Cases",
+      "type": "array"
+    },
+    "confusion": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "integer"
+        },
+        "type": "object"
+      },
+      "title": "Confusion",
+      "type": "object"
+    },
+    "contract": {
+      "const": "evaluation-summary-v1",
+      "default": "evaluation-summary-v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "corrections": {
+      "additionalProperties": true,
+      "title": "Corrections",
+      "type": "object"
+    },
+    "counts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Counts",
+      "type": "object"
+    },
+    "dataset": {
+      "additionalProperties": true,
+      "title": "Dataset",
+      "type": "object"
+    },
+    "decision_policy": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Decision Policy"
+    },
+    "gates": {
+      "items": {
+        "$ref": "#/$defs/GateOut"
+      },
+      "title": "Gates",
+      "type": "array"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "$ref": "#/$defs/Limitation"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "metrics": {
+      "items": {
+        "$ref": "#/$defs/MetricOut"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "title": "Metrics",
+      "type": "array"
+    },
+    "model": {
+      "additionalProperties": true,
+      "title": "Model",
+      "type": "object"
+    },
+    "outcome": {
+      "additionalProperties": true,
+      "title": "Outcome",
+      "type": "object"
+    },
+    "prompt_versions": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Prompt Versions"
+    },
+    "report_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Report Id"
+    },
+    "retrieval": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Retrieval"
+    },
+    "review": {
+      "additionalProperties": true,
+      "title": "Review",
+      "type": "object"
+    },
+    "source": {
+      "additionalProperties": true,
+      "title": "Source",
+      "type": "object"
+    },
+    "stale": {
+      "default": false,
+      "title": "Stale",
+      "type": "boolean"
+    },
+    "stale_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stale Reason"
+    },
+    "state": {
+      "const": "available",
+      "default": "available",
+      "title": "State",
+      "type": "string"
+    },
+    "unavailable": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Unavailable",
+      "type": "object"
+    }
+  },
+  "required": [
+    "generated_at",
+    "outcome",
+    "source",
+    "dataset",
+    "model",
+    "prompt_versions",
+    "retrieval",
+    "decision_policy",
+    "counts",
+    "metrics",
+    "confusion",
+    "review",
+    "corrections",
+    "gates",
+    "cases",
+    "limitations",
+    "unavailable"
+  ],
+  "title": "EvaluationSummary",
+  "type": "object"
+}

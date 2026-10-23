@@ -43,6 +43,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import sys
 from collections import Counter
@@ -61,7 +62,10 @@ from inkloom_verify.evaluation.dataset import validate_dataset  # noqa: E402
 from inkloom_verify.evaluation.extraction import evaluate_extraction, load_extraction_records  # noqa: E402
 from inkloom_verify.evaluation.pipeline_predictor import PipelinePredictor, decision_policy, retrieval_parameters  # noqa: E402
 from inkloom_verify.evaluation.replay import CassetteError, RecordingProvider, ReplayProvider  # noqa: E402
+from inkloom_verify.evaluation import report as reporting  # noqa: E402
 from inkloom_verify.evaluation import required_metrics  # noqa: E402
+from inkloom_verify.evaluation.pipeline_predictor import CaseOutcome  # noqa: E402
+from inkloom_verify.evaluation.summary import build_summary, incomplete_summary  # noqa: E402
 from inkloom_verify.evaluation.oracle import OracleProvider, OraclePredictor  # noqa: E402
 from inkloom_verify.decision_policy import DecisionPolicy  # noqa: E402
 from inkloom_verify.extraction import ExtractionConfig  # noqa: E402
@@ -221,7 +225,10 @@ def apply_gates(report: dict[str, Any], baseline: dict[str, Any]) -> list[dict[s
         entry = {k: gate[k] for k in ("name", "metric", "op", "value", "applies_to")}
         if gate["applies_to"] not in kinds:
             raise KeyError(f"unknown applies_to {gate['applies_to']!r}")
-        if not kinds[gate["applies_to"]]:
+        if not report["run"]["dataset"]["locked"]:
+            # Baselines were measured on the locked eval/dataset.jsonl; they mean nothing elsewhere.
+            entry.update(status="NOT APPLICABLE", measured=None, note="baselines apply to the locked eval/dataset.jsonl only")
+        elif not kinds[gate["applies_to"]]:
             needs = "a live model run (--verdicts openrouter, --predictions, or a live --replay)" \
                 if gate["applies_to"] == "model_run" else "--verdicts oracle"
             entry.update(status="NOT APPLICABLE", measured=None, note=f"needs {needs}")
@@ -306,7 +313,7 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
             "pipeline": pipeline_mode,
             "dataset": {"path": dataset.relative_to(ROOT).as_posix() if dataset.is_relative_to(ROOT) else dataset.as_posix(),
                         "sha256": sha256(dataset), "records": validation.records, "locked": dataset == DATASET,
-                        "groups": validation.groups},
+                        "labels": validation.labels, "groups": validation.groups},
             "retrieval_parameters": retrieval_parameters(pipeline_config),
             "decision_policy": decision_policy(pipeline_config) | {
                 "file": policy_file.name, "calibration": policy_doc.get("calibration")},
@@ -335,7 +342,11 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
         engine_predictor=predictor,
     )
     report["cases"] = None
+    report["failed_cases"] = None
     if predictor is not None:
+        report["failed_cases"] = [{"record_id": o.record_id, "expected": o.expected, "predicted": o.predicted,
+                                   "outcome": o.outcome, "reason": o.reason}
+                                  for o in predictor.outcomes.values() if o.outcome != "correct"]
         outcomes = list(predictor.outcomes.values())
         (args.out / "cases.jsonl").write_text("".join(o.model_dump_json() + chr(10) for o in outcomes), encoding="utf-8")
         report["cases"] = {
@@ -439,115 +450,6 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
     return report
 
 
-def pct(r: dict[str, Any]) -> str:
-    return "n/a" if r["value"] is None else f"{r['value']:.1%} ({r['numerator']}/{r['denominator']})"
-
-
-def markdown(report: dict[str, Any]) -> str:
-    run_info, v = report["run"], report["verdicts"]
-    lines = [
-        "# Verification engine evaluation report",
-        "",
-        f"- Run: {run_info['created_at']} · engine {run_info['engine_version']} · Python {run_info['python']}",
-        f"- Commit: {run_info['git_commit'] or 'unknown'}" + (" (uncommitted changes)" if run_info["git_dirty"] else ""),
-        f"- Verdict source: **{v['source']}**"
-        + ("" if v["is_model_quality"] else " — a floor, **not model accuracy** (no live model was run)"),
-        f"- Human-reviewed labels in eval/dataset.jsonl: {report['datasets']['human_reviewed']}/{v['examples']}",
-        f"- Dataset: {run_info['dataset']['path']} · sha256 {run_info['dataset']['sha256'][:12]}… · "
-        f"{run_info['dataset']['records']} records" + ("" if run_info["dataset"]["locked"] else " · **not the locked dataset**"),
-        f"- Pipeline: {run_info['pipeline'] or 'none (no provider)'}"
-        + (f" · replay of {run_info['replay']['cassette']} (sha256 {run_info['replay']['sha256'][:12]}…, recorded from "
-           f"{run_info['replay']['source']})" if run_info.get("replay") else ""),
-        f"- Decision policy: {run_info['decision_policy']['policy']['version']} "
-        f"{run_info['decision_policy']['policy']['thresholds']} · calibration: "
-        f"{(run_info['decision_policy'].get('calibration') or {}).get('status', 'unknown')}",
-        f"- Prompt versions: {run_info.get('prompt_versions') or 'none sent (no live model)'}",
-        f"- Model configuration: {run_info.get('model_configuration') or 'none (no live model)'}",
-        "",
-        "## Verdicts (eval/dataset.jsonl)",
-        "",
-        f"Examples: {v['examples']} · accuracy {pct(v['accuracy'])} · macro F1 "
-        + ("n/a" if v["macro_f1"] is None else f"{v['macro_f1']:.3f}"),
-        f"Abstention {pct(v['abstention_rate'])} · error {pct(v['error_rate'])} · false-SUPPORTED {pct(v['false_supported_rate'])}",
-        f"Citation validity {pct(v['citation_validity'])} · grounding {pct(v['grounding'])} · fully correct {pct(v['fully_correct'])}",
-        "",
-        "| Class | Precision | Recall | F1 |",
-        "|---|---|---|---|",
-    ]
-    for cls in GOLD_CLASSES:
-        m = v["per_class"][cls.value]
-        f1 = "n/a" if m["f1"] is None else f"{m['f1']:.3f}"
-        lines.append(f"| {cls.value} | {pct(m['precision'])} | {pct(m['recall'])} | {f1} |")
-    lines += ["", "Confusion (rows = label, columns = prediction):", "",
-              "| | " + " | ".join(p.value for p in PREDICTED_CLASSES) + " |",
-              "|---|" + "---|" * len(PREDICTED_CLASSES)]
-    for g in GOLD_CLASSES:
-        lines.append(f"| {g.value} | " + " | ".join(str(v["confusion"][g.value][p.value]) for p in PREDICTED_CLASSES) + " |")
-    lines += ["", "Accuracy by category: " + ", ".join(f"{c} {pct(r)}" for c, r in v["by_category"].items())]
-    if report.get("cases"):
-        cs = report["cases"]
-        lines += ["", "## Per-case outcomes (full pipeline)", "",
-                  f"{cs['records']} records, {cs['claims']} claims · outcomes {cs['outcomes']} · "
-                  f"needing human review {cs['requires_human_review']}/{cs['records']} · corrections {cs['corrections'] or 'none'}"
-                  + (f" · replay misses {cs['replay_misses']}" if cs["replay_misses"] is not None else ""),
-                  f"Reasons for errors and skipped records: {cs['reasons'] or 'none'}",
-                  f"Every record's claims, evidence, citations and corrections: {cs['file']}"]
-    if report.get("calls"):
-        lines += ["", "## Calls per stage", "", "| Stage | Calls | Repair calls | Provider errors | Input characters |", "|---|---|---|---|---|"]
-        for stage, s in sorted(report["calls"].items()):
-            lines.append(f"| {stage} | {s['calls']} | {s['repair_calls']} | {s['errors'] or 0} | {s['input_chars']} |")
-    if report.get("required_metrics"):
-        lines += ["", required_metrics.markdown(required_metrics.RequiredMetrics.model_validate(report["required_metrics"])).rstrip()]
-        if not v["is_model_quality"]:
-            lines.append("These required metrics come from a run without a live model: they test the harness, not model accuracy.")
-    lines += ["", "## Retrieval recall@k (deterministic)", "", "| Dataset | @1 | @3 | @5 |", "|---|---|---|---|"]
-    for name, entry in report["retrieval"].items():
-        lines.append(f"| {name} | {pct(entry['recall_at_1'])} | {pct(entry['recall_at_3'])} | {pct(entry['recall_at_5'])} |")
-    ch = report["corrections"]["checker"]
-    lines += ["", "## Corrections", "",
-              f"Deterministic checks on {ch['candidates']} labelled edits: bad rejected {pct(ch['correctly_rejected'])}, "
-              f"good accepted {pct(ch['correctly_accepted'])}, false accepts {ch['false_accepts']}.",
-              f"Live corrector: {'not run' if report['corrections']['live'] is None else report['corrections']['live']}",
-              ""]
-    ex = report["extraction"]
-    lines += ["## Claim extraction (eval/data/extraction_v1.jsonl)", "",
-              f"{ex['oracle']['records']} paragraphs, {ex['oracle']['labelled_claims']} labelled claims; "
-              f"human-reviewed labels: {ex['human_reviewed']}/{ex['oracle']['records']}.", "",
-              "| Model | Recall | Precision | Exact spans | Not atomic | Opinions extracted | Slice violations | Unsafe rewordings kept |",
-              "|---|---|---|---|---|---|---|---|"]
-    rows = [("oracle (code check)", ex["oracle"])] + [(f"{name} (scripted)", m) for name, m in ex["adversaries"].items()]
-    rows += [("live model", ex["live"])] if ex["live"] else []
-    for label, m in rows:
-        lines.append(f"| {label} | {pct(m['claim_recall'])} | {pct(m['claim_precision'])} | {pct(m['exact_span_matches'])} | "
-                     f"{m['atomicity_violations']} | {m['opinion_leakage']} | {m['slice_violations']} | {m['statements_changed_unsafely']} |")
-    if not ex["live"]:
-        lines.append("\nLive extraction: not run (needs --verdicts openrouter).")
-    if report.get("pipeline_safety"):
-        lines += ["", "## Full-pipeline safety (scripted adversaries through the guard and decision policy; not model quality)", "",
-                  "| Adversary | Predicted | Non-SUPPORTED records auto-cleared | Citation resolution | Review share |", "|---|---|---|---|---|"]
-        for name, ps in report["pipeline_safety"].items():
-            res = "n/a" if ps["citation_resolution"] is None else f"{ps['citation_resolution']:.1%} of {ps['citations']}"
-            share = "n/a" if ps["human_review_share"] is None else f"{ps['human_review_share']:.1%}"
-            lines.append(f"| {name} | {ps['predicted']} | {ps['auto_cleared_not_supported']} "
-                         f"{ps['auto_cleared_not_supported_records'] or ''} | {res} | {share} |")
-    lines += ["", "## Enforcement (scripted adversaries; not model quality)", "",
-              "| Adversary | Definite | Accepted | Accepted quotes verbatim | Quotes not in any source | False-SUPPORTED |",
-              "|---|---|---|---|---|---|"]
-    for name, e in report["enforcement"].items():
-        lines.append(f"| {name} | {e['definite_answers']} | {e['accepted']} | {e['accepted_citations_verbatim']}/{e['accepted_citations']} | "
-                     f"{e['accepted_quotes_not_in_any_source']} | {pct(e['false_supported'])} |")
-    f = report["faults"]
-    lines += ["", "## Error handling (fault injection)", "", f"Fault cases passed: {pct(f['pass_rate'])}"]
-    lines += [f"- FAILED: {o['name']} {o['observed']}" for o in f["failed"]]
-    if "gates" in report:
-        lines += ["", "## Regression gates (eval/baseline.json)", "", "| Gate | Measured | Required | Status |", "|---|---|---|---|"]
-        for g in report["gates"]:
-            required = "—" if g["value"] is None else f"{g['op']} {g['value']}"
-            measured = "—" if g["measured"] is None else g["measured"]
-            lines.append(f"| {g['name']} | {measured} | {required} | {g['status']} |")
-    return "\n".join(lines) + "\n"
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python eval/run_eval.py", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -562,7 +464,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="full: verify_request per record (default); verifier: retrieval + verifier + guard only")
     parser.add_argument("--dataset", help="evaluate this dataset instead of eval/dataset.jsonl (validated; not locked)")
     parser.add_argument("--policy", help="decision policy file (default eval/decision_policy.json)")
-    parser.add_argument("--out", type=Path, help="report directory (default: reports/<UTC timestamp>)")
+    parser.add_argument("--out", type=Path, help="artifact directory: report.json, report.md, cases.jsonl, predictions "
+                                                 "(default: reports/<UTC timestamp>)")
+    parser.add_argument("--reports-dir", type=Path, help="where the timestamped report is written (default: eval/reports)")
     parser.add_argument("--check-baseline", nargs="?", const=str(BASELINE), help="apply regression gates; exit 1 on failure")
     parser.add_argument("--prompts", choices=sorted(PROMPT_SETS), help="pin every live stage to this prompt set")
     parser.add_argument("--dry-run", action="store_true", help="with --verdicts openrouter: offline stub, counts calls only")
@@ -575,34 +479,59 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--record needs --verdicts openrouter")
     args.out = args.out or ROOT / "reports" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     args.out.mkdir(parents=True, exist_ok=True)
+    reports_dir = args.reports_dir or Path(os.environ.get("INKLOOM_EVAL_REPORTS_DIR") or EVAL / "reports")
+    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    source = "predictions" if args.predictions else "replay" if args.replay else "dry-run" if args.dry_run else args.verdicts
     try:
         report = evaluate_all(args)
-    except (EvaluationInputError, ProviderError, ValueError, OSError) as error:
+        # Gates are always compared (the report shows the baseline comparison); --check-baseline
+        # makes a failed gate fail the command (exit 1), as CI needs.
+        report["gates"] = apply_gates(report, json.loads(Path(args.check_baseline or BASELINE).read_text(encoding="utf-8")))
+    except (EvaluationInputError, ProviderError, ValueError, OSError, KeyError) as error:
         print(f"error: {error}", file=sys.stderr)
+        _write_incomplete(reports_dir, started, source, f"{type(error).__name__}: {error}")
         return 2
-    failed = False
-    if args.check_baseline:
-        try:
-            report["gates"] = apply_gates(report, json.loads(Path(args.check_baseline).read_text(encoding="utf-8")))
-        except (ValueError, OSError, KeyError) as error:
-            print(f"error: invalid baseline: {error}", file=sys.stderr)
-            return 2
-        failed = any(g["status"] == "FAIL" for g in report["gates"])
+    report["run"]["gates_enforced"] = bool(args.check_baseline)
+    failed = bool(args.check_baseline) and any(g["status"] == "FAIL" for g in report["gates"])
     # A run in which no record received a verdict is a failed evaluation, not a result to score.
     cases = report.get("cases")
     no_verdicts = bool(cases) and report["run"]["verdict_source"] != "dry-run" and cases["records"] > 0 \
         and set(cases["outcomes"]) <= {"error", "skipped"}
     report["run"]["evaluation_failed"] = no_verdicts
+    text = reporting.render_markdown(report)
     (args.out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    text = ("**EVALUATION FAILED: no record received a verdict (see the per-case outcomes).**\n\n" if no_verdicts else "") \
-        + markdown(report)
     (args.out / "report.md").write_text(text, encoding="utf-8")
+    paths = reporting.write_report(report, reports_dir, args.out / "cases.jsonl", _summary(report, args.out).model_dump(mode="json"))
     print(text)
-    print(f"Report written to {args.out}")
+    print(f"Report written to {paths['markdown']} (artifacts in {args.out})")
     if no_verdicts:
         print("error: the evaluation ran but no record received a verdict", file=sys.stderr)
         return 3
     return 1 if failed else 0
+
+
+def _summary(report: dict[str, Any], out: Path):
+    """The Trust Scorecard summary of this run, from its own report, cases and dataset."""
+    dataset = ROOT / report["run"]["dataset"]["path"] if not Path(report["run"]["dataset"]["path"]).is_absolute() \
+        else Path(report["run"]["dataset"]["path"])
+    records = {r.record_id: r for r in load_records(dataset)}
+    cases_file = out / "cases.jsonl"
+    cases = {o.record_id: o for o in (CaseOutcome.model_validate_json(line) for line in
+                                      cases_file.read_text(encoding="utf-8").splitlines() if line.strip())} \
+        if report.get("cases") and cases_file.exists() else None
+    return build_summary(report, cases, records)
+
+
+def _write_incomplete(reports_dir: Path, started: str, source: str | None, error: str) -> None:
+    """A run that stopped still leaves a report: incomplete, with the error and nothing invented."""
+    commit = _git(["rev-parse", "HEAD"], ROOT)
+    report = {"run": {"created_at": started, "incomplete": True, "error": error[:500], "verdict_source": source,
+                      "engine_version": __version__, "python": platform.python_version(), "git_commit": commit}}
+    try:
+        paths = reporting.write_report(report, reports_dir, None, incomplete_summary(report).model_dump(mode="json"))
+        print(f"Incomplete report written to {paths['markdown']}", file=sys.stderr)
+    except OSError as write_error:
+        print(f"error: could not write the incomplete report: {write_error.strerror}", file=sys.stderr)
 
 
 if __name__ == "__main__":

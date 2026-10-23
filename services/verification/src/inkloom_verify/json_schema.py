@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from inkloom_verify.api_contract import Report as PublicReport
 from inkloom_verify.api_contract import VerifyRequest as PublicVerifyRequest
+from inkloom_verify.evaluation.summary import EvaluationSummary, IncompleteEvaluation, NoEvaluation
 from inkloom_verify.schemas import ClaimVerificationInput, EvalRecord, VerificationReport, VerificationRequest
 
 EXPORTED_MODELS: dict[str, type[BaseModel]] = {
@@ -23,6 +24,10 @@ EXPORTED_MODELS: dict[str, type[BaseModel]] = {
     "eval_record": EvalRecord,
     "public_report": PublicReport,  # the public API contract (api_contract.py)
     "public_verify_request": PublicVerifyRequest,  # POST /v1/verify request body
+    # GET /api/evaluations/latest (Trust Scorecard), contract evaluation-summary-v1: one of these three
+    "evaluation_summary": EvaluationSummary,
+    "evaluation_incomplete": IncompleteEvaluation,
+    "evaluation_none": NoEvaluation,
 }
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parents[2] / "schemas"

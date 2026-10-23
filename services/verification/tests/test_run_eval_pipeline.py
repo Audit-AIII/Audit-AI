@@ -204,7 +204,8 @@ def test_a_replay_with_no_recordings_fails_the_evaluation_with_exit_3(tmp_path, 
     report, cases = read(tmp_path / "out")
     assert report["run"]["evaluation_failed"] is True and report["cases"]["replay_misses"] > 0
     assert {c["outcome"] for c in cases.values()} == {"error"}  # every miss is reported, nothing is invented
-    assert "EVALUATION FAILED" in (tmp_path / "out" / "report.md").read_text(encoding="utf-8")
+    text = (tmp_path / "out" / "report.md").read_text(encoding="utf-8")
+    assert "**Outcome: FAILED.**" in text and "no record received a verdict" in text
     assert "no record received a verdict" in capsys.readouterr().err
 
 
@@ -302,4 +303,4 @@ def test_a_full_pipeline_run_reports_all_eight_metrics_from_its_own_outcomes(cas
     assert m["contradicted_precision"] is not None  # the scripted model flags the €99 claims
     attempts = sum(1 for c in cases.values() for claim in c["claims"] if claim["correction"])
     assert sum(m["corrections"]["attempts_by_status"].values()) == attempts
-    assert "they test the harness, not model accuracy" in (out / "report.md").read_text(encoding="utf-8")
+    assert "not model quality" in (out / "report.md").read_text(encoding="utf-8")

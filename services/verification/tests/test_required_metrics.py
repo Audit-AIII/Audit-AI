@@ -226,4 +226,4 @@ def test_the_default_run_reports_the_metrics_it_can_measure(tmp_path):
     assert m["retrieval_recall_at_5"]["denominator"] == 57
     assert {"contradicted_precision", "citation_validity", "human_review_share", "correction_traceability"} <= set(m["unavailable"])
     text = (tmp_path / "report.md").read_text(encoding="utf-8")
-    assert "## Required metrics" in text and "they test the harness, not model accuracy" in text
+    assert "## 11. Required metrics" in text and "not model quality" in text

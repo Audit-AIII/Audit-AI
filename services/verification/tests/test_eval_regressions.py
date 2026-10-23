@@ -133,10 +133,7 @@ def test_ci_fails_when_a_safety_regression_returns(tmp_path, monkeypatch):
 def test_the_ci_report_has_every_required_section(tmp_path):
     assert run_eval.main(["--verdicts", "oracle", "--check-baseline", "--out", str(tmp_path)]) == 0
     text = (tmp_path / "report.md").read_text(encoding="utf-8")
-    for section in ("- Run:", "- Commit:", "- Dataset: eval/dataset.jsonl", "- Pipeline: full", "- Decision policy: decision-policy-v1",
-                    "- Prompt versions:", "- Model configuration:", "## Verdicts", "Confusion", "## Required metrics",
-                    "## Per-case outcomes", "## Full-pipeline safety", "## Retrieval recall@k", "## Corrections",
-                    "## Claim extraction", "## Enforcement", "## Error handling", "## Regression gates"):
+    for section in ("## 1. Run summary", "## 2. Execution", "## 3. Outcome", "## 4. Dataset", "## 5. Size and class distribution", "## 6. Model", "## 7. Provider", "## 8. Prompt versions", "## 9. Retrieval configuration", "## 10. Decision thresholds and policy", "## 11. Required metrics", "## 12. Confusion matrix", "## 13. Failed evaluation cases", "## 14. Citation-validation failures", "## 15. Retrieval misses", "## 16. Human-review routing", "## 17. Correction traceability", "## 18. Comparison with the agreed baseline", "## 19. Known limitations", "## 20. Errors, unavailable metrics and skipped checks") + ("## Appendix: deterministic sections", "Pipeline safety, fabricator"):
         assert section in text, section
     run = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))["run"]
     assert run["verdict_source"] == "oracle" and run["model_configuration"] == {"provider": "oracle"}

@@ -491,6 +491,98 @@ It is **not a measurement**.
 
 No model-backed values exist yet.
 
+## Reports and the Trust Scorecard (EVAL.md Phases 7–8)
+
+**Every run writes a report** to `eval/reports/<UTC timestamp>.md` (plus `.json`, `.cases.jsonl`
+for full-pipeline runs, and `.summary.json` for the app). The files are generated and not
+committed; CI uploads them as artifacts. A second run in the same second gets a `-2` suffix,
+so nothing is ever overwritten. A run that stops (an invalid dataset, a missing provider) still
+writes a report marked **INCOMPLETE**, with its error.
+
+```sh
+cd services/verification
+python eval/run_eval.py --verdicts oracle --check-baseline   # engine ceiling (what CI enforces)
+python eval/run_eval.py --check-baseline                     # abstain floor + deterministic sections
+python eval/run_eval.py --verdicts openrouter --record reports/live.jsonl --check-baseline  # live; needs the key
+PYTHONPATH=src python -m inkloom_verify.evaluation.dataset eval/dataset.jsonl               # dataset only
+```
+
+Outside CI, `--reports-dir DIR` or `INKLOOM_EVAL_REPORTS_DIR` changes where the timestamped report
+goes; the tests use a temporary folder.
+
+**What a report contains** (`src/inkloom_verify/evaluation/report.py`, the only report renderer):
+1. a run summary and the execution timestamp;
+2. the outcome: `passed`, `failed` or `incomplete`;
+3. the dataset hash and path, its size and class distribution;
+4. the model and provider identifiers, the prompt versions (configured and actually sent);
+5. the retrieval parameters, the decision policy version, its thresholds and calibration status;
+6. the eight required metrics, as numerator/denominator, or *unavailable* with the reason;
+7. the confusion matrix, with wrong approvals and missed contradictions;
+8. failed cases, citation failures by cause, retrieval misses;
+9. human-review routing, correction traceability;
+10. the baseline comparison (current, baseline, change, status per gate);
+11. known limitations, and errors, unavailable metrics and skipped checks.
+
+**How the outcome is decided:**
+- **incomplete:** the run stopped.
+- **failed:** a gate failed, or no record received a verdict.
+- **passed:** no applicable gate failed.
+
+Gates that don't apply (model-run gates on a scripted run, or every gate on a non-locked dataset)
+are listed as **skipped**, never as passed. A pass on scripted answers says it isn't model
+quality.
+
+**Baselines.** `eval/baseline.json` gates are compared in every report and enforced (exit 1) with
+`--check-baseline`. A gate with `value: null` has no baseline: the report says "no baseline" and
+explains how to set one. Measure in a real run, record the run under `measured_run`, and set the
+value to the measurement. Never assume a value, never loosen one to pass.
+
+**In the app: Trust Scorecard** (`/app/scorecard`, any signed-in member).
+- **Data path:**
+  - the runner writes `<timestamp>.summary.json` (contract `evaluation-summary-v1`, built by
+    `evaluation/summary.py`, JSON schema in `schemas/evaluation_summary.schema.json`);
+  - the backend's `GET /api/evaluations/latest` serves the newest one after the engine re-validates
+    it, marking it **stale** if `eval/dataset.jsonl` changed since;
+  - the page validates the contract again and displays it.
+- **No metric is computed outside the runner.** Even the percentages are the report's own
+  strings.
+- **What the page shows:**
+  - the run's outcome, source, model, prompts, dataset, retrieval and policy;
+  - the eight metrics with one-line explanations;
+  - the confusion matrix, separating wrong approvals from unnecessary reviews;
+  - the baseline comparison (enforced gates first; skipped ones collapsed);
+  - three representative real cases (one per label, a disagreement first when one exists);
+  - the known limitations grouped as measured, suspected, unsupported or not implemented.
+- **States:** loading, error with retry, no evaluation yet (with the command to run), latest run
+  incomplete (with its error), stale.
+- **Labelling:** benchmark results are labelled as such, and an oracle or abstain run says it
+  isn't model accuracy. Dataset text is rendered as plain text.
+- **Setting:** the backend reads the reports folder from `EVALUATION_REPORTS_DIR`, which defaults
+  to this repository's `services/verification/eval/reports`.
+
+**Known limitations** are listed in one place, `src/inkloom_verify/evaluation/limitations.py`,
+which both the reports and the app read. A limitation is marked *measured* only when a test
+reproduces it (`tests/test_known_limitations.py`):
+- **PDF tables:** extraction of a column-ordered table loses its rows, so a wrong-product figure
+  can be confirmed.
+- **Very long documents:** the 1,000,000-character limit; retrieval sends about 89% of a
+  1,144-word handbook to the model.
+- **Non-English content:** the negation check is English only.
+- **Paraphrased evidence:** lexical retrieval can miss reworded evidence; "12 hours" doesn't match
+  "twelve hours".
+- **Planted false facts** in references count as evidence.
+- **Labels:** none reviewed by a person.
+
+**Adding a permanent regression case:**
+1. Write a test that fails on the bug.
+2. Fix it.
+3. Add an entry to `eval/regressions.json` with the next `REG-` id, the symptom, the fix and the
+   test reference.
+4. `tests/test_regression_registry.py` then fails if that test is ever renamed or removed.
+5. If the bug is about a dataset case, add a record to `eval/dataset.jsonl` (new id, never edit
+   held-out records), run the dataset validator, and update `eval/datasets.lock.json` in the same
+   reviewed change.
+
 ## Regression testing and CI (EVAL.md Phase 6)
 
 **CI** (`.github/workflows/verification-engine.yml`). The first three stages run on every push and

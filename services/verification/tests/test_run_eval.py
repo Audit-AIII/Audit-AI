@@ -40,15 +40,14 @@ def test_default_run_passes_its_gates_and_writes_both_reports(default_run):
     # Every "always" gate passes; model-run and oracle gates do not apply to the abstain floor.
     assert all(g["status"] == "PASS" for g in report["gates"] if g["applies_to"] == "always")
     assert {g["status"] for g in report["gates"] if g["applies_to"] != "always"} == {"NOT APPLICABLE"}
-    for section in ("## Verdicts", "## Retrieval recall@k", "## Corrections", "## Enforcement", "## Error handling",
-                    "## Regression gates"):
+    for section in ("## 1. Run summary", "## 2. Execution", "## 3. Outcome", "## 4. Dataset", "## 5. Size and class distribution", "## 6. Model", "## 7. Provider", "## 8. Prompt versions", "## 9. Retrieval configuration", "## 10. Decision thresholds and policy", "## 11. Required metrics", "## 12. Confusion matrix", "## 13. Failed evaluation cases", "## 14. Citation-validation failures", "## 15. Retrieval misses", "## 16. Human-review routing", "## 17. Correction traceability", "## 18. Comparison with the agreed baseline", "## 19. Known limitations", "## 20. Errors, unavailable metrics and skipped checks"):
         assert section in text
 
 
 def test_the_abstain_floor_is_never_presented_as_model_accuracy(default_run):
     _, report, text = default_run
     assert report["verdicts"]["source"] == "abstain" and report["verdicts"]["is_model_quality"] is False
-    assert "not model accuracy" in text and "Human-reviewed labels in eval/dataset.jsonl: 0/80" in text
+    assert "not model quality" in text and "Human-reviewed labels: 0/80" in text
 
 
 def test_report_has_every_required_metric(default_run):
@@ -203,7 +202,7 @@ def test_report_includes_the_extraction_evaluation_and_its_gates(default_run):
     statuses = {g["name"]: g["status"] for g in report["gates"]}
     assert statuses["extraction: unsafe rewordings kept (embellisher)"] == "PASS"
     assert statuses["extraction: claim recall (model run)"] == "NOT APPLICABLE"
-    assert "## Claim extraction" in text and "Live extraction: not run" in text
+    assert "Extraction (deterministic), oracle" in text and "Live extraction: not run" in text
 
 
 # --- Prompt versions, model configuration and call counts (PROMPTS.md Phase 7) -----------------
