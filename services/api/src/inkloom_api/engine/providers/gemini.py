@@ -7,7 +7,6 @@ id; free-tier models change often, and none is assumed here).
 
 from __future__ import annotations
 
-import json
 import os
 
 import httpx
@@ -15,6 +14,7 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 from inkloom_verify.providers.base import (
+    parse_json_object,
     JsonCompletion,
     JsonCompletionRequest,
     MalformedOutputError,
@@ -27,7 +27,12 @@ from inkloom_verify.providers.base import (
     ProviderUnavailableError,
 )
 
+from inkloom_verify.security import register_secret
+
 from .retry import with_retry
+
+PAID_TIER_VAR = "GEMINI_PAID_TIER"
+MAX_REPLY_CHARS = 2_000_000
 
 API_KEY_VAR = "GEMINI_API_KEY"
 MODEL_VAR = "GEMINI_MODEL"
@@ -55,6 +60,16 @@ class GeminiProvider:
         missing = [name for name, value in ((API_KEY_VAR, api_key), (MODEL_VAR, model)) if not value]
         if missing:
             raise ProviderNotConfiguredError(f"Gemini not configured: set {' and '.join(missing)}.")
+        # Gemini API terms (Unpaid Services): Google uses submitted content and responses to
+        # improve its products, human reviewers may read them, and confidential information must
+        # not be sent. Customer drafts and brand sources are confidential, so a key is used only
+        # when its owner confirms it is on the paid tier. Fails closed (SECURITY.md).
+        if env.get(PAID_TIER_VAR, "").strip().lower() != "true":
+            raise ProviderNotConfiguredError(
+                f"Gemini disabled: set {PAID_TIER_VAR}=true only for a paid-tier key (free-tier prompts are used "
+                "by Google to improve its products, so customer content is not sent there)."
+            )
+        register_secret(api_key)
         return cls(api_key=api_key, model=model)
 
     def sampling(self) -> dict:
@@ -80,28 +95,30 @@ class GeminiProvider:
         except genai_errors.ClientError as error:
             raise self._map_client_error(error) from None
         except genai_errors.ServerError as error:
-            raise ProviderUnavailableError(f"Gemini server error {error.code}: {error.message}"[:500]) from None
-        except httpx.TimeoutException as error:
-            raise ProviderTimeoutError(f"Gemini request timed out: {error}"[:500]) from None
-        except httpx.ConnectError as error:
-            raise ProviderUnavailableError(f"Gemini unreachable: {error}"[:500]) from None
+            # Fixed messages: the provider's text can echo submitted content, and an httpx error's
+            # text can carry the request URL (SECURITY.md, backend provider findings).
+            raise ProviderUnavailableError(f"Gemini server error {error.code}") from None
+        except httpx.TimeoutException:
+            raise ProviderTimeoutError("Gemini request timed out") from None
+        except httpx.ConnectError:
+            raise ProviderUnavailableError("Gemini unreachable") from None
 
         text = response.text
         if not text:
             raise MalformedOutputError("Gemini returned no text content.")
+        if len(text) > MAX_REPLY_CHARS:
+            raise MalformedOutputError("Gemini reply exceeded the size limit.")
         try:
-            data = json.loads(text)
-        except json.JSONDecodeError as error:
-            raise MalformedOutputError(f"Gemini reply was not valid JSON: {error}"[:500]) from None
-        if not isinstance(data, dict):
-            raise MalformedOutputError("Gemini reply was valid JSON but not an object.")
+            data = parse_json_object(text)  # strict: no duplicate keys, no NaN, one object
+        except MalformedOutputError:
+            raise MalformedOutputError("Gemini reply was not one valid JSON object.") from None
 
         return JsonCompletion(data=data, model=f"gemini:{self._model}", attempts=1)
 
     @staticmethod
     def _map_client_error(error: genai_errors.ClientError) -> Exception:
         code = error.code
-        message = f"Gemini error {code}: {error.message}"[:500]
+        message = f"Gemini error {code}"
         if code in (401, 403):
             return ProviderAuthError(message)
         if code == 402:

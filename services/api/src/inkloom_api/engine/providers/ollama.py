@@ -9,11 +9,11 @@ locally, so there is no sensible default to assume).
 
 from __future__ import annotations
 
-import json
 import os
 
 import httpx
 from inkloom_verify.providers.base import (
+    parse_json_object,
     JsonCompletion,
     JsonCompletionRequest,
     MalformedOutputError,
@@ -24,6 +24,8 @@ from inkloom_verify.providers.base import (
 )
 
 from .retry import with_retry
+
+MAX_RESPONSE_BYTES = 2_000_000  # the engine adapter's cap
 
 BASE_URL_VAR = "OLLAMA_BASE_URL"
 MODEL_VAR = "OLLAMA_MODEL"
@@ -66,8 +68,8 @@ class OllamaProvider:
         }
         try:
             response = self._client.post(f"{self._base_url}/api/chat", json=body)
-        except httpx.TimeoutException as error:
-            raise ProviderTimeoutError(f"Ollama request timed out: {error}"[:500]) from None
+        except httpx.TimeoutException:
+            raise ProviderTimeoutError("Ollama request timed out") from None
         except httpx.HTTPError as error:
             # Includes connection-refused (server not running) - never a config problem by
             # itself, since OLLAMA_MODEL was set; the server just isn't reachable right now.
@@ -78,11 +80,13 @@ class OllamaProvider:
                 raise ProviderRequestError(f"Ollama model not found: {self._model}"[:500])
             raise ProviderUnavailableError(f"Ollama error {response.status_code}"[:500])
 
+        if len(response.content) > MAX_RESPONSE_BYTES:
+            raise MalformedOutputError("Ollama response exceeded the size limit.")
         try:
             payload = response.json()
             content = payload["message"]["content"]
-            data = json.loads(content)
-        except (KeyError, json.JSONDecodeError, ValueError) as error:
+            data = parse_json_object(content)  # strict: no duplicate keys, no NaN, one object
+        except (KeyError, ValueError, TypeError, RecursionError, MalformedOutputError) as error:
             raise MalformedOutputError(f"Ollama reply was not usable JSON: {type(error).__name__}"[:500]) from None
         if not isinstance(data, dict):
             raise MalformedOutputError("Ollama reply was valid JSON but not an object.")

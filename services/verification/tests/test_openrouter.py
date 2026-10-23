@@ -46,6 +46,7 @@ def provider(handler, models=("google/gemini-flash", "meta-llama/llama"), **sett
         OpenRouterSettings(api_key=KEY, models=list(models), **settings),
         client=httpx.Client(transport=httpx.MockTransport(transport)),
         sleep=sleeps.append,
+        jitter=lambda: 1.0,  # deterministic: the full exponential step (jitter is tested on its own)
     )
     return adapter, seen, sleeps
 
@@ -262,3 +263,19 @@ def test_redact():
     record = logging.LogRecord("x", logging.INFO, __file__, 1, "token %s", (KEY,), None)
     RedactingFilter().filter(record)
     assert record.getMessage() == "token [REDACTED]"
+
+
+def test_backoff_is_jittered_within_half_to_full_step_and_capped():
+    """SECURITY.md: bounded retries with jittered exponential backoff (never synchronised retries)."""
+    for jitter, expected in ((lambda: 0.0, [0.5, 1.0]), (lambda: 1.0, [1.0, 2.0])):
+        responses = [httpx.Response(502), httpx.Response(502), ok({"done": True})]
+        sleeps: list[float] = []
+        adapter = OpenRouterProvider(
+            OpenRouterSettings(api_key=KEY, models=["google/gemini-flash"]),
+            client=httpx.Client(transport=httpx.MockTransport(lambda r: responses.pop(0))),
+            sleep=sleeps.append, jitter=jitter,
+        )
+        adapter.complete_json(REQUEST)
+        assert sleeps == expected
+    adapter = OpenRouterProvider(OpenRouterSettings(api_key=KEY, models=["a/b"], backoff_seconds=30), sleep=lambda s: None, jitter=lambda: 1.0)
+    assert adapter._delay(ProviderUnavailableError("x"), 3) == 20.0  # capped

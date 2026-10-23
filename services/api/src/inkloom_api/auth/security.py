@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 
-from ..config import Settings
+from ..config import MIN_AUTH_SECRET_CHARS, Settings
 
 ALGORITHM = "HS256"
 
@@ -39,8 +39,8 @@ class TokenError(Exception):
 
 
 def create_access_token(settings: Settings, user_id: uuid.UUID, organisation_id: uuid.UUID) -> str:
-    if not settings.auth_secret_key:
-        raise RuntimeError("AUTH_SECRET_KEY is not set")
+    if len(settings.auth_secret_key) < MIN_AUTH_SECRET_CHARS:
+        raise RuntimeError(f"AUTH_SECRET_KEY is missing or shorter than {MIN_AUTH_SECRET_CHARS} characters")
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
@@ -53,6 +53,9 @@ def create_access_token(settings: Settings, user_id: uuid.UUID, organisation_id:
 
 def decode_access_token(settings: Settings, token: str) -> tuple[uuid.UUID, uuid.UUID]:
     """Returns (user_id, organisation_id). Raises TokenError for any invalid token."""
+    if len(settings.auth_secret_key) < MIN_AUTH_SECRET_CHARS:
+        # Fail closed: with no (or a guessable) key no token can be trusted.
+        raise TokenError("token verification is not configured")
     try:
         payload = jwt.decode(token, settings.auth_secret_key, algorithms=[ALGORITHM])
         return uuid.UUID(payload["sub"]), uuid.UUID(payload["org"])

@@ -1,0 +1,7 @@
+# Secrets: never commit real environment files anywhere in the repo (SECURITY.md).
+# Each service also ignores its own; this covers every other directory, including the root.
+.env
+.env.*
+!.env.example
+*.pem
+*.key

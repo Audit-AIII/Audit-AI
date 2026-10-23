@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 import re
 import time
 from collections.abc import Callable, Mapping
@@ -132,8 +133,10 @@ class OpenRouterProvider:
         settings: OpenRouterSettings,
         client: httpx.Client | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        jitter: Callable[[], float] = random.random,
     ) -> None:
         self.settings = settings
+        self._jitter = jitter
         # Redirects are never followed, so the Authorization header cannot be sent to another host.
         self._client = client or httpx.Client(timeout=settings.timeout_seconds, follow_redirects=False)
         self._sleep = sleep
@@ -179,7 +182,10 @@ class OpenRouterProvider:
     def _delay(self, error: ProviderError, retry: int) -> float:
         if isinstance(error, ProviderRateLimitError) and error.retry_after is not None:
             return min(error.retry_after, _MAX_RETRY_AFTER_SECONDS)
-        return self.settings.backoff_seconds * (2**retry)
+        # Exponential steps with "equal jitter" (a random factor in [0.5, 1]) so concurrent requests
+        # don't retry in lockstep; never longer than the Retry-After cap.
+        step = self.settings.backoff_seconds * (2**retry)
+        return min(step * (0.5 + self._jitter() / 2), _MAX_RETRY_AFTER_SECONDS)
 
     def _body(self, model: str, request: JsonCompletionRequest) -> dict[str, Any]:
         if self.settings.structured_output == "json_schema":

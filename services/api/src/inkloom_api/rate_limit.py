@@ -7,6 +7,7 @@ counters - out of scope for this hackathon's single-process deployment, and note
 
 from __future__ import annotations
 
+import math
 import time
 from collections import defaultdict
 from threading import Lock
@@ -21,6 +22,16 @@ _lock = Lock()
 _user_hits: dict[str, list[float]] = defaultdict(list)
 _org_hits: dict[str, list[float]] = defaultdict(list)
 _ip_hits: dict[str, list[float]] = defaultdict(list)
+
+
+def _retry_after(hits: list[float], window_seconds: float, now: float) -> int:
+    """Whole seconds until the oldest counted hit leaves the window (at least 1)."""
+    return max(1, math.ceil(hits[0] + window_seconds - now)) if hits else 1
+
+
+def _too_many(message: str, hits: list[float], window_seconds: float, now: float) -> HTTPException:
+    return HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, message,
+                         headers={"Retry-After": str(_retry_after(hits, window_seconds, now))})
 
 
 def _prune_and_count(hits: list[float], window_seconds: float, now: float) -> int:
@@ -43,14 +54,14 @@ def enforce_submission_rate_limit(auth: AuthContext, settings: Settings) -> None
     user_key, org_key = str(auth.user_id), str(auth.organisation_id)
     with _lock:
         if _prune_and_count(_user_hits[user_key], settings.rate_limit_window_seconds, now) >= settings.rate_limit_submissions_per_user:
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many submissions from this user; slow down")
+            raise _too_many("too many submissions from this user; slow down", _user_hits[user_key],
+                            settings.rate_limit_window_seconds, now)
         if (
             _prune_and_count(_org_hits[org_key], settings.rate_limit_window_seconds, now)
             >= settings.rate_limit_submissions_per_organisation
         ):
-            raise HTTPException(
-                status.HTTP_429_TOO_MANY_REQUESTS, "this organisation has submitted too many reviews recently"
-            )
+            raise _too_many("this organisation has submitted too many reviews recently", _org_hits[org_key],
+                            settings.rate_limit_window_seconds, now)
         _user_hits[user_key].append(now)
         _org_hits[org_key].append(now)
 
@@ -67,9 +78,8 @@ def enforce_registration_rate_limit(request: Request, settings: Settings = Depen
             _prune_and_count(_ip_hits[ip_key], settings.rate_limit_registration_window_seconds, now)
             >= settings.rate_limit_registrations_per_ip
         ):
-            raise HTTPException(
-                status.HTTP_429_TOO_MANY_REQUESTS, "too many registration attempts from this address; slow down"
-            )
+            raise _too_many("too many registration attempts from this address; slow down", _ip_hits[ip_key],
+                            settings.rate_limit_registration_window_seconds, now)
         _ip_hits[ip_key].append(now)
 
 

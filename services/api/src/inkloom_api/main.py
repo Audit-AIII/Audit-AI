@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from dotenv import load_dotenv
 
 # Must run before anything reads os.environ directly - our own Settings (config.py) parses
@@ -13,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
+from .body_limit import BodySizeLimitMiddleware  # noqa: E402
 from .config import get_settings  # noqa: E402
 from .db import get_db  # noqa: E402
 from .errors import install_error_handlers  # noqa: E402
@@ -21,8 +24,18 @@ from .routers import auth, brands, content, content_versions, evaluations, revie
 
 settings = get_settings()
 configure_logging(settings.log_level)
+# Refuses to start in production with an unsafe configuration; elsewhere, says what is unsafe
+# (setting names only, never values).
+for _problem in settings.check_startup():
+    logging.getLogger("inkloom_api.config").warning("insecure configuration: %s", _problem)
 
 app = FastAPI(title="INKLOOM AI backend", version="0.1.0")
+# Innermost: the body limit runs before any route reads or parses a body.
+app.add_middleware(
+    BodySizeLimitMiddleware,
+    max_json_bytes=settings.max_request_body_bytes,
+    max_upload_bytes=settings.max_source_upload_bytes + 1_000_000,
+)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,

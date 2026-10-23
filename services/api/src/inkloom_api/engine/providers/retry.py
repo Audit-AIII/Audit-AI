@@ -9,6 +9,7 @@ waiting out retries that can't help.
 
 from __future__ import annotations
 
+import random
 import time
 from collections.abc import Callable
 
@@ -29,7 +30,12 @@ def with_retry(
     max_retries: int = 2,
     backoff_seconds: float = 1.0,
     sleep: Callable[[float], None] = time.sleep,
+    jitter: Callable[[], float] = random.random,
 ) -> JsonCompletion:
+    """Calls ``call``; retries transient failures at most ``max_retries`` times. Each wait is the
+    exponential step scaled by a random factor in [0.5, 1) ("equal jitter", so many clients
+    don't retry in lockstep), never above ``_MAX_RETRY_AFTER_SECONDS``; a provider's
+    Retry-After is honoured when it is longer, up to the same cap."""
     attempt = 0
     while True:
         try:
@@ -38,7 +44,8 @@ def with_retry(
             attempt += 1
             if attempt > max_retries:
                 raise
-            delay = backoff_seconds * (2 ** (attempt - 1))
+            step = backoff_seconds * (2 ** (attempt - 1))
+            delay = min(step * (0.5 + jitter() / 2), _MAX_RETRY_AFTER_SECONDS)
             if isinstance(error, ProviderRateLimitError) and error.retry_after is not None:
                 delay = min(max(delay, error.retry_after), _MAX_RETRY_AFTER_SECONDS)
             sleep(delay)

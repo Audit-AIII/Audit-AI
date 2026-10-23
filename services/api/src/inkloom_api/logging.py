@@ -15,6 +15,7 @@ import uuid
 from contextvars import ContextVar
 from typing import Awaitable, Callable
 
+from inkloom_verify.security import install_redaction
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -35,6 +36,9 @@ class _RequestIdFilter(logging.Filter):
 def configure_logging(level: str = "INFO") -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.addFilter(_RequestIdFilter())
+    # Every record from every logger (third-party ones included) passes through the engine's
+    # redaction: registered credentials, bearer tokens and key-shaped strings become [REDACTED].
+    install_redaction(handler)
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s request_id=%(request_id)s %(name)s %(message)s")
     )
@@ -63,8 +67,11 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
             self._logger.info(
                 "end method=%s path=%s status=%s", request.method, request.url.path, response.status_code
             )
-        except Exception:
-            self._logger.exception("unhandled method=%s path=%s", request.method, request.url.path)
+        except Exception as exc:
+            # The type only: an exception's message can carry document text or a connection
+            # string. errors.py logs the stack frames (also without the message).
+            self._logger.error("unhandled method=%s path=%s error=%s", request.method, request.url.path,
+                               type(exc).__name__)
             raise
         finally:
             _request_id.reset(token)

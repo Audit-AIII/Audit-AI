@@ -8,6 +8,9 @@ Tests: [`tests/test_security.py`](tests/test_security.py), plus the guard, extra
 verification, correction, budget, API and adapter suites. Last run on 2026-10-23 (Phase 7,
 second run): 890 passed, Python 3.14.6, Windows.
 
+The whole-system review (engine + backend + frontend, 2026-10-24) is at the end of this file:
+[Whole system](#whole-system-2026-10-24), with the requirement-by-requirement acceptance table.
+
 ## What the engine guarantees, and what it assumes
 
 **Guaranteed by engine code and covered by tests:**
@@ -289,3 +292,129 @@ These are Member 3's files, and I haven't edited them. The request list is in IN
 - **Strings written by the model are displayed.** They're cleaned and length-capped, but their
   content is attacker-influenced. That's why plain-text rendering is required of Member 1.
 - No fuzzing, load test or live-model red-teaming has been done yet.
+
+## Whole system (2026-10-24)
+
+Scope: the engine (`services/verification`), the backend that runs it (`services/api`, Member 3)
+and the frontend (`audit-ai-final/frontend`, Member 1). Changes to other members' code are
+listed file by file in the hand-over; none rewrites unrelated behaviour.
+
+### Threat model (summary)
+
+| Asset | Threat | Boundary that stops it |
+|---|---|---|
+| A tenant's brand sources (the **reference set**: `brand_id`) | Another tenant's review retrieves or cites them | `brand_id` must belong to the caller's organisation (`tenancy.get_brand_profile_or_404`, 404 otherwise); retrieval is built only from that brand's approved sources (`review_runner.latest_approved_sources`); no sources means the review fails, never a wider search; the result cache key includes organisation and source fingerprints |
+| Review verdicts | Injected text (draft, reference document, hidden PDF text) steers the model | Citation Guard: quotes must exist verbatim in this request's passages, never from an instruction sentence, and must carry the claim's figures and names; the backend re-validates every citation against its own copy (`engine/evidence_validator.py`); claims that give instructions are never SUPPORTED |
+| Approvals | Malformed or hostile model output | Strict JSON (no duplicate keys, NaN or trailing data) and closed schemas; extra fields make the reply invalid; an invalid reply is ERROR, shown as `unverified` with human review, never approved |
+| Credentials | Leak through code, git history, logs, errors or the browser bundle | Environment only; `.env` ignored everywhere; keys registered for log redaction; fixed provider error texts; exceptions logged by type and frames only; the bundle carries only `NEXT_PUBLIC_API_URL` |
+| Customer content | Sent to a provider that trains on it | Gemini refused unless `GEMINI_PAID_TIER=true`; OpenRouter `data_collection: deny`; confidential sources go to local Ollama only |
+| Availability and cost | Huge bodies, many claims, retry storms, slow queries | 413 before parsing; claim cap; per-review call, token and time budget; bounded jittered retries; per-call timeouts; 429 with `retry_after`; DB `statement_timeout` |
+
+### Controls added or changed in this review
+
+- **Abuse limits.**
+  - `body_limit.py` refuses bodies over 1 MB (uploads: the upload limit plus 1 MB). It applies
+    to a declared `Content-Length` and to streamed bodies, before any route reads them.
+  - The backend review pipeline now has a `BudgetedProvider` per review (100 calls, 400k
+    estimated tokens, 180 s) and `ExtractionConfig(max_claims=50)`.
+  - A partial review (claims dropped, or any claim in ERROR) says why in `error_summary` and
+    is not cached, so a retry runs again.
+- **Retries.** Backend and engine backoff is now exponential with jitter (each wait is between
+  half and all of the step), capped at 20 s; `Retry-After` is honoured up to the cap.
+- **429.** The body carries `error.retry_after` and the response carries a `Retry-After`
+  header, for the user, organisation and registration limits.
+- **Secrets and configuration.**
+  - `AUTH_SECRET_KEY` must be at least 32 characters, or no token is signed or accepted.
+  - `ENVIRONMENT=production` refuses to start with a weak key or `*` CORS. Problems are
+    reported by setting name only.
+  - The DB `statement_timeout` is 15 s.
+- **Logs and errors.**
+  - The backend's only log handler runs the engine's redaction filter.
+  - Unhandled exceptions are logged by type and stack frames, never their message. That
+    includes the request middleware, which used `logger.exception` and leaked the message;
+    found by `test_unhandled_exception_is_sanitized_for_client_and_logs`.
+- **Backend provider adapters (Gemini, Groq, Ollama).**
+  - They use the engine's strict `parse_json_object`.
+  - Error texts are fixed (no provider text, no URL).
+  - Responses are capped at 2 MB.
+  - Keys are registered for redaction.
+  - Gemini fails closed unless `GEMINI_PAID_TIER=true`.
+- **Dependencies.**
+  - pypdf raised to `>=6.21.2,<7`: 5.9.0 had crafted-PDF denial-of-service advisories, and
+    uploads reach it.
+  - anyio, certifi and urllib3 moved to patched versions.
+  - New `services/api/constraints.txt` (58 exact pins, the backend's dependency closure).
+- **Repo.** A root `.gitignore` ignores `.env`, `.env.*` (except `.env.example`), `*.pem` and
+  `*.key` in every directory.
+
+### Provider data retention (checked against official pages)
+
+- **Gemini API (terms updated 2026-04-28).** Unpaid Services use prompts and responses to
+  improve Google products, human reviewers may read them, and the terms say not to submit
+  confidential information. Paid Services don't use prompts for product improvement and keep
+  limited logs for abuse and legal purposes. **Enforced:** off unless the operator confirms a
+  paid key.
+- **Groq.** No retention of inference inputs by default; reliability and abuse logs kept up to
+  30 days; zero data retention is an account setting (Data Controls). **Not verifiable from
+  here:** whether this account has it enabled, and training use is not stated.
+- **OpenRouter.** `data_collection: "deny"` routes only to providers that don't collect user
+  data, and the adapter sends it by default. **Not verified:** OpenRouter's own prompt-logging
+  default for this account.
+
+### Acceptance table
+
+Evidence key:
+- **S** = `services/api/tests/test_security_controls.py` (real Postgres, real routes and
+  middleware; the external LLM is a scripted, obedient model).
+- **E** = the engine suite.
+- **Live** = run against the backend over HTTP on 2026-10-24.
+
+| # | Requirement | Status | Evidence |
+|---|---|---|---|
+| 1 | Every review request carries a validated reference set (`brand_id`) | PASS | S: missing or malformed → 422, unknown or other org → 404, no token → 401; no model call in any case |
+| 2 | Retrieval limited to the authorized reference set; no fallback to all documents | PASS | S: the model was shown only the brand's own passages (same-org other brand and other org both excluded); no approved sources → `failed` (`test_reviews.py`) |
+| 3 | Cross-reference-set integration tests | PASS | S `test_retrieval_evidence_and_cache_never_cross_reference_sets` (evidence source ids, passages seen, cache) |
+| 4 | Adversarial tests: content, reference passages, hidden PDF text | PASS, with a limitation | S: obedient model; injected instructions in draft, source and PDF (render mode 3, white, 0.5 pt) never become evidence or SUPPORTED. Hidden PDF text **is extracted** (asserted); simple text tests don't cover every PDF/OCR trick |
+| 5 | Structured output validation; an invalid reply is never approval | PASS | E (closed schemas); S: extra `action`/URL fields → unverified, needs review; strict JSON in backend adapters (duplicate key, NaN, array, trailing data) |
+| 6 | No model-triggered actions | PASS | E static and dynamic sandbox tests; S action-field test |
+| 7 | Citation Guard enforced end to end | PASS | E guard tests; S obedient-model tests; backend `evidence_validator` re-check |
+| 8 | Secrets from the environment only; none hard-coded | PASS | History and working-tree scans: no real-shaped key; current `.env` values absent from history |
+| 9 | `.env` ignored; `.env.example` placeholders only | PASS | `git check-ignore` for root, services, frontend; examples hold empty values or the local-dev default |
+| 10 | Git-history secret scan without printing values | PASS | Local regex scan of all 79 commits (gitleaks/trufflehog not installed; nothing uploaded) |
+| 11 | Credentials rotated where exposed | PASS (nothing to rotate) | No exposure found; **no key was rotated** |
+| 12 | Log redaction | PASS | S: registered key, bearer JWT and exception text redacted through the real handler |
+| 13 | Provider retention verified | **BLOCKED** | Gemini: enforced. Groq zero-retention setting and OpenRouter's own logging can't be verified without account access |
+| 14 | Max content size | PASS | 413 (S and Live, declared and chunked); `MAX_CONTENT_CHARS` in the engine contract |
+| 15 | Max claims | PASS | S claim cap: 2 kept, reason shown, not cached |
+| 16 | Per-call timeouts | PASS | Gemini 30 s (one SDK attempt), Groq 30 s, Ollama 60 s, OpenRouter 30 s; DB 15 s (S `SHOW statement_timeout`) |
+| 17 | Bounded retries with backoff and jitter | PASS | `test_retry.py`, `test_openrouter.py` (2 retries, half-to-full jitter, 20 s cap) |
+| 18 | Per-user rate limits, 429 with `retry_after` | PASS (single process) | S (exact value, header, reset); Live 429 `Retry-After: 600`. Counters are in memory: **not production-safe with several workers or hosts** |
+| 19 | Per-request cost cap (server side) | PASS (calls/tokens, not money) | S budget test: the call past the budget never reached the model. No currency figure: usage data isn't available |
+| 20 | Dependency pinning | PASS | Engine and backend `constraints.txt`; frontend `package-lock.json` |
+| 21 | pip-audit | PASS after fixes | Engine venv and constraints: none. Backend constraints: none (after the pypdf/anyio/certifi/urllib3 upgrades) |
+| 22 | npm audit | PASS | Frontend: 0 across 446 packages. Root lock is empty |
+| 23 | Partial failures return ERROR (`unverified` + human review) | PASS | S: one claim times out, the other stays SUPPORTED; every claim failing (timeout, rate limit, malformed) → all unverified, review `needs_human_review` |
+| 24 | Sanitized errors | PASS | S: 500 body is `{code, message, request_id}`; message, DSN and password absent from body and logs |
+| 25 | Startup secret validation without printing values | PASS | S startup and token-key tests |
+| 26 | Frontend bundle free of secrets | PASS | `.next/static` (27 chunks): no key patterns or server variable names |
+| 27 | Live red-teaming with a real model | **BLOCKED** | Not run: needs an approved model and data-handling configuration |
+
+**Not demo-ready by the spec's rule:** items 13 and 27 are BLOCKED, and item 18 holds only for
+a single process.
+
+### Additional remaining risks
+
+- **Rate limits are per process.** Several workers or hosts each count separately. A shared
+  store (e.g. Redis) is needed before horizontal scaling.
+- **Hidden PDF text is extracted.** The defence is the guard, not the extractor. An
+  instruction worded as a plain fact still passes (see above).
+- **Deleting an organisation with evidence fails.** `evidence_links.finding_id` cascades
+  while `evidence_links.source_id` is `SET NULL`, and Postgres refuses both in one statement.
+  This blocks tenant-deletion requests. It's a schema fix for Member 3; the tests work around
+  it.
+- **Data used by the backend test suite.** `test_migrations` empties the database it runs
+  against, so it must never point at shared data.
+- **The engine's own `/v1/verify` router is not mounted in the backend.** If it is mounted
+  later, it needs the same auth, tenancy and body limits.
+- **Gemini is now off in the local demo.** `services/api/.env` has a Gemini key but no
+  `GEMINI_PAID_TIER`, so reviews use the next configured provider (OpenRouter).

@@ -16,7 +16,12 @@ _SessionLocal: sessionmaker | None = None
 def get_engine():
     global _engine
     if _engine is None:
-        _engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+        settings = get_settings()
+        connect_args = {}
+        if settings.database_url.startswith("postgresql"):
+            # Server-side cap on every statement, so a slow query cannot hold a worker forever.
+            connect_args["options"] = f"-c statement_timeout={int(settings.db_statement_timeout_ms)}"
+        _engine = create_engine(settings.database_url, pool_pre_ping=True, connect_args=connect_args)
     return _engine
 
 

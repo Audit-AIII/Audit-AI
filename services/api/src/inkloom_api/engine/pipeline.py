@@ -20,13 +20,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from inkloom_verify.extraction import ClaimExtractor
+from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig
+from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
 from inkloom_verify.retrieval import BM25Retriever
 from inkloom_verify.schemas import Claim, ClaimResult, Verdict
 from inkloom_verify.verification import ClaimVerifier, verify_claim
 from sqlalchemy.orm import Session
 
 from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, Finding, Review
+from ..config import get_settings
 from ..result_cache import compute_cache_key, get_cached_report, materialize_cached_report, serialize_review_outcome, store_report
 from ..section_diff import section_hash_for_span
 from ..statuses import (
@@ -118,7 +120,15 @@ def run_review(
     documents = [entry.document for entry in corpus]
     lookup = corpus_lookup(corpus)
 
-    extractor = ClaimExtractor(provider)
+    # Per-review limits (SECURITY.md): every model call below goes through one budget (calls,
+    # estimated tokens, deadline; provider retries count), and at most review_max_claims claims
+    # are kept. A refused call is LIMIT_EXCEEDED: the claim becomes ERROR (unverified, human review).
+    settings = get_settings()
+    provider = BudgetedProvider(provider, CallBudget(
+        max_calls=settings.review_max_llm_calls, max_estimated_tokens=settings.review_max_estimated_tokens,
+        deadline_seconds=settings.review_deadline_seconds,
+    ))
+    extractor = ClaimExtractor(provider, ExtractionConfig(max_claims=settings.review_max_claims))
     extraction = extractor.extract(content_version.text)
     review.prompt_version = extraction.provenance.prompt_version
     review.engine_model_id = ",".join(sorted(extraction.provenance.models)) or None
@@ -136,6 +146,10 @@ def run_review(
         return
 
     needs_human_review = bool(extraction.errors)  # a partial extraction still needs a human look
+    # A partial result (claims dropped at the claim cap or by a failed batch, or any claim that
+    # ended in ERROR) is shown with its reason and never cached, so a retry re-runs it instead
+    # of replaying the failure (SECURITY.md, partial failures).
+    partial = bool(extraction.errors)
     for claim in extraction.claims:
         try:
             # ClaimVerifier.verify() already catches ProviderError itself and returns an
@@ -145,16 +159,19 @@ def run_review(
             # crash the whole request or silently drop the claim.
             result = verify_claim(claim, retriever, verifier)
         except Exception as error:
-            needs_human_review = True
+            needs_human_review = partial = True
             _write_unexpected_error_finding(db, review, content_version, claim, error)
             continue
         needs_human_review = needs_human_review or result.verdict is not Verdict.SUPPORTED
+        partial = partial or result.verdict is Verdict.ERROR
         _write_finding(db, review, content_version, claim, result, lookup, organisation_id)
 
-    _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED)
+    summary = "; ".join(e.message for e in extraction.errors)[:500] or None
+    _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED, summary)
     # Only a genuine completed analysis is cached - never a stub result or a provider/corpus
-    # failure (both returned early above, before reaching here).
-    store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
+    # failure (both returned early above, before reaching here), nor a partial one.
+    if not partial:
+        store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
 
 
 def _make_external_call_logger(db: Session, review: Review, organisation_id: uuid.UUID):

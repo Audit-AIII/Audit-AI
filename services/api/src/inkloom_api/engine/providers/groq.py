@@ -19,11 +19,11 @@ net OpenRouter's `json_object` fallback mode relies on.
 
 from __future__ import annotations
 
-import json
 import os
 
 import httpx
 from inkloom_verify.providers.base import (
+    parse_json_object,
     JsonCompletion,
     JsonCompletionRequest,
     MalformedOutputError,
@@ -36,7 +36,11 @@ from inkloom_verify.providers.base import (
     ProviderUnavailableError,
 )
 
+from inkloom_verify.security import register_secret
+
 from .retry import with_retry
+
+MAX_RESPONSE_BYTES = 2_000_000  # the engine adapter's cap
 
 API_KEY_VAR = "GROQ_API_KEY"
 MODEL_VAR = "GROQ_MODEL"
@@ -59,6 +63,7 @@ class GroqProvider:
         missing = [name for name, value in ((API_KEY_VAR, api_key), (MODEL_VAR, model)) if not value]
         if missing:
             raise ProviderNotConfiguredError(f"Groq not configured: set {' and '.join(missing)}.")
+        register_secret(api_key)  # redacted from every log record (security.RedactingFilter)
         return cls(api_key=api_key, model=model)
 
     def sampling(self) -> dict:
@@ -83,19 +88,21 @@ class GroqProvider:
             response = self._client.post(
                 BASE_URL, json=body, headers={"Authorization": f"Bearer {self._api_key}"}
             )
-        except httpx.TimeoutException as error:
-            raise ProviderTimeoutError(f"Groq request timed out: {error}"[:500]) from None
+        except httpx.TimeoutException:
+            raise ProviderTimeoutError("Groq request timed out") from None
         except httpx.HTTPError as error:
             raise ProviderUnavailableError(f"Groq request failed: {type(error).__name__}"[:500]) from None
 
         if response.status_code >= 400:
             raise self._map_status_error(response)
 
+        if len(response.content) > MAX_RESPONSE_BYTES:
+            raise MalformedOutputError("Groq response exceeded the size limit.")
         try:
             payload = response.json()
             content = payload["choices"][0]["message"]["content"]
-            data = json.loads(content)
-        except (KeyError, IndexError, json.JSONDecodeError, ValueError) as error:
+            data = parse_json_object(content)  # strict: no duplicate keys, no NaN, one object
+        except (KeyError, IndexError, ValueError, TypeError, RecursionError, MalformedOutputError) as error:
             raise MalformedOutputError(f"Groq reply was not usable JSON: {type(error).__name__}"[:500]) from None
         if not isinstance(data, dict):
             raise MalformedOutputError("Groq reply was valid JSON but not an object.")

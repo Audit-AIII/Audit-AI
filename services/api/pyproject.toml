@@ -19,7 +19,7 @@ dependencies = [
   "PyJWT>=2.9,<3",
   "python-dotenv>=1.0,<2",
   "python-multipart>=0.0.12,<1",
-  "pypdf>=5.0,<6",
+  "pypdf>=6.21.2,<7",  # >=6.21.2: fixes crafted-PDF DoS advisories (pip-audit, 2026-10-24)
   "python-docx>=1.1,<2",
   "google-genai>=1.0,<3",
 ]
