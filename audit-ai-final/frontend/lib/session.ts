@@ -3,10 +3,19 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Demo session (no backend yet): the signed-in user's email and name live in this browser's
- * localStorage. Replace with real auth when the API exists; components only use useSession().
+ * Signed-in session from POST /api/auth/login, kept in this browser's localStorage so a refresh
+ * stays signed in. The workspace re-checks it with GET /api/auth/me on load (AppShell) rather
+ * than trusting this copy. Components only use useSession().
  */
-export type Session = { email: string; name?: string };
+export type Session = {
+  email: string;
+  name?: string;
+  /** Bearer token for the API. Scoped to one organisation, decided at login. */
+  token: string;
+  userId: string;
+  organisation: { id: string; name: string; slug: string };
+  role: string;
+};
 
 const KEY = "audit-ai.session";
 const EVENT = "audit-ai:session";
@@ -24,7 +33,9 @@ function read(): Session | null {
   if (raw !== cachedRaw) {
     cachedRaw = raw;
     try {
-      cached = raw ? (JSON.parse(raw) as Session) : null;
+      const parsed = raw ? (JSON.parse(raw) as Partial<Session>) : null;
+      // Sessions saved by the old demo sign-in have no token: treat them as signed out.
+      cached = parsed?.token && parsed.organisation && parsed.email ? (parsed as Session) : null;
     } catch {
       cached = null;
     }

@@ -15,7 +15,7 @@ export default function LoginPage() {
         <LoginForm />
       </Suspense>
       <p className="t-body auth__note">
-        Demo build: there is no account system yet, so any email signs you in to the sample workspace.
+        Demo: run the backend’s seed script, then sign in with one of the accounts it prints.
       </p>
     </main>
   );

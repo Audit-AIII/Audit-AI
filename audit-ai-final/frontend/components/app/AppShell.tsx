@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AccountNav } from "@/components/layout/AccountNav";
-import { getSession, useSession } from "@/lib/session";
+import { ApiError, api } from "@/lib/api/client";
+import { getSession, signIn, useSession } from "@/lib/session";
 import { STAGES } from "./stages";
 
 /**
@@ -17,9 +18,35 @@ export function AppShell({ children }: { children: ReactNode }) {
   const session = useSession();
   const current = STAGES.find((s) => pathname.startsWith(`/app/${s.slug}`));
 
+  const [offline, setOffline] = useState(false);
+
   useEffect(() => {
     if (!getSession()) router.replace("/login");
   }, [session, router]);
+
+  // Re-check the stored session with the server once per visit (a membership can be deactivated
+  // between visits). 401 is handled centrally in the API client (signs out, back to /login).
+  const token = session?.token;
+  useEffect(() => {
+    if (!token) return;
+    let live = true;
+    api
+      .me()
+      .then((me) => {
+        const s = getSession();
+        if (!live || !s) return;
+        if (me.role !== s.role || me.organisation.id !== s.organisation.id || me.user.email !== s.email) {
+          signIn({ ...s, email: me.user.email, name: me.user.display_name ?? undefined, organisation: me.organisation, role: me.role });
+        }
+        setOffline(false);
+      })
+      .catch((err) => {
+        if (live && err instanceof ApiError && err.status === 0) setOffline(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [token]);
 
   if (!session) return null;
 
@@ -55,8 +82,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <footer className="app__status board" aria-live="polite">
         <span className="app__status-dot" aria-hidden="true" />
-        <p>{current?.hint ?? "Pick a stage to begin."}</p>
-        <span className="t-caption app__status-sample">Sample data</span>
+        <p>
+          {offline ? "Can’t reach the Audit AI server. Check that it is running." : (current?.hint ?? "Pick a stage to begin.")}
+        </p>
+        <span className="t-caption app__status-sample">{session.organisation.name} · {session.role.replace(/_/g, " ")}</span>
       </footer>
     </div>
   );

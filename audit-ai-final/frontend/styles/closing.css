@@ -131,6 +131,9 @@
 .auth__form { display: grid; gap: 20px; }
 .auth__form .btn { justify-self: start; margin-top: 6px; }
 .auth__switch, .auth__card > .t-lead { margin: 0; }
+.auth__alert { margin: 0; padding: 12px 14px; border-radius: var(--r-ui); outline: 1.5px dashed var(--ink-2); outline-offset: -1px; font-weight: 600; }
+.auth__alert--bad { outline: 0; background: var(--bad-tint); box-shadow: var(--shadow-well); color: var(--ink); }
+.auth__alert--bad::before { content: "≠ "; }
 .auth__note { max-width: 44ch; margin: 0; text-align: center; color: var(--ink); font-size: 15px; }
 .auth__list { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .auth__list li { padding: 8px 12px; border-radius: var(--r-tag); outline: 1px dashed var(--ink); outline-offset: -1px; }

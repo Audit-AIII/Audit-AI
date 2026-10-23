@@ -350,3 +350,7 @@ textarea.field__input { min-height: 150px; resize: vertical; }
   .disclosure[open] .disclosure__answer { animation: none; }
   .btn:hover, .btn:active, .link:active, .link-arrow:hover .link-arrow__glyph { transform: none; }
 }
+
+/* Busy/disabled button: stays raised, just quieter */
+.btn:disabled { cursor: progress; opacity: .65; }
+.btn:disabled:hover, .btn:disabled:active { box-shadow: var(--shadow-raised); transform: none; translate: none; }
