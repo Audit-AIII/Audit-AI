@@ -2,12 +2,15 @@
 
 import { getSession, signOut } from "@/lib/session";
 import type {
+  ApprovalEventOut,
+  BrandOut,
   BrandSourceOut,
   CreateReviewBody,
   ErrorBody,
   ErrorCode,
-  ApprovalEventOut,
   LoginResponse,
+  RegisterBody,
+  RegisterResponse,
   RequestChangesBody,
   ReviewOut,
   SessionInfo,
@@ -18,6 +21,10 @@ import type {
  * (NEXT_PUBLIC_API_URL). Never put API keys or backend secrets in frontend env vars: anything
  * NEXT_PUBLIC_* is shipped to every browser.
  */
+/** File types the backend can read, for <input accept>. Max size 10 MB. */
+export const ACCEPTED_FILE_TYPES = ".pdf,.docx,.txt";
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/+$/, "");
 
 /**
@@ -65,9 +72,16 @@ function isErrorBody(x: unknown): x is ErrorBody {
   return !!e && typeof e.code === "string" && typeof e.message === "string";
 }
 
-type Options = { method?: "GET" | "POST"; body?: unknown; auth?: boolean; headers?: Record<string, string> };
+type Options = {
+  method?: "GET" | "POST";
+  body?: unknown;
+  /** Multipart body. Sent as-is with NO Content-Type: the browser adds it with the boundary. */
+  form?: FormData;
+  auth?: boolean;
+  headers?: Record<string, string>;
+};
 
-async function request<T>(path: string, { method = "GET", body, auth = true, headers = {} }: Options = {}): Promise<T> {
+async function request<T>(path: string, { method = "GET", body, form, auth = true, headers = {} }: Options = {}): Promise<T> {
   const token = auth ? getSession()?.token : undefined;
   let res: Response;
   try {
@@ -75,11 +89,11 @@ async function request<T>(path: string, { method = "GET", body, auth = true, hea
       method,
       headers: {
         Accept: "application/json",
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: form ?? (body !== undefined ? JSON.stringify(body) : undefined),
     });
   } catch {
     throw new ApiError(0, "NETWORK_ERROR", "network error", null);
@@ -117,11 +131,35 @@ async function request<T>(path: string, { method = "GET", body, auth = true, hea
 export const api = {
   login: (email: string, password: string) =>
     request<LoginResponse>("/api/auth/login", { method: "POST", body: { email, password }, auth: false }),
+  register: (body: RegisterBody) => request<RegisterResponse>("/api/auth/register", { method: "POST", body, auth: false }),
   me: () => request<SessionInfo>("/api/auth/me"),
+  brands: () => request<BrandOut[]>("/api/brands"),
+  createBrand: (name: string, description?: string) =>
+    request<BrandOut>("/api/brands", { method: "POST", body: { name, ...(description ? { description } : {}) } }),
+  uploadBrandSource: (brandId: string, file: File, opts: { title: string; approve?: boolean; confidential?: boolean }) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    form.append("title", opts.title);
+    form.append("sensitivity", opts.confidential ? "confidential" : "normal");
+    form.append("approve", opts.approve ? "true" : "false");
+    return request<BrandSourceOut>(`/api/brands/${encodeURIComponent(brandId)}/sources`, { method: "POST", form });
+  },
+  approveBrandSource: (brandId: string, sourceId: string) =>
+    request<BrandSourceOut>(`/api/brands/${encodeURIComponent(brandId)}/sources/${encodeURIComponent(sourceId)}/approve`, {
+      method: "POST",
+    }),
   brandSources: (brandId: string) => request<BrandSourceOut[]>(`/api/brands/${encodeURIComponent(brandId)}/sources`),
   /** Sends an Idempotency-Key so a double click or retry replays the first review instead of running two. */
   createReview: (body: CreateReviewBody, idempotencyKey: string) =>
     request<ReviewOut>("/api/reviews", { method: "POST", body, headers: { "Idempotency-Key": idempotencyKey } }),
+  /** Review a .pdf/.docx/.txt file; the backend extracts the text. 422 = unreadable/unsupported. */
+  createReviewFromFile: (brandId: string, file: File, idempotencyKey: string, title?: string) => {
+    const form = new FormData();
+    form.append("brand_id", brandId);
+    form.append("file", file, file.name);
+    if (title) form.append("title", title);
+    return request<ReviewOut>("/api/reviews/upload", { method: "POST", form, headers: { "Idempotency-Key": idempotencyKey } });
+  },
   review: (reviewId: string) => request<ReviewOut>(`/api/reviews/${encodeURIComponent(reviewId)}`),
   /** Approves the content version's latest review. 409 when stale, not decidable, a cited source
    * changed, or the caller's role doesn't match required_reviewer_role (message says which). */

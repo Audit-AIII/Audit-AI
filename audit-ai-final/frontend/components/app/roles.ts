@@ -5,6 +5,8 @@ const REVIEWERS = new Set(["reviewer", ...APPROVERS]);
 
 /** POST /api/reviews needs the `submit` permission (submitter, admin), confirmed live. */
 export const canSubmit = (role: string) => role === "submitter" || role === "admin";
+/** Upload / approve brand documents needs `manage_sources`: source_manager and admin. */
+export const canManageSources = (role: string) => role === "source_manager" || role === "admin";
 export const canApprove = (role: string) => APPROVERS.has(role);
 export const canReview = (role: string) => REVIEWERS.has(role);
 export const roleName = (role: string) => role.replace(/_/g, " ");

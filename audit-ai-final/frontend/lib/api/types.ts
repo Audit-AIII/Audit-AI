@@ -19,7 +19,33 @@ export type OrganisationOut = { id: string; name: string; slug: string };
 export type SessionInfo = { user: UserOut; organisation: OrganisationOut; role: Role };
 
 /** POST /api/auth/login */
-export type LoginResponse = SessionInfo & { access_token: string; token_type: "bearer" };
+export type LoginResponse = SessionInfo & {
+  access_token: string;
+  token_type: "bearer";
+  /** Seconds until the token expires. New in the onboarding contract; optional until the backend sends it. */
+  expires_in?: number;
+};
+
+/** GET /api/brands (oldest first), POST /api/brands */
+export type BrandOut = {
+  id: string;
+  name: string;
+  description: string | null;
+  approved_source_count: number;
+  created_at: string;
+};
+
+/** POST /api/auth/register. Password: 8+ characters, at most 72 bytes (bcrypt limit). */
+export type RegisterBody = {
+  email: string;
+  password: string;
+  display_name?: string;
+  brand_name?: string;
+  organisation_name?: string;
+};
+
+/** The new user is admin of a new organisation with one brand. */
+export type RegisterResponse = LoginResponse & { brand: BrandOut };
 
 export type BrandSourceStatus = Open<"draft" | "approved" | "superseded" | "archived">;
 export type Sensitivity = Open<"normal" | "confidential">;
@@ -109,6 +135,13 @@ export type ReviewOut = {
   findings: FindingOut[];
   /** Not in API.md; present in schemas.py (Phase 9). */
   required_reviewer_role: Open<"legal_reviewer" | "brand_manager"> | null;
+  /* Onboarding contract additions; optional until the backend sends them. */
+  content_item_id?: string | null;
+  brand_id?: string | null;
+  title?: string | null;
+  version_number?: number | null;
+  /** The submitted (or extracted) text the spans point into. */
+  text?: string | null;
 };
 
 /** POST /api/content-versions/{id}/approve and /request-changes */

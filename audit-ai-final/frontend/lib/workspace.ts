@@ -3,13 +3,9 @@
 /**
  * Small per-browser workspace memory (localStorage; every access guarded, storage can be blocked).
  *
- * - Brand ID: the backend has no "list my brands" route yet, so the brand to review against is
- *   entered once on the Sources stage (the seed script prints it as BRAND_ID).
- * - Review text: GET /api/reviews/{id} does not return the submitted text, only each finding's
- *   own `original_text`. We keep the text we sent, keyed by review id, so highlighting still
- *   works after a refresh in this browser.
+ * - The active brand lives in lib/brand.ts (picked from GET /api/brands, never typed).
+ * - Review text: kept as a fallback for older backends; ReviewOut.text from the API wins.
  */
-const BRAND_KEY = "audit-ai.brand-id";
 const TEXT_KEY = (reviewId: string) => `audit-ai.review-text.${reviewId}`;
 const TEXT_INDEX = "audit-ai.review-text-index";
 const KEEP = 20;
@@ -30,8 +26,6 @@ function set(key: string, value: string | null) {
   }
 }
 
-export const getBrandId = () => get(BRAND_KEY) ?? "";
-export const setBrandId = (id: string) => set(BRAND_KEY, id.trim() || null);
 
 export const getReviewText = (reviewId: string) => get(TEXT_KEY(reviewId));
 export function rememberReviewText(reviewId: string, text: string) {
