@@ -306,7 +306,7 @@ def test_truly_concurrent_decisions_the_db_lock_serializes_them(
                 # Mirrors the two routes exactly: approve runs the full guard set,
                 # request-changes/reject only checks decidability.
                 if action is ApprovalAction.APPROVED:
-                    check_approve_guards(db, locked_review, content_version.content_item_id)
+                    check_approve_guards(db, locked_review, content_version.content_item_id, "admin")
                 else:
                     ensure_decidable(locked_review.status)
                 event = record_decision(

@@ -25,6 +25,12 @@ ROLE_PERMISSIONS: dict[MembershipRole, frozenset[Permission]] = {
     MembershipRole.REVIEWER: frozenset({Permission.REVIEW}),
     MembershipRole.APPROVER: frozenset({Permission.REVIEW, Permission.APPROVE}),
     MembershipRole.ADMIN: frozenset(Permission),
+    # Phase 9 stretch item 1: same raw permissions as APPROVER (review + approve) - what
+    # actually restricts each to its own risk tier is approval_rules.ensure_role_matches_routing,
+    # not this table. This table only answers "can this role ever approve anything" (yes); the
+    # routing guard answers "can this role approve THIS review."
+    MembershipRole.LEGAL_REVIEWER: frozenset({Permission.REVIEW, Permission.APPROVE}),
+    MembershipRole.BRAND_MANAGER: frozenset({Permission.REVIEW, Permission.APPROVE}),
 }
 
 

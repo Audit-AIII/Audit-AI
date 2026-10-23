@@ -79,13 +79,20 @@ class SourceFileType(str, Enum):
 class MembershipRole(str, Enum):
     """Confirmed with the team for Phase 2 (member3_backend/phase2_auth_and_tenant_scoping.md
     task 3). Permissions for each role live in `auth/permissions.py`, not here — this module is
-    only the stable set of names enforced by the `memberships.role` CHECK constraint."""
+    only the stable set of names enforced by the `memberships.role` CHECK constraint.
+
+    `LEGAL_REVIEWER` and `BRAND_MANAGER` added for Phase 9 stretch item 1 (risk-based approval
+    routing, see `reviews.required_reviewer_role` and `approval_rules.ensure_role_matches_
+    routing`) — a real contract change (new role names), confirmed with the team before adding,
+    not assumed."""
 
     SUBMITTER = "submitter"
     SOURCE_MANAGER = "source_manager"
     REVIEWER = "reviewer"
     APPROVER = "approver"
     ADMIN = "admin"
+    LEGAL_REVIEWER = "legal_reviewer"
+    BRAND_MANAGER = "brand_manager"
 
 
 class ApprovalAction(str, Enum):

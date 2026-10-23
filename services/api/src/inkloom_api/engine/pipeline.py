@@ -29,7 +29,15 @@ from sqlalchemy.orm import Session
 from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, Finding, Review
 from ..result_cache import compute_cache_key, get_cached_report, materialize_cached_report, serialize_review_outcome, store_report
 from ..section_diff import section_hash_for_span
-from ..statuses import CheckType, EvidenceRelation, ExternalCallStatus, ReviewState, Severity, VerificationStatus
+from ..statuses import (
+    CheckType,
+    EvidenceRelation,
+    ExternalCallStatus,
+    MembershipRole,
+    ReviewState,
+    Severity,
+    VerificationStatus,
+)
 from .corpus import CorpusEntry, build_corpus, corpus_lookup  # noqa: F401 (build_corpus re-exported for routers)
 from .evidence_validator import EvidenceIntegrityError, validate_all
 from .provider import build_provider
@@ -79,7 +87,7 @@ def run_review(
     review.started_at = datetime.now(timezone.utc)
 
     if not corpus:
-        _finish(review, ReviewState.FAILED, "This brand has no approved sources to verify content against.")
+        _finish(db, review, ReviewState.FAILED, "This brand has no approved sources to verify content against.")
         return
 
     organisation_id = content_version.content_item.organisation_id
@@ -92,7 +100,7 @@ def run_review(
     if cached is not None:
         materialize_cached_report(db, review, cached)
         needs_review = any(f["requires_human_review"] for f in cached["findings"])
-        _finish(review, ReviewState.NEEDS_HUMAN_REVIEW if needs_review else ReviewState.COMPLETED)
+        _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_review else ReviewState.COMPLETED)
         return
 
     provider = build_provider(confidential=confidential, on_attempt=_make_external_call_logger(db, review, organisation_id))
@@ -103,7 +111,7 @@ def run_review(
         else:
             reason = f"none configured (tried: {', '.join(provider.unconfigured)})"
         _write_stub_finding(db, review, content_version, reason)
-        _finish(review, ReviewState.NEEDS_HUMAN_REVIEW)
+        _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW)
         return
 
     review.engine_provider = provider.name
@@ -117,14 +125,14 @@ def run_review(
 
     if not extraction.claims and not extraction.complete:
         message = "; ".join(e.message for e in extraction.errors)[:500] or "Claim extraction failed."
-        _finish(review, ReviewState.FAILED, message)
+        _finish(db, review, ReviewState.FAILED, message)
         return
 
     try:
         retriever = BM25Retriever(documents)
         verifier = ClaimVerifier(provider, documents)
     except Exception as error:  # e.g. RetrievalError/RetrievalLimitError on a malformed corpus
-        _finish(review, ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
+        _finish(db, review, ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
         return
 
     needs_human_review = bool(extraction.errors)  # a partial extraction still needs a human look
@@ -143,7 +151,7 @@ def run_review(
         needs_human_review = needs_human_review or result.verdict is not Verdict.SUPPORTED
         _write_finding(db, review, content_version, claim, result, lookup, organisation_id)
 
-    _finish(review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED)
+    _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED)
     # Only a genuine completed analysis is cached - never a stub result or a provider/corpus
     # failure (both returned early above, before reaching here).
     store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
@@ -175,10 +183,27 @@ def _make_external_call_logger(db: Session, review: Review, organisation_id: uui
     return on_attempt
 
 
-def _finish(review: Review, state: ReviewState, error_summary: str | None = None) -> None:
+def _finish(db: Session, review: Review, state: ReviewState, error_summary: str | None = None) -> None:
     review.status = state.value
     review.error_summary = error_summary
     review.completed_at = datetime.now(timezone.utc)
+    if state in (ReviewState.COMPLETED, ReviewState.NEEDS_HUMAN_REVIEW):
+        # Phase 9 stretch item 1: only a decidable outcome has findings worth routing on - a
+        # FAILED review (no corpus, extraction failure, etc.) never reaches here with any.
+        review.required_reviewer_role = _compute_required_reviewer_role(db, review)
+
+
+_HIGH_RISK_SEVERITIES = frozenset({Severity.HIGH.value, Severity.CRITICAL.value})
+
+
+def _compute_required_reviewer_role(db: Session, review: Review) -> str:
+    """Deterministic risk-based routing (Phase 9 stretch item 1): any high/critical finding
+    routes to the legal reviewer; everything else (including zero findings) is a clean item for
+    the brand manager's one-click sign-off. Queried directly rather than via `review.findings`
+    so it sees exactly what was just flushed, regardless of how those rows were added."""
+    severities = db.query(Finding.severity).filter_by(review_id=review.id).all()
+    high_risk = any(severity in _HIGH_RISK_SEVERITIES for (severity,) in severities)
+    return (MembershipRole.LEGAL_REVIEWER if high_risk else MembershipRole.BRAND_MANAGER).value
 
 
 def _write_stub_finding(db: Session, review: Review, content_version: ContentVersion, reason: str | None) -> None:

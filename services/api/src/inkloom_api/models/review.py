@@ -14,13 +14,22 @@ from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, 
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..statuses import CheckType, EvidenceRelation, ReviewState, Severity, VerificationStatus, values
+from ..statuses import CheckType, EvidenceRelation, MembershipRole, ReviewState, Severity, VerificationStatus, values
 from .base import Base, created_at_column, updated_at_column, uuid_pk
+
+
+_ROUTABLE_REVIEWER_ROLES = (MembershipRole.LEGAL_REVIEWER.value, MembershipRole.BRAND_MANAGER.value)
 
 
 class Review(Base):
     __tablename__ = "reviews"
-    __table_args__ = (CheckConstraint(f"status IN {tuple(values(ReviewState))}", name="ck_review_status"),)
+    __table_args__ = (
+        CheckConstraint(f"status IN {tuple(values(ReviewState))}", name="ck_review_status"),
+        CheckConstraint(
+            f"required_reviewer_role IN {_ROUTABLE_REVIEWER_ROLES} OR required_reviewer_role IS NULL",
+            name="ck_review_required_reviewer_role",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     content_version_id: Mapped[uuid.UUID] = mapped_column(
@@ -39,6 +48,10 @@ class Review(Base):
     # Phase 5 task 5: true when this review's findings were replayed from result_cache rather
     # than actually sent to any provider.
     served_from_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Phase 9 stretch item 1: deterministic risk-based routing, computed once findings exist
+    # (engine/pipeline.py's _compute_required_reviewer_role) - NULL until then (draft/queued/
+    # analysing/failed have nothing to route) and for reviews written before this column existed.
+    required_reviewer_role: Mapped[str | None] = mapped_column(String(20))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at_column()

@@ -37,7 +37,7 @@ finished; a human must still act via `approve` / `request-changes` to reach `app
 **Missing evidence means `unverified`, never `false`.** A finding with no supporting or
 contradicting evidence must use `verification_status = unverified`, not `contradicted`.
 
-## Role names (confirmed, Phase 2)
+## Role names (confirmed, Phase 2; `legal_reviewer`/`brand_manager` added Phase 9)
 
 One role per permission. The permission table lives in
 [`services/api/src/inkloom_api/auth/permissions.py`](../services/api/src/inkloom_api/auth/permissions.py).
@@ -48,12 +48,27 @@ One role per permission. The permission table lives in
 | `source_manager` | | yes | | | |
 | `reviewer` | | | yes | | |
 | `approver` | | | yes | yes | |
+| `legal_reviewer` | | | yes | yes | |
+| `brand_manager` | | | yes | yes | |
 | `admin` | yes | yes | yes | yes | yes |
 
 The governance invariant `if role not allowed to approve ... deny` checks the `approve`
-permission, which only `approver` and `admin` hold. `admin` holds every permission rather than
-being a separate "can do nothing itself" role, so one person can run a brand-new organisation
-alone during setup.
+permission, which `approver`, `legal_reviewer`, `brand_manager` and `admin` all hold. `admin`
+holds every permission rather than being a separate "can do nothing itself" role, so one person
+can run a brand-new organisation alone during setup.
+
+**Risk-based approval routing (Phase 9 stretch item 1).** Holding the `approve` permission is
+necessary but not sufficient for `legal_reviewer`/`brand_manager`: each `Review` also carries a
+deterministic `required_reviewer_role` (`"legal_reviewer"` if any finding is `high`/`critical`
+severity, `"brand_manager"` otherwise; `null` until the review reaches a decidable state) —
+`POST /api/content-versions/{id}/approve` additionally requires the caller's role to match it
+(`admin` always bypasses this, same as every other approval guard). `approver` is a plain
+`approve`-permission holder with no routing restriction of its own — it is simply never assigned
+as a `required_reviewer_role`, so it can only approve a review whose routing it was never
+checked against in the first place (i.e. in practice, use `legal_reviewer`/`brand_manager` for
+anything routed; `approver`/`admin` remain the unrestricted fallback). This restriction applies
+to **approve only** — `POST .../request-changes` (reject or request changes) is unaffected by
+routing, same as it is already unaffected by staleness or superseded-source checks.
 
 ## Finding and Review schema
 

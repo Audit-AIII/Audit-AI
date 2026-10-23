@@ -10,7 +10,12 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from .approval_rules import SupersededSourceError, ensure_decidable, ensure_not_stale
+from .approval_rules import (
+    SupersededSourceError,
+    ensure_decidable,
+    ensure_not_stale,
+    ensure_role_matches_routing,
+)
 from .models import (
     ApprovalEvent,
     AuditEvent,
@@ -29,13 +34,15 @@ def current_version_id(db: Session, content_item_id: uuid.UUID) -> uuid.UUID:
     return version.id
 
 
-def check_approve_guards(db: Session, review: Review, content_item_id: uuid.UUID) -> None:
-    """Raises on the first guard that fails (task 4): not yet decidable, stale, or a cited
-    source no longer the brand's approved one. Never called for reject/request-changes - those
-    are always safe to record regardless of staleness or source drift."""
+def check_approve_guards(db: Session, review: Review, content_item_id: uuid.UUID, actor_role: str) -> None:
+    """Raises on the first guard that fails (task 4): not yet decidable, stale, a cited source
+    no longer the brand's approved one, or (Phase 9 stretch item 1) the acting role doesn't
+    match this review's risk-based routing. Never called for reject/request-changes - those are
+    always safe to record regardless of staleness, source drift, or routing."""
     ensure_decidable(review.status)
     ensure_not_stale(review.content_version_id, current_version_id(db, content_item_id))
     _check_sources_not_superseded(db, review)
+    ensure_role_matches_routing(review.required_reviewer_role, actor_role)
 
 
 def _check_sources_not_superseded(db: Session, review: Review) -> None:

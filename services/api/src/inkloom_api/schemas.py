@@ -139,6 +139,9 @@ class ReviewOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     findings: list[FindingOut]
+    # Phase 9 stretch item 1: who may approve this review - "legal_reviewer" if any finding is
+    # high/critical severity, "brand_manager" otherwise, null until a decidable outcome exists.
+    required_reviewer_role: str | None
 
     @classmethod
     def from_model(cls, review) -> "ReviewOut":
@@ -165,6 +168,7 @@ class ReviewOut(BaseModel):
             created_at=review.created_at,
             updated_at=review.updated_at,
             findings=[FindingOut.from_model(f) for f in review.findings],
+            required_reviewer_role=review.required_reviewer_role,
         )
 
 

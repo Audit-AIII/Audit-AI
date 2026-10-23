@@ -1,12 +1,13 @@
 """POST /api/content-versions/{id}/approve, POST /api/content-versions/{id}/request-changes
 (phase6_versioning_approval_audit.md tasks 4-5).
 
-`approve` is gated on the `approve` permission (only `approver`/`admin` hold it) and runs every
-guard in task 4: not yet decidable, stale, or a cited source superseded since the review ran —
-all reported as a safe 409, never a 403 (that's the separate permission check). `request-changes`
-is gated on the lighter `review` permission (`reviewer`/`approver`/`admin`) and only checks that
-the review is in a decidable state — staleness and source drift don't matter when the answer is
-"no", only when it's "yes".
+`approve` is gated on the `approve` permission (`approver`/`legal_reviewer`/`brand_manager`/
+`admin` hold it) and runs every guard in task 4 plus Phase 9 stretch item 1's risk-based
+routing: not yet decidable, stale, a cited source superseded since the review ran, or the
+acting role doesn't match this review's `required_reviewer_role` — all reported as a safe 409,
+never a 403 (that's the separate permission check). `request-changes` is gated on the lighter
+`review` permission and only checks that the review is in a decidable state — staleness, source
+drift and routing don't matter when the answer is "no", only when it's "yes".
 """
 
 from __future__ import annotations
@@ -18,7 +19,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..approval_rules import InvalidReviewTransitionError, StaleApprovalError, SupersededSourceError, ensure_decidable
+from ..approval_rules import (
+    InvalidReviewTransitionError,
+    RoutingMismatchError,
+    StaleApprovalError,
+    SupersededSourceError,
+    ensure_decidable,
+)
 from ..approval_service import check_approve_guards, record_decision
 from ..auth.dependencies import AuthContext, require_permission
 from ..auth.permissions import Permission
@@ -63,7 +70,7 @@ def approve_content_version(
     review = _latest_review_or_404(db, content_version.id)
 
     try:
-        check_approve_guards(db, review, content_version.content_item_id)
+        check_approve_guards(db, review, content_version.content_item_id, auth.role)
     except InvalidReviewTransitionError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
     except StaleApprovalError:
@@ -74,6 +81,11 @@ def approve_content_version(
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "a source this review cited is no longer the brand's approved version; rerun the review first",
+        ) from None
+    except RoutingMismatchError as error:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"this review requires a '{error.required_reviewer_role}' (or admin) to approve it",
         ) from None
 
     event = record_decision(
