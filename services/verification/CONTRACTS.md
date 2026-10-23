@@ -255,6 +255,14 @@ Additional rules:
   `unsupported_quantity`, `unsupported_date`, `missing_qualifier`, (Phase 4 of the second
   run) `unsupported_name`, and (prompts Phase 3) `negation_mismatch`.
 
+  `instruction_text` (prompts Phase 6) has two uses:
+  - **with a `passage_id`:** the quote touches a passage sentence that gives instructions, not
+    facts;
+  - **without one:** a SUPPORTED answer for a claim whose own text gives instructions.
+
+  This internal enum value is new. The public contract is unchanged, because guard reasons aren't
+  part of it.
+
   **Conflicting evidence** (`conflicting_evidence`, with the `passage_id` of the disagreeing
   passage) applies to SUPPORTED and CONTRADICTED answers that passed every other check. One
   retrieved document backs the claim's figure and another gives a different value for the same

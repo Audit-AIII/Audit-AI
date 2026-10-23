@@ -11,7 +11,6 @@ as best effort, so identical requests can still return different outputs.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
@@ -34,6 +33,7 @@ from inkloom_verify.providers.base import (
     ProviderQuotaError,
     ProviderRateLimitError,
     ProviderRequestError,
+    parse_json_object,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
@@ -53,7 +53,6 @@ _OPTIONAL_VARS = {
 }
 _MAX_RETRY_AFTER_SECONDS = 20.0
 MAX_RESPONSE_BYTES = 2_000_000  # far above any reply max_tokens allows; guards memory
-_FENCED_JSON = re.compile(r"^\s*```(?:json)?\s*\n(.*)\n\s*```\s*$", re.DOTALL)
 
 
 class OpenRouterSettings(BaseModel):
@@ -278,14 +277,10 @@ class OpenRouterProvider:
         content = (choice.get("message") or {}).get("content")
         if not isinstance(content, str) or not content.strip():
             raise MalformedOutputError(f"{model}: reply is empty")
-        fenced = _FENCED_JSON.match(content)
         try:
-            data = json.loads(fenced.group(1) if fenced else content)
-        except (ValueError, RecursionError):  # RecursionError: pathologically nested JSON
-            raise MalformedOutputError(f"{model}: reply is not valid JSON") from None
-        if not isinstance(data, dict):
-            raise MalformedOutputError(f"{model}: reply is JSON but not an object")
-        return data
+            return parse_json_object(content)  # strict: no duplicate keys, no NaN, an object
+        except MalformedOutputError as error:
+            raise MalformedOutputError(f"{model}: {error}") from None
 
 
 def _retry_after(response: httpx.Response) -> float | None:

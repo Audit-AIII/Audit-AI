@@ -15,7 +15,28 @@ cd services/verification
 python eval/run_eval.py --check-baseline                         # deterministic; what CI runs
 python eval/run_eval.py --verdicts openrouter --check-baseline   # live engine; needs credentials
 python eval/run_eval.py --predictions saved.jsonl --check-baseline  # replay a saved live run
+python eval/run_eval.py --verdicts openrouter --prompts v2        # pin a prompt set (v1 or v2)
+python eval/run_eval.py --verdicts openrouter --dry-run --prompts v2  # offline: count calls, no key
 ```
+
+**Prompt versions and live-run records (PROMPTS.md Phase 7):**
+- `--prompts` pins the extraction, verification and correction prompt versions; without it, the
+  components' active defaults (v1) are used.
+- A live report records:
+  - `run.prompt_versions`;
+  - `verdicts.prompt_versions_sent` (what the verifier actually sent);
+  - `run.model_configuration` (models, temperature, seed, structured output, data collection,
+    timeout, retries; never the key);
+  - `verdicts.model_ids`;
+  - `calls`: per stage, the calls, *repair calls* (a previous reply didn't match the schema),
+    provider errors by code, and input characters. These are counts of what happened, not quality
+    scores.
+- `verdicts.by_category` is the existing per-category accuracy, now included in the report.
+- `--dry-run` answers every call with the smallest valid reply, offline. It measures the minimum
+  number of calls and the input size, for cost estimates, and is never presented as model
+  quality.
+- The release report for the v2 candidate is
+  [eval/releases/prompts-v2-candidate.md](eval/releases/prompts-v2-candidate.md).
 
 Every run writes `reports/<UTC timestamp>/report.md` (readable) and `report.json` (every number,
 with its numerator and denominator), and prints the Markdown. Exit codes: **0** everything ran

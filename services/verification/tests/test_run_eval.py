@@ -204,3 +204,67 @@ def test_report_includes_the_extraction_evaluation_and_its_gates(default_run):
     assert statuses["extraction: unsafe rewordings kept (embellisher)"] == "PASS"
     assert statuses["extraction: claim recall (model run)"] == "NOT APPLICABLE"
     assert "## Claim extraction" in text and "Live extraction: not run" in text
+
+
+# --- Prompt versions, model configuration and call counts (PROMPTS.md Phase 7) -----------------
+
+
+@pytest.mark.parametrize("prompt_set", sorted(run_eval.PROMPT_SETS))
+def test_a_dry_run_pins_and_records_the_prompt_set(tmp_path, prompt_set):
+    """Offline: --dry-run answers every call minimally. The report says which prompts were sent
+    and never presents the run as model quality."""
+    assert run_eval.main(["--verdicts", "openrouter", "--dry-run", "--prompts", prompt_set, "--out", str(tmp_path)]) == 0
+    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    expected = run_eval.PROMPT_SETS[prompt_set]
+    assert report["run"]["prompt_versions"] == expected and report["run"]["verdict_source"] == "dry-run"
+    assert report["verdicts"]["prompt_versions_sent"] == [expected["verify_claim"]]
+    assert report["verdicts"]["is_model_quality"] is False
+    calls = report["calls"]
+    assert set(calls) == {"claim_extraction", "claim_verification", "claim_correction"}
+    assert calls["claim_extraction"]["calls"] == 24 and calls["claim_correction"]["calls"] == 19
+    assert all(s["repair_calls"] == 0 and s["errors"] == {} for s in calls.values())
+
+
+def test_the_active_defaults_are_v1_until_a_release_is_approved():
+    assert run_eval.active_prompts() == run_eval.PROMPT_SETS["v1"]
+
+
+def test_dry_run_needs_the_live_source(capsys):
+    with pytest.raises(SystemExit):
+        run_eval.main(["--dry-run"])
+    assert "--dry-run needs --verdicts openrouter" in capsys.readouterr().err
+
+
+def test_the_model_configuration_is_recorded_without_the_key():
+    from inkloom_verify.providers.openrouter import OpenRouterProvider, OpenRouterSettings
+
+    key = "sk-or-v1-PHASE7-TEST-ONLY-NOT-A-REAL-KEY-0000"
+    config = run_eval.model_configuration(OpenRouterProvider(OpenRouterSettings(api_key=key, models=["a/b", "c/d"])))
+    assert config["models"] == ["a/b", "c/d"] and config["temperature"] == 0.0 and config["seed"] == 0
+    assert key not in json.dumps(config) and "api_key" not in config
+
+
+def test_repair_calls_and_provider_errors_are_counted_per_stage():
+    from inkloom_verify.providers.base import JsonCompletionRequest, MalformedOutputError
+
+    replies = iter([{"x": 1}, MalformedOutputError("bad")])
+
+    class Inner:
+        name = "inner"
+
+        def sampling(self):
+            return {}
+
+        def complete_json(self, request):
+            reply = next(replies)
+            if isinstance(reply, Exception):
+                raise reply
+            return run_eval.JsonCompletion(data=reply, model="m", attempts=1)
+
+    counting = run_eval.CountingProvider(Inner())
+    first = JsonCompletionRequest(system="s", user="u", schema_name="claim_verification", json_schema={})
+    counting.complete_json(first)
+    with pytest.raises(MalformedOutputError):
+        counting.complete_json(first.model_copy(update={"user": "u\n\n" + run_eval.REPAIR_MARKER + " x"}))
+    assert counting.stats["claim_verification"] == {"calls": 2, "repair_calls": 1, "input_chars": 2 + (1 + 3 + len(run_eval.REPAIR_MARKER) + 2),
+                                                    "errors": {"MALFORMED_MODEL_OUTPUT": 1}}

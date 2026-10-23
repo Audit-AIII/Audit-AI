@@ -51,7 +51,7 @@ from inkloom_verify.schemas import (
     SourceSpan,
     Verdict,
 )
-from inkloom_verify.security import clean_display_text, has_hidden_characters
+from inkloom_verify.security import clean_display_text, has_hidden_characters, model_text_for_display
 from inkloom_verify.verification import ClaimVerifier
 
 logger = logging.getLogger(__name__)
@@ -165,6 +165,8 @@ class CorrectionConfig(BaseModel):
     prompt_version: str = prompt.PROMPT_VERSION
     # Re-verify the corrected claim against the same evidence; the proposal stands only if SUPPORTED.
     recheck: bool = True
+    # Repair calls after a reply that does not match the schema (bounded; PROMPTS.md Phase 5).
+    max_repairs: int = Field(default=1, ge=0, le=3)
 
 
 class ClaimCorrector:
@@ -209,7 +211,7 @@ class ClaimCorrector:
             return _with(result, None, failed)
 
         if output.status == "needs_human_review":
-            return _review(result, [CorrectionIssue(code=CorrectionIssueCode.MODEL_DECLINED, detail=clean_display_text(output.reason, 300))])
+            return _review(result, [CorrectionIssue(code=CorrectionIssueCode.MODEL_DECLINED, detail=model_text_for_display(output.reason, 300, self.prompt.text))])
 
         issues: list[CorrectionIssue] = []
         cited: list[Citation] = []
@@ -280,21 +282,20 @@ class ClaimCorrector:
         return checked.verdict, None
 
     def _ask(self, request: JsonCompletionRequest) -> _ModelOutput:
+        """One call, then up to ``max_repairs`` repair calls listing the problems (never the reply)."""
         self.prompt_sent = True
-        completion = self.provider.complete_json(request)
-        self.models_used.add(completion.model)
-        try:
-            return _ModelOutput.model_validate(completion.data)
-        except ValidationError as error:
-            problems = describe_validation_error(error)
-        repaired = self.provider.complete_json(
-            request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+        current = request
+        for _ in range(self.config.max_repairs + 1):
+            completion = self.provider.complete_json(current)
+            self.models_used.add(completion.model)
+            try:
+                return _ModelOutput.model_validate(completion.data)
+            except ValidationError as error:
+                problems = describe_validation_error(error)
+            current = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+        raise MalformedOutputError(
+            f"Correction output did not match the schema after {self.config.max_repairs} repair attempt(s)."
         )
-        self.models_used.add(repaired.model)
-        try:
-            return _ModelOutput.model_validate(repaired.data)
-        except ValidationError:
-            raise MalformedOutputError("Correction output did not match the schema after one repair attempt.") from None
 
 
 def _with(result: ClaimResult, correction: Correction | None, attempt: CorrectionAttempt) -> ClaimResult:

@@ -47,11 +47,20 @@ def test_every_required_prompt_loads(component):
     assert loaded.text == module.SYSTEM_PROMPT  # the module's prompt is the file's text
 
 
+V1_HASHES = {  # taken from the inline text before Phase 1 moved it into files; never changes
+    "extract-claims-v1": "d7f14fc360aaecfbe5fe6f1560341d079781ba945ba519f207ed6797466a7bec",
+    "verify-claim-v1": "5d8506866d6f947f359127a202c719c619cd085aea785141552b3582f3edf1c4",
+    "correct-claim-v1": "82602e695c086cb48e975651b67108a996bb7434ea587e2b83bf92fe3f8bc011",
+}
+
+
 def test_the_wording_is_exactly_the_released_text():
-    """Phase 1 moved the prompts into files without changing a character: the hashes in the lock were
-    taken from the inline text before the move."""
+    """Phase 1 moved the prompts into files without changing a character; Phase 6 added v2 files
+    beside them without touching v1."""
     lock = json.loads((loader.LOCK_FILE).read_text(encoding="utf-8"))["released"]
-    assert set(lock) == {"extract-claims-v1", "verify-claim-v1", "correct-claim-v1"}
+    assert set(lock) == set(V1_HASHES) | {"extract-claims-v2", "verify-claim-v2", "correct-claim-v2"}
+    for version, digest in V1_HASHES.items():
+        assert lock[version]["sha256"] == digest
     for version, entry in lock.items():
         assert load_prompt(entry["component"], version).sha256 == entry["sha256"]
 
@@ -69,9 +78,9 @@ def test_prompt_files_are_package_data():
 # --- Missing, wrong or unexpected versions fail clearly; nothing falls back ----------------------
 
 
-@pytest.mark.parametrize("version", ["verify-claim-v2", "verify-claim-v99"])
+@pytest.mark.parametrize("version", ["verify-claim-v3", "verify-claim-v99"])
 def test_a_missing_version_is_a_clear_error_not_a_fallback(version):
-    with pytest.raises(PromptNotFoundError, match=rf"{version}.*not found.*available verification versions: verify-claim-v1"):
+    with pytest.raises(PromptNotFoundError, match=rf"{version}.*not found.*available verification versions: verify-claim-v1, verify-claim-v2"):
         load_prompt("verification", version)
 
 
@@ -93,14 +102,14 @@ def test_an_unknown_component_is_refused():
 
 def test_a_deleted_prompt_file_is_a_clear_error(prompt_dir):
     (prompt_dir / "correct-claim-v1.txt").unlink()
-    with pytest.raises(PromptNotFoundError, match="correct-claim-v1.*not found.*none"):
+    with pytest.raises(PromptNotFoundError, match="correct-claim-v1.*not found.*versions: correct-claim-v2$"):
         load_prompt("correction", "correct-claim-v1")
 
 
 def test_an_empty_prompt_file_is_refused(prompt_dir):
-    (prompt_dir / "verify-claim-v2.txt").write_text("\n", encoding="utf-8")
+    (prompt_dir / "verify-claim-v3.txt").write_text("\n", encoding="utf-8")
     with pytest.raises(PromptNotFoundError, match="empty"):
-        load_prompt("verification", "verify-claim-v2")
+        load_prompt("verification", "verify-claim-v3")
 
 
 # --- Released prompts are never overwritten -------------------------------------------------------
@@ -125,14 +134,15 @@ def test_a_lock_entry_for_the_wrong_component_is_refused(prompt_dir):
 def test_a_windows_checkout_sends_the_same_text(prompt_dir):
     path = prompt_dir / "verify-claim-v1.txt"
     path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))  # what git autocrlf produces
-    assert load_prompt("verification", "verify-claim-v1").text == verification.SYSTEM_PROMPT
+    assert load_prompt("verification", "verify-claim-v1").sha256 == V1_HASHES["verify-claim-v1"]
 
 
 def test_an_unreleased_version_loads_only_when_asked_for_by_name(prompt_dir):
-    (prompt_dir / "verify-claim-v2.txt").write_text("Draft wording.\n", encoding="utf-8")
-    draft = load_prompt("verification", "verify-claim-v2")
+    (prompt_dir / "verify-claim-v3.txt").write_text("Draft wording.\n", encoding="utf-8")
+    draft = load_prompt("verification", "verify-claim-v3")
     assert draft.text == "Draft wording." and draft.released is False
-    assert load_prompt("verification", "verify-claim-v1").released  # the default is untouched
+    assert verification.PROMPT_VERSION == "verify-claim-v1"  # the default is untouched
+    assert load_prompt("verification", verification.PROMPT_VERSION).released
 
 
 # --- Each component sends its own configured prompt -----------------------------------------------
@@ -164,13 +174,13 @@ def test_a_component_configured_with_a_missing_or_foreign_version_fails_at_const
 
 
 def test_a_configured_version_is_the_one_sent_and_recorded(prompt_dir):
-    (prompt_dir / "verify-claim-v2.txt").write_text(verification.SYSTEM_PROMPT + "\n\nA draft sentence.\n", encoding="utf-8")
+    (prompt_dir / "verify-claim-v3.txt").write_text(verification.SYSTEM_PROMPT + "\n\nA draft sentence.\n", encoding="utf-8")
     provider = RoutedProvider(careful_model)
-    config = PipelineConfig(verification=VerificationConfig(prompt_version="verify-claim-v2"))
+    config = PipelineConfig(verification=VerificationConfig(prompt_version="verify-claim-v3"))
     report = verify_request(request(SUPPORTED_CLAIM), provider, config)
     sent = [c.system for c in provider.calls if c.schema_name == "claim_verification"]
     assert sent and all(s.endswith("A draft sentence.") for s in sent)
-    assert report.provenance.prompt_versions["verify_claim"] == "verify-claim-v2"
+    assert report.provenance.prompt_versions["verify_claim"] == "verify-claim-v3"
 
 
 # --- The versions actually used are tracked, in the internal and the public report ---------------

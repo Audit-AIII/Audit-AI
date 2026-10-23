@@ -12,6 +12,18 @@
     "correct-claim-v1": {
       "component": "correction",
       "sha256": "82602e695c086cb48e975651b67108a996bb7434ea587e2b83bf92fe3f8bc011"
+    },
+    "extract-claims-v2": {
+      "component": "extraction",
+      "sha256": "aa40979da8cae250d430cb81cd22cabd0227506b4b117800b734304d24b2c58a"
+    },
+    "verify-claim-v2": {
+      "component": "verification",
+      "sha256": "b97e8bdb9a34e9d9fa0cdaec92b4207a00fe73ad44a20c9830feb3f06a97cc38"
+    },
+    "correct-claim-v2": {
+      "component": "correction",
+      "sha256": "dd831a110fc673d6cd8f460c79e7a75236a6f5409bffb4cfebcbb22b352ac1af"
     }
   }
 }

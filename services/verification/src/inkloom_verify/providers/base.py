@@ -6,8 +6,9 @@ otherwise untrusted. Validating it against a Pydantic model is the stage's job.
 
 from __future__ import annotations
 
+import json
 import math
-
+import re
 from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -110,3 +111,37 @@ class LLMProvider(Protocol):
     def complete_json(self, request: JsonCompletionRequest) -> JsonCompletion:
         """One JSON object answering ``request``, or a ProviderError."""
         ...
+
+
+_FENCE = re.compile(r"^\s*```(?:json)?\s*\n(.*)\n\s*```\s*$", re.DOTALL)
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    keys = [key for key, _ in pairs]
+    if len(keys) != len(set(keys)):
+        # Python's json would silently keep the last value: {"verdict": "X", "verdict": "SUPPORTED"}.
+        raise ValueError("duplicate key")
+    return dict(pairs)
+
+
+def _no_constant(name: str) -> Any:
+    raise ValueError(f"{name} is not JSON")  # NaN, Infinity, -Infinity
+
+
+def parse_json_object(text: str) -> dict[str, Any]:
+    """A model reply as one strict JSON object, or MalformedOutputError.
+
+    Strict means standard JSON only: no duplicate keys (Python's json silently keeps the last
+    one), no NaN or Infinity, and a top-level object. A reply asked to be JSON is never trusted to
+    be JSON. The single tolerated wrapper is one Markdown code fence around the whole reply.
+    Messages are fixed: the reply is never echoed.
+    """
+    fenced = _FENCE.match(text)
+    try:
+        data = json.loads(fenced.group(1) if fenced else text, object_pairs_hook=_no_duplicate_keys,
+                          parse_constant=_no_constant)
+    except (ValueError, RecursionError):  # RecursionError: pathologically nested JSON
+        raise MalformedOutputError("reply is not valid JSON") from None
+    if not isinstance(data, dict):
+        raise MalformedOutputError("reply is JSON but not an object")
+    return data

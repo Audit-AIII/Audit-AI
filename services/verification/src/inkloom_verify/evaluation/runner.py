@@ -100,8 +100,10 @@ class EngineVerifierPredictor:
         provider: LLMProvider,
         chunking: ChunkingConfig | None = None,
         retrieval: RetrievalConfig | None = None,
+        prompt_version: str | None = None,
     ) -> None:
         self.provider = provider
+        self.prompt_version = prompt_version  # None: the verifier's default
         self.name = f"engine/{provider.name}"
         self.chunking = chunking or ChunkingConfig()
         self.retrieval = retrieval or RetrievalConfig()
@@ -110,9 +112,10 @@ class EngineVerifierPredictor:
     def predict(self, record: EvalRecord) -> EvalPrediction:
         # Imported here: verification depends on extraction and providers, which the rest of the
         # harness does not need.
-        from inkloom_verify.verification import ClaimVerifier, verify_claim
+        from inkloom_verify.verification import ClaimVerifier, VerificationConfig, verify_claim
 
-        verifier = ClaimVerifier(self.provider, record.references)
+        config = VerificationConfig(prompt_version=self.prompt_version) if self.prompt_version else None
+        verifier = ClaimVerifier(self.provider, record.references, config)
         retriever = BM25Retriever(record.references, chunking=self.chunking, config=self.retrieval)
         result = verify_claim(_eval_claim(record), retriever, verifier)
         self.models |= verifier.models_used
@@ -563,6 +566,7 @@ def run(
     retrieval: tuple[ChunkingConfig, RetrievalConfig] | None = (ChunkingConfig(), RetrievalConfig()),
     max_examples: int = 5,
     save_predictions: Path | None = None,
+    verifier_prompt: str | None = None,
 ) -> EvalReport:
     """Loads the dataset and one source of predictions, evaluates, and records how the run was made.
 
@@ -597,7 +601,7 @@ def run(
         predictor = PredictorInfo(kind="baseline", name=model.name)
     if engine_provider is not None:
         chunking, retrieval_config = retrieval if retrieval is not None else (ChunkingConfig(), RetrievalConfig())
-        engine = EngineVerifierPredictor(engine_provider, chunking, retrieval_config)
+        engine = EngineVerifierPredictor(engine_provider, chunking, retrieval_config, verifier_prompt)
         predictions = {r.record_id: engine.predict(r) for r in records}
         predictor = PredictorInfo(
             kind="engine",

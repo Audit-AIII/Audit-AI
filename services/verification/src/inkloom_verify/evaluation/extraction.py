@@ -29,7 +29,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from inkloom_verify.evaluation.metrics import Ratio, ratio
-from inkloom_verify.extraction import ClaimExtractor, ExtractionResult
+from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig, ExtractionResult
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider
 from inkloom_verify.providers.fake import ResponderProvider
 
@@ -224,11 +224,13 @@ def score(records: Sequence[ExtractionRecord], results: Sequence[ExtractionResul
     )
 
 
-def extract_all(records: Sequence[ExtractionRecord], provider_for: Callable[[ExtractionRecord], LLMProvider]) -> list[ExtractionResult]:
-    return [ClaimExtractor(provider_for(r)).extract(r.text) for r in records]
+def extract_all(records: Sequence[ExtractionRecord], provider_for: Callable[[ExtractionRecord], LLMProvider],
+                config: ExtractionConfig | None = None) -> list[ExtractionResult]:
+    return [ClaimExtractor(provider_for(r), config).extract(r.text) for r in records]
 
 
-def evaluate_extraction(records: Sequence[ExtractionRecord], live: LLMProvider | None = None) -> dict[str, Any]:
+def evaluate_extraction(records: Sequence[ExtractionRecord], live: LLMProvider | None = None,
+                        prompt_version: str | None = None) -> dict[str, Any]:
     """The report section: oracle replay, adversaries, and the live model when one is given."""
     section: dict[str, Any] = {
         "oracle": score(records, extract_all(records, lambda r: ResponderProvider(oracle(r)))).model_dump(mode="json"),
@@ -240,5 +242,6 @@ def evaluate_extraction(records: Sequence[ExtractionRecord], live: LLMProvider |
         results = extract_all(records, lambda r, make=make: ResponderProvider(make(r)))
         section["adversaries"][name] = score(records, results, _embellish if name == "embellisher" else None).model_dump(mode="json")
     if live is not None:
-        section["live"] = score(records, extract_all(records, lambda r: live)).model_dump(mode="json")
+        config = ExtractionConfig(prompt_version=prompt_version) if prompt_version else None
+        section["live"] = score(records, extract_all(records, lambda r: live, config)).model_dump(mode="json")
     return section

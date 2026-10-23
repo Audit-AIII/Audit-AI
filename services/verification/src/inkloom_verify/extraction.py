@@ -94,6 +94,8 @@ class ExtractionConfig(BaseModel):
     max_output_tokens: Annotated[int, Field(strict=True, ge=256, le=32_000)] = 4_000
     max_claims: Annotated[int, Field(strict=True, ge=1, le=MAX_CLAIMS)] = MAX_CLAIMS
     max_claims_per_sentence: Annotated[int, Field(strict=True, ge=1, le=50)] = 10
+    # Repair calls after a reply that does not match the schema (bounded; PROMPTS.md Phase 5).
+    max_repairs: Annotated[int, Field(strict=True, ge=0, le=3)] = 1
     # The prompt file to load (prompts/<version>.txt). An exact version, never "latest".
     prompt_version: str = prompt.PROMPT_VERSION
 
@@ -342,7 +344,8 @@ class ClaimExtractor:
         return completion.data
 
     def _classify(self, batch: list[tuple[str, str]], stats: _CallStats) -> _ModelOutput:
-        """Asks the model once, and once more with the problems listed if the reply is unusable."""
+        """Asks the model once, then up to ``max_repairs`` times with the problems listed (never the
+        reply) while the reply does not match the schema."""
         request = JsonCompletionRequest(
             system=self.prompt.text,
             user=prompt.user_message(batch),
@@ -350,17 +353,16 @@ class ClaimExtractor:
             json_schema=prompt.OUTPUT_SCHEMA,
             max_output_tokens=self.config.max_output_tokens,
         )
-        try:
-            return _ModelOutput.model_validate(self._complete(request, stats))
-        except ValidationError as error:
-            problems = describe_validation_error(error)
-        repair = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
-        try:
-            return _ModelOutput.model_validate(self._complete(repair, stats))
-        except ValidationError:
-            raise MalformedOutputError(
-                "Claim extraction output did not match the schema after one repair attempt."
-            ) from None
+        current = request
+        for _ in range(self.config.max_repairs + 1):
+            try:
+                return _ModelOutput.model_validate(self._complete(current, stats))
+            except ValidationError as error:
+                problems = describe_validation_error(error)
+            current = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+        raise MalformedOutputError(
+            f"Claim extraction output did not match the schema after {self.config.max_repairs} repair attempt(s)."
+        )
 
     def _apply(
         self,
@@ -482,10 +484,24 @@ class ClaimExtractor:
         return claims, by_sentence
 
 
+_SCHEMA_FIELD = re.compile(r"[a-z_][a-z0-9_]{0,31}")
+
+
+def _location(error: Any) -> str:
+    """Where a schema problem is, naming only schema fields and indexes.
+
+    The repair message is sent after the data block, where the model reads instructions, so it
+    must not carry text the model chose: an unexpected key is model output (PROMPTS.md Phase 6).
+    """
+    loc = list(error["loc"])
+    if error["type"] == "extra_forbidden" and loc:
+        loc[-1] = "(unexpected field)"
+    parts = [str(p) if isinstance(p, int) or p == "(unexpected field)" or _SCHEMA_FIELD.fullmatch(str(p))
+             else "(unexpected field)" for p in loc]
+    return ".".join(parts) or "reply"
+
+
 def describe_validation_error(error: ValidationError) -> str:
     """The schema problems, without echoing any of the model's output."""
-    parts = [
-        f"{'.'.join(str(p) for p in e['loc']) or 'reply'}: {e['msg']}"
-        for e in error.errors(include_input=False, include_url=False)[:5]
-    ]
+    parts = [f"{_location(e)}: {e['msg']}" for e in error.errors(include_input=False, include_url=False)[:5]]
     return "; ".join(parts)

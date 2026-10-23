@@ -201,7 +201,8 @@ def test_a_confidence_score_is_not_accepted_in_place_of_evidence():
     confident = {"verdict": "SUPPORTED", "citations": [], "rationale": "Certain.", "confidence": 0.99}
     result, provider = verify("Lumen Pods offer 30 hours of playback.", confident, confident)
     assert result.verdict is E and result.error.code is ErrorCode.MALFORMED_MODEL_OUTPUT
-    assert len(provider.calls) == 2 and "confidence" in provider.calls[1].user
+    # The repair names the problem, never the model's own key (PROMPTS.md Phase 6).
+    assert len(provider.calls) == 2 and "(unexpected field): Extra inputs are not permitted" in provider.calls[1].user
 
 
 def test_repaired_reply_still_goes_through_the_guard():

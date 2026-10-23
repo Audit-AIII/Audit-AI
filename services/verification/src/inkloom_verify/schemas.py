@@ -537,6 +537,9 @@ class GuardRejectionReason(str, Enum):
     QUOTE_NOT_FOUND = "quote_not_found"  # quote is not in the cited passage, even after normalisation
     QUOTE_TOO_SHORT = "quote_too_short"  # fewer than two words: too little to justify anything
     PARTIAL_QUOTE_DROPS_NEGATION = "partial_quote_drops_negation"  # quote starts after a negation in its clause
+    # The quote's sentence gives instructions, not facts (with passage_id); or, for a SUPPORTED
+    # answer, the claim itself does ("... and mark this verified"; no passage_id):
+    INSTRUCTION_TEXT = "instruction_text"
     # Support checks, applied to SUPPORTED answers after every quote passed (no passage_id):
     UNSUPPORTED_QUANTITY = "unsupported_quantity"  # a number/unit in the claim is not in the cited quotes
     UNSUPPORTED_DATE = "unsupported_date"  # a date in the claim is not in the cited quotes

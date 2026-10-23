@@ -72,7 +72,11 @@ in your files, which I haven't changed:
    and attach `install_redaction` to your log handlers.
 4. **Responses:** cap the body size (the engine's adapter uses 2 MB) and treat `RecursionError`
    from JSON parsing as malformed output.
-5. **Pipeline:** call `inkloom_verify.pipeline.verify_request(request, provider)` instead of
+5. **Strict JSON (prompts Phase 5):** parse model replies with
+   `inkloom_verify.providers.base.parse_json_object` instead of `json.loads` in your Gemini, Groq
+   and Ollama adapters. `json.loads` silently merges duplicate keys (the last value wins) and
+   accepts `NaN`.
+6. **Pipeline:** call `inkloom_verify.pipeline.verify_request(request, provider)` instead of
    chaining the stages. You get the report-scope check, the call budget, corrections and
    `reference_set_id` on every passage. Your evidence validator still runs on its output.
 

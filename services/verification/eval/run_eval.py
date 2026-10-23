@@ -13,6 +13,11 @@ Run from ``services/verification``. Sections (EVAL.md defines every metric and d
 6. Error handling: eval/fault_cases.json, provider faults injected at each stage.
 7. Regression gates from eval/baseline.json (``--check-baseline``): exit 1 if any fails.
 
+``--prompts v1|v2`` pins the prompt version of every live stage (default: the components' active
+defaults); the versions are recorded in the report, with the model configuration (never the key)
+and per-stage call statistics. ``--dry-run`` replaces the provider with an offline stub that
+answers every call minimally, to count calls and input size before paying for a live run.
+
 Only sections 2 and 4 with a live source say anything about model quality. Sections 3, 5 and 6
 are deterministic and need no credentials; CI runs them on every change.
 """
@@ -44,7 +49,10 @@ from inkloom_verify.evaluation.runner import (  # noqa: E402
     load_records,
     run,
 )
-from inkloom_verify.providers.base import ProviderError  # noqa: E402
+from inkloom_verify.providers.base import JsonCompletion, JsonCompletionRequest, ProviderError  # noqa: E402
+from inkloom_verify.prompts import correction as correction_prompt  # noqa: E402
+from inkloom_verify.prompts import extraction as extraction_prompt  # noqa: E402
+from inkloom_verify.prompts import verification as verification_prompt  # noqa: E402
 from inkloom_verify.retrieval import RetrievalConfig  # noqa: E402
 
 EVAL = ROOT / "eval"
@@ -55,6 +63,76 @@ EXTRACTION = EVAL / "data" / "extraction_v1.jsonl"
 FAULT_CASES = EVAL / "fault_cases.json"
 LOCK = EVAL / "datasets.lock.json"
 BASELINE = EVAL / "baseline.json"
+
+
+# Prompt sets the evaluation can pin. Each is a released version per stage (prompts.lock.json).
+PROMPT_SETS = {
+    "v1": {"extract_claims": "extract-claims-v1", "verify_claim": "verify-claim-v1", "correct_claim": "correct-claim-v1"},
+    "v2": {"extract_claims": "extract-claims-v2", "verify_claim": "verify-claim-v2", "correct_claim": "correct-claim-v2"},
+}
+REPAIR_MARKER = "Your previous reply could not be used:"  # the start of every repair message (prompts/*.py)
+
+
+def active_prompts() -> dict[str, str]:
+    return {"extract_claims": extraction_prompt.PROMPT_VERSION, "verify_claim": verification_prompt.PROMPT_VERSION,
+            "correct_claim": correction_prompt.PROMPT_VERSION}
+
+
+class CountingProvider:
+    """Wraps the provider to count, per stage: calls, repair calls (the previous reply did not
+    match the schema), provider errors by code, and characters sent. Counts only; it never stores
+    or logs content."""
+
+    def __init__(self, inner) -> None:
+        self.inner = inner
+        self.name = inner.name
+        self.stats: dict[str, dict[str, Any]] = {}
+
+    def sampling(self) -> dict[str, Any]:
+        return self.inner.sampling()
+
+    def complete_json(self, request: JsonCompletionRequest) -> JsonCompletion:
+        s = self.stats.setdefault(request.schema_name, {"calls": 0, "repair_calls": 0, "input_chars": 0, "errors": {}})
+        s["calls"] += 1
+        s["repair_calls"] += REPAIR_MARKER in request.user
+        s["input_chars"] += len(request.system) + len(request.user)
+        try:
+            return self.inner.complete_json(request)
+        except ProviderError as error:
+            s["errors"][error.code.value] = s["errors"].get(error.code.value, 0) + 1
+            raise
+
+
+class DryRunProvider:
+    """Offline stand-in for --dry-run: answers every call with the smallest valid reply (no claims,
+    NOT_ENOUGH_EVIDENCE, decline), so it counts the calls a live run makes at least once. Live runs
+    make more: repairs, and re-checks after proposed corrections."""
+
+    name = "dry-run"
+
+    def sampling(self) -> dict[str, Any]:
+        return {}
+
+    def complete_json(self, request: JsonCompletionRequest) -> JsonCompletion:
+        if request.schema_name == "claim_extraction":
+            ids = [s["id"] for s in json.loads(request.user.split("<content_json>\n", 1)[1].rsplit("\n</content_json>", 1)[0])["sentences"]]
+            data: dict[str, Any] = {"statements": [{"sentence_id": i, "kind": "opinion", "claims": []} for i in ids]}
+        elif request.schema_name == "claim_verification":
+            data = {"verdict": "NOT_ENOUGH_EVIDENCE", "citations": [], "rationale": "dry run"}
+        else:
+            data = {"status": "needs_human_review", "original_text": "", "replacement_text": "", "citations": [], "reason": "dry run"}
+        return JsonCompletion(data=data, model="dry-run", attempts=1)
+
+
+def model_configuration(provider) -> dict[str, Any] | None:
+    """What a live run used: models in order, sampling and limits. Never the key."""
+    settings = getattr(provider, "settings", None)
+    if settings is None:
+        return {"provider": provider.name}
+    return {"provider": provider.name, "models": list(settings.models), "base_url": settings.base_url,
+            "temperature": settings.temperature, "seed": settings.seed, "structured_output": settings.structured_output,
+            "data_collection": settings.data_collection, "timeout_seconds": settings.timeout_seconds,
+            "max_retries": settings.max_retries}
 
 
 def sha256(path: Path) -> str:
@@ -132,10 +210,17 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
                                    ". If the change is intended, update eval/datasets.lock.json in the same review.")
     provider = None
     if args.verdicts == "openrouter":
-        from inkloom_verify.providers.openrouter import OpenRouterProvider
+        if args.dry_run:
+            provider = DryRunProvider()
+        else:
+            from inkloom_verify.providers.openrouter import OpenRouterProvider
 
-        provider = OpenRouterProvider.from_env()
-    verdict_source = "predictions" if args.predictions else args.verdicts
+            provider = OpenRouterProvider.from_env()
+    configuration = model_configuration(provider) if provider else None
+    counting = CountingProvider(provider) if provider else None
+    provider = counting or provider
+    prompts = PROMPT_SETS[args.prompts] if args.prompts else active_prompts()
+    verdict_source = "predictions" if args.predictions else ("dry-run" if args.dry_run else args.verdicts)
     commit = _git(["rev-parse", "HEAD"], ROOT)
     report: dict[str, Any] = {
         "run": {
@@ -145,6 +230,11 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
             "git_commit": commit,
             "git_dirty": bool(_git(["status", "--porcelain", "--", "."], ROOT)) if commit else None,
             "verdict_source": verdict_source,
+            "prompt_set": args.prompts or "active defaults",
+            # The versions the live stages were configured with; the verifier's versions actually
+            # sent are also in verdicts.prompt_versions_sent.
+            "prompt_versions": prompts if provider else None,
+            "model_configuration": configuration,
         },
         "datasets": {name: entry for name, entry in lock["files"].items()},
     }
@@ -159,11 +249,14 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
         engine_provider=provider,
         retrieval=None,
         save_predictions=args.out / "predictions.jsonl" if provider else None,
+        verifier_prompt=prompts["verify_claim"] if provider else None,
     )
     v, c = verdicts.results.verdict, verdicts.results.citations
     report["verdicts"] = {
         "source": verdict_source,
-        "is_model_quality": verdict_source != "abstain",
+        "is_model_quality": verdict_source not in ("abstain", "dry-run"),
+        "prompt_versions_sent": verdicts.manifest.predictor.prompt_versions,
+        "model_ids": verdicts.manifest.predictor.model_ids,
         "examples": verdicts.results.counts.examples,
         "accuracy": ratio_dict(v.accuracy),
         "per_class": {cls.value: {"precision": ratio_dict(m.precision), "recall": ratio_dict(m.recall), "f1": m.f1}
@@ -177,6 +270,7 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
         "grounding": ratio_dict(c.grounding),
         "fully_correct": ratio_dict(c.fully_correct),
         "by_split": {s.value: ratio_dict(r) for s, r in verdicts.results.by_split.items()},
+        "by_category": {c.value: ratio_dict(r) for c, r in verdicts.results.by_category.items()},
         "failure_counts": {k.value: n for k, n in verdicts.results.failures.counts.items() if n},
     }
 
@@ -200,11 +294,14 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
             "false_accepts": len(checker.false_accepts),
             "false_rejects": [f"{o.case_id}: {o.original_text!r} -> {o.replacement_text!r}" for o in checker.false_rejects],
         },
-        "live": run_live(cases, provider).model_dump(mode="json", exclude={"outcomes"}) if provider else None,
+        "live": run_live(cases, provider, prompts["correct_claim"], prompts["verify_claim"]).model_dump(
+            mode="json", exclude={"outcomes"}) if provider else None,
     }
 
     # 4b. Claim extraction (eval/data/extraction_v1.jsonl): oracle replay, adversaries, live model
-    report["extraction"] = evaluate_extraction(load_extraction_records(EXTRACTION), live=provider)
+    report["extraction"] = evaluate_extraction(load_extraction_records(EXTRACTION), live=provider,
+                                               prompt_version=prompts["extract_claims"] if provider else None)
+    report["calls"] = counting.stats if counting else None
 
     # 5. Enforcement (scripted adversaries)
     report["enforcement"] = {
@@ -236,6 +333,8 @@ def markdown(report: dict[str, Any]) -> str:
         f"- Verdict source: **{v['source']}**"
         + ("" if v["is_model_quality"] else " — a floor, **not model accuracy** (no live model was run)"),
         f"- Human-reviewed labels in eval/dataset.jsonl: {report['datasets']['human_reviewed']}/{v['examples']}",
+        f"- Prompt versions: {run_info.get('prompt_versions') or 'none sent (no live model)'}",
+        f"- Model configuration: {run_info.get('model_configuration') or 'none (no live model)'}",
         "",
         "## Verdicts (eval/dataset.jsonl)",
         "",
@@ -256,6 +355,11 @@ def markdown(report: dict[str, Any]) -> str:
               "|---|" + "---|" * len(PREDICTED_CLASSES)]
     for g in GOLD_CLASSES:
         lines.append(f"| {g.value} | " + " | ".join(str(v["confusion"][g.value][p.value]) for p in PREDICTED_CLASSES) + " |")
+    lines += ["", "Accuracy by category: " + ", ".join(f"{c} {pct(r)}" for c, r in v["by_category"].items())]
+    if report.get("calls"):
+        lines += ["", "## Calls per stage", "", "| Stage | Calls | Repair calls | Provider errors | Input characters |", "|---|---|---|---|---|"]
+        for stage, s in sorted(report["calls"].items()):
+            lines.append(f"| {stage} | {s['calls']} | {s['repair_calls']} | {s['errors'] or 0} | {s['input_chars']} |")
     lines += ["", "## Retrieval recall@k (deterministic)", "", "| Dataset | @1 | @3 | @5 |", "|---|---|---|---|"]
     for name, entry in report["retrieval"].items():
         lines.append(f"| {name} | {pct(entry['recall_at_1'])} | {pct(entry['recall_at_3'])} | {pct(entry['recall_at_5'])} |")
@@ -304,7 +408,11 @@ def main(argv: list[str] | None = None) -> int:
     source.add_argument("--predictions", help="replay a saved EvalPrediction JSONL for eval/dataset.jsonl")
     parser.add_argument("--out", type=Path, help="report directory (default: reports/<UTC timestamp>)")
     parser.add_argument("--check-baseline", nargs="?", const=str(BASELINE), help="apply regression gates; exit 1 on failure")
+    parser.add_argument("--prompts", choices=sorted(PROMPT_SETS), help="pin every live stage to this prompt set")
+    parser.add_argument("--dry-run", action="store_true", help="with --verdicts openrouter: offline stub, counts calls only")
     args = parser.parse_args(argv)
+    if args.dry_run and args.verdicts != "openrouter":
+        parser.error("--dry-run needs --verdicts openrouter")
     args.out = args.out or ROOT / "reports" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     args.out.mkdir(parents=True, exist_ok=True)
     try:

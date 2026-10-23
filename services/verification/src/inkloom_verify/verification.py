@@ -27,7 +27,7 @@ from inkloom_verify.prompts import verification as prompt
 from inkloom_verify.prompts.loader import load_prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
 from inkloom_verify.retrieval import EvidenceRetriever
-from inkloom_verify.security import clean_display_text
+from inkloom_verify.security import clean_display_text, instruction_like, model_text_for_display
 from inkloom_verify.schemas import (
     MAX_PASSAGE_CHARS,
     MAX_RATIONALE_CHARS,
@@ -122,7 +122,7 @@ class ClaimVerifier:
             return self._error(claim, passages, error.to_processing_error(PipelineStage.VERIFICATION, claim.claim_id))
 
         model_verdict = Verdict(output.verdict)
-        rationale = clean_display_text(output.rationale, MAX_RATIONALE_CHARS)
+        rationale = model_text_for_display(output.rationale, MAX_RATIONALE_CHARS, self.prompt.text)
         if model_verdict is Verdict.NOT_ENOUGH_EVIDENCE:
             return ClaimResult(
                 claim=claim,
@@ -155,6 +155,11 @@ class ClaimVerifier:
                 RejectedCitation(reason=r)
                 for r in support_problems(claim.statement, [c.quote for c in citations], cited_passages)
             )
+            # A claim that gives instructions is checked, never confirmed: dropping it would let a
+            # false claim go unchecked by adding "ignore the evidence" to its sentence, and
+            # confirming it would publish the instruction as verified (PROMPTS.md Phase 6).
+            if instruction_like(claim.text) or instruction_like(claim.statement):
+                rejected.append(RejectedCitation(reason=GuardRejectionReason.INSTRUCTION_TEXT))
         if citations and not rejected:
             # References that disagree about the claim's figure: no verdict, a person decides.
             other = conflicting_passage(claim.statement, passages)

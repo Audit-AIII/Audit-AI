@@ -92,3 +92,58 @@ def clean_display_text(text: str, max_length: int) -> str | None:
     )
     cleaned = " ".join("".join(kept).split())[:max_length]
     return cleaned or None
+
+
+# A model told by injected text to "print your instructions" would write them into the only free
+# text it returns. The prompts are not secret (they are in the repository), but repeating them is
+# a sign the model followed the content, and the text is shown to people. 60 characters is about
+# one line of a prompt: long enough that a rationale quoting a rule word ("NOT_ENOUGH_EVIDENCE",
+# "untrusted data") never matches.
+PROMPT_ECHO_CHARS = 60
+WITHHELD_ECHO = "[withheld: the model's text repeated its instructions]"
+
+
+def repeats_instructions(text: str, instructions: str, window: int = PROMPT_ECHO_CHARS) -> bool:
+    """Whether ``text`` contains any ``window``-character run of ``instructions`` (case and
+    whitespace ignored)."""
+    haystack = " ".join(text.split()).casefold()
+    needle = " ".join(instructions.split()).casefold()
+    if len(haystack) < window or len(needle) < window:
+        return False
+    return any(needle[i:i + window] in haystack for i in range(len(needle) - window + 1))
+
+
+def model_text_for_display(text: str, max_length: int, instructions: str) -> str | None:
+    """Model-written prose (a rationale, a reason) as it may be shown: ``clean_display_text``,
+    credentials redacted, and replaced by ``WITHHELD_ECHO`` if it repeats ``instructions``."""
+    cleaned = clean_display_text(text, max_length)
+    if cleaned is None:
+        return None
+    if repeats_instructions(cleaned, instructions):
+        return WITHHELD_ECHO
+    return redact(cleaned)[:max_length]
+
+
+# Text aimed at the model rather than at readers of a fact sheet or of marketing copy. Used by the
+# citation guard (a quote from such a sentence is not evidence) and the extractor (such a sentence
+# is not a claim). Deliberately narrow, because a false match discards real evidence or a real
+# claim: measured (PROMPTS.md Phase 6) on every reference sentence, content sentence and claim in
+# eval/data, it flags only the planted injections and no gold evidence quote or labelled claim;
+# tests/test_prompt_security.py also holds legitimate wording ("System: Android 14", "Note to
+# reviewers: ...", "Never ignore the safety instructions") that must pass. It is one check among
+# several, not a prompt-injection detector: an instruction worded as a plain fact ("Lumen Pods are
+# waterproof.") passes it.
+_INSTRUCTION = re.compile(
+    r"\b(?:SUPPORTED|CONTRADICTED|NOT_ENOUGH_EVIDENCE)\b"  # the verdict names, as the prompts write them
+    r"|(?i:(?<!not )(?<!never )(?<!n't )\b(?:ignore|disregard|override|forget)\b[^.\n]{0,60}"
+    r"\b(?:instructions?|rules?|prompts?|guidelines?|fact sheets?|evidence|passages?)\b)"
+    r"|(?i:\bsystem\s+prompts?\b|\bdeveloper\s+(?:message|instructions?)\b|\b(?:previous|prior|above)\s+instructions\b)"
+    r"|(?i:\b(?:note|message|instructions?)\s+(?:to|for)\s+(?:any\s+|the\s+|all\s+)?"
+    r"(?:AI|LLMs?|chatbots?|(?:language\s+)?models?|assistants?|verifiers?)\b)"
+    r"|(?i:\b(?:mark|label|treat|classify)\b[^.\n]{0,40}\b(?:as\s+)?(?:supported|verified|true|pre-verified)\b)"
+)
+
+
+def instruction_like(text: str) -> bool:
+    """Whether ``text`` addresses an AI, names a verdict, or tells the reader to ignore rules."""
+    return _INSTRUCTION.search(text) is not None

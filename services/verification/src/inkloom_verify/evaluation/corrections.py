@@ -205,15 +205,20 @@ class LiveReport(_Model):
     outcomes: list[LiveCaseOutcome]
 
 
-def run_live(cases: Sequence[CorrectionCase], provider) -> LiveReport:
-    from inkloom_verify.correction import ClaimCorrector, edit_distance, words
+def run_live(cases: Sequence[CorrectionCase], provider, correction_prompt: str | None = None,
+             verifier_prompt: str | None = None) -> LiveReport:
+    """The live corrector (and its re-check) on every case; prompt versions default to the components' own."""
+    from inkloom_verify.correction import ClaimCorrector, CorrectionConfig, edit_distance, words
     from inkloom_verify.schemas import CorrectionStatus
-    from inkloom_verify.verification import ClaimVerifier
+    from inkloom_verify.verification import ClaimVerifier, VerificationConfig
+
+    correction_config = CorrectionConfig(prompt_version=correction_prompt) if correction_prompt else None
+    verification_config = VerificationConfig(prompt_version=verifier_prompt) if verifier_prompt else None
 
     outcomes = []
     for case in cases:
         result, content = contradicted_result(case)
-        corrector = ClaimCorrector(provider, ClaimVerifier(provider, case.references))
+        corrector = ClaimCorrector(provider, ClaimVerifier(provider, case.references, verification_config), correction_config)
         attempt_result = corrector.correct(result, content)
         attempt = attempt_result.correction_attempt
         assert attempt is not None

@@ -280,8 +280,12 @@ These are Member 3's files, and I haven't edited them. The request list is in IN
 
 - **Prompt injection isn't solved, only contained.** A model can still be talked into a wrong
   verdict. The guard then requires every quote to exist verbatim in this request's evidence,
-  and the evaluation measures verdict accuracy. But a valid quote of injected text with a
-  wrong verdict passes the guard (dataset record `v1-032`, PROMPTS.md).
+  and the evaluation measures verdict accuracy. Since prompts Phase 6:
+  - a quote from a passage sentence that gives instructions is refused (`instruction_text`);
+  - a claim that gives instructions is never SUPPORTED.
+
+  A valid quote of a planted false *fact*, or of an instruction worded so the narrow detector
+  misses it, still passes the guard (dataset record `v1-032`; PROMPTS.md "Prompt security").
 - **Strings written by the model are displayed.** They're cleaned and length-capped, but their
   content is attacker-influenced. That's why plain-text rendering is required of Member 1.
 - No fuzzing, load test or live-model red-teaming has been done yet.

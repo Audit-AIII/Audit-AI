@@ -536,6 +536,7 @@
         "quote_not_found",
         "quote_too_short",
         "partial_quote_drops_negation",
+        "instruction_text",
         "unsupported_quantity",
         "unsupported_date",
         "missing_qualifier",
