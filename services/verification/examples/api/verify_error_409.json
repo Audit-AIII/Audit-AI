@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "REFERENCE_SET_EMPTY",
+    "message": "the reference set has no documents to check against",
+    "request_id": "req_123"
+  }
+}

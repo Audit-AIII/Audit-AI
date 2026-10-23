@@ -35,6 +35,106 @@ these contracts.
 
 ---
 
+## Public API contract (draft, `schema_version` 0.1.0)
+
+A separate layer for callers, defined in
+[`src/inkloom_verify/api_contract.py`](src/inkloom_verify/api_contract.py) and exported to
+[`schemas/public_report.schema.json`](schemas/public_report.schema.json). The internal contract
+below (0.2.0) is unchanged; Member 3's backend keeps importing it.
+`api_contract.to_public_report(report, suggest_corrections)` converts an internal report to this
+one. Example: [`examples/public/report.json`](examples/public/report.json), a partial report in
+which one claim failed and three were kept.
+
+**Fixtures (Phase 5)**, in [`examples/public/`](examples/public/) (the repository's fixture
+location). Each is a complete Report built from fictional data:
+
+| Fixture | What it shows |
+|---|---|
+| `supported.json` | One `SUPPORTED` claim with evidence (confidence 1.0) |
+| `contradicted.json` | One `CONTRADICTED` claim with evidence and the proposed correction that corrections require |
+| `not_enough_evidence.json` | One `NOT_ENOUGH_EVIDENCE` claim with no evidence |
+| `error.json` | One `ERROR` claim (`PROVIDER_TIMEOUT`): no evidence, no correction, review required |
+| `mixed_report.json` | Two failures (timeout and rate limit) between `SUPPORTED`, `CONTRADICTED` and `NOT_ENOUGH_EVIDENCE` results that are kept |
+
+[`fixtures.json`](examples/public/fixtures.json) records each fixture's content and reference
+documents, so `tests/test_public_fixtures.py` can check the content hash, every span and every
+quote location. The model can't, because the Report carries neither the content nor the documents.
+Mutation tests break each fixture's rule and require it to be rejected.
+
+| Model | Fields |
+|---|---|
+| `Claim` | `schema_version`, `claim_id`, `text` (exactly the content at `span`), `span` {`start`, `end`} |
+| `Passage` | `schema_version`, `doc_id`, `location` {`start`, `end`}, `text`, `score` (BM25; only comparable within one claim) |
+| `Evidence` | `schema_version`, `doc_id`, `location` {`start`, `end`}, `quote` (exactly the text at `location`) |
+| `Verdict` (`VerdictResult` in Python) | `schema_version`, `status`, `confidence`, `evidence`, `correction`, `needs_human_review`, `error_code` |
+| `Report` | `schema_version`, `request_id`, `claims` (a list of {`claim`, `verdict`}), `metadata` {`content_hash`} |
+
+**Approved decisions (2026-10-23):**
+1. A new public layer; the internal models are untouched.
+2. **`confidence` is a fixed map of evidence strength:** none 0.0, weak 0.33, moderate 0.67,
+   strong 1.0. It's an ordinal score computed by rules, **not a calibrated probability**, and
+   nothing a model says can raise it.
+3. **`metadata` holds `content_hash` only.**
+4. **`suggest_corrections` is a request option and defaults to true.**
+   - When true, every `CONTRADICTED` verdict carries a correction outcome:
+     - `proposed`, with `span`, `original_text`, `replacement_text` and `evidence`;
+     - or `needs_human_review` (no safe correction) or `failed`, with no replacement.
+   - When false, no verdict carries a correction.
+   - The `Report` checks this using the option passed as validation context
+     (`Report.model_validate(data, context={"suggest_corrections": ...})`). Without context the
+     default applies.
+
+**Validation:**
+- spans and locations: `start` ≥ 0 and `end` > `start` (whole numbers only);
+- text and quotes exactly fill their span;
+- `SUPPORTED` and `CONTRADICTED` require evidence; `NOT_ENOUGH_EVIDENCE` doesn't;
+- `error_code` is required for `ERROR` and allowed only there, from the engine's error codes;
+  an `ERROR` verdict has no evidence;
+- corrections only on `CONTRADICTED`;
+- every status except `SUPPORTED`, and any confidence below 0.67, requires
+  `needs_human_review`;
+- `confidence` lies in [0, 1] and is finite;
+- claim ids are unique;
+- unknown fields are rejected.
+
+**Partial failure (Phase 4).** One claim's failure stays with that claim.
+- **The claim:** it becomes an `ERROR` verdict with its own `error_code`, no evidence, no
+  correction, confidence 0, and `needs_human_review` true. It keeps its id, text, span and
+  position.
+- **Every other claim's result is unchanged,** byte for byte, including `NOT_ENOUGH_EVIDENCE`
+  results.
+- **What counts as a claim's failure:**
+  - a provider error during verification (its own code: `PROVIDER_TIMEOUT`,
+    `PROVIDER_RATE_LIMITED`, `MALFORMED_MODEL_OUTPUT`, ...);
+  - an unexpected exception during verification (`INTERNAL_ERROR`; since Phase 4 this no longer
+    fails the whole run).
+- **A failure while correcting** keeps the `CONTRADICTED` verdict and records the correction as
+  `failed`.
+- **A report whose claims all failed** is still a 200 Report.
+- **Exceptions:** a failure before any claim exists (extraction) has no results, so the endpoint
+  maps it to an HTTP error. A result that doesn't belong to its request (contamination) fails the
+  whole run with 500: it isn't safe to continue past.
+
+Tests: `tests/test_partial_failure.py`.
+
+**Structural choices made in implementation, awaiting your confirmation:**
+- `schema_version` value `"0.1.0"`, separate from the internal contract's version;
+- `Report.claims` entries pair `claim` with `verdict`, because the specified `Verdict` has no
+  claim reference;
+- the `Correction` shape, whose fields weren't specified: `status` reuses the internal correction
+  statuses;
+- `location` and `span` use the same {`start`, `end`} object, in code points;
+- `Passage` isn't part of the `Report`, because the specified `Report` has no field for passages.
+
+**Not representable yet.** `to_public_report` raises `NotRepresentable` rather than returning
+an empty or partial claim list for:
+- a `FAILED` report;
+- a report with request-level errors (for example a failed extraction batch, or the fake engine's
+  `PROVIDER_NOT_CONFIGURED`).
+
+The public `Report` has no field for them. This joins the open error-envelope question (D) for
+Phase 2.
+
 ## Conventions
 
 | Topic | Rule |
@@ -317,47 +417,85 @@ yet:
 | `correction.replacement_text` (only when `correction_attempt.status` is `proposed`) | `suggested_correction` |
 | `ReportScore.requires_human_review` | review state `needs_human_review` |
 
-## HTTP endpoint: `POST /v1/verify` (walking skeleton, Phase 2)
+## HTTP endpoint: `POST /v1/verify` (public contract, Phase 2)
 
-Code: [`api.py`](src/inkloom_verify/api.py). The body is a `VerificationRequest` and the 200
-response is a `VerificationReport` (`null` fields omitted). The engine ships a **router**, not a
-server. The backend mounts it inside its own app, where its authentication, request-id middleware
-and error handlers apply (INTEGRATION.md).
+Code: [`api.py`](src/inkloom_verify/api.py). The body is the public `VerifyRequest` and the 200
+response is a public `Report` ("Public API contract" above). JSON Schemas:
+[`schemas/public_verify_request.schema.json`](schemas/public_verify_request.schema.json) and
+[`schemas/public_report.schema.json`](schemas/public_report.schema.json). The engine ships a
+**router**, not a server: the backend mounts it inside its own app, where its authentication,
+request-id middleware and error handlers apply (INTEGRATION.md).
 
-Errors use the backend's shape (`contract/README.md`): `{"error": {"code", "message", "request_id"}}`.
+```json
+{
+  "request_id": "req_123",
+  "content": {"id": "c1", "text": "Our plan costs $49/month and includes 5 seats."},
+  "reference_set_id": "ref_brand_2026",
+  "options": {"suggest_corrections": true, "max_claims": 50}
+}
+```
+
+**Required:** `request_id`, `content.id`, `content.text` and `reference_set_id`.
+
+**Optional:** `options`. Its defaults are `suggest_corrections: true` and `max_claims: 200`.
+
+**Validation (422):**
+- ids follow the external-id pattern;
+- content can't be empty or whitespace only, and is limited to the router's
+  `max_content_chars` (configurable, at most 100,000);
+- `max_claims` is a whole number from 1 to 200, and `suggest_corrections` is a boolean (both
+  strict: no strings, floats or 0/1);
+- unknown fields, `tenant_id` and `references` included, are refused.
+
+**No tenant and no documents in the body (approved decision).** The tenant comes only from
+authentication. The backend's `reference_set_loader(tenant_id, reference_set_id)` returns that
+tenant's documents for the set.
+
+**Error envelope (approved, Phase 3).** `{"error": {"code", "message", "request_id"}}`, plus
+`retry_after` (whole seconds) on 429 only, also sent as the `Retry-After` header. Messages are
+fixed per code: nothing from a provider, a document or the request is echoed.
+- `request_id` is the body's once the body is valid.
+- Before that, it comes from the host's `request_id_provider` (Member 3: `get_request_id`), else
+  the incoming `X-Request-ID`, else a new id.
 
 | Situation | HTTP | `error.code` |
 |---|---|---|
-| Malformed JSON, schema violation, or a body over the size limit | 422 | `VALIDATION_ERROR`. The message lists field locations only, never submitted values. |
-| Body `tenant_id` is not the authenticated tenant | 403 | `FORBIDDEN` |
-| Unexpected failure, including an engine returning a report that doesn't answer the request | 500 | `INTERNAL_ERROR` ("an internal error occurred") |
-| A processing failure inside the engine (provider down, malformed model output, …) | **200** | No HTTP error. The report's `status` is `PARTIAL` or `FAILED`, and its `errors` say what went wrong. |
+| Malformed JSON, schema violation, empty or whitespace content, content over the limit, body over the size limit | 400 | `INVALID_INPUT`. The message lists field locations only. The router handles this itself, whatever the host app's validation handler does. |
+| Unknown `reference_set_id`, or another tenant's (the loader returns None) | 404 | `REFERENCE_SET_NOT_FOUND`, the same answer either way |
+| A known reference set with no documents (the loader returns an empty list) | 409 | `REFERENCE_SET_EMPTY` |
+| No results: the model output was still invalid after the repair attempt | 422 | `UNPARSEABLE_MODEL_OUTPUT` |
+| No results: the provider rate-limited | 429 | `RATE_LIMITED`, with `retry_after`: the provider's Retry-After when it gave one (rounded up), else the router's `default_retry_after` (30 s) |
+| No results: the provider didn't answer within its timeout | 504 | `PROVIDER_TIMEOUT` |
+| No results: provider not configured, quota exhausted, other provider error, request budget used up; or the fake engine | 503 | The engine's code: `PROVIDER_NOT_CONFIGURED`, `PROVIDER_QUOTA_EXCEEDED`, `PROVIDER_ERROR`, `LIMIT_EXCEEDED` |
+| An unexpected failure inside the engine, a loader failure, unusable documents, or a report that doesn't answer its request | 500 | `INTERNAL_ERROR` |
+| Some claims failed, or some sentences went unchecked | **200** | No HTTP error: ERROR verdicts and `metadata.errors` |
 
-The response header `X-Inkloom-Engine-Mode` names the engine that answered.
+**HTTP codes and report codes (approved: keep both).** Reports (`verdict.error_code`,
+`metadata.errors`) keep the engine's codes. The HTTP code for a run with no results is derived
+from them, one to one:
 
-**Engines behind the endpoint.** Since Phase 4 the real engine is
-`pipeline.PipelineEngine` (`X-Inkloom-Engine-Mode: live`): extraction, retrieval, verification
-and the citation guard. Corrections are off until Phase 5. The development app serves it with
-`INKLOOM_ENGINE_MODE=live`, and fails at startup with the configuration message if
-`OPENROUTER_API_KEY` or `INKLOOM_LLM_MODELS` is missing. The labelled fake engine below remains
-for work without a key, and is used only with `INKLOOM_ENGINE_MODE=fake`.
+| Engine code (in reports) | HTTP status and code |
+|---|---|
+| `MALFORMED_MODEL_OUTPUT` | 422 `UNPARSEABLE_MODEL_OUTPUT` |
+| `PROVIDER_RATE_LIMITED` | 429 `RATE_LIMITED` |
+| `PROVIDER_TIMEOUT` | 504 `PROVIDER_TIMEOUT` |
+| `INTERNAL_ERROR` | 500 `INTERNAL_ERROR` |
+| `PROVIDER_NOT_CONFIGURED`, `PROVIDER_QUOTA_EXCEEDED`, `PROVIDER_ERROR`, `LIMIT_EXCEEDED` | 503, the same code |
 
-**The fake engine** ([`fake_engine.py`](src/inkloom_verify/fake_engine.py)).
-- **Evidence is retrieved for real:** BM25 over the request's own reference set, using the
-  same request-scoped retriever as the pipeline. (Phase 3 replaced the Phase 2 hard-coded
-  retriever, and the development-only `fixed` retrieval method was removed with it.)
-- **Verdicts are canned,** assigned by claim position. A claim with no retrieved evidence is
-  always `NOT_ENOUGH_EVIDENCE`.
+"Service rate limits" (requests per tenant) aren't enforced by the engine. If Member 3 adds
+them, they should answer 429 `RATE_LIMITED` in this envelope too.
 
-**No AI verification is performed, and every response says so:**
+The internal `ProcessingError` gained an optional `retry_after_seconds` (a whole number from 0 to
+3600, allowed only on `PROVIDER_RATE_LIMITED`) to carry the provider's Retry-After value.
 
-- the `X-Inkloom-Engine-Mode: fake` header;
-- `provenance.provider = "fake"`, `model_id = "fake/canned-v1"`;
-- a request-level `PROVIDER_NOT_CONFIGURED` error, so the status is never `COMPLETED` and
-  `score.requires_human_review` is always true;
-- `FAKE ENGINE` at the start of every rationale.
+The response header `X-Inkloom-Engine-Mode` names the engine that answered. The Report is
+validated with the request's own `suggest_corrections` before it's returned, and is sent as
+already-validated JSON. Nothing a model writes reaches the response except through these models.
 
-The development server only serves it when asked: `INKLOOM_ENGINE_MODE=fake`.
+**The fake engine** ([`fake_engine.py`](src/inkloom_verify/fake_engine.py)) returns canned
+verdicts with real BM25 evidence, for in-process tests. **It never returns results through the
+public endpoint** (approved decision): the public Report has no field that could say they are
+fake, so `INKLOOM_ENGINE_MODE=fake` answers 503 `PROVIDER_NOT_CONFIGURED`.
 
 ## Limits (provisional)
 

@@ -25,6 +25,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
+from inkloom_verify.security import has_hidden_characters
+
 ContractVersion = Literal["0.2.0"]
 CONTRACT_VERSION: ContractVersion = "0.2.0"
 
@@ -220,6 +222,8 @@ class Claim(_Contract):
 
     @model_validator(mode="after")
     def _check_text(self) -> Claim:
+        if self.normalized_text is not None and has_hidden_characters(self.normalized_text):
+            raise ValueError("normalized_text must not contain control, bidi or zero-width characters")
         if len(self.text) != self.source_span.length:
             raise ValueError("claim text length does not match its source_span (text must be the exact content slice)")
         if self.normalized_text is not None and self.normalized_text == self.text:
@@ -351,6 +355,8 @@ class Correction(_Contract):
 
     @model_validator(mode="after")
     def _check(self) -> Correction:
+        if has_hidden_characters(self.replacement_text):
+            raise ValueError("replacement_text must not contain control, bidi or zero-width characters")
         if len(self.original_text) != self.target_span.length:
             raise ValueError("original_text length does not match target_span")
         if self.replacement_text == self.original_text:
@@ -397,6 +403,14 @@ class ProcessingError(_Contract):
     message: ErrorMessage
     retryable: Annotated[bool, Field(strict=True)]
     claim_id: ClaimId | None = None
+    # Seconds the provider asked to wait (its Retry-After), for PROVIDER_RATE_LIMITED only.
+    retry_after_seconds: Annotated[int, Field(strict=True, ge=0, le=3_600)] | None = None
+
+    @model_validator(mode="after")
+    def _check_retry_after(self) -> ProcessingError:
+        if self.retry_after_seconds is not None and self.code is not ErrorCode.PROVIDER_RATE_LIMITED:
+            raise ValueError("retry_after_seconds is only for PROVIDER_RATE_LIMITED")
+        return self
 
 
 def _require_unique_passages(passages: list[EvidencePassage]) -> None:

@@ -1,0 +1,59 @@
+{
+  "schema_version": "0.1.0",
+  "request_id": "req-fixture-contradicted",
+  "claims": [
+    {
+      "claim": {
+        "schema_version": "0.1.0",
+        "claim_id": "clm_0001",
+        "text": "Lumen Pods cost €99.",
+        "span": {
+          "start": 0,
+          "end": 20
+        }
+      },
+      "verdict": {
+        "schema_version": "0.1.0",
+        "status": "CONTRADICTED",
+        "confidence": 0.67,
+        "evidence": [
+          {
+            "schema_version": "0.1.0",
+            "doc_id": "lumen-pods-fact-sheet",
+            "location": {
+              "start": 85,
+              "end": 115
+            },
+            "quote": "Price: €129 (EU launch price)."
+          }
+        ],
+        "correction": {
+          "status": "proposed",
+          "span": {
+            "start": 16,
+            "end": 19
+          },
+          "original_text": "€99",
+          "replacement_text": "€129",
+          "evidence": [
+            {
+              "schema_version": "0.1.0",
+              "doc_id": "lumen-pods-fact-sheet",
+              "location": {
+                "start": 85,
+                "end": 115
+              },
+              "quote": "Price: €129 (EU launch price)."
+            }
+          ]
+        },
+        "needs_human_review": true,
+        "error_code": null
+      }
+    }
+  ],
+  "metadata": {
+    "content_hash": "1b1d04f7be68f2d7f5ebaace637caa20b806693519d2fe1a14b7b9088101dfdb",
+    "errors": []
+  }
+}

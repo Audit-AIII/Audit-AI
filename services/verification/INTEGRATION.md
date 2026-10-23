@@ -56,7 +56,28 @@ To run the documented example request against a live model:
 PYTHONPATH=src python -m inkloom_verify.pipeline --request examples/end_to_end/request.json --out reports/e2e.json
 ```
 
+> The current public endpoint, its error mapping and the contract change log are in
+> [API_HANDOFF.md](API_HANDOFF.md). This file keeps the history and the in-process notes.
+
 ## For Member 3: calling the engine
+
+**Security requests from the engine's Phase 7 review (2026-10-23).** These are read-only findings
+in your files, which I haven't changed:
+
+1. **Gemini errors:** use fixed messages (status code and category only), not `error.message`.
+   Provider text can echo the submitted content.
+2. **Timeout and connect errors (Gemini, Groq, Ollama):** use `type(error).__name__`, not
+   `str(error)`.
+3. **Keys:** call `inkloom_verify.security.register_secret(key)` when each provider is built,
+   and attach `install_redaction` to your log handlers.
+4. **Responses:** cap the body size (the engine's adapter uses 2 MB) and treat `RecursionError`
+   from JSON parsing as malformed output.
+5. **Pipeline:** call `inkloom_verify.pipeline.verify_request(request, provider)` instead of
+   chaining the stages. You get the report-scope check, the call budget, corrections and
+   `reference_set_id` on every passage. Your evidence validator still runs on its output.
+
+Already done on your side (verified by reading): confidential sources go to local Ollama only,
+and the independent evidence validator.
 
 **Contract 0.2.0 (2026-10-23).**
 - `Claim.text` is now exactly the content at `source_span`. Your `pipeline.py` already stores
@@ -137,29 +158,38 @@ from inkloom_verify.providers.openrouter import OpenRouterProvider
 def authenticated_tenant(auth: AuthContext = Depends(get_current_membership)) -> str:
     return str(auth.organisation_id)                        # the tenant comes from the token only
 
+def reference_set_loader(tenant_id: str, reference_set_id: str) -> list[ReferenceDocument] | None:
+    ...  # this organisation's approved source documents for the set, or None; your query, your session
+
 engine = PipelineEngine(OpenRouterProvider.from_env())     # raises ProviderNotConfiguredError if unset
-app.include_router(create_verify_router(engine, authenticated_tenant=authenticated_tenant))
-```
-
-If requests name a `reference_set_id`, also pass your ownership check (Phase 7). The engine
-has no database, so it can't decide this itself:
-
-```python
-def reference_set_access(tenant_id: str, reference_set_id: str) -> bool:
-    ...  # True only if this organisation owns the set; your query, your session
 app.include_router(create_verify_router(engine, authenticated_tenant=authenticated_tenant,
-                                        reference_set_access=reference_set_access))
+                                        reference_set_loader=reference_set_loader))
 ```
 
-It is called with the authenticated tenant, never the body's. Anything but `True` gives 404
-`NOT_FOUND` (the same answer for "not yours" and "doesn't exist"), and an exception gives 500.
-In both cases the engine is never called. It is still your job to build `references` from that
-set: the engine checks the id, not that the documents belong to it.
+**The public request (Phase 2) carries a `reference_set_id` but no documents and no tenant.**
+- Your loader is called with the authenticated tenant, never anything from the body.
+- Returning None or an empty list gives 404 `NOT_FOUND`, the same answer for "not yours" and
+  "doesn't exist". An exception gives 500. In both cases the engine is never called.
+- You decide what a reference set is: for example, a brand's latest approved sources.
+- Confidential-source routing stays yours.
+- `authenticated_tenant` is required: the router refuses to start without it, outside the
+  development app.
 
 Your existing error handlers and `RequestIdMiddleware` then apply unchanged. A test mounts the
 router inside your real `install_error_handlers` and `RequestIdMiddleware` (imported read-only
-from `services/api/src`). It checks the 200, 403 and 422 responses and that `request_id`
+from `services/api/src`). It checks the 200, 400, 404 and 503 responses, and that `request_id`
 matches your `X-Request-ID`.
+
+**Error mapping (Phase 3):**
+- The router answers its own errors in the shared envelope: 400 `INVALID_INPUT`, 404
+  `REFERENCE_SET_NOT_FOUND`, 409 `REFERENCE_SET_EMPTY`, and 422 / 429 / 504 / 503 for runs with no
+  results (CONTRACTS.md, "HTTP endpoint"). So your handlers don't turn them into 422
+  `VALIDATION_ERROR` or `INTERNAL_ERROR`.
+- **Pass `request_id_provider=get_request_id`** (from `inkloom_api.logging`), so a 400 raised before
+  the body is valid carries your request id.
+- **Your loader must return None for an unknown set**, and an empty list only for a set that
+  exists with no documents. The two give different answers (404 vs 409).
+- Only 500s still go through your handler.
 
 Two notes for Member 3:
 
@@ -173,20 +203,25 @@ Two notes for Member 3:
 For local development without the backend (no authentication, so never expose it):
 
 ```sh
-INKLOOM_ENGINE_MODE=fake PYTHONPATH=src python -m uvicorn inkloom_verify.api:create_dev_app --factory --port 8000
-# http://127.0.0.1:8000/docs
+INKLOOM_ENGINE_MODE=live PYTHONPATH=src python -m uvicorn inkloom_verify.api:create_dev_app --factory --port 8000
+# http://127.0.0.1:8000/docs   (fake mode answers 503: no canned results on the public endpoint)
 ```
 
-Example payloads: [`examples/api/`](examples/api/) contains the request, the fake 200 response
-and a 422 error. A test keeps them in sync.
+The development app serves one example reference set (the documents of
+`examples/verification_request.json`, under its `reference_set_id`) for its unauthenticated
+development tenant.
+
+Example payloads: [`examples/api/`](examples/api/) contains the request, a 200 response (scripted
+model, real pipeline), and 422, 404 and 503 errors. A test keeps them in sync.
 
 ## For Member 1
 
 - **Your review screen (`app/app/review/page.tsx`) is static markup today:** no data types, no
   `fetch`. Rendering a real response needs a typed client for Member 3's `GET /api/reviews/{id}`
   (`contract/schemas/review.schema.json`). For layout work before then,
-  `examples/api/verify_response.fake.json` and `contract/examples/review_success.json` show the
-  shapes.
+  `examples/api/verify_response.json` (the public engine Report) and
+  `contract/examples/review_success.json` show the shapes. Source titles aren't in the engine's
+  Report (Evidence carries `doc_id`); they come from the backend's sources.
 - **Display data comes through Member 3's API**, not from the engine directly. The engine's
   strings are untrusted: render claim text, quotes, explanations and corrections **as plain
   text**. No HTML, no Markdown, no auto-linked URLs.

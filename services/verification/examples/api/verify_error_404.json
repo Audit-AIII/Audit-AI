@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "REFERENCE_SET_NOT_FOUND",
+    "message": "reference set not found",
+    "request_id": "req_123"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "VerifyContent": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 100000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "VerifyContent",
+      "type": "object"
+    },
+    "VerifyOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "max_claims": {
+          "default": 200,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Max Claims",
+          "type": "integer"
+        },
+        "suggest_corrections": {
+          "default": true,
+          "title": "Suggest Corrections",
+          "type": "boolean"
+        }
+      },
+      "title": "VerifyOptions",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The public request. There is no tenant and no documents: the tenant comes from\nauthentication and the documents from the backend's reference-set loader.",
+  "properties": {
+    "content": {
+      "$ref": "#/$defs/VerifyContent"
+    },
+    "options": {
+      "$ref": "#/$defs/VerifyOptions",
+      "default": {
+        "max_claims": 200,
+        "suggest_corrections": true
+      }
+    },
+    "reference_set_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Reference Set Id",
+      "type": "string"
+    },
+    "request_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Request Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "content",
+    "reference_set_id"
+  ],
+  "title": "VerifyRequest",
+  "type": "object"
+}

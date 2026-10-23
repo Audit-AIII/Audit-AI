@@ -35,6 +35,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from inkloom_verify import __version__  # noqa: E402
 from inkloom_verify.chunking import ChunkingConfig  # noqa: E402
 from inkloom_verify.evaluation import scripted  # noqa: E402
+from inkloom_verify.evaluation.extraction import evaluate_extraction, load_extraction_records  # noqa: E402
 from inkloom_verify.evaluation.corrections import check_candidates, load_cases, run_live  # noqa: E402
 from inkloom_verify.evaluation.metrics import GOLD_CLASSES, PREDICTED_CLASSES  # noqa: E402
 from inkloom_verify.evaluation.runner import (  # noqa: E402
@@ -50,6 +51,7 @@ EVAL = ROOT / "eval"
 DATASET = EVAL / "dataset.jsonl"
 RETRIEVAL_SET = EVAL / "data" / "retrieval_v1.jsonl"
 CORRECTIONS = EVAL / "data" / "corrections_v1.jsonl"
+EXTRACTION = EVAL / "data" / "extraction_v1.jsonl"
 FAULT_CASES = EVAL / "fault_cases.json"
 LOCK = EVAL / "datasets.lock.json"
 BASELINE = EVAL / "baseline.json"
@@ -63,7 +65,11 @@ def sha256(path: Path) -> str:
 
 def lock_entry(path: Path) -> dict[str, Any]:
     entry: dict[str, Any] = {"sha256": sha256(path)}
-    if path.suffix == ".jsonl" and path.name != "corrections_v1.jsonl":
+    if path.name == EXTRACTION.name:
+        extraction_records = load_extraction_records(path)
+        entry["records"] = len(extraction_records)
+        entry["claims"] = sum(len(r.claims) for r in extraction_records)
+    elif path.suffix == ".jsonl" and path.name != "corrections_v1.jsonl":
         records = load_records(path)
         entry["records"] = len(records)
         entry["labels"] = dict(sorted(Counter(r.expected_verdict.value for r in records).items()))
@@ -197,6 +203,9 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
         "live": run_live(cases, provider).model_dump(mode="json", exclude={"outcomes"}) if provider else None,
     }
 
+    # 4b. Claim extraction (eval/data/extraction_v1.jsonl): oracle replay, adversaries, live model
+    report["extraction"] = evaluate_extraction(load_extraction_records(EXTRACTION), live=provider)
+
     # 5. Enforcement (scripted adversaries)
     report["enforcement"] = {
         name: scripted.enforcement(records, name, adversary).model_dump(mode="json")
@@ -255,7 +264,21 @@ def markdown(report: dict[str, Any]) -> str:
               f"Deterministic checks on {ch['candidates']} labelled edits: bad rejected {pct(ch['correctly_rejected'])}, "
               f"good accepted {pct(ch['correctly_accepted'])}, false accepts {ch['false_accepts']}.",
               f"Live corrector: {'not run' if report['corrections']['live'] is None else report['corrections']['live']}",
-              "", "## Enforcement (scripted adversaries; not model quality)", "",
+              ""]
+    ex = report["extraction"]
+    lines += ["## Claim extraction (eval/data/extraction_v1.jsonl)", "",
+              f"{ex['oracle']['records']} paragraphs, {ex['oracle']['labelled_claims']} labelled claims; "
+              f"human-reviewed labels: {ex['human_reviewed']}/{ex['oracle']['records']}.", "",
+              "| Model | Recall | Precision | Exact spans | Not atomic | Opinions extracted | Slice violations | Unsafe rewordings kept |",
+              "|---|---|---|---|---|---|---|---|"]
+    rows = [("oracle (code check)", ex["oracle"])] + [(f"{name} (scripted)", m) for name, m in ex["adversaries"].items()]
+    rows += [("live model", ex["live"])] if ex["live"] else []
+    for label, m in rows:
+        lines.append(f"| {label} | {pct(m['claim_recall'])} | {pct(m['claim_precision'])} | {pct(m['exact_span_matches'])} | "
+                     f"{m['atomicity_violations']} | {m['opinion_leakage']} | {m['slice_violations']} | {m['statements_changed_unsafely']} |")
+    if not ex["live"]:
+        lines.append("\nLive extraction: not run (needs --verdicts openrouter).")
+    lines += ["", "## Enforcement (scripted adversaries; not model quality)", "",
               "| Adversary | Definite | Accepted | Accepted quotes verbatim | Quotes not in any source | False-SUPPORTED |",
               "|---|---|---|---|---|---|"]
     for name, e in report["enforcement"].items():

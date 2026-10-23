@@ -50,7 +50,7 @@ from inkloom_verify.schemas import (
     SourceSpan,
     Verdict,
 )
-from inkloom_verify.security import clean_display_text
+from inkloom_verify.security import clean_display_text, has_hidden_characters
 from inkloom_verify.verification import ClaimVerifier
 
 logger = logging.getLogger(__name__)
@@ -111,6 +111,8 @@ def correction_issues(
     # A new whole date must be a whole date of the evidence, not a year borrowed from elsewhere.
     new_dates = full_dates(new_text) - full_dates(old_text) - full_dates(" ".join(quotes))
     unpaired = mispaired + sorted(f"{d[1]} {d[0]}" for d in new_dates)
+    if has_hidden_characters(replacement):
+        unpaired.append("control or invisible characters")
     if added or symbols or unpaired:
         issues.append(
             CorrectionIssue(

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "INVALID_INPUT",
+    "message": "invalid request: body.options.max_claims",
+    "request_id": "<request id>"
+  }
+}

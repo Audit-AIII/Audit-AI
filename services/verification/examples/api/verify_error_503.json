@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "PROVIDER_NOT_CONFIGURED",
+    "message": "No AI provider is configured; the development engine does not return results here.",
+    "request_id": "req_123"
+  }
+}

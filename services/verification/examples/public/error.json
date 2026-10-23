@@ -1,0 +1,30 @@
+{
+  "schema_version": "0.1.0",
+  "request_id": "req-fixture-error",
+  "claims": [
+    {
+      "claim": {
+        "schema_version": "0.1.0",
+        "claim_id": "clm_0001",
+        "text": "Lumen Pods ship in a recycled box.",
+        "span": {
+          "start": 0,
+          "end": 34
+        }
+      },
+      "verdict": {
+        "schema_version": "0.1.0",
+        "status": "ERROR",
+        "confidence": 0.0,
+        "evidence": [],
+        "correction": null,
+        "needs_human_review": true,
+        "error_code": "PROVIDER_TIMEOUT"
+      }
+    }
+  ],
+  "metadata": {
+    "content_hash": "e72116b036b0e8e34b1308d77fd0b596b0c9a4af9f35eb549eda935043e3080a",
+    "errors": []
+  }
+}

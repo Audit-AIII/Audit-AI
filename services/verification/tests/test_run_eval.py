@@ -193,3 +193,14 @@ def test_fault_cases_cover_every_stage_and_fault():
         (s, f) for s in ("extraction", "verification", "correction")
         for f in ("timeout", "rate_limit", "unavailable", "malformed_json", "schema_invalid", "not_configured")
     }
+
+
+def test_report_includes_the_extraction_evaluation_and_its_gates(default_run):
+    _, report, text = default_run
+    ex = report["extraction"]
+    assert ex["oracle"]["records"] == 24 and ex["oracle"]["labelled_claims"] == 33
+    assert ex["oracle"]["exact_span_matches"]["value"] == 1.0 and ex["live"] is None
+    statuses = {g["name"]: g["status"] for g in report["gates"]}
+    assert statuses["extraction: unsafe rewordings kept (embellisher)"] == "PASS"
+    assert statuses["extraction: claim recall (model run)"] == "NOT APPLICABLE"
+    assert "## Claim extraction" in text and "Live extraction: not run" in text

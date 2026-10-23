@@ -1,0 +1,85 @@
+{
+  "note": "Inputs behind each public fixture: the content and reference documents, so tests can check spans, quotes and the content hash, which the Report alone cannot. Fictional data; built by a script that computes every offset.",
+  "fixtures": [
+    {
+      "file": "supported.json",
+      "model": "Report",
+      "suggest_corrections": true,
+      "content": "Lumen Pods offer up to 12 hours of playback per charge.",
+      "documents": [
+        {
+          "doc_id": "lumen-company-facts",
+          "text": "Lumen Goods was founded in 2019 in Lisbon.\nThe company employs 48 people.\n"
+        },
+        {
+          "doc_id": "lumen-pods-fact-sheet",
+          "text": "Lumen Pods - Product Fact Sheet\nBattery life: up to 12 hours of playback per charge.\nPrice: €129 (EU launch price).\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\n"
+        }
+      ]
+    },
+    {
+      "file": "contradicted.json",
+      "model": "Report",
+      "suggest_corrections": true,
+      "content": "Lumen Pods cost €99.",
+      "documents": [
+        {
+          "doc_id": "lumen-company-facts",
+          "text": "Lumen Goods was founded in 2019 in Lisbon.\nThe company employs 48 people.\n"
+        },
+        {
+          "doc_id": "lumen-pods-fact-sheet",
+          "text": "Lumen Pods - Product Fact Sheet\nBattery life: up to 12 hours of playback per charge.\nPrice: €129 (EU launch price).\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\n"
+        }
+      ]
+    },
+    {
+      "file": "not_enough_evidence.json",
+      "model": "Report",
+      "suggest_corrections": true,
+      "content": "Lumen Pods have active noise cancellation.",
+      "documents": [
+        {
+          "doc_id": "lumen-company-facts",
+          "text": "Lumen Goods was founded in 2019 in Lisbon.\nThe company employs 48 people.\n"
+        },
+        {
+          "doc_id": "lumen-pods-fact-sheet",
+          "text": "Lumen Pods - Product Fact Sheet\nBattery life: up to 12 hours of playback per charge.\nPrice: €129 (EU launch price).\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\n"
+        }
+      ]
+    },
+    {
+      "file": "error.json",
+      "model": "Report",
+      "suggest_corrections": true,
+      "content": "Lumen Pods ship in a recycled box.",
+      "documents": [
+        {
+          "doc_id": "lumen-company-facts",
+          "text": "Lumen Goods was founded in 2019 in Lisbon.\nThe company employs 48 people.\n"
+        },
+        {
+          "doc_id": "lumen-pods-fact-sheet",
+          "text": "Lumen Pods - Product Fact Sheet\nBattery life: up to 12 hours of playback per charge.\nPrice: €129 (EU launch price).\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\n"
+        }
+      ]
+    },
+    {
+      "file": "mixed_report.json",
+      "model": "Report",
+      "suggest_corrections": true,
+      "content": "Lumen Pods offer up to 12 hours of playback per charge. Lumen Pods ship in a recycled box. Lumen Pods cost €99. Lumen Pods have active noise cancellation. Lumen Goods was founded in 2019 in Lisbon.",
+      "documents": [
+        {
+          "doc_id": "lumen-company-facts",
+          "text": "Lumen Goods was founded in 2019 in Lisbon.\nThe company employs 48 people.\n"
+        },
+        {
+          "doc_id": "lumen-pods-fact-sheet",
+          "text": "Lumen Pods - Product Fact Sheet\nBattery life: up to 12 hours of playback per charge.\nPrice: €129 (EU launch price).\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\n"
+        }
+      ]
+    }
+  ]
+}

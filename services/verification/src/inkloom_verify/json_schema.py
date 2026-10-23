@@ -12,6 +12,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from inkloom_verify.api_contract import Report as PublicReport
+from inkloom_verify.api_contract import VerifyRequest as PublicVerifyRequest
 from inkloom_verify.schemas import ClaimVerificationInput, EvalRecord, VerificationReport, VerificationRequest
 
 EXPORTED_MODELS: dict[str, type[BaseModel]] = {
@@ -19,6 +21,8 @@ EXPORTED_MODELS: dict[str, type[BaseModel]] = {
     "verification_report": VerificationReport,
     "claim_verification_input": ClaimVerificationInput,
     "eval_record": EvalRecord,
+    "public_report": PublicReport,  # the public API contract (api_contract.py)
+    "public_verify_request": PublicVerifyRequest,  # POST /v1/verify request body
 }
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parents[2] / "schemas"

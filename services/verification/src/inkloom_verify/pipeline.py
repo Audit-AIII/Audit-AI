@@ -33,7 +33,10 @@ from inkloom_verify.providers.base import LLMProvider, ProviderError
 from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
 from inkloom_verify.retrieval import BM25Retriever, RetrievalConfig
 from inkloom_verify.schemas import (
+    Claim,
     ClaimResult,
+    CorrectionAttempt,
+    CorrectionStatus,
     EngineProvenance,
     ErrorCode,
     PipelineStage,
@@ -108,9 +111,23 @@ def _run(
     )
     results = []
     for claim in extraction.claims:
-        result = verify_claim(claim, retriever, verifier, top_k=config.retrieval.top_k)
+        # Partial failure (Phase 4): a claim's own failure stays with that claim. Provider errors
+        # already become ERROR results inside the verifier; anything unexpected is caught here, so
+        # it can neither erase nor change any other claim's result. (A scope violation is still
+        # checked over the whole report afterwards: contamination is not safe to continue past.)
+        try:
+            result = verify_claim(claim, retriever, verifier, top_k=config.retrieval.top_k)
+        except Exception as error:  # noqa: BLE001 - the type name is safe to log, the message may hold content
+            logger.error("pipeline request=%s claim=%s verification failed unexpectedly: %s",
+                         request.request_id, claim.claim_id, type(error).__name__)
+            result = _claim_error(claim, PipelineStage.VERIFICATION)
         if corrector is not None and result.verdict is Verdict.CONTRADICTED:
-            result = corrector.correct(result, request.content)
+            try:
+                result = corrector.correct(result, request.content)
+            except Exception as error:  # noqa: BLE001
+                logger.error("pipeline request=%s claim=%s correction failed unexpectedly: %s",
+                             request.request_id, claim.claim_id, type(error).__name__)
+                result = _correction_failed(result)
         results.append(result)
     models.update(verifier.models_used)
     if corrector is not None:
@@ -121,6 +138,34 @@ def _run(
         ",".join(f"{v.value}:{sum(r.verdict is v for r in results)}" for v in Verdict),
     )
     return results, errors
+
+
+def _claim_error(claim: Claim, stage: PipelineStage) -> ClaimResult:
+    """An ERROR result for one claim whose processing failed unexpectedly: no evidence, no verdict."""
+    return ClaimResult(
+        claim=claim,
+        verdict=Verdict.ERROR,
+        error=ProcessingError(
+            code=ErrorCode.INTERNAL_ERROR, stage=stage, retryable=False, claim_id=claim.claim_id,
+            message="This claim could not be checked because of an internal error.",
+        ),
+    )
+
+
+def _correction_failed(result: ClaimResult) -> ClaimResult:
+    """The verdict stands; the correction attempt is recorded as FAILED (as for a provider failure)."""
+    attempt = CorrectionAttempt(
+        status=CorrectionStatus.FAILED,
+        error=ProcessingError(
+            code=ErrorCode.INTERNAL_ERROR, stage=PipelineStage.CORRECTION, retryable=False, claim_id=result.claim.claim_id,
+            message="No correction could be proposed because of an internal error.",
+        ),
+    )
+    data = result.model_dump()
+    data.update(correction=None, correction_attempt=attempt.model_dump())
+    data.pop("requires_human_review", None)  # re-derived
+    data.pop("evidence_strength", None)
+    return ClaimResult.model_validate(data)
 
 
 def _unchecked_sentences(extraction: ExtractionResult) -> list[ProcessingError]:
@@ -238,5 +283,12 @@ class PipelineEngine:
         self.provider = provider
         self.config = config or PipelineConfig()
 
-    def verify(self, request: VerificationRequest) -> VerificationReport:
-        return verify_request(request, self.provider, self.config)
+    def verify(
+        self, request: VerificationRequest, *, suggest_corrections: bool = True, max_claims: int | None = None
+    ) -> VerificationReport:
+        """``suggest_corrections`` and ``max_claims`` are the request's options (POST /v1/verify)."""
+        extraction = self.config.extraction
+        if max_claims is not None:
+            extraction = extraction.model_copy(update={"max_claims": min(max_claims, extraction.max_claims)})
+        config = self.config.model_copy(update={"correct_contradicted": suggest_corrections, "extraction": extraction})
+        return verify_request(request, self.provider, config)

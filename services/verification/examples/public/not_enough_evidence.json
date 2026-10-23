@@ -1,0 +1,30 @@
+{
+  "schema_version": "0.1.0",
+  "request_id": "req-fixture-not-enough-evidence",
+  "claims": [
+    {
+      "claim": {
+        "schema_version": "0.1.0",
+        "claim_id": "clm_0001",
+        "text": "Lumen Pods have active noise cancellation.",
+        "span": {
+          "start": 0,
+          "end": 42
+        }
+      },
+      "verdict": {
+        "schema_version": "0.1.0",
+        "status": "NOT_ENOUGH_EVIDENCE",
+        "confidence": 0.0,
+        "evidence": [],
+        "correction": null,
+        "needs_human_review": true,
+        "error_code": null
+      }
+    }
+  ],
+  "metadata": {
+    "content_hash": "c47550450b5bb06cbb0ab03e08ffa1500cca0cee79b17e53d332ce47c33b7566",
+    "errors": []
+  }
+}

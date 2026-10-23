@@ -1,0 +1,339 @@
+{
+  "$defs": {
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "pattern": "^clm_[A-Za-z0-9_-]{1,64}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/$defs/Span"
+        },
+        "text": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_id",
+        "text",
+        "span"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "Correction": {
+      "additionalProperties": false,
+      "description": "A correction outcome. Only ``proposed`` carries a replacement, and then it must say what it\nreplaces (``span`` in the content, ``original_text``) and cite its evidence.",
+      "properties": {
+        "evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "original_text": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Text"
+        },
+        "replacement_text": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replacement Text"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "$ref": "#/$defs/CorrectionOutcome"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "Correction",
+      "type": "object"
+    },
+    "CorrectionOutcome": {
+      "description": "The internal CorrectionStatus values, unchanged.",
+      "enum": [
+        "proposed",
+        "needs_human_review",
+        "failed"
+      ],
+      "title": "CorrectionOutcome",
+      "type": "string"
+    },
+    "ErrorCode": {
+      "enum": [
+        "INVALID_REQUEST",
+        "LIMIT_EXCEEDED",
+        "PROVIDER_NOT_CONFIGURED",
+        "PROVIDER_TIMEOUT",
+        "PROVIDER_RATE_LIMITED",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "PROVIDER_ERROR",
+        "MALFORMED_MODEL_OUTPUT",
+        "INTERNAL_ERROR"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "doc_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/Span"
+        },
+        "quote": {
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc_id",
+        "location",
+        "quote"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "ReportClaim": {
+      "additionalProperties": false,
+      "description": "One entry of Report.claims: the claim and its verdict.",
+      "properties": {
+        "claim": {
+          "$ref": "#/$defs/Claim"
+        },
+        "verdict": {
+          "$ref": "#/$defs/VerdictResult"
+        }
+      },
+      "required": [
+        "claim",
+        "verdict"
+      ],
+      "title": "ReportClaim",
+      "type": "object"
+    },
+    "ReportError": {
+      "additionalProperties": false,
+      "description": "A request-level problem in a report that still has results (Phase 2 decision): for example\nan extraction batch that failed, so some sentences were not checked. Claim-level failures are\nERROR verdicts instead.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ReportError",
+      "type": "object"
+    },
+    "ReportMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "errors": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReportError"
+          },
+          "title": "Errors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "content_hash"
+      ],
+      "title": "ReportMetadata",
+      "type": "object"
+    },
+    "Span": {
+      "additionalProperties": false,
+      "description": "Half-open [start, end) in Unicode code points. Used for a claim's span in the content and\nfor a passage's or quote's location in its reference document.",
+      "properties": {
+        "end": {
+          "title": "End",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Span",
+      "type": "object"
+    },
+    "VerdictResult": {
+      "additionalProperties": false,
+      "description": "The spec's Verdict (named VerdictResult in Python to keep the internal ``Verdict`` enum).",
+      "properties": {
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "correction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Correction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "needs_human_review": {
+          "title": "Needs Human Review",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/VerdictStatus"
+        }
+      },
+      "required": [
+        "status",
+        "confidence",
+        "needs_human_review"
+      ],
+      "title": "VerdictResult",
+      "type": "object"
+    },
+    "VerdictStatus": {
+      "enum": [
+        "SUPPORTED",
+        "CONTRADICTED",
+        "NOT_ENOUGH_EVIDENCE",
+        "ERROR"
+      ],
+      "title": "VerdictStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/ReportClaim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "metadata": {
+      "$ref": "#/$defs/ReportMetadata"
+    },
+    "request_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "claims",
+    "metadata"
+  ],
+  "title": "Report",
+  "type": "object"
+}

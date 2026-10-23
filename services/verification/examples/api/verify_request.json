@@ -1,18 +1,12 @@
 {
-  "contract_version": "0.2.0",
-  "request_id": "req-2026-10-22-0001",
-  "tenant_id": "tenant-acme",
-  "reference_set_id": "refset-lumen-launch",
+  "request_id": "req_123",
   "content": {
-    "text": "The Lumen Bottle keeps drinks cold for up to 24 hours. It is made from 90% recycled steel. Lumen was founded in 2015. The bottle weighs 340 g."
+    "id": "c1",
+    "text": "Lumen Pods offer up to 12 hours of playback per charge. The Lumen Pods price is €99. Lumen Pods have active noise cancellation. Lumen Goods was founded in 2019 in Lisbon. We think they sound amazing."
   },
-  "references": [
-    {
-      "doc_id": "spec-sheet",
-      "version": "v3",
-      "title": "Lumen Bottle Product Specification",
-      "text": "Lumen Bottle Product Specification. Insulation: keeps drinks cold for up to 24 hours and hot for up to 12 hours. Body: 18/8 stainless steel with 70% recycled content.",
-      "text_sha256": "4518ea239ee7e22a0b597fd7f5cdf16ad485d4ccfc284666493f653f46d3f894"
-    }
-  ]
+  "reference_set_id": "ref_brand_2026",
+  "options": {
+    "suggest_corrections": true,
+    "max_claims": 50
+  }
 }

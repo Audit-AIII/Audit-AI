@@ -33,6 +33,11 @@
     },
     "eval/fault_cases.json": {
       "sha256": "18ea6c092a1b0eb288dd5bd3b0eca339132fb78ff70f512fb83226c65203e9a8"
+    },
+    "eval/data/extraction_v1.jsonl": {
+      "sha256": "92a0a11bd3904bcd6a2df8ac170e0411b7e2f63dc1a9dd3f86c50f818ed93dce",
+      "records": 24,
+      "claims": 33
     }
   }
 }

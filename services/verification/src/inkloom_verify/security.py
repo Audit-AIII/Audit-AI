@@ -70,6 +70,14 @@ _INVISIBLE = {"​", "‌", "‍", "⁠", "﻿"}
 _BIDI = {chr(c) for c in range(0x202A, 0x202F)} | {chr(c) for c in range(0x2066, 0x206A)}
 
 
+def has_hidden_characters(text: str) -> bool:
+    """True if ``text`` holds a control character (line breaks included), a bidi override or
+    isolate, or a zero-width character. Engine-written fields that are shown on one line (a
+    claim's rewording, a correction's replacement) must not: they could reorder what a reviewer
+    sees, hide words, or start a Markdown block."""
+    return any(ch in _INVISIBLE or ch in _BIDI or unicodedata.category(ch) == "Cc" for ch in text)
+
+
 def clean_display_text(text: str, max_length: int) -> str | None:
     """Model-written text made safe to show as plain text: control, bidi-override and zero-width
     characters removed, whitespace runs collapsed, truncated. None if nothing is left.

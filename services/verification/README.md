@@ -62,6 +62,8 @@ a real provider.
 | `eval/dataset.jsonl` | Canonical evaluation set (55 records), locked by `eval/datasets.lock.json` |
 | `eval/run_eval.py` | Runs every evaluation and writes `reports/<timestamp>/report.md` and `report.json`; `--check-baseline` applies the gates in `eval/baseline.json` |
 | `eval/fault_cases.json` | Provider-fault cases for error handling |
+| `API_HANDOFF.md` | **Start here for integration:** the public `POST /v1/verify` contract, errors, fixtures, tests and the change log for Members 1 and 3 |
+| `eval/data/extraction_v1.jsonl` | 24 labelled paragraphs (33 atomic claims) for the extraction evaluation |
 | `eval/data/` | The verification, retrieval and correction datasets |
 | `schemas/` | Generated JSON Schema files for integrators |
 | `examples/` | Validated sample payloads |

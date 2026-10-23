@@ -1,0 +1,129 @@
+{
+  "schema_version": "0.1.0",
+  "request_id": "req-e2e-0001",
+  "claims": [
+    {
+      "claim": {
+        "schema_version": "0.1.0",
+        "claim_id": "clm_0001",
+        "text": "Lumen Pods offer up to 12 hours of playback per charge.",
+        "span": {
+          "start": 0,
+          "end": 55
+        }
+      },
+      "verdict": {
+        "schema_version": "0.1.0",
+        "status": "SUPPORTED",
+        "confidence": 1.0,
+        "evidence": [
+          {
+            "schema_version": "0.1.0",
+            "doc_id": "pods-fact-sheet",
+            "location": {
+              "start": 80,
+              "end": 117
+            },
+            "quote": "up to 12 hours of playback per charge"
+          }
+        ],
+        "correction": null,
+        "needs_human_review": false,
+        "error_code": null
+      }
+    },
+    {
+      "claim": {
+        "schema_version": "0.1.0",
+        "claim_id": "clm_0002",
+        "text": "The Lumen Pods price is €99.",
+        "span": {
+          "start": 56,
+          "end": 84
+        }
+      },
+      "verdict": {
+        "schema_version": "0.1.0",
+        "status": "CONTRADICTED",
+        "confidence": 0.67,
+        "evidence": [
+          {
+            "schema_version": "0.1.0",
+            "doc_id": "pods-fact-sheet",
+            "location": {
+              "start": 374,
+              "end": 404
+            },
+            "quote": "Price: €129 (EU launch price)."
+          }
+        ],
+        "correction": {
+          "status": "proposed",
+          "span": {
+            "start": 80,
+            "end": 83
+          },
+          "original_text": "€99",
+          "replacement_text": "€129",
+          "evidence": [
+            {
+              "schema_version": "0.1.0",
+              "doc_id": "pods-fact-sheet",
+              "location": {
+                "start": 374,
+                "end": 404
+              },
+              "quote": "Price: €129 (EU launch price)."
+            }
+          ]
+        },
+        "needs_human_review": true,
+        "error_code": null
+      }
+    },
+    {
+      "claim": {
+        "schema_version": "0.1.0",
+        "claim_id": "clm_0003",
+        "text": "Lumen Pods have active noise cancellation.",
+        "span": {
+          "start": 85,
+          "end": 127
+        }
+      },
+      "verdict": {
+        "schema_version": "0.1.0",
+        "status": "NOT_ENOUGH_EVIDENCE",
+        "confidence": 0.0,
+        "evidence": [],
+        "correction": null,
+        "needs_human_review": true,
+        "error_code": null
+      }
+    },
+    {
+      "claim": {
+        "schema_version": "0.1.0",
+        "claim_id": "clm_0004",
+        "text": "Lumen Goods was founded in 2019 in Lisbon.",
+        "span": {
+          "start": 128,
+          "end": 170
+        }
+      },
+      "verdict": {
+        "schema_version": "0.1.0",
+        "status": "ERROR",
+        "confidence": 0.0,
+        "evidence": [],
+        "correction": null,
+        "needs_human_review": true,
+        "error_code": "PROVIDER_TIMEOUT"
+      }
+    }
+  ],
+  "metadata": {
+    "content_hash": "3c50cd21b86bf1cab8b203495c7b457e1cbe9075bd89bfabde9f1b6dbe507328",
+    "errors": []
+  }
+}

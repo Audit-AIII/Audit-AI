@@ -2,8 +2,8 @@
   "note": "Regression gates for eval/run_eval.py --check-baseline. Every value comes from a measured run; null means no measured baseline or agreed threshold exists yet, and the gate is reported as NOT ENFORCED rather than invented. Metric paths are \"/\"-separated keys into report.json.",
   "measured_run": {
     "date": "2026-10-23",
-    "report": "reports/phase6-measure",
-    "commit": "9dd9da4 with uncommitted Phase 5-6 changes",
+    "report": "Phase 6 (second run) measurement, scratchpad report p6-eval",
+    "commit": "8a2169d with uncommitted engine changes (contract 0.2.0, Phases 2-6)",
     "verdict_source": "abstain (deterministic sections only)"
   },
   "gates": [
@@ -67,9 +67,9 @@
       "name": "false-SUPPORTED (valid-quote, always SUPPORTED)",
       "metric": "enforcement/valid_quote_always_supported/false_supported",
       "op": "<=",
-      "value": 0.42857142857142855,
+      "value": 0.4,
       "applies_to": "always",
-      "note": "measured 15/35 with the Phase 4 support checks"
+      "note": "measured 14/35 with the Phase 4 names and conflict checks (was 15/35)"
     },
     {
       "name": "correction checker: bad edits rejected",
@@ -118,6 +118,54 @@
       "value": null,
       "applies_to": "model_run",
       "note": "no threshold has been agreed and no live run measured"
+    },
+    {
+      "name": "extraction: oracle exact spans",
+      "metric": "extraction/oracle/exact_span_matches",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 33/33: every labelled claim survives the real extractor with its exact span"
+    },
+    {
+      "name": "extraction: oracle slice violations",
+      "metric": "extraction/oracle/slice_violations",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "always",
+      "note": "measured 0; content[start:end] == claim.text"
+    },
+    {
+      "name": "extraction: unsafe rewordings kept (embellisher)",
+      "metric": "extraction/adversaries/embellisher/statements_changed_unsafely",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "always",
+      "note": "measured 0 of 33 embellished claims"
+    },
+    {
+      "name": "extraction: merging is detected (merger)",
+      "metric": "extraction/adversaries/merger/atomicity_violations",
+      "op": ">=",
+      "value": 3,
+      "applies_to": "always",
+      "note": "measured 3: the metric must keep seeing merged compound claims"
+    },
+    {
+      "name": "extraction: opinion extraction is detected (opinion_leaker)",
+      "metric": "extraction/adversaries/opinion_leaker/opinion_leakage",
+      "op": ">=",
+      "value": 9,
+      "applies_to": "always",
+      "note": "measured 9: the metric must keep seeing extracted opinions"
+    },
+    {
+      "name": "extraction: claim recall (model run)",
+      "metric": "extraction/live/claim_recall",
+      "op": ">=",
+      "value": null,
+      "applies_to": "model_run",
+      "note": "no live extraction run measured and no threshold agreed"
     }
   ]
 }

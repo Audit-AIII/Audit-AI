@@ -30,6 +30,7 @@ from inkloom_verify.providers.base import (
 )
 from inkloom_verify.retrieval import tokenize
 from inkloom_verify.security import clean_display_text
+from inkloom_verify.security import has_hidden_characters
 from inkloom_verify.schemas import (
     MAX_CLAIM_CHARS,
     MAX_CLAIMS,
@@ -388,6 +389,9 @@ class ClaimExtractor:
         claim_text = model_claim.text.strip()
         if not claim_text or len(claim_text) > MAX_CLAIM_CHARS:
             warn(WarningCode.CLAIM_TOO_LONG, sid, "claim text blank or too long; the sentence is used")
+            return fallback
+        if has_hidden_characters(claim_text):
+            warn(WarningCode.REWRITE_REJECTED, sid, "the rewording contains control or invisible characters; the source text is used")
             return fallback
         sentence = span.slice(text)
         located = locate(model_claim.source_quote, sentence)

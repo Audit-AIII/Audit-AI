@@ -27,6 +27,7 @@ lock, invalid baseline, missing credentials for `--verdicts openrouter`).
 | Verdicts | `eval/dataset.jsonl` | Accuracy, per-class P/R/F1, confusion matrix, abstention, error and false-SUPPORTED rates, citation validity, grounding, fully correct, by split | **Only** with `--verdicts openrouter` or `--predictions`. The default `abstain` is a floor and is labelled "not model accuracy". |
 | Retrieval | `eval/dataset.jsonl`, `eval/data/retrieval_v1.jsonl` | Recall@1/3/5, separately from verdicts | No: deterministic |
 | Corrections | `eval/data/corrections_v1.jsonl` | Deterministic checks on 46 labelled edits; the live corrector with `--verdicts openrouter` | Live part only |
+| Claim extraction | `eval/data/extraction_v1.jsonl` | Claim recall and precision, exact spans, atomicity, opinions extracted, slice violations, unsafe rewordings kept: for an oracle replay (code check), three scripted adversaries, and the live model with `--verdicts openrouter` | Live part only |
 | Enforcement | `eval/dataset.jsonl` | Scripted adversaries (fabricator, valid-quote-always-SUPPORTED, valid-quote-always-CONTRADICTED) through the real verifier and citation guard | No: what the code enforces |
 | Error handling | `eval/fault_cases.json` | 18 provider faults (timeout, rate limit, unavailable, malformed JSON, invalid schema, not configured) at extraction, verification and correction | No: deterministic |
 | Gates | `eval/baseline.json` | PASS / FAIL / NOT ENFORCED / NOT APPLICABLE per gate | — |
@@ -43,6 +44,23 @@ lock, invalid baseline, missing credentials for `--verdicts openrouter`).
   touch the claim leaves it decidable (`v2-c05`, `SUPPORTED`).
 - **Error cases** aren't labels (`ERROR` is an engine outcome, never a label), so they live in
   `eval/fault_cases.json` and are evaluated by fault injection.
+
+**The extraction set, `eval/data/extraction_v1.jsonl` (second-run Phase 6):**
+
+- 24 paragraphs (dev 14, held-out 10) with **33 labelled atomic claims** and 9 labelled
+  non-factual sentences (opinion, stylistic, other). Two paragraphs contain no claim at all.
+- Each labelled claim gives the exact source words, their offsets (computed from the text by the
+  build script, never typed) and, when it differs, the standalone wording.
+- **Labelling rule:** a standalone wording uses only words already in the paragraph, the same
+  rule the extractor enforces (`rewrite_problems`). A test checks every label against it. Two of
+  the first draft's labels broke the rule and were fixed before locking.
+- **Covers:** single facts, compound sentences (three), opinions mixed with facts, a pronoun
+  resolved from context, negation, qualifiers, attribution, marketing-only text, a bullet list,
+  accented names and curly quotes, emoji (offsets in code points), percentages, a named person,
+  a future plan, questions and calls to action, a long mixed paragraph, a comparison without a
+  figure, a parenthetical price, a number written as words, "may" the verb next to "May" the
+  month, and "Ltd." (sentence splitting).
+- **Locked** in `eval/datasets.lock.json` like every other input. Human-reviewed labels: 0/24.
 - **"Manually checked" is not yet true.** Every label was written by Claude Code and checked
   mechanically. `reviewed_by` is empty on all 55 records, and every report states "Human-reviewed
   labels: 0/55".
@@ -218,6 +236,25 @@ missing prediction counts as an `ERROR` prediction.
 The confusion matrix has gold classes as rows and predictions as columns, with an `ERROR`
 column. Every cell is present, including zeros.
 
+**Extraction metrics** (`evaluation/extraction.py`). A predicted claim *covers* a labelled claim
+when it overlaps at least half of the label's span.
+
+| Metric | Numerator | Denominator |
+|---|---|---|
+| Claim recall | labelled claims covered by a prediction | labelled claims |
+| Claim precision | predictions covering some labelled claim | predictions |
+| Exact spans | labelled claims whose exact span was returned | labelled claims |
+| Not atomic (count) | predictions covering two or more labelled claims | — |
+| Opinions extracted (count) | predictions inside a sentence labelled non-factual | — |
+| Slice violations (count) | predictions whose `text` is not `content[start:end]` | — |
+| Unsafe rewordings kept (count) | adversary predictions whose statement is the embellished one | — |
+
+The oracle replay measures **the code**: offsets, sentence splitting and grounding on realistic
+text. The adversaries measure what the code **enforces** (no unsafe rewording survives) and
+whether the metrics **see** what code cannot prevent: merged claims and extracted opinions. A
+test switches the rewording rules off and checks that the unsafe-rewording count then becomes
+33, so the metric isn't vacuous.
+
 **Citation validity is not verdict correctness.** Validity only says the quote really is in the
 source at that location. It says nothing about whether the quote supports the verdict.
 Grounding and "fully correct" measure that, and `v1-032` shows the gap: a fully valid citation
@@ -386,6 +423,38 @@ set here. Once they are set, the live report gives:
 Unsupported additions can't appear in an accepted proposal, because the checks reject them
 before a proposal is accepted.
 
+## Phase 6, second run: evaluation harness with extraction (actual output, 2026-10-23)
+
+`python eval/run_eval.py --check-baseline`, exit 0. **17 gates PASS, 3 NOT APPLICABLE**
+(model-run gates).
+
+| Section | Result |
+|---|---|
+| Verdicts (abstain floor, **not model accuracy**) | 55 examples; accuracy 32.7% (18/55); abstention 100%; citation validity n/a (0/0) |
+| Retrieval recall@1 / @3 / @5, dataset.jsonl | 97.3% (36/37) / 100% (37/37) / 100% (37/37) |
+| Retrieval recall@1 / @3 / @5, retrieval_v1 | 100% (32/32) at every k |
+| Correction checks | bad rejected 28/28; good accepted 17/18; false accepts 0 |
+| Extraction, oracle replay | recall 33/33, precision 33/33, exact spans 33/33, 0 not atomic, 0 opinions, 0 slice violations |
+| Extraction, embellisher | 0 unsafe rewordings kept. Every embellished claim falls back to its source sentence, so the 3 compound sentences become 3 non-atomic claims: safe, less precise. |
+| Extraction, merger / opinion leaker | 3 not-atomic claims / 9 opinions extracted, precision 33/42: both visible in the metrics |
+| Enforcement | fabricator 2 accepted, 0 quotes not in any source, false-SUPPORTED 1/35; valid quote always SUPPORTED: 20 accepted, false-SUPPORTED 14/35; always CONTRADICTED: 50 accepted, 0/35 |
+| Error handling | 18/18 fault cases |
+
+**Gates changed in this phase** (all from this measurement):
+- the valid-quote, always-SUPPORTED false-SUPPORTED gate is tightened from 15/35 to the measured
+  14/35;
+- five extraction gates added: oracle exact spans, slice violations, unsafe rewordings kept,
+  merging detected, opinions detected;
+- one model-run extraction gate added, set to `null`.
+
+**Gates CI cannot enforce yet.** Citation validity and CONTRADICTED recall on a model run stay
+`null` (NOT ENFORCED). No live run has been measured to copy a baseline from, and no CONTRADICTED
+recall threshold has been agreed. The mechanism is in place and tested (`test_run_eval.py`
+replays good and bad predictions and the gates pass and fail as they should). Setting a number
+now would be inventing one.
+
+**Live:** not run. `OPENROUTER_API_KEY` and `INKLOOM_LLM_MODELS` are not set.
+
 ## Phase 6: evaluation harness (actual output, 2026-10-23)
 
 `python eval/run_eval.py --check-baseline`, exit 0. From `reports/phase6-gate/report.md`:
@@ -530,8 +599,12 @@ quotes, and the correction checks. INTEGRATION.md, "What has been measured", sum
   with clean text. Real brand documents (long PDFs, tables, contradicting versions) will be
   harder. The scores are probably optimistic.
 - **Only factual claims are covered.** Of DESIGN.md's six checks, only facts and claims are
-  covered; tone, terminology, visual and accessibility checks are not. Claim extraction isn't
-  evaluated either: each record is already a single claim.
+  covered; tone, terminology, visual and accessibility checks are not. In the verdict set each
+  record is already a single claim; extraction is evaluated separately on
+  `extraction_v1.jsonl` (24 paragraphs). Its live quality is not measured yet.
+- **Extraction labels have one valid reading each.** Where reasonable annotators could split a
+  sentence differently, a live model may be marked wrong for a defensible split. The 50% overlap
+  rule softens this for boundaries but not for different splits.
 - **No inter-annotator agreement.** Records labelled `ambiguous` are the most likely to change
   on review.
 - **Gold evidence is minimal, not exhaustive.** A citation of a different passage that also

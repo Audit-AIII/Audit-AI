@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "invalid request: body.references",
-    "request_id": "<request id>"
-  }
-}

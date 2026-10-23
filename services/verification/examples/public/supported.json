@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.1.0",
+  "request_id": "req-fixture-supported",
+  "claims": [
+    {
+      "claim": {
+        "schema_version": "0.1.0",
+        "claim_id": "clm_0001",
+        "text": "Lumen Pods offer up to 12 hours of playback per charge.",
+        "span": {
+          "start": 0,
+          "end": 55
+        }
+      },
+      "verdict": {
+        "schema_version": "0.1.0",
+        "status": "SUPPORTED",
+        "confidence": 1.0,
+        "evidence": [
+          {
+            "schema_version": "0.1.0",
+            "doc_id": "lumen-pods-fact-sheet",
+            "location": {
+              "start": 46,
+              "end": 83
+            },
+            "quote": "up to 12 hours of playback per charge"
+          }
+        ],
+        "correction": null,
+        "needs_human_review": false,
+        "error_code": null
+      }
+    }
+  ],
+  "metadata": {
+    "content_hash": "8e61bd862a08a05ee728ac35d549c2a3171535c0746b7c0822e4618a12d11bed",
+    "errors": []
+  }
+}

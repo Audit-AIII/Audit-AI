@@ -6,6 +6,8 @@ otherwise untrusted. Validating it against a Pydantic model is the stage's job.
 
 from __future__ import annotations
 
+import math
+
 from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,8 +22,10 @@ class ProviderError(Exception):
     retryable = False
 
     def to_processing_error(self, stage: PipelineStage, claim_id: str | None = None) -> ProcessingError:
+        retry_after = getattr(self, "retry_after", None)
         return ProcessingError(
-            code=self.code, stage=stage, message=str(self)[:500], retryable=self.retryable, claim_id=claim_id
+            code=self.code, stage=stage, message=str(self)[:500], retryable=self.retryable, claim_id=claim_id,
+            retry_after_seconds=min(math.ceil(retry_after), 3_600) if retry_after is not None and retry_after >= 0 else None,
         )
 
 

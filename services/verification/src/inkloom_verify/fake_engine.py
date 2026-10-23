@@ -101,12 +101,15 @@ class FakeEngine:
 
     mode = "fake"
 
-    def verify(self, request: VerificationRequest) -> VerificationReport:
+    def verify(
+        self, request: VerificationRequest, *, suggest_corrections: bool = True, max_claims: int | None = None
+    ) -> VerificationReport:
+        """Canned results; ``suggest_corrections`` is ignored (the fake engine never corrects)."""
         text = request.content.text
         spans = [s for s in sentence_spans(text, MAX_CLAIM_CHARS) if any(c.isalnum() for c in s.slice(text))]
         claims = [
             Claim(claim_id=f"clm_{i:04d}", text=span.slice(text), source_span=span)
-            for i, span in enumerate(spans[:MAX_CLAIMS], start=1)
+            for i, span in enumerate(spans[: max_claims or MAX_CLAIMS], start=1)
         ]
         retriever = BM25Retriever.for_request(request)
         verifier = CannedVerifier()
