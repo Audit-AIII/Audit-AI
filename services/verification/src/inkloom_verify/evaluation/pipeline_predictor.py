@@ -69,11 +69,13 @@ class CaseCorrection(_Model):
 class CaseClaim(_Model):
     claim_id: str
     text: str
+    statement: str | None = None  # the claim as checked (the standalone rewording); None in older case files
     start: int
     end: int
     verdict: str
     evidence_strength: str
     requires_human_review: bool
+    review_reasons: list[str] = []
     evidence: list[CaseEvidence]
     citations: list[CaseCitation]
     guard_rejections: list[str]
@@ -119,10 +121,11 @@ def _claim(result: ClaimResult) -> CaseClaim:
             error_code=attempt.error.code.value if attempt.error else None,
         )
     return CaseClaim(
-        claim_id=result.claim.claim_id, text=result.claim.text,
+        claim_id=result.claim.claim_id, text=result.claim.text, statement=result.claim.statement,
         start=result.claim.source_span.start, end=result.claim.source_span.end,
         verdict=result.verdict.value, evidence_strength=result.evidence_strength.value,
         requires_human_review=result.requires_human_review,
+        review_reasons=[r.value for r in result.review_reasons],
         evidence=[CaseEvidence(passage_id=p.passage_id, doc_id=p.doc_id, start=p.span.start, end=p.span.end,
                                rank=p.retrieval.rank) for p in result.evidence],
         citations=[CaseCitation(doc_id=c.doc_id, passage_id=c.passage_id, quote=c.quote,
@@ -199,11 +202,14 @@ class PipelinePredictor:
 
 def decision_policy(config: PipelineConfig) -> dict[str, Any]:
     """The rules and thresholds that decide verdicts and review routing, as used in this run."""
+    from inkloom_verify import decision_policy as policy
     from inkloom_verify.citation_guard import CONFLICT_TOPIC_OVERLAP, MIN_QUOTE_WORDS
     from inkloom_verify.security import PROMPT_ECHO_CHARS
 
     return {
-        "review_rule": "requires_human_review = verdict != SUPPORTED or evidence_strength == weak (schemas.review_needed)",
+        "policy": policy.describe(config.decision_policy),
+        "review_rule": "requires_human_review = any review reason: the fixed floor (verdict != SUPPORTED, or weak "
+                       "evidence) plus the policy's additions for SUPPORTED claims (decision_policy.review_reasons)",
         "evidence_strength_rule": "schemas.evidence_strength: none / weak / moderate / strong from citation rank and count",
         "record_verdict_rule": "most severe claim verdict: CONTRADICTED > ERROR > NOT_ENOUGH_EVIDENCE > SUPPORTED",
         "conflict_topic_overlap": CONFLICT_TOPIC_OVERLAP,

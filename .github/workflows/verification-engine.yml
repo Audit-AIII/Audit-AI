@@ -1,6 +1,23 @@
 # CI for Member 2's verification engine only (services/verification).
-# No secrets and no live LLM calls: the evaluation gates run on the deterministic sections.
 # Other members' code is not built here; they can add their own workflows.
+#
+# Mandatory on every push and pull request (no secrets, no live LLM calls, deterministic):
+#   1. tests       - the full test suite (Python 3.11 and 3.12) and a dependency audit
+#   2. dataset     - the evaluation dataset validates, the label lock matches, the regression
+#                    registry points at real tests
+#   3. evaluation  - run_eval.py with regression gates (eval/baseline.json):
+#                    * --verdicts oracle: scripted gold answers through the full pipeline. Fails if
+#                      CONTRADICTED recall, precision or citation validity drop below their measured
+#                      ceiling of 100%, or if any non-SUPPORTED record is auto-cleared.
+#                    * every run: scripted adversaries through the full pipeline must clear no
+#                      non-SUPPORTED record and emit only resolving citations; retrieval, correction
+#                      checks, extraction checks and fault handling must hold their baselines.
+#                    run_eval.py exits 1 on a failed gate, 2 on an invalid dataset or a changed label
+#                    lock, 3 if no record received a verdict; any of these fails the job.
+# Optional, never on push or pull request:
+#   4. model-evaluation - the live model, started by hand (workflow_dispatch) with the
+#                    OPENROUTER_API_KEY secret in the protected "model-evaluation" environment. It
+#                    costs money and is nondeterministic, so it is kept out of the mandatory checks.
 name: verification-engine
 
 on:
@@ -12,20 +29,33 @@ on:
     paths:
       - "services/verification/**"
       - ".github/workflows/verification-engine.yml"
+  workflow_dispatch:
+    inputs:
+      run_model_evaluation:
+        description: "Run the live model evaluation (needs the OPENROUTER_API_KEY secret; costs money)"
+        type: boolean
+        default: false
+      prompts:
+        description: "Prompt set to evaluate"
+        type: choice
+        options: ["v1", "v2"]
+        default: "v1"
 
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: services/verification
+
 jobs:
-  engine:
+  tests:
+    name: 1. Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
-    defaults:
-      run:
-        working-directory: services/verification
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,10 +63,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install (exact versions from constraints.txt)
         run: python -m pip install -e ".[dev]" -c constraints.txt
-      - name: Unit and integration tests
+      - name: Unit, integration and regression tests
         run: python -m pytest -q
-      - name: Evaluation with regression gates (fails on regression or a changed label lock)
-        run: python eval/run_eval.py --check-baseline --out reports/ci
       - name: Dependency audit
         # pip-audit checks the whole environment. Python 3.11's venv ships an old setuptools with
         # known advisories (65.5.0: PYSEC-2022-43012, PYSEC-2025-49, ...) that the 3.12 lane does
@@ -44,9 +72,69 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools
           python -m pip_audit
-      - name: Upload evaluation report
+
+  dataset:
+    name: 2. Dataset validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (exact versions from constraints.txt)
+        run: python -m pip install -e ".[dev]" -c constraints.txt
+      - name: Validate eval/dataset.jsonl (schema, evidence, injections, class mix, coverage)
+        run: python -m inkloom_verify.evaluation.dataset eval/dataset.jsonl
+      - name: Label lock, dataset contract and regression registry
+        run: python -m pytest -q tests/test_dataset_validation.py tests/test_regression_registry.py tests/test_eval_dataset.py "tests/test_run_eval.py::test_the_lock_matches_every_evaluation_input"
+
+  evaluation:
+    name: 3. Evaluation gates
+    needs: dataset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (exact versions from constraints.txt)
+        run: python -m pip install -e ".[dev]" -c constraints.txt
+      - name: Engine ceiling and safety (oracle through the full pipeline; fails on any gate)
+        run: python eval/run_eval.py --verdicts oracle --check-baseline --out reports/ci-oracle
+      - name: Deterministic sections on the abstain floor (fails on any gate)
+        run: python eval/run_eval.py --check-baseline --out reports/ci-floor
+      - name: Upload evaluation reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: evaluation-report-py${{ matrix.python-version }}
-          path: services/verification/reports/ci
+          name: evaluation-reports
+          path: |
+            services/verification/reports/ci-oracle
+            services/verification/reports/ci-floor
+
+  model-evaluation:
+    name: 4. Model evaluation (optional, manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_model_evaluation
+    needs: evaluation
+    runs-on: ubuntu-latest
+    environment: model-evaluation
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      INKLOOM_LLM_MODELS: ${{ vars.INKLOOM_LLM_MODELS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (exact versions from constraints.txt)
+        run: python -m pip install -e ".[dev]" -c constraints.txt
+      - name: Live evaluation, recorded for offline replay (exit 2 if the provider is not configured)
+        run: >-
+          python eval/run_eval.py --verdicts openrouter --prompts ${{ inputs.prompts }}
+          --record reports/live/cassette.jsonl --check-baseline --out reports/live
+      - name: Upload live report and cassette
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-evaluation-${{ inputs.prompts }}
+          path: services/verification/reports/live

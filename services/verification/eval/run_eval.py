@@ -62,6 +62,8 @@ from inkloom_verify.evaluation.extraction import evaluate_extraction, load_extra
 from inkloom_verify.evaluation.pipeline_predictor import PipelinePredictor, decision_policy, retrieval_parameters  # noqa: E402
 from inkloom_verify.evaluation.replay import CassetteError, RecordingProvider, ReplayProvider  # noqa: E402
 from inkloom_verify.evaluation import required_metrics  # noqa: E402
+from inkloom_verify.evaluation.oracle import OracleProvider, OraclePredictor  # noqa: E402
+from inkloom_verify.decision_policy import DecisionPolicy  # noqa: E402
 from inkloom_verify.extraction import ExtractionConfig  # noqa: E402
 from inkloom_verify.pipeline import PipelineConfig  # noqa: E402
 from inkloom_verify.verification import VerificationConfig  # noqa: E402
@@ -89,6 +91,7 @@ EXTRACTION = EVAL / "data" / "extraction_v1.jsonl"
 FAULT_CASES = EVAL / "fault_cases.json"
 LOCK = EVAL / "datasets.lock.json"
 BASELINE = EVAL / "baseline.json"
+POLICY = EVAL / "decision_policy.json"
 
 
 # Prompt sets the evaluation can pin. Each is a released version per stage (prompts.lock.json).
@@ -209,12 +212,19 @@ def resolve(report: dict[str, Any], path: str) -> Any:
 
 
 def apply_gates(report: dict[str, Any], baseline: dict[str, Any]) -> list[dict[str, Any]]:
-    model_run = report["run"]["verdict_source"] != "abstain"
+    # "always": every run. "model_run": answers from a live model (or its saved predictions or
+    # recording). "oracle": the scripted gold-answer run CI uses to measure the engine's ceiling.
+    kinds = {"always": True, "model_run": bool(report["verdicts"]["is_model_quality"]),
+             "oracle": report["run"]["verdict_source"] == "oracle"}
     gates = []
     for gate in baseline["gates"]:
         entry = {k: gate[k] for k in ("name", "metric", "op", "value", "applies_to")}
-        if gate["applies_to"] == "model_run" and not model_run:
-            entry.update(status="NOT APPLICABLE", measured=None, note="needs --verdicts openrouter or --predictions")
+        if gate["applies_to"] not in kinds:
+            raise KeyError(f"unknown applies_to {gate['applies_to']!r}")
+        if not kinds[gate["applies_to"]]:
+            needs = "a live model run (--verdicts openrouter, --predictions, or a live --replay)" \
+                if gate["applies_to"] == "model_run" else "--verdicts oracle"
+            entry.update(status="NOT APPLICABLE", measured=None, note=f"needs {needs}")
         elif gate["value"] is None:
             entry.update(status="NOT ENFORCED", measured=None, note=gate.get("note", "no baseline"))
         else:
@@ -241,6 +251,7 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
         raise EvaluationInputError("label lock mismatch: " + "; ".join(problems) +
                                    ". If the change is intended, update eval/datasets.lock.json in the same review.")
     provider = None
+    oracle: OracleProvider | None = None
     replay: ReplayProvider | None = None
     prompts = PROMPT_SETS[args.prompts] if args.prompts else active_prompts()
     if args.replay:
@@ -248,6 +259,9 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
             provider = replay = ReplayProvider(Path(args.replay))
         except CassetteError as error:
             raise EvaluationInputError(str(error)) from None
+    elif args.verdicts == "oracle":
+        oracle = OracleProvider()
+        provider = oracle
     elif args.verdicts == "openrouter":
         if args.dry_run:
             provider = DryRunProvider()
@@ -262,13 +276,24 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
     counting = CountingProvider(provider) if provider else None
     provider = counting or provider
     verdict_source = ("predictions" if args.predictions else "replay" if replay else "dry-run" if args.dry_run else args.verdicts)
+    policy_file = Path(args.policy) if args.policy else POLICY
+    try:
+        policy_doc = json.loads(policy_file.read_text(encoding="utf-8"))
+        policy = DecisionPolicy.model_validate(policy_doc["policy"])
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise EvaluationInputError(f"invalid decision policy {policy_file.name}: {type(error).__name__}") from None
     pipeline_config = PipelineConfig(
+        decision_policy=policy,
         extraction=ExtractionConfig(prompt_version=prompts["extract_claims"]),
         verification=VerificationConfig(prompt_version=prompts["verify_claim"]),
         correction=CorrectionConfig(prompt_version=prompts["correct_claim"]),
     )
     pipeline_mode = args.pipeline if provider else None
-    predictor = PipelinePredictor(provider, pipeline_config) if provider and args.pipeline == "full" else None
+    if oracle is not None:
+        predictor = OraclePredictor(oracle, provider, pipeline_config)
+    else:
+        predictor = PipelinePredictor(provider, pipeline_config) if provider and args.pipeline == "full" else None
+    live = provider if oracle is None else None  # the oracle answers verdicts only; never shown as a live model
     commit = _git(["rev-parse", "HEAD"], ROOT)
     report: dict[str, Any] = {
         "run": {
@@ -283,7 +308,8 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
                         "sha256": sha256(dataset), "records": validation.records, "locked": dataset == DATASET,
                         "groups": validation.groups},
             "retrieval_parameters": retrieval_parameters(pipeline_config),
-            "decision_policy": decision_policy(pipeline_config),
+            "decision_policy": decision_policy(pipeline_config) | {
+                "file": policy_file.name, "calibration": policy_doc.get("calibration")},
             "replay": {"cassette": Path(args.replay).name, "sha256": replay.sha256, "source": replay.header.get("source"),
                        "recorded_at": replay.header.get("created_at"), "recorded_calls": replay.recorded_calls} if replay else None,
             "prompt_set": args.prompts or "active defaults",
@@ -383,13 +409,13 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
             "false_accepts": len(checker.false_accepts),
             "false_rejects": [f"{o.case_id}: {o.original_text!r} -> {o.replacement_text!r}" for o in checker.false_rejects],
         },
-        "live": run_live(cases, provider, prompts["correct_claim"], prompts["verify_claim"]).model_dump(
-            mode="json", exclude={"outcomes"}) if provider else None,
+        "live": run_live(cases, live, prompts["correct_claim"], prompts["verify_claim"]).model_dump(
+            mode="json", exclude={"outcomes"}) if live else None,
     }
 
     # 4b. Claim extraction (eval/data/extraction_v1.jsonl): oracle replay, adversaries, live model
-    report["extraction"] = evaluate_extraction(load_extraction_records(EXTRACTION), live=provider,
-                                               prompt_version=prompts["extract_claims"] if provider else None)
+    report["extraction"] = evaluate_extraction(load_extraction_records(EXTRACTION), live=live,
+                                               prompt_version=prompts["extract_claims"] if live else None)
     report["calls"] = counting.stats if counting else None
 
     # 5. Enforcement (scripted adversaries)
@@ -397,6 +423,11 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
         name: scripted.enforcement(records, name, adversary).model_dump(mode="json")
         for name, adversary in scripted.ADVERSARIES.items()
     }
+
+    # 5b. The same adversaries through the full pipeline and the decision policy (Phase 6):
+    # what the code lets past a person when the model is hostile. Deterministic; CI gates on it.
+    report["pipeline_safety"] = {name: scripted.pipeline_safety(records, adversary)
+                                 for name, adversary in scripted.ADVERSARIES.items()}
 
     # 6. Error handling (fault injection)
     document = next(d for r in records for d in r.references if d.doc_id == "pods-fact-sheet")
@@ -427,6 +458,9 @@ def markdown(report: dict[str, Any]) -> str:
         f"- Pipeline: {run_info['pipeline'] or 'none (no provider)'}"
         + (f" · replay of {run_info['replay']['cassette']} (sha256 {run_info['replay']['sha256'][:12]}…, recorded from "
            f"{run_info['replay']['source']})" if run_info.get("replay") else ""),
+        f"- Decision policy: {run_info['decision_policy']['policy']['version']} "
+        f"{run_info['decision_policy']['policy']['thresholds']} · calibration: "
+        f"{(run_info['decision_policy'].get('calibration') or {}).get('status', 'unknown')}",
         f"- Prompt versions: {run_info.get('prompt_versions') or 'none sent (no live model)'}",
         f"- Model configuration: {run_info.get('model_configuration') or 'none (no live model)'}",
         "",
@@ -488,6 +522,14 @@ def markdown(report: dict[str, Any]) -> str:
                      f"{m['atomicity_violations']} | {m['opinion_leakage']} | {m['slice_violations']} | {m['statements_changed_unsafely']} |")
     if not ex["live"]:
         lines.append("\nLive extraction: not run (needs --verdicts openrouter).")
+    if report.get("pipeline_safety"):
+        lines += ["", "## Full-pipeline safety (scripted adversaries through the guard and decision policy; not model quality)", "",
+                  "| Adversary | Predicted | Non-SUPPORTED records auto-cleared | Citation resolution | Review share |", "|---|---|---|---|---|"]
+        for name, ps in report["pipeline_safety"].items():
+            res = "n/a" if ps["citation_resolution"] is None else f"{ps['citation_resolution']:.1%} of {ps['citations']}"
+            share = "n/a" if ps["human_review_share"] is None else f"{ps['human_review_share']:.1%}"
+            lines.append(f"| {name} | {ps['predicted']} | {ps['auto_cleared_not_supported']} "
+                         f"{ps['auto_cleared_not_supported_records'] or ''} | {res} | {share} |")
     lines += ["", "## Enforcement (scripted adversaries; not model quality)", "",
               "| Adversary | Definite | Accepted | Accepted quotes verbatim | Quotes not in any source | False-SUPPORTED |",
               "|---|---|---|---|---|---|"]
@@ -510,13 +552,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python eval/run_eval.py", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     source = parser.add_mutually_exclusive_group()
-    source.add_argument("--verdicts", choices=["abstain", "openrouter"], default="abstain")
+    source.add_argument("--verdicts", choices=["abstain", "oracle", "openrouter"], default="abstain",
+                        help="abstain: a floor; oracle: scripted gold answers through the full pipeline (the engine's "
+                             "ceiling, what CI gates on; not model quality); openrouter: the live model")
     source.add_argument("--predictions", help="replay a saved EvalPrediction JSONL for eval/dataset.jsonl")
     source.add_argument("--replay", help="answer every model call from a cassette recorded with --record (offline)")
     parser.add_argument("--record", help="with --verdicts openrouter: save every model reply to this cassette")
     parser.add_argument("--pipeline", choices=["full", "verifier"], default="full",
                         help="full: verify_request per record (default); verifier: retrieval + verifier + guard only")
     parser.add_argument("--dataset", help="evaluate this dataset instead of eval/dataset.jsonl (validated; not locked)")
+    parser.add_argument("--policy", help="decision policy file (default eval/decision_policy.json)")
     parser.add_argument("--out", type=Path, help="report directory (default: reports/<UTC timestamp>)")
     parser.add_argument("--check-baseline", nargs="?", const=str(BASELINE), help="apply regression gates; exit 1 on failure")
     parser.add_argument("--prompts", choices=sorted(PROMPT_SETS), help="pin every live stage to this prompt set")
@@ -524,6 +569,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.dry_run and args.verdicts != "openrouter":
         parser.error("--dry-run needs --verdicts openrouter")
+    if args.verdicts == "oracle" and args.pipeline != "full":
+        parser.error("--verdicts oracle needs --pipeline full")
     if args.record and args.verdicts != "openrouter":
         parser.error("--record needs --verdicts openrouter")
     args.out = args.out or ROOT / "reports" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

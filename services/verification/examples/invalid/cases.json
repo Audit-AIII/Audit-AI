@@ -73,7 +73,7 @@
     "file": "result_review_flag_contradicts_verdict.json",
     "model": "ClaimResult",
     "description": "The review flag disagrees with the verdict.",
-    "pydantic_error_contains": "requires_human_review must be false only for SUPPORTED",
+    "pydantic_error_contains": "requires_human_review must be true exactly when there is a review reason",
     "json_schema_rejects": false
   },
   {

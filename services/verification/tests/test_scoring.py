@@ -29,6 +29,7 @@ def example(index: int) -> dict:
     result = report["results"][index]
     result.pop("evidence_strength")
     result.pop("requires_human_review")
+    result.pop("review_reasons", None)
     return result
 
 
@@ -115,7 +116,7 @@ def test_retrieval_score_alone_never_changes_strength():
     ("change", "message"),
     [
         ({"evidence_strength": "strong"}, "evidence_strength must be weak"),
-        ({"requires_human_review": False}, "false only for SUPPORTED claims whose evidence is not weak"),
+        ({"requires_human_review": False}, "must be true exactly when there is a review reason"),
     ],
 )
 def test_an_inflated_strength_or_review_flag_is_rejected(change, message):

@@ -232,8 +232,15 @@ Additional rules:
 - **`requires_human_review`** is `true` for every verdict except `SUPPORTED`, **and for `SUPPORTED`
   when `evidence_strength` is `weak`** (the approved Phase 5 policy). Missing evidence,
   contradictions, failures and thin support therefore always go to a person.
-- **Neither field can be inflated.** Both are filled in from the other fields when omitted, and
-  a supplied value that disagrees with the rules is rejected. `requires_human_review` maps
+- **`review_reasons`** (EVAL.md Phase 5, additive) lists why.
+  - **The fixed floor:** `contradicted`, `not_enough_evidence`, `error`, `weak_evidence`. It
+    is always present and can't be removed.
+  - **Added by the configurable decision policy, only on `SUPPORTED`:** `below_policy_strength`,
+    `compound_under_cited` (`decision_policy.py`; the default auto-clears only `strong` evidence).
+  - `requires_human_review` is `true` exactly when there is a reason. A policy can route more
+    claims to a person, never fewer.
+- **Neither field can be weakened.** Both are filled in from the other fields when omitted. A
+  supplied value that drops a floor reason, or disagrees with the reasons, is rejected. `requires_human_review` maps
   directly to Member 3's per-finding flag. The report-level `score.requires_human_review` stays
   separate, and also covers request-level errors, citation downgrades and corrections that need
   review.

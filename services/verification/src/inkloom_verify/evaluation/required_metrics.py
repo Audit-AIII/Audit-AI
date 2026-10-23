@@ -236,6 +236,7 @@ def compute(
             "auto_cleared": len(auto),
             # The safety number: cleared without a person although the label is not SUPPORTED.
             "auto_cleared_but_not_supported": [r.record_id for r in auto if r.expected_verdict is not Verdict.SUPPORTED],
+            "auto_cleared_not_supported_count": sum(1 for r in auto if r.expected_verdict is not Verdict.SUPPORTED),
         }
         proposed, traceable, untraceable = 0, 0, []
         statuses = Counter()

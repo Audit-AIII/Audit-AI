@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from inkloom_verify import __version__
 from inkloom_verify.chunking import ChunkingConfig
 from inkloom_verify.correction import ClaimCorrector, CorrectionConfig
+from inkloom_verify.decision_policy import DecisionPolicy, apply_policy
 from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig, ExtractionResult, WarningCode
 from inkloom_verify.prompts import correction as correction_prompt
 from inkloom_verify.prompts import extraction as extraction_prompt
@@ -69,6 +70,8 @@ class PipelineConfig(BaseModel):
     verification: VerificationConfig = Field(default_factory=VerificationConfig)
     correction: CorrectionConfig = Field(default_factory=CorrectionConfig)
     correct_contradicted: bool = True
+    # Which verified claims a person must review, beyond the fixed floor (EVAL.md Phase 5).
+    decision_policy: DecisionPolicy = Field(default_factory=DecisionPolicy)
     # Per-request limits on model calls, estimated tokens and wall-clock time (providers/budget.py).
     budget: CallBudget = Field(default_factory=CallBudget)
 
@@ -133,7 +136,7 @@ def _run(
                 logger.error("pipeline request=%s claim=%s correction failed unexpectedly: %s",
                              request.request_id, claim.claim_id, type(error).__name__)
                 result = _correction_failed(result)
-        results.append(result)
+        results.append(apply_policy(result, config.decision_policy))
     models.update(verifier.models_used)
     if verifier.prompt_sent:
         prompts["verify_claim"] = verifier.prompt.version
@@ -173,6 +176,7 @@ def _correction_failed(result: ClaimResult) -> ClaimResult:
     data = result.model_dump()
     data.update(correction=None, correction_attempt=attempt.model_dump())
     data.pop("requires_human_review", None)  # re-derived
+    data.pop("review_reasons", None)
     data.pop("evidence_strength", None)
     return ClaimResult.model_validate(data)
 

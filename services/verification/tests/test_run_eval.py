@@ -37,9 +37,9 @@ def gate(metric, op, value, applies_to="always"):
 def test_default_run_passes_its_gates_and_writes_both_reports(default_run):
     code, report, text = default_run
     assert code == 0
-    statuses = {g["name"]: g["status"] for g in report["gates"]}
-    assert all(s == "PASS" for g, s in statuses.items() if "(model run)" not in g)
-    assert {s for g, s in statuses.items() if "(model run)" in g} == {"NOT APPLICABLE"}
+    # Every "always" gate passes; model-run and oracle gates do not apply to the abstain floor.
+    assert all(g["status"] == "PASS" for g in report["gates"] if g["applies_to"] == "always")
+    assert {g["status"] for g in report["gates"] if g["applies_to"] != "always"} == {"NOT APPLICABLE"}
     for section in ("## Verdicts", "## Retrieval recall@k", "## Corrections", "## Enforcement", "## Error handling",
                     "## Regression gates"):
         assert section in text

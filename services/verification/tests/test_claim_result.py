@@ -29,6 +29,7 @@ def test_rationale_is_not_evidence(supported_result):
 def test_not_enough_evidence_with_considered_passages_is_valid(supported_result):
     supported_result.update(verdict="NOT_ENOUGH_EVIDENCE", citations=[])
     supported_result.pop("requires_human_review")  # re-derived from the new verdict
+    supported_result.pop("review_reasons", None)
     supported_result.pop("evidence_strength")
     result = ClaimResult.model_validate(supported_result)
     assert result.evidence and not result.citations
