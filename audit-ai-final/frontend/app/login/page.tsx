@@ -15,7 +15,7 @@ export default function LoginPage() {
         <LoginForm />
       </Suspense>
       <p className="t-body auth__note">
-        Demo: run the backend’s seed script, then sign in with one of the accounts it prints.
+        Create an account with any email to try Audit AI with your own brand.
       </p>
     </main>
   );
