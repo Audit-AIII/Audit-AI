@@ -26,6 +26,7 @@ from ..auth.permissions import Permission
 from ..config import Settings, get_settings
 from ..db import get_db
 from ..models import AuditEvent, BrandProfile, BrandSource, SourceVersion
+from ..review_queries import brand_review_stats
 from ..schemas import BrandOut, BrandSourceOut, FlippedDependentOut, NewSourceVersionResponse, WithdrawSourceResponse
 from ..section_diff import document_section_hashes
 from ..source_lifecycle import apply_new_version_diff, withdraw_source
@@ -64,6 +65,7 @@ def list_brands(
         .all()
     )
     counts = _approved_source_counts(db, auth.organisation_id)  # one GROUP BY query, not N+1
+    stats = brand_review_stats(db, auth.organisation_id)  # two more GROUP BYs, still not N+1
     return [
         BrandOut(
             id=brand.id,
@@ -71,6 +73,7 @@ def list_brands(
             description=brand.description,
             approved_source_count=counts.get(brand.id, 0),
             created_at=brand.created_at,
+            **stats.get(brand.id, {}),  # absent -> the schema's zeros / null, never invented
         )
         for brand in brands
     ]

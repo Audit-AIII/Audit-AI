@@ -131,3 +131,7 @@ class EvidenceLink(Base):
     created_at: Mapped[datetime] = created_at_column()
 
     finding: Mapped[Finding] = relationship(back_populates="evidence")
+    # Read-only: EvidenceLinkOut shows the cited document's title and version number. Both stay
+    # None if the source row is ever gone (the FKs are ON DELETE SET NULL).
+    source: Mapped["BrandSource | None"] = relationship("BrandSource", viewonly=True)
+    source_version: Mapped["SourceVersion | None"] = relationship("SourceVersion", viewonly=True)

@@ -49,6 +49,18 @@ class ReviewState(str, Enum):
     SOURCE_CHANGED = "source_changed"
 
 
+class FindingCategory(str, Enum):
+    """`findings.category` for engine findings (free-form column, no CHECK constraint). The
+    Insights page groups by this. `STUB` marks the placeholder written when no provider is
+    configured; every real run sets one of the other four from the claim's verdict."""
+
+    STUB = "stub"
+    CONTRADICTED_CLAIM = "contradicted_claim"
+    UNSUPPORTED_CLAIM = "unsupported_claim"  # unverified: no evidence either way
+    SUPPORTED_CLAIM = "supported_claim"
+    ENGINE_ERROR = "engine_error"  # this one claim could not be checked (provider/engine failure)
+
+
 class CheckType(str, Enum):
     RULE = "rule"
     RETRIEVAL = "retrieval"

@@ -46,6 +46,11 @@ class BrandOut(BaseModel):
     description: str | None
     approved_source_count: int
     created_at: datetime
+    # Dashboard fields (additive). Real counts only - zero / null when the brand has no reviews.
+    # "Open" = waiting for the user's decision (review_queries.py has the one definition).
+    review_count: int = 0
+    open_review_count: int = 0
+    last_review_at: datetime | None = None
 
 
 class RegisterResponse(LoginResponse):
@@ -96,6 +101,9 @@ class EvidenceLinkOut(BaseModel):
     source_version_id: uuid.UUID | None
     quote: str
     relation: str
+    # Additive: which approved document (and which version of it) the quote came from.
+    source_title: str | None = None
+    source_version_number: int | None = None
 
     @classmethod
     def from_model(cls, evidence) -> "EvidenceLinkOut":
@@ -105,6 +113,10 @@ class EvidenceLinkOut(BaseModel):
             source_version_id=evidence.source_version_id,
             quote=evidence.quote,
             relation=evidence.relation,
+            source_title=evidence.source.title if evidence.source is not None else None,
+            source_version_number=(
+                evidence.source_version.version_number if evidence.source_version is not None else None
+            ),
         )
 
 
@@ -171,6 +183,7 @@ class ReviewOut(BaseModel):
     title: str | None = None
     version_number: int | None = None
     text: str | None = None
+    brand_name: str | None = None  # additive; via content_item.brand_profile (viewonly)
 
     @classmethod
     def from_model(cls, review) -> "ReviewOut":
@@ -205,6 +218,11 @@ class ReviewOut(BaseModel):
             title=content_item.title if content_item is not None else None,
             version_number=content_version.version_number if content_version is not None else None,
             text=content_version.text if content_version is not None else None,
+            brand_name=(
+                content_item.brand_profile.name
+                if content_item is not None and content_item.brand_profile is not None
+                else None
+            ),
         )
 
 

@@ -35,6 +35,7 @@ from ..statuses import (
     CheckType,
     EvidenceRelation,
     ExternalCallStatus,
+    FindingCategory,
     ReviewState,
     Severity,
     VerificationStatus,
@@ -73,6 +74,12 @@ _SEVERITY_FOR_VERDICT = {
     Verdict.CONTRADICTED: Severity.HIGH,
     Verdict.NOT_ENOUGH_EVIDENCE: Severity.MEDIUM,
     Verdict.ERROR: Severity.MEDIUM,
+}
+_CATEGORY_FOR_VERDICT = {
+    Verdict.SUPPORTED: FindingCategory.SUPPORTED_CLAIM,
+    Verdict.CONTRADICTED: FindingCategory.CONTRADICTED_CLAIM,
+    Verdict.NOT_ENOUGH_EVIDENCE: FindingCategory.UNSUPPORTED_CLAIM,
+    Verdict.ERROR: FindingCategory.ENGINE_ERROR,
 }
 _RELATION_FOR_VERDICT = {
     Verdict.SUPPORTED: EvidenceRelation.SUPPORTS,
@@ -213,7 +220,7 @@ def _write_stub_finding(db: Session, review: Review, content_version: ContentVer
     db.add(
         Finding(
             review_id=review.id,
-            category="stub",
+            category=FindingCategory.STUB.value,
             severity=Severity.MEDIUM.value,
             original_text=content_version.text,
             span_start=0,
@@ -232,6 +239,7 @@ def _write_unexpected_error_finding(
     db.add(
         Finding(
             review_id=review.id,
+            category=FindingCategory.ENGINE_ERROR.value,
             severity=Severity.MEDIUM.value,
             original_text=claim.source_span.slice(content_version.text),
             span_start=claim.source_span.start,
@@ -275,6 +283,9 @@ def _write_finding(
 
     finding = Finding(
         review_id=review.id,
+        # From the verdict AFTER backend validation: a citation that failed our own check was
+        # downgraded above, so it is counted as an unsupported claim, not a contradicted one.
+        category=_CATEGORY_FOR_VERDICT[verdict].value,
         severity=_SEVERITY_FOR_VERDICT[verdict].value,
         original_text=claim.source_span.slice(content_version.text),
         span_start=claim.source_span.start,

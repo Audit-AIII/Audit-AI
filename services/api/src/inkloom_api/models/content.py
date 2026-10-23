@@ -37,6 +37,8 @@ class ContentItem(Base):
     updated_at: Mapped[datetime] = updated_at_column()
 
     versions: Mapped[list["ContentVersion"]] = relationship(back_populates="content_item", passive_deletes=True)
+    # Read-only: lets ReviewOut.from_model show the brand's name without another query.
+    brand_profile: Mapped["BrandProfile | None"] = relationship("BrandProfile", viewonly=True)
 
 
 class ContentVersion(Base):
