@@ -48,6 +48,19 @@ The frontend follows the code (`schemas.py`). Please update `API.md`, or tell me
 | Idempotency | – | Confirmed: same key + same body replays the same review id; same key + other body → 409 `CONFLICT` |
 | Seeded sources | – | `source_type: null`, `latest_version: 1` |
 
+## 1c. Decide and Record (checked live)
+
+`qa/decide-live.mjs` signs in as five seeded roles and runs approve / send back / reject.
+
+| What | Docs | Live |
+|---|---|---|
+| Who may submit | `API.md`: "neither route requires a specific permission beyond being an active member" | `POST /api/reviews` returns **403 `missing permission: submit`** for reviewer, approver, brand_manager, legal_reviewer and source_manager. Only submitter and admin may submit. The Draft stage now disables "Check my draft" with an explanation for other roles. |
+| Approve / request-changes | not in `API.md` | Work as the code says: approve needs `approve` plus routing (admin bypasses); request-changes takes `{"decision": "changes_requested" \| "rejected", "note"?}` and needs `review`. Each returns an `ApprovalEvent`. |
+| Deciding twice | – | 409 `cannot decide a review in status 'approved'`. The frontend shows the message. |
+| Routing on stub reviews | – | Stub reviews get `required_reviewer_role: "brand_manager"`, so a plain **approver can't approve a placeholder**, while brand_manager and admin can. Is that intended? |
+| Approving a placeholder | – | Allowed. The frontend makes the user tick "I understand no real check ran" first. Should the backend refuse to approve stub reviews instead? |
+| Decision after the fact | – | `GET /api/reviews/{id}` returns the outcome in `status`, but not **who decided, when, or the note**. That's only in `/api/content/{id}/history`, which needs a `content_item_id` that no response carries (item 3 below). Record shows the note and time only in the browser that made the decision; elsewhere it shows "outcome only". |
+
 ## 2. Fields the frontend needs that the backend does not return
 
 Ordered by how much they block the demo.
