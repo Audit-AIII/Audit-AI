@@ -17,14 +17,16 @@ engine" (00_CONTEXT.md).
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timezone
 
+from inkloom_verify.correction import ClaimCorrector
 from inkloom_verify.extraction import ClaimExtractor
 from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.retrieval import BM25Retriever
-from inkloom_verify.schemas import Claim, ClaimResult, Verdict
+from inkloom_verify.schemas import Claim, ClaimResult, Correction, InputContent, Verdict
 from inkloom_verify.verification import ClaimVerifier, verify_claim
 from sqlalchemy.orm import Session
 
@@ -44,6 +46,8 @@ from .corpus import CorpusEntry, build_corpus, corpus_lookup  # noqa: F401 (buil
 from .evidence_validator import EvidenceIntegrityError, validate_all
 from .provider import build_provider
 from .providers.fallback import FallbackProvider
+
+logger = logging.getLogger(__name__)
 
 STUB_EXPLANATION = (
     "[STUB OUTPUT] No LLM provider is configured for this backend (none of GEMINI_API_KEY, "
@@ -153,6 +157,11 @@ def run_review(
     try:
         retriever = BM25Retriever(documents)
         verifier = ClaimVerifier(provider, documents)
+        # Same construction as the engine's own pipeline (inkloom_verify.pipeline._run): the
+        # corrector shares the provider (so its calls are logged to external_call_log like every
+        # other call) and re-checks each proposal with the same verifier (recheck=True default).
+        corrector = ClaimCorrector(provider, verifier)
+        content = InputContent(text=content_version.text)
     except Exception as error:  # e.g. RetrievalError/RetrievalLimitError on a malformed corpus
         _finish(db, review, ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
         return
@@ -171,6 +180,8 @@ def run_review(
             _write_unexpected_error_finding(db, review, content_version, claim, error)
             continue
         needs_human_review = needs_human_review or result.verdict is not Verdict.SUPPORTED
+        if result.verdict is Verdict.CONTRADICTED:
+            result = _propose_correction(corrector, result, content, review)
         _write_finding(db, review, content_version, claim, result, lookup, organisation_id)
 
     _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED)
@@ -178,6 +189,30 @@ def run_review(
     # failure (both returned early above, before reaching here).
     if provider_builders is None:
         store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
+
+
+def _propose_correction(corrector: ClaimCorrector, result: ClaimResult, content: InputContent, review: Review) -> ClaimResult:
+    """The engine's corrector on one CONTRADICTED result. It already turns provider failures and
+    every rejected proposal into a correction attempt with no correction; anything unexpected is
+    caught here too, so a correction problem can never change or drop the verdict itself."""
+    try:
+        return corrector.correct(result, content)
+    except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
+        logger.error("review=%s claim=%s correction failed unexpectedly: %s",
+                     review.id, result.claim.claim_id, type(error).__name__)
+        return result
+
+
+def claim_level_correction(text: str, claim: Claim, correction: Correction | None) -> str | None:
+    """The engine proposes a targeted edit (e.g. "24 hours" -> "12 hours"); the UI replaces the
+    finding's whole `original_text` with `suggested_correction`, so store the claim span with the
+    edit applied. None if there is no correction or its target is not inside the claim's span."""
+    if correction is None:
+        return None
+    span, target = claim.source_span, correction.target_span
+    if not (span.start <= target.start <= target.end <= span.end):
+        return None
+    return text[span.start : target.start] + correction.replacement_text + text[target.end : span.end]
 
 
 def _make_external_call_logger(db: Session, review: Review, organisation_id: uuid.UUID):
@@ -267,7 +302,7 @@ def _write_finding(
 ) -> None:
     verdict = result.verdict
     explanation = result.error.message if result.error else result.model_rationale
-    suggested_correction = result.correction.replacement_text if result.correction else None
+    suggested_correction = claim_level_correction(content_version.text, claim, result.correction)
 
     valid_entries: list[CorpusEntry] = []
     if verdict in (Verdict.SUPPORTED, Verdict.CONTRADICTED):
