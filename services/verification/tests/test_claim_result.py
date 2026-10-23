@@ -112,8 +112,10 @@ def test_duplicate_evidence_rejected(supported_result):
 
 
 def test_correction_must_stay_inside_claim_span(contradicted_result):
-    start = contradicted_result["claim"]["source_span"]["start"]
-    contradicted_result["claim"]["source_span"] = {"start": start, "end": start + 5}
+    claim = contradicted_result["claim"]
+    start = claim["source_span"]["start"]
+    claim["source_span"] = {"start": start, "end": start + 5}
+    claim["normalized_text"], claim["text"] = claim["text"], claim["text"][:5]  # still the exact content slice
     check(contradicted_result, "outside the claim's source_span")
 
 

@@ -283,7 +283,7 @@ def test_openapi_documents_the_endpoint(client):
     operation = spec["paths"]["/v1/verify"]["post"]
     assert operation["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("/VerificationRequest")
     assert operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("/VerificationReport")
-    assert {"403", "422"} <= set(operation["responses"])
+    assert {"403", "404", "422"} <= set(operation["responses"])  # the documented error mapping
     assert client.get("/docs").status_code == 200
 
 

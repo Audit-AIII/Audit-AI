@@ -46,7 +46,7 @@ def test_supported_with_a_figure_from_the_top_passage_is_strong():
 
 def test_supported_without_figures_from_the_top_passage_is_moderate():
     data = example(0)
-    data["claim"]["text"] = "The Lumen Bottle keeps drinks cold."
+    data["claim"]["normalized_text"] = "The Lumen Bottle keeps drinks cold."  # the statement checked
     result = build(data)
     assert result.evidence_strength is M and result.requires_human_review is False
 
@@ -60,7 +60,7 @@ def test_support_from_a_lower_ranked_passage_only_is_weak_and_needs_review():
 
 def test_two_accepted_citations_are_strong_even_without_figures():
     data = example(0)
-    data["claim"]["text"] = "The Lumen Bottle keeps drinks cold."
+    data["claim"]["normalized_text"] = "The Lumen Bottle keeps drinks cold."  # the statement checked
     passage = data["evidence"][0]
     second = copy.deepcopy(data["citations"][0])
     words = passage["text"].split()

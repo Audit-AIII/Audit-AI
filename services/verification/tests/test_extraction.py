@@ -47,11 +47,14 @@ def model(answers: dict[str, tuple[str, list[tuple[str, str]]]]):
 def run(text: str, answers: dict, **config):
     provider = ScriptedProvider(model(answers))
     result = ClaimExtractor(provider, ExtractionConfig(**config)).extract(text)
+    for claim in result.claims:  # contract 0.2.0: always the exact content slice
+        assert claim.text == claim.source_span.slice(text), claim.claim_id
     return result, provider
 
 
 def texts(result) -> list[str]:
-    return [c.text for c in result.claims]
+    """The statements as checked: the standalone rewording if any, else the source text."""
+    return [c.statement for c in result.claims]
 
 
 def codes(result) -> list[WarningCode]:

@@ -3,7 +3,15 @@ from pathlib import Path
 import pytest
 
 from inkloom_verify.chunking import ChunkingConfig
-from inkloom_verify.citation_guard import CitationGuard, drops_negation, find_quote, normalize
+from inkloom_verify.citation_guard import (
+    CitationGuard,
+    conflicting_passage,
+    drops_negation,
+    find_quote,
+    names,
+    normalize,
+    support_problems,
+)
 from inkloom_verify.evaluation.runner import load_records
 from inkloom_verify.retrieval import BM25Retriever
 from inkloom_verify.schemas import Citation, EvidencePassage, GuardRejectionReason, ReferenceDocument
@@ -110,6 +118,11 @@ def test_negation_in_an_earlier_clause_does_not_block_a_quote(sheet_passages):
         ("swimming", "suitable for swimming", R.PARTIAL_QUOTE_DROPS_NEGATION),  # partial quotation
         ("dishwasher", "dishwasher safe", R.PARTIAL_QUOTE_DROPS_NEGATION),
         ("dishwasher", "is not dishwasher safe, and it weighs 48 g. Lumen Goods", R.QUOTE_NOT_FOUND),
+        # Phase 4 near-matches: one changed unit, weight, or negation must not match.
+        ("Battery", "up to 12 minutes of playback per charge", R.QUOTE_NOT_FOUND),  # changed unit
+        ("dishwasher", "it weighs 84 g", R.QUOTE_NOT_FOUND),  # transposed digits
+        ("dishwasher", "The case is dishwasher safe", R.QUOTE_NOT_FOUND),  # negation removed inside the quote
+        ("Battery", "up to 12 hours of no playback per charge", R.QUOTE_NOT_FOUND),  # negation inserted
     ],
 )
 def test_rejected_quotes(sheet_passages, needle, quote, reason):
@@ -245,3 +258,80 @@ def test_quantities_normalise_units_and_separators():
     assert quantities("1,200 mAh, 5.2 g, 70%, \u20ac39, 24-hour") == {
         ("1200", "mah"), ("5.2", "gram"), ("70", "percent"), ("39", "eur"), ("24", "hour"),
     }
+
+
+# --- Phase 4: dates near-match, names and conflicting evidence -----------------------------------
+
+LAUNCH = ReferenceDocument(doc_id="launch-plan", text="Launch date: 2 April 2026 in the EU.")
+
+
+def test_a_changed_date_is_not_the_same_quote():
+    items = passages(LAUNCH)
+    guard = CitationGuard([LAUNCH], items)
+    assert isinstance(guard.check(items[0].passage_id, "Launch date: 2 April 2026"), Citation)
+    for changed in ("Launch date: 12 April 2026", "Launch date: 2 May 2026", "Launch date: 2 April 2025"):
+        assert guard.check(items[0].passage_id, changed) is R.QUOTE_NOT_FOUND
+
+
+@pytest.mark.parametrize(
+    ("claim", "expected"),
+    [
+        ("Lumen Goods was founded in 2019 in Lisbon.", {"Lisbon"}),  # the subject run is not a name to check
+        ("The Lumen Pods weigh 5 g.", set()),
+        ("Ana Ribeiro is the CEO of Lumen Goods.", {"Lumen", "Goods"}),  # acronym skipped
+        ("Pods launch on 2 April 2026 in Porto.", {"Porto"}),  # month skipped
+        ("it ships with a USB-C cable.", set()),
+    ],
+)
+def test_names_skips_the_subject_months_and_acronyms(claim, expected):
+    assert names(claim) == expected
+
+
+def test_an_added_name_is_unsupported_even_with_a_valid_quote():
+    quote, passage = "founded in 2019", OTHER.text
+    assert support_problems("Lumen Goods was founded in 2019 in Lisbon.", [quote], [passage]) == []
+    assert support_problems("Lumen Goods was founded in 2019 in Porto.", [quote], [passage]) == [R.UNSUPPORTED_NAME]
+    assert support_problems("Lumen Goods was founded in 2019 in Porto.", [quote]) == []  # names need the passages
+
+
+def evidence(*documents: ReferenceDocument) -> list[EvidencePassage]:
+    return passages(*documents)
+
+
+FACT_SHEET = ReferenceDocument(doc_id="pods-fact-sheet", text="Battery life: up to 12 hours of playback per charge.\nPrice: €129 in the EU.")
+UPDATE_NOTE = ReferenceDocument(doc_id="pods-update-note", text="After the firmware update, battery life is up to 14 hours of playback per charge.")
+PRICE_LIST = ReferenceDocument(doc_id="retail-price-list", text="Retail price list Q2: Lumen Pods €119 in the EU.")
+PRESS = ReferenceDocument(doc_id="press-release-draft", text="Lumen Pods launch on 16 April 2026 across the EU.")
+BOTTLE = ReferenceDocument(doc_id="bottle-sheet", text="The bottle keeps drinks cold for up to 24 hours.")
+
+
+@pytest.mark.parametrize(
+    ("claim", "documents", "conflicting_doc"),
+    [
+        ("Lumen Pods offer up to 12 hours of playback per charge.", (FACT_SHEET, UPDATE_NOTE), "pods-update-note"),
+        ("Lumen Pods cost €129 in the EU.", (FACT_SHEET, PRICE_LIST), "retail-price-list"),
+        ("Lumen Pods launch on 2 April 2026 across the EU.", (LAUNCH, PRESS), "press-release-draft"),
+    ],
+)
+def test_documents_disagreeing_about_the_claims_figure_are_a_conflict(claim, documents, conflicting_doc):
+    found = conflicting_passage(claim, evidence(*documents))
+    assert found is not None and found.doc_id == conflicting_doc
+
+
+@pytest.mark.parametrize(
+    ("claim", "documents", "why"),
+    [
+        ("Lumen Pods offer up to 12 hours of playback per charge.", (FACT_SHEET, BOTTLE), "different topic, same unit"),
+        ("Lumen Pods cost €99 in the EU.", (FACT_SHEET, PRICE_LIST), "no document backs the claim: a plain contradiction"),
+        ("Lumen Pods offer up to 12 hours of playback per charge.", (FACT_SHEET,), "one document only"),
+        ("Lumen Pods offer long battery life.", (FACT_SHEET, UPDATE_NOTE), "no figure in the claim"),
+        ("The bottle keeps drinks cold for up to 24 hours.", (BOTTLE, UPDATE_NOTE), "the other figure is about something else"),
+    ],
+)
+def test_no_conflict(claim, documents, why):
+    assert conflicting_passage(claim, evidence(*documents)) is None, why
+
+
+def test_a_different_value_inside_the_same_document_is_not_a_cross_source_conflict():
+    both = ReferenceDocument(doc_id="pods-faq", text="Battery: up to 12 hours of playback per charge. With ANC on, up to 9 hours of playback per charge.")
+    assert conflicting_passage("Lumen Pods offer up to 12 hours of playback per charge.", evidence(both)) is None

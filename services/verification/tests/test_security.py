@@ -238,7 +238,7 @@ def test_a_verifier_for_one_request_refuses_another_requests_evidence():
 
 def test_citations_cannot_name_another_requests_passages():
     passages_a = BM25Retriever([A_DOC]).passages
-    passages_b = BM25Retriever([B_DOC]).retrieve({"claim_id": "clm_0001", "text": CLAIM, "source_span": {"start": 0, "end": 5}})
+    passages_b = BM25Retriever([B_DOC]).retrieve({"claim_id": "clm_0001", "text": CLAIM, "source_span": {"start": 0, "end": len(CLAIM)}})
     guard_b = CitationGuard([B_DOC], passages_b)
     assert guard_b.check(passages_a[0].passage_id, "up to 12 hours of playback") in (
         GuardRejectionReason.UNKNOWN_PASSAGE, GuardRejectionReason.QUOTE_NOT_FOUND,

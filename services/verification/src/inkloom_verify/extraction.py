@@ -262,7 +262,7 @@ class ClaimExtractor:
         kinds: dict[str, StatementKind] = {}
         warnings: list[ExtractionWarning] = []
         errors: list[ProcessingError] = []
-        proposed: list[tuple[str, str, SourceSpan]] = []  # (sentence_id, claim text, span)
+        proposed: list[tuple[str, str | None, SourceSpan]] = []  # (sentence_id, rewording or None, span)
 
         ids = list(sentences)
         size = self.config.max_sentences_per_call
@@ -277,7 +277,7 @@ class ClaimExtractor:
                 continue
             proposed.extend(self._apply(output, batch, sentences, text, kinds, warnings))
 
-        claims, claim_ids = self._number(proposed, warnings)
+        claims, claim_ids = self._number(proposed, warnings, text)
         if len(claims) > self.config.max_claims:
             dropped = len(claims) - self.config.max_claims
             claims = claims[: self.config.max_claims]
@@ -342,12 +342,12 @@ class ClaimExtractor:
         text: str,
         kinds: dict[str, StatementKind],
         warnings: list[ExtractionWarning],
-    ) -> list[tuple[str, str, SourceSpan]]:
+    ) -> list[tuple[str, str | None, SourceSpan]]:
         def warn(code: WarningCode, sentence_id: str, message: str) -> None:
             sid = clean_display_text(sentence_id, 64) or "?"
             warnings.append(ExtractionWarning(code=code, sentence_id=sid, message=message))
 
-        proposed: list[tuple[str, str, SourceSpan]] = []
+        proposed: list[tuple[str, str | None, SourceSpan]] = []
         expected = set(batch)
         for statement in output.statements:
             sid = statement.sentence_id
@@ -365,7 +365,7 @@ class ClaimExtractor:
                 continue
             if not statement.claims:
                 warn(WarningCode.FACTUAL_WITHOUT_CLAIMS, sid, "no claims listed; the sentence is used as the claim")
-                proposed.append((sid, span.slice(text), span))
+                proposed.append((sid, None, span))
                 continue
             limit = self.config.max_claims_per_sentence
             if len(statement.claims) > limit:
@@ -378,14 +378,18 @@ class ClaimExtractor:
         return proposed
 
     @staticmethod
-    def _ground(model_claim: _ModelClaim, sid: str, span: SourceSpan, text: str, warn: Any) -> tuple[str, str, SourceSpan]:
-        """The claim with its location, or the verbatim sentence when the claim cannot be trusted."""
-        sentence = span.slice(text)
-        fallback = (sid, sentence, span)
+    def _ground(
+        model_claim: _ModelClaim, sid: str, span: SourceSpan, text: str, warn: Any
+    ) -> tuple[str, str | None, SourceSpan]:
+        """(sentence id, the model's rewording or None, where the claim's words are), falling back
+        to the whole sentence when the claim cannot be trusted. Claim.text is always the content
+        at that span; the rewording only becomes ``normalized_text``."""
+        fallback = (sid, None, span)
         claim_text = model_claim.text.strip()
         if not claim_text or len(claim_text) > MAX_CLAIM_CHARS:
             warn(WarningCode.CLAIM_TOO_LONG, sid, "claim text blank or too long; the sentence is used")
             return fallback
+        sentence = span.slice(text)
         located = locate(model_claim.source_quote, sentence)
         if located is None:
             warn(WarningCode.QUOTE_NOT_FOUND, sid, "source_quote is not in the sentence; the sentence is used")
@@ -395,25 +399,27 @@ class ClaimExtractor:
         if problems:
             warn(WarningCode.REWRITE_REJECTED, sid, "; ".join(problems) + "; the sentence is used")
             return fallback
-        return sid, claim_text, quote_span
+        return sid, (claim_text if claim_text != quote_span.slice(text) else None), quote_span
 
     @staticmethod
     def _number(
-        proposed: list[tuple[str, str, SourceSpan]], warnings: list[ExtractionWarning]
+        proposed: list[tuple[str, str | None, SourceSpan]], warnings: list[ExtractionWarning], text: str
     ) -> tuple[list[Claim], dict[str, list[str]]]:
         """Numbers claims clm_0001, clm_0002, ... in sentence order, dropping exact duplicates."""
         claims: list[Claim] = []
         by_sentence: dict[str, list[str]] = {}
         seen: set[tuple[str, int, int]] = set()
-        for sid, claim_text, span in proposed:
-            key = (claim_text, span.start, span.end)
+        for sid, rewording, span in proposed:
+            key = (rewording, span.start, span.end)
             if key in seen:
                 warnings.append(
                     ExtractionWarning(code=WarningCode.DUPLICATE_CLAIM, sentence_id=sid, message="duplicate claim dropped")
                 )
                 continue
             seen.add(key)
-            claim = Claim(claim_id=f"clm_{len(claims) + 1:04d}", text=claim_text, source_span=span)
+            claim = Claim(
+                claim_id=f"clm_{len(claims) + 1:04d}", text=span.slice(text), source_span=span, normalized_text=rewording
+            )
             claims.append(claim)
             by_sentence.setdefault(sid, []).append(claim.claim_id)
         return claims, by_sentence

@@ -234,6 +234,37 @@ SUPPORTED answer stands only if the cited quotes actually carry the claim's figu
 | Every number in the claim appears in the cited quotes, with the same unit or currency where the quotes give one. Units are normalised: `g`/`gram`/`grams`, `l`/`litre`/`liter`, `h`/`hours`, `%`/`percent`, `€`/`$`/`£`, and so on. Thousands separators are ignored. | `unsupported_quantity` |
 | Every date in the claim (a month next to a day or year number) appears in the cited quotes. The verb "may" isn't a month. | `unsupported_date` |
 | If a quote qualifies a figure the claim repeats ("up to 12 hours", "about", "at least", "more than", …), the claim keeps that qualifier | `missing_qualifier` |
+| Every capitalised name in the claim, after its leading subject run, appears in a cited passage. Months and all-capital acronyms ("CEO") are skipped. | `unsupported_name` |
+
+**Why names are checked against passages, not quotes.** Quotes rarely repeat the claim's subject:
+a quote-level rule would reject 17 of the 20 labelled SUPPORTED records. The subject run ("The
+Lumen Pods") is skipped because a fact sheet often never names its product ("Battery life: up to
+12 hours ..."); a unit test found that false positive. With both rules, 0 of 45 labelled
+SUPPORTED records in `dataset.jsonl` and `retrieval_v1` are rejected. Against the scripted
+adversary that always answers SUPPORTED with a real quote, it catches one false SUPPORTED that no
+other check catches (`v1-046`), so false-SUPPORTED goes from 15/35 to 14/35. It targets one
+case: a name added to the subject ("founded in 2019 in Porto" against "founded in 2019").
+
+**Conflicting evidence (SUPPORTED and CONTRADICTED).** `citation_guard.conflicting_passage`
+finds a conflict when:
+- one retrieved passage contains every figure of the claim (numbers with a unit or currency,
+  and whole dates, so 2 April ≠ 16 April); and
+- a passage from a **different document** has a sentence with another value of the same kind
+  that shares at least half of the claim's topic words (`CONFLICT_TOPIC_OVERLAP = 0.5`).
+
+The answer is downgraded with `conflicting_evidence`, and a person decides. The threshold was
+chosen on the same data it was measured on:
+- **0.5** flags exactly `v2-c01`–`v2-c03` and none of the other 86 records in both datasets;
+- **0.3** also flags the injection trap `v1-032`;
+- **0.7** misses `v2-c02`.
+
+With three positive cases this is a sanity check, not a validated rate.
+
+**No fuzzy matching.** Quotes match exactly after normalising whitespace and quote marks only.
+Nothing so far needs more: all 39 gold quotes of evaluation set v1 match exactly
+(`test_every_gold_quote_is_accepted_and_every_corruption_rejected`), and near-misses are exactly what has to be
+rejected (changed numbers, units, dates, digits, case, an inserted or removed "not"; tests in
+`test_citation_guard.py`). A fuzzy threshold would let "84 g" stand in for "48 g".
 
 These checks are not applied to CONTRADICTED answers, whose figures differ from the evidence by
 definition. Numbers written as words ("two years") aren't checked.
@@ -242,7 +273,8 @@ definition. Numbers written as words ("two years") aren't checked.
 SUPPORTED answers that the figures match. It doesn't prove the evidence supports the verdict.
 These pass it:
 
-- a valid quote from one of two conflicting passages;
+- a valid quote from one of two passages that conflict about a **name** (`v2-c04`); figure
+  conflicts are caught since Phase 4;
 - a valid quote of injected text (dataset record `v1-032`);
 - a SUPPORTED claim with no figures, backed by a quote that says something else.
 
@@ -307,6 +339,8 @@ is recorded separately as `correction`: `target_span`, `original_text`, `replace
 | The replacement isn't blank and isn't the same as the original | `no_change` |
 | **Every word, number and currency or unit symbol (`€ $ £ ¥ % °`) the replacement adds appears in the cited quotes.** Only grammatical words are exempt: a, an, the, of, and, is, are, was, were, be, been, to, in, on, at, for, with, by, from, as, its, it, this, that, these, those, their, our. Modal and commitment words such as *will, can, may, always, only, guaranteed* are **not** exempt. | `unsupported_addition` |
 | A qualifier (`up to`, `about`, `only`, …) used by both the original and the evidence is still in the replacement | `drops_qualifier` |
+| **Figures are compared in the claim's own sentence** (the unit may sit outside the replaced words: `€` + `99`). Every new number that has a unit or currency appears in the cited quotes **with that same unit**: `€36` is rejected when the evidence's 36 is hours. Every new whole date appears in the quotes as that whole date: `2 April 2025` is rejected when the quotes give 2 April 2026 and, elsewhere, 2025. | `unsupported_addition` |
+| No unit or currency the original had disappears (`€99` → `129`, `7 g` → `5.2`) | `drops_unit` |
 | Word-level edit distance ≤ max(4, ⌈original words / 2⌉) | `not_minimal` |
 | The `Correction` contract accepts it (for example, numbers must come from cited quotes) | `invalid_correction` |
 | **Re-check:** the corrected claim, verified against the same evidence passages with the verifier and citation guard, is `SUPPORTED` | `recheck_not_supported` (verdict recorded) or `recheck_unavailable` |

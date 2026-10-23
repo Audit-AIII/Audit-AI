@@ -96,5 +96,26 @@
     "description": "A report with an ERROR result cannot be COMPLETED.",
     "pydantic_error_contains": "COMPLETED report must not contain",
     "json_schema_rejects": false
+  },
+  {
+    "file": "result_claim_text_not_span.json",
+    "model": "ClaimResult",
+    "description": "Claim text is reworded instead of being the exact content slice (contract 0.2.0).",
+    "pydantic_error_contains": "claim text length does not match its source_span",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "result_normalized_text_equals_text.json",
+    "model": "ClaimResult",
+    "description": "normalized_text repeats text; it must be omitted when the claim was not reworded.",
+    "pydantic_error_contains": "normalized_text must differ from text",
+    "json_schema_rejects": false
+  },
+  {
+    "file": "report_passage_other_reference_set.json",
+    "model": "VerificationReport",
+    "description": "An evidence passage names a different reference set than the report.",
+    "pydantic_error_contains": "comes from another reference set",
+    "json_schema_rejects": false
   }
 ]

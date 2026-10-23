@@ -49,7 +49,7 @@ DOCUMENTS = {d.doc_id: d for d in CORPUS}
 
 
 def claim(text: str, claim_id: str = "clm_0001") -> dict:
-    return {"claim_id": claim_id, "text": text, "source_span": {"start": 0, "end": 1}}
+    return {"claim_id": claim_id, "text": text, "source_span": {"start": 0, "end": len(text)}}  # the claim is its own content
 
 
 def sentences(**settings) -> BM25Retriever:
@@ -387,6 +387,29 @@ def test_two_reference_sets_of_one_tenant_stay_separate():
     brand = BM25Retriever.for_request(scoped_request("tenant-a", "refset-brand", BRAND_GUIDE))
     assert all(r.doc_id == "product-spec" for r in pods.retrieve(claim("Primary colour is Lumen Teal, hex #1A7F8E.")))
     assert all(r.doc_id == "brand-guide" for r in brand.retrieve(claim("Primary colour is Lumen Teal.")))
+
+
+def test_passages_name_the_reference_set_they_were_retrieved_from():
+    scoped = BM25Retriever.for_request(scoped_request("tenant-a", "refset-1", COMPANY_FACTS))
+    results = scoped.retrieve(claim("Lumen Goods was founded in 2019 in Lisbon."))
+    assert results and {r.reference_set_id for r in results} == {"refset-1"}
+    unscoped = BM25Retriever([COMPANY_FACTS]).retrieve(claim("Lumen Goods was founded in 2019 in Lisbon."))
+    assert unscoped and {r.reference_set_id for r in unscoped} == {None}  # no request, no set to claim
+
+
+def test_reports_carry_the_requests_reference_set_on_every_passage():
+    from e2e_support import RoutedProvider, careful_model, request
+    from inkloom_verify.pipeline import verify_request
+    from inkloom_verify.scope import ScopeViolation, check_report_scope
+
+    scoped = request().model_copy(update={"reference_set_id": "refset-pods-launch"})
+    report = verify_request(scoped, RoutedProvider(careful_model))
+    passages = [p for r in report.results for p in r.evidence]
+    assert passages and {p.reference_set_id for p in passages} == {"refset-pods-launch"}
+    check_report_scope(scoped, report)
+    other = scoped.model_copy(update={"reference_set_id": "refset-someone-else"})
+    with pytest.raises(ScopeViolation, match="another reference set"):
+        check_report_scope(other, report)  # the same evidence offered for another set is refused
 
 
 def test_retrievers_share_no_state():

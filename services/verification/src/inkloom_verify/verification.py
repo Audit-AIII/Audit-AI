@@ -21,7 +21,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from inkloom_verify.citation_guard import CitationGuard, support_problems
+from inkloom_verify.citation_guard import CitationGuard, conflicting_passage, support_problems
 from inkloom_verify.extraction import describe_validation_error
 from inkloom_verify.prompts import verification as prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
@@ -102,7 +102,7 @@ class ClaimVerifier:
         labels = {f"P{i}": p.passage_id for i, p in enumerate(passages, start=1)}
         request = JsonCompletionRequest(
             system=prompt.SYSTEM_PROMPT,
-            user=prompt.user_message(claim.text, [(label, guard.passages[pid].text) for label, pid in labels.items()]),
+            user=prompt.user_message(claim.statement, [(label, guard.passages[pid].text) for label, pid in labels.items()]),
             schema_name="claim_verification",
             json_schema=prompt.OUTPUT_SCHEMA,
             max_output_tokens=self.config.max_output_tokens,
@@ -139,8 +139,18 @@ class ClaimVerifier:
         if not output.citations:
             rejected.append(RejectedCitation(reason=GuardRejectionReason.NO_CITATION))
         if model_verdict is Verdict.SUPPORTED and citations and not rejected:
-            # Valid quotes are necessary, not sufficient: they must also carry the claim's figures.
-            rejected.extend(RejectedCitation(reason=r) for r in support_problems(claim.text, [c.quote for c in citations]))
+            # Valid quotes are necessary, not sufficient: they must also carry the claim's figures,
+            # and its names must be in the cited passages.
+            cited_passages = [guard.passages[pid].text for pid in dict.fromkeys(c.passage_id for c in citations)]
+            rejected.extend(
+                RejectedCitation(reason=r)
+                for r in support_problems(claim.statement, [c.quote for c in citations], cited_passages)
+            )
+        if citations and not rejected:
+            # References that disagree about the claim's figure: no verdict, a person decides.
+            other = conflicting_passage(claim.statement, passages)
+            if other is not None:
+                rejected.append(RejectedCitation(reason=GuardRejectionReason.CONFLICTING_EVIDENCE, passage_id=other.passage_id))
 
         if rejected:
             logger.info(

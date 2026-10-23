@@ -1,5 +1,5 @@
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "request_id": "req-e2e-0001",
   "tenant_id": "tenant-demo",
   "content_sha256": "3c50cd21b86bf1cab8b203495c7b457e1cbe9075bd89bfabde9f1b6dbe507328",
@@ -233,7 +233,7 @@
   "errors": [],
   "provenance": {
     "engine_version": "0.1.0",
-    "contract_version": "0.1.0",
+    "contract_version": "0.2.0",
     "retrieval_method": "bm25",
     "provider": "scripted",
     "model_id": "scripted/careful-v1",

@@ -175,7 +175,7 @@ class BM25Retriever:
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_PASSAGES_PER_CLAIM:
             raise RetrievalError(f"top_k must be an integer from 1 to {MAX_PASSAGES_PER_CLAIM}")
 
-        query = sorted(set(tokenize(claim.text)))
+        query = sorted(set(tokenize(claim.statement)))
         if self._bm25 is None or not query:
             return []
 
@@ -221,4 +221,6 @@ class BM25Retriever:
             span=passage.span,
             text=passage.text,
             retrieval=RetrievalProvenance(method=self.method, score=round(score, 6), rank=rank),
+            # Contract 0.2.0: the reference set this retriever was built for (for_request), if any.
+            reference_set_id=self.scope[1] if self.scope else None,
         )

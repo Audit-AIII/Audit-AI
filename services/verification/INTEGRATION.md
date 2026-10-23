@@ -58,6 +58,15 @@ PYTHONPATH=src python -m inkloom_verify.pipeline --request examples/end_to_end/r
 
 ## For Member 3: calling the engine
 
+**Contract 0.2.0 (2026-10-23).**
+- `Claim.text` is now exactly the content at `source_span`. Your `pipeline.py` already stores
+  `claim.source_span.slice(content)`, so nothing changes for you.
+- The standalone rewording, if any, is the new `Claim.normalized_text`.
+- `CONTRACT_VERSION` is `"0.2.0"`, so new reviews will store that in `engine_contract_version`.
+- Passages may carry `reference_set_id`.
+
+See CONTRACTS.md, "Changes in 0.2.0".
+
 ```python
 # services/api: add the engine as a dependency, e.g. `pip install -e ../verification`
 from inkloom_verify.pipeline import verify_request

@@ -25,8 +25,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-ContractVersion = Literal["0.1.0"]
-CONTRACT_VERSION: ContractVersion = "0.1.0"
+ContractVersion = Literal["0.2.0"]
+CONTRACT_VERSION: ContractVersion = "0.2.0"
 
 # Provisional limits. They bound cost and memory per request and are expected to be tuned once
 # real documents are available; changing them is a contract change (see CONTRACTS.md).
@@ -206,13 +206,30 @@ class VerificationRequest(_Contract):
 class Claim(_Contract):
     """One atomic, checkable statement extracted from the content.
 
-    ``text`` is the claim as the verifier sees it and may be reworded to stand alone.
-    ``source_span`` locates the words it came from in ``InputContent.text``.
+    ``text`` is exactly the content at ``source_span`` (``content[start:end] == text``; the
+    lengths are checked here, the characters by ``scope.check_report_scope``, which has the
+    content). ``normalized_text`` is the claim reworded to stand alone, when the extractor
+    reworded it; it never adds facts (extraction.rewrite_problems). ``statement`` is what
+    retrieval, the verifier and the corrector work on.
     """
 
     claim_id: ClaimId
     text: ClaimText
     source_span: SourceSpan
+    normalized_text: ClaimText | None = None
+
+    @model_validator(mode="after")
+    def _check_text(self) -> Claim:
+        if len(self.text) != self.source_span.length:
+            raise ValueError("claim text length does not match its source_span (text must be the exact content slice)")
+        if self.normalized_text is not None and self.normalized_text == self.text:
+            raise ValueError("normalized_text must differ from text; omit it when the claim was not reworded")
+        return self
+
+    @property
+    def statement(self) -> str:
+        """The claim as checked: the standalone rewording if there is one, else the source text."""
+        return self.normalized_text or self.text
 
 
 class RetrievalMethod(str, Enum):
@@ -236,6 +253,9 @@ class EvidencePassage(_Contract):
     span: SourceSpan
     text: PassageText
     retrieval: RetrievalProvenance
+    # The reference set the passage was retrieved from (contract 0.2.0). Optional; when present it
+    # must equal the request's and the report's reference_set_id.
+    reference_set_id: ReferenceSetId | None = None
 
     @model_validator(mode="after")
     def _check_length(self) -> EvidencePassage:
@@ -404,6 +424,7 @@ class CorrectionIssueCode(str, Enum):
     UNSUPPORTED_ADDITION = "unsupported_addition"  # adds words, numbers or symbols absent from the cited evidence
     NOT_MINIMAL = "not_minimal"  # rewrites more than the minimality bound allows
     DROPS_QUALIFIER = "drops_qualifier"  # removes a qualifier ("up to", "about") that the evidence also uses
+    DROPS_UNIT = "drops_unit"  # removes a unit or currency from a figure ("€99" -> "129")
     RECHECK_NOT_SUPPORTED = "recheck_not_supported"  # the corrected claim did not verify as SUPPORTED
     RECHECK_UNAVAILABLE = "recheck_unavailable"  # the re-check could not run
     INVALID_CORRECTION = "invalid_correction"  # the proposal broke the Correction contract
@@ -479,7 +500,7 @@ def evidence_strength(verdict: Verdict, claim_text: str, evidence: list[Any], ci
 def _strength_default(data: dict[str, Any]) -> EvidenceStrength:
     if "verdict" not in data or "claim" not in data:
         return EvidenceStrength.NONE
-    return evidence_strength(data["verdict"], data["claim"].text, data.get("evidence", []), data.get("citations", []))
+    return evidence_strength(data["verdict"], data["claim"].statement, data.get("evidence", []), data.get("citations", []))
 
 
 def review_needed(verdict: Verdict, strength: EvidenceStrength) -> bool:
@@ -505,6 +526,10 @@ class GuardRejectionReason(str, Enum):
     UNSUPPORTED_QUANTITY = "unsupported_quantity"  # a number/unit in the claim is not in the cited quotes
     UNSUPPORTED_DATE = "unsupported_date"  # a date in the claim is not in the cited quotes
     MISSING_QUALIFIER = "missing_qualifier"  # the quotes qualify a figure ("up to 12") that the claim states flatly
+    UNSUPPORTED_NAME = "unsupported_name"  # a capitalised name in the claim is in none of the cited passages
+    # Applied to SUPPORTED and CONTRADICTED answers that passed every other check; passage_id is
+    # the passage from another document that gives a different value:
+    CONFLICTING_EVIDENCE = "conflicting_evidence"  # one document backs the claim's figure, another contradicts it
 
 
 class RejectedCitation(_Contract):
@@ -582,7 +607,7 @@ class ClaimResult(_Contract):
         self._check_citations()
         self._check_correction()
         # Checked last so a structurally wrong result reports its structural error first.
-        expected = evidence_strength(self.verdict, self.claim.text, self.evidence, self.citations)
+        expected = evidence_strength(self.verdict, self.claim.statement, self.evidence, self.citations)
         if self.evidence_strength is not expected:
             raise ValueError(f"evidence_strength must be {expected.value} for this verdict and evidence")
         if self.requires_human_review is not review_needed(self.verdict, self.evidence_strength):
@@ -695,6 +720,7 @@ class ReviewReason(str, Enum):
     CITATIONS_REJECTED = "citations_rejected"  # the guard downgraded at least one answer
     CORRECTIONS_NEED_REVIEW = "corrections_need_review"  # a correction could not be proposed safely
     WEAK_EVIDENCE = "weak_evidence"  # a SUPPORTED claim rests only on weak evidence
+    CONFLICTING_EVIDENCE = "conflicting_evidence"  # the references disagree about a claim's figure
 
 
 class ReportScore(_Contract):
@@ -737,6 +763,11 @@ class ReportScore(_Contract):
                 (ReviewReason.CORRECTIONS_NEED_REVIEW, need_review > 0),
                 (ReviewReason.WEAK_EVIDENCE, any(
                     r.verdict is Verdict.SUPPORTED and r.evidence_strength is EvidenceStrength.WEAK for r in results
+                )),
+                (ReviewReason.CONFLICTING_EVIDENCE, any(
+                    r.citation_guard is not None
+                    and any(x.reason is GuardRejectionReason.CONFLICTING_EVIDENCE for x in r.citation_guard.rejected)
+                    for r in results
                 )),
             )
             if applies
@@ -825,6 +856,8 @@ class VerificationReport(_Contract):
             for passage in result.evidence:
                 if (passage.doc_id, passage.doc_text_sha256) not in known:
                     raise ValueError(f"passage {passage.passage_id} comes from a document not in references")
+                if passage.reference_set_id is not None and passage.reference_set_id != self.reference_set_id:
+                    raise ValueError(f"passage {passage.passage_id} comes from another reference set")
 
     def verdict_counts(self) -> dict[Verdict, int]:
         counts = Counter(r.verdict for r in self.results)

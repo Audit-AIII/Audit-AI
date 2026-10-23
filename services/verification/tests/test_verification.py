@@ -232,14 +232,17 @@ def test_contradictory_passages_are_all_shown_and_an_abstention_stands():
     assert result.verdict is N
 
 
-def test_guard_cannot_detect_a_one_sided_reading_of_conflicting_passages():
-    """Limitation, by design: a valid quote from one of two conflicting passages is accepted.
-    The prompt asks for NOT_ENOUGH_EVIDENCE here; the evaluation, not the guard, measures it."""
+def test_a_one_sided_reading_of_conflicting_passages_is_downgraded():
+    """Phase 4 closes what used to be a documented limitation: a valid quote from one of two
+    documents that disagree about the claim's figure no longer stands. A person decides."""
     newer = ReferenceDocument(doc_id="pods-fact-sheet-v3", text="Battery life: up to 10 hours of playback per charge.")
     text = "Lumen Pods offer up to 12 hours of playback per charge."
     provider = ScriptedProvider(answer("SUPPORTED", [("12 hours", "up to 12 hours of playback per charge")]))
     result = ClaimVerifier(provider, [PODS, newer]).verify(verifier_input(text, PODS, newer))
-    assert result.verdict is S
+    assert result.verdict is N and result.citations == [] and result.requires_human_review
+    [rejection] = result.citation_guard.rejected
+    assert rejection.reason is R.CONFLICTING_EVIDENCE
+    assert rejection.passage_id in {p.passage_id for p in result.evidence if p.doc_id == "pods-fact-sheet-v3"}
 
 
 # --- Untrusted passages ------------------------------------------------------------------------

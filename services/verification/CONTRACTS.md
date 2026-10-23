@@ -1,4 +1,4 @@
-# Verification engine contracts (v0.1.0, draft)
+# Verification engine contracts (v0.2.0, draft)
 
 Contracts between the INKLOOM claim-verification engine (Member 2) and its callers. They are
 defined once, in [`src/inkloom_verify/schemas.py`](src/inkloom_verify/schemas.py), and exported as
@@ -7,6 +7,27 @@ JSON Schema to [`schemas/`](schemas/) for callers who don't use Python.
 **Status: draft.** None of these decisions has been agreed with Members 1 and 3 yet. Each
 decision that affects them is listed under [Open integration questions](#open-integration-questions).
 Until they sign off, any field may still change.
+
+**Changes in 0.2.0** (approved 2026-10-23):
+
+1. `Claim.text` is now **exactly** the content at `source_span` (`content[start:end] == text`).
+   A standalone rewording (for example, a resolved pronoun) moves to the new optional
+   `Claim.normalized_text`. Retrieval, the verifier and the corrector work on
+   `Claim.statement`, which is `normalized_text` if present and `text` otherwise, so what they
+   see is unchanged from 0.1.0.
+2. `EvidencePassage.reference_set_id` (optional). When present it must equal the report's and
+   the request's `reference_set_id`. Since Phase 3, a retriever built with
+   `BM25Retriever.for_request` fills it on every passage, so both engines' reports carry it.
+3. Version `"0.2.0"`. A request that states `"0.1.0"` is rejected; one that omits the field
+   gets 0.2.0.
+
+**Names used by the engine spec** (approved: keep the contract's names):
+
+| Spec name | Contract name | Meaning |
+|---|---|---|
+| `schema_version` | `contract_version` | Version of this contract |
+| `needs_human_review` | `requires_human_review` | Already the column name in Member 3's database |
+| confidence | `evidence_strength` | An ordinal label (strong / moderate / weak / none) computed in code. **Not a probability**, and no model-reported confidence is collected (see Score). |
 
 The engine's input is text that has already been extracted. Uploads, file storage, PDF/DOCX
 parsing, authentication and tenant management belong to other members and are not part of
@@ -23,7 +44,7 @@ these contracts.
 | Text hashes | `text_sha256` is the lowercase hex SHA-256 of the text encoded as UTF-8. On input it is optional: if omitted, the engine computes it; if supplied, it must match; `null` is rejected. Every passage and citation carries the hash of the document it quotes (`doc_text_sha256`), which pins it to one exact version of that document. |
 | Unknown fields | Rejected (`extra="forbid"`). |
 | Immutability | Models are frozen once validated. |
-| Versioning | `contract_version` is `"0.1.0"`. If omitted, it defaults to that value. Any other value is rejected. |
+| Versioning | `contract_version` is `"0.2.0"` (the spec's `schema_version`). If omitted, it defaults to that value. Any other value, including `"0.1.0"`, is rejected. |
 
 ## Identifiers
 
@@ -51,8 +72,8 @@ rejects a passage id that doesn't.
 | `ReferenceDocument` | One approved source of truth: `doc_id`, optional `version` and `title`, `text`, `text_sha256`. |
 | `ReferenceDescriptor` | A reference document without its text (`doc_id`, `version`, `text_sha256`). Used for provenance in reports. |
 | `SourceSpan` | `{start, end}` offsets. |
-| `Claim` | One atomic, checkable statement: `claim_id`, `text` (possibly reworded so it stands alone), `source_span` in the content. |
-| `EvidencePassage` | A verbatim excerpt of one reference document, with the document's `doc_id`, `doc_text_sha256`, `span` and `retrieval` provenance (method, score, rank). |
+| `Claim` | One atomic, checkable statement: `claim_id`; `text`, exactly the content at `source_span`; `source_span`; and an optional `normalized_text`, the claim reworded to stand alone. The property `statement` returns `normalized_text or text`. |
+| `EvidencePassage` | A verbatim excerpt of one reference document, with the document's `doc_id`, `doc_text_sha256`, `span`, `retrieval` provenance (method, score, rank) and an optional `reference_set_id`. |
 | `ClaimVerificationInput` | **Everything the verifier may see:** one claim and 1–8 passages. It has no field for the reference documents, and adding one is rejected. |
 | `Verdict` | `SUPPORTED`, `CONTRADICTED`, `NOT_ENOUGH_EVIDENCE`, `ERROR`. |
 | `Citation` | `doc_id`, `doc_text_sha256`, `passage_id`, `quote`, `quote_span` (in **document** coordinates). |
@@ -83,6 +104,13 @@ rejects a passage id that doesn't.
 
 ### Claims and evidence
 
+- A claim's `text` must be exactly `source_span.length` characters. The model checks the length;
+  `scope.check_report_scope(request, report)` checks the characters against the content.
+- `normalized_text`, when present, must differ from `text`. The extractor only sets it for a
+  rewording that adds no facts (`extraction.rewrite_problems`); otherwise the source text alone
+  is used.
+- A passage's `reference_set_id`, when present, must equal the report's `reference_set_id`
+  (checked by the report) and the request's (checked by the scope check).
 - A passage's `text` must be exactly `span.length` characters. `EvidencePassage.matches(document)` checks it against the original document's text and hash.
 - A citation's `quote` must be exactly `quote_span.length` characters. `Citation.matches(document)` checks it against the original document's text and hash.
 - `ClaimVerificationInput` requires 1–8 passages with no duplicate `passage_id`s.
@@ -123,8 +151,16 @@ Additional rules:
 
   Rejection reasons are `no_citation`, `unknown_passage`, `passage_provenance_invalid`,
   `quote_not_found`, `quote_too_short` and `partial_quote_drops_negation`. Since Phase 4 there
-  are also three support checks for SUPPORTED answers, which carry no `passage_id`:
-  `unsupported_quantity`, `unsupported_date` and `missing_qualifier`. See
+  are also support checks for SUPPORTED answers, which carry no `passage_id`:
+  `unsupported_quantity`, `unsupported_date`, `missing_qualifier` and (Phase 4 of the second
+  run) `unsupported_name`.
+
+  **Conflicting evidence** (`conflicting_evidence`, with the `passage_id` of the disagreeing
+  passage) applies to SUPPORTED and CONTRADICTED answers that passed every other check. One
+  retrieved document backs the claim's figure and another gives a different value for the same
+  thing. The engine doesn't know which source is authoritative, so it never decides: the answer
+  becomes `NOT_ENOUGH_EVIDENCE` and the report gets the `conflicting_evidence` review reason.
+  Conflicts between *names* (for example two different CEOs) are not detected. See
   [PROMPTS.md](PROMPTS.md#citation-guard).
 
 ### Corrections
@@ -143,7 +179,7 @@ Additional rules:
   - attempts exist only on `CONTRADICTED` results;
   - a `correction` requires an attempt with status `proposed`, and a `proposed` attempt requires the `correction`;
   - a `proposed` attempt has no issues and no error, and if it was re-checked the re-check was `SUPPORTED`.
-- Issue codes: `model_declined`, `no_citation`, `unknown_citation`, `target_not_found`, `no_change`, `unsupported_addition`, `drops_qualifier`, `not_minimal`, `recheck_not_supported`, `recheck_unavailable`, `invalid_correction`. See [PROMPTS.md](PROMPTS.md#prompt-correct-claim-v1).
+- Issue codes: `model_declined`, `no_citation`, `unknown_citation`, `target_not_found`, `no_change`, `unsupported_addition`, `drops_qualifier`, `drops_unit` (Phase 5, second run), `not_minimal`, `recheck_not_supported`, `recheck_unavailable`, `invalid_correction`. See [PROMPTS.md](PROMPTS.md#prompt-correct-claim-v1).
 
 ### Reports
 
@@ -213,7 +249,8 @@ or truth probability. It answers three questions, each with its own numbers:
   - `processing_errors` (an `ERROR` result or a request-level error);
   - `citations_rejected` (the guard downgraded an answer);
   - `corrections_need_review`;
-  - `weak_evidence` (a `SUPPORTED` claim rests only on weak evidence; Phase 5).
+  - `weak_evidence` (a `SUPPORTED` claim rests only on weak evidence; Phase 5);
+  - `conflicting_evidence` (the references disagree about a claim's figure; Phase 4, second run).
 
   It is a routing signal, never an approval. Approval always belongs to a person (Member 3's
   governance rules).
@@ -513,7 +550,7 @@ receives Member 3's API, not engine payloads.
 
 ```json
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "request_id": "req-2026-10-22-0001",
   "tenant_id": "tenant-acme",
   "content": {
@@ -541,8 +578,9 @@ The hash values are shortened as `…` for readability; the example file has the
 {
   "claim": {
     "claim_id": "clm_0002",
-    "text": "The Lumen Bottle is made from 90% recycled steel.",
-    "source_span": { "start": 55, "end": 90 }
+    "text": "It is made from 90% recycled steel.",
+    "source_span": { "start": 55, "end": 90 },
+    "normalized_text": "The Lumen Bottle is made from 90% recycled steel."
   },
   "verdict": "CONTRADICTED",
   "evidence": [

@@ -31,6 +31,7 @@ from collections.abc import Sequence
 
 from inkloom_verify.chunking import sentence_spans
 from inkloom_verify.extraction import MONTHS, NEGATION
+from inkloom_verify.retrieval import tokenize
 from inkloom_verify.schemas import (
     MAX_PASSAGE_CHARS,
     Citation,
@@ -193,8 +194,43 @@ def _dates(text: str) -> set[str]:
     }
 
 
-def support_problems(claim: str, quotes: list[str]) -> list[GuardRejectionReason]:
-    """Why the cited quotes cannot carry a SUPPORTED verdict for ``claim``; empty if they can."""
+_NAME_WORD = re.compile(r"[^\W\d_][\w'\u2019-]*")
+_SENTENCE = re.compile(r"[^.!?\n]+[.!?]?")
+# Share of the claim's topic words (no figures, no stopwords) a sentence must contain before a
+# different figure in it counts as a conflict. Measured (Phase 4): 0.5 flags exactly the three
+# figure conflicts in eval/dataset.jsonl and nothing in the other 86 records of both datasets;
+# 0.3 also flags the injection trap v1-032, 0.7 misses v2-c02.
+CONFLICT_TOPIC_OVERLAP = 0.5
+
+
+def names(claim: str) -> set[str]:
+    """Capitalised words of ``claim`` that are probably names added to its subject.
+
+    Skipped: the leading run of capitalised words ("The Lumen Pods"), which is the subject a
+    document is about and often never repeats (a fact sheet says "Battery life: ...", not "Lumen
+    Pods' battery life"); month names (dates are checked separately); and all-capital acronyms
+    such as "CEO" (documents often spell them out). What remains is what a model tends to add:
+    "founded in 2019 in Porto".
+    """
+    found, leading = set(), True
+    for match in _NAME_WORD.finditer(claim):
+        word = match.group(0)
+        if leading and word[0].isupper():
+            continue
+        leading = False
+        if not word[0].isupper() or MONTHS.fullmatch(word.casefold()) or (len(word) > 1 and word.isupper()):
+            continue
+        found.add(word)
+    return found
+
+
+def support_problems(claim: str, quotes: list[str], passages: list[str] | None = None) -> list[GuardRejectionReason]:
+    """Why the cited quotes cannot carry a SUPPORTED verdict for ``claim``; empty if they can.
+
+    Figures (numbers, units, dates, qualifiers) must be in the quotes themselves. Names must be in
+    the cited ``passages``: quotes rarely repeat the claim's subject (17 of 20 labelled SUPPORTED
+    records would fail a quote-level names rule; 0 of 45 fail the passage-level one).
+    """
     evidence = " ".join(quotes)
     problems = []
     claim_quantities, evidence_quantities = quantities(claim), quantities(evidence)
@@ -213,4 +249,58 @@ def support_problems(claim: str, quotes: list[str]) -> list[GuardRejectionReason
         if _number(match["num"]) in claim_numbers and match["q"].casefold() not in claim_cf:
             problems.append(GuardRejectionReason.MISSING_QUALIFIER)
             break
+    if passages is not None:
+        context = " ".join(passages)
+        if any(not re.search(rf"(?<!\w){re.escape(name)}(?!\w)", context) for name in names(claim)):
+            problems.append(GuardRejectionReason.UNSUPPORTED_NAME)
     return problems
+
+
+def full_dates(text: str) -> set[tuple[str, tuple[str, ...]]]:
+    """(month, the day/year numbers next to it) for each date, so "2 April" and "16 April" differ."""
+    found = set()
+    for match in _DATE.finditer(text):
+        numbers = tuple(_number(n) for n in re.findall(r"\d[\d,.]*", match.group(0)))
+        if numbers:
+            found.add((match.group(1).casefold()[:3], numbers))
+    return found
+
+
+def _typed_quantities(text: str) -> set[tuple[str, str | None]]:
+    return {q for q in quantities(text) if q[1] is not None}
+
+
+def _topic(text: str) -> set[str]:
+    return {t for t in tokenize(text) if not any(ch.isdigit() for ch in t)}
+
+
+def conflicting_passage(claim: str, passages: Sequence[EvidencePassage]) -> EvidencePassage | None:
+    """A retrieved passage that disagrees with another document about the claim's figure, or None.
+
+    A conflict needs all of: a passage containing every figure of the claim (numbers with a unit
+    or currency, and whole dates); and a passage from a *different* document with a sentence
+    that gives another value of the same kind (same unit, or a date in the same month) and shares
+    at least CONFLICT_TOPIC_OVERLAP of the claim's topic words. Which document is authoritative is
+    not known to the engine, so a conflict always goes to a person (CONTRACTS.md).
+    Names that conflict ("Ana Ribeiro" vs "Marta Costa") are not detected.
+    """
+    claim_quantities, claim_dates = _typed_quantities(claim), full_dates(claim)
+    if not claim_quantities and not claim_dates:
+        return None
+    backing = [p for p in passages if claim_quantities <= _typed_quantities(p.text) and claim_dates <= full_dates(p.text)]
+    if not backing:
+        return None
+    backing_docs = {p.doc_id for p in backing}
+    units, months, topic = {u for _, u in claim_quantities}, {m for m, _ in claim_dates}, _topic(claim)
+    if not topic:
+        return None
+    for passage in passages:
+        if passage.doc_id in backing_docs:
+            continue
+        for sentence in _SENTENCE.findall(passage.text):
+            other = ({q for q in _typed_quantities(sentence) if q[1] in units} - claim_quantities) or (
+                {d for d in full_dates(sentence) if d[0] in months} - claim_dates
+            )
+            if other and len(topic & _topic(sentence)) / len(topic) >= CONFLICT_TOPIC_OVERLAP:
+                return passage
+    return None

@@ -68,12 +68,26 @@
     },
     "Claim": {
       "additionalProperties": false,
-      "description": "One atomic, checkable statement extracted from the content.\n\n``text`` is the claim as the verifier sees it and may be reworded to stand alone.\n``source_span`` locates the words it came from in ``InputContent.text``.",
+      "description": "One atomic, checkable statement extracted from the content.\n\n``text`` is exactly the content at ``source_span`` (``content[start:end] == text``; the\nlengths are checked here, the characters by ``scope.check_report_scope``, which has the\ncontent). ``normalized_text`` is the claim reworded to stand alone, when the extractor\nreworded it; it never adds facts (extraction.rewrite_problems). ``statement`` is what\nretrieval, the verifier and the corrector work on.",
       "properties": {
         "claim_id": {
           "pattern": "^clm_[A-Za-z0-9_-]{1,64}$",
           "title": "Claim Id",
           "type": "string"
+        },
+        "normalized_text": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalized Text"
         },
         "source_span": {
           "$ref": "#/$defs/SourceSpan"
@@ -311,6 +325,7 @@
         "unsupported_addition",
         "not_minimal",
         "drops_qualifier",
+        "drops_unit",
         "recheck_not_supported",
         "recheck_unavailable",
         "invalid_correction"
@@ -332,8 +347,8 @@
       "description": "What produced a report, so results can be reproduced and compared across versions.",
       "properties": {
         "contract_version": {
-          "const": "0.1.0",
-          "default": "0.1.0",
+          "const": "0.2.0",
+          "default": "0.2.0",
           "title": "Contract Version",
           "type": "string"
         },
@@ -464,6 +479,19 @@
           "title": "Passage Id",
           "type": "string"
         },
+        "reference_set_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Set Id"
+        },
         "retrieval": {
           "$ref": "#/$defs/RetrievalProvenance"
         },
@@ -509,7 +537,9 @@
         "partial_quote_drops_negation",
         "unsupported_quantity",
         "unsupported_date",
-        "missing_qualifier"
+        "missing_qualifier",
+        "unsupported_name",
+        "conflicting_evidence"
       ],
       "title": "GuardRejectionReason",
       "type": "string"
@@ -769,7 +799,8 @@
         "processing_errors",
         "citations_rejected",
         "corrections_need_review",
-        "weak_evidence"
+        "weak_evidence",
+        "conflicting_evidence"
       ],
       "title": "ReviewReason",
       "type": "string"
@@ -822,8 +853,8 @@
       "type": "string"
     },
     "contract_version": {
-      "const": "0.1.0",
-      "default": "0.1.0",
+      "const": "0.2.0",
+      "default": "0.2.0",
       "title": "Contract Version",
       "type": "string"
     },

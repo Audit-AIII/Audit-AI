@@ -33,7 +33,11 @@ def result_violations(request: VerificationRequest, result: ClaimResult) -> list
     found = []
     if not result.claim.source_span.fits(len(content)):
         found.append(f"{claim_id}: source_span is outside this request's content")
+    elif result.claim.source_span.slice(content) != result.claim.text:
+        found.append(f"{claim_id}: text is not the content at its source_span")
     for passage in result.evidence:
+        if passage.reference_set_id is not None and passage.reference_set_id != request.reference_set_id:
+            found.append(f"{claim_id}: passage {passage.passage_id} is from another reference set")
         document = documents.get(passage.doc_id)
         if document is None or not passage.matches(document):
             found.append(f"{claim_id}: passage {passage.passage_id} is not from this request's documents")

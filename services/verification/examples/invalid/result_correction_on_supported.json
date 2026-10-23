@@ -1,11 +1,12 @@
 {
   "claim": {
     "claim_id": "clm_0002",
-    "text": "The Lumen Bottle is made from 90% recycled steel.",
+    "text": "It is made from 90% recycled steel.",
     "source_span": {
       "start": 55,
       "end": 90
-    }
+    },
+    "normalized_text": "The Lumen Bottle is made from 90% recycled steel."
   },
   "verdict": "SUPPORTED",
   "evidence": [

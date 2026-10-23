@@ -126,7 +126,9 @@ def check_candidates(cases: Sequence[CorrectionCase]) -> CheckerReport:
     for case in cases:
         quotes = [g.quote for g in case.evidence]
         for candidate in case.candidates:
-            issues = correction_issues(candidate.original_text, candidate.replacement_text, quotes)
+            at = case.sentence.find(candidate.original_text)
+            before, after = (case.sentence[:at], case.sentence[at + len(candidate.original_text):]) if at >= 0 else ("", "")
+            issues = correction_issues(candidate.original_text, candidate.replacement_text, quotes, before, after)
             outcomes.append(
                 CandidateOutcome(
                     case_id=case.case_id,

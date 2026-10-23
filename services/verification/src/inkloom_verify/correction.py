@@ -30,6 +30,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from inkloom_verify.citation_guard import full_dates, quantities
 from inkloom_verify.extraction import QUALIFIERS, describe_validation_error, locate
 from inkloom_verify.prompts import correction as prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
@@ -89,8 +90,13 @@ def minimality_limit(original_words: int) -> int:
     return max(MIN_EDIT_BOUND, math.ceil(original_words / 2))
 
 
-def correction_issues(original: str, replacement: str, quotes: list[str]) -> list[CorrectionIssue]:
-    """Deterministic checks on one proposed replacement. Empty means it may be offered."""
+def correction_issues(
+    original: str, replacement: str, quotes: list[str], before: str = "", after: str = ""
+) -> list[CorrectionIssue]:
+    """Deterministic checks on one proposed replacement. Empty means it may be offered.
+
+    ``before`` and ``after`` are the claim's text around ``original``. Figures are compared in that
+    context, because a unit or currency often sits outside the replaced words ("€" + "99")."""
     if not replacement.strip() or " ".join(replacement.split()) == " ".join(original.split()):
         return [CorrectionIssue(code=CorrectionIssueCode.NO_CHANGE)]
     issues = []
@@ -98,13 +104,25 @@ def correction_issues(original: str, replacement: str, quotes: list[str]) -> lis
     added = sorted(set(words(replacement)) - set(words(original)) - NEUTRAL_WORDS - evidence)
     evidence_symbols = set(_SYMBOL.findall(" ".join(quotes)))
     symbols = sorted(set(_SYMBOL.findall(replacement)) - set(_SYMBOL.findall(original)) - evidence_symbols)
-    if added or symbols:
+    old_text, new_text = before + original + after, before + replacement + after
+    old_figures, new_figures, evidence_figures = quantities(old_text), quantities(new_text), quantities(" ".join(quotes))
+    # A new figure with a unit must appear in the evidence with that unit: "36" there may be hours.
+    mispaired = sorted(f"{n} {u}" for n, u in new_figures - old_figures if u is not None and (n, u) not in evidence_figures)
+    # A new whole date must be a whole date of the evidence, not a year borrowed from elsewhere.
+    new_dates = full_dates(new_text) - full_dates(old_text) - full_dates(" ".join(quotes))
+    unpaired = mispaired + sorted(f"{d[1]} {d[0]}" for d in new_dates)
+    if added or symbols or unpaired:
         issues.append(
             CorrectionIssue(
                 code=CorrectionIssueCode.UNSUPPORTED_ADDITION,
-                detail=("adds, without evidence: " + ", ".join(added + symbols))[:300],
+                detail=("adds, without evidence: " + ", ".join(added + symbols + unpaired))[:300],
             )
         )
+    old_units = sorted(u for _, u in old_figures if u is not None)
+    new_units = [u for _, u in new_figures if u is not None]
+    dropped_units = sorted(set(u for u in old_units if old_units.count(u) > new_units.count(u)))
+    if dropped_units:
+        issues.append(CorrectionIssue(code=CorrectionIssueCode.DROPS_UNIT, detail=("drops: " + ", ".join(dropped_units))[:300]))
     evidence_text, original_cf, replacement_cf = " ".join(quotes).casefold(), original.casefold(), replacement.casefold()
     kept_by_evidence = [q for q in QUALIFIERS if _has_phrase(q, original_cf) and _has_phrase(q, evidence_text)]
     dropped = [q for q in kept_by_evidence if not _has_phrase(q, replacement_cf)]
@@ -164,7 +182,7 @@ class ClaimCorrector:
         labels = {f"C{i}": c for i, c in enumerate(result.citations, start=1)}
         request = JsonCompletionRequest(
             system=prompt.SYSTEM_PROMPT,
-            user=prompt.user_message(sentence, claim.text, [(label, c.quote) for label, c in labels.items()]),
+            user=prompt.user_message(sentence, claim.statement, [(label, c.quote) for label, c in labels.items()]),
             schema_name="claim_correction",
             json_schema=prompt.OUTPUT_SCHEMA,
             max_output_tokens=self.config.max_output_tokens,
@@ -200,7 +218,9 @@ class ClaimCorrector:
         target = SourceSpan(start=claim.source_span.start + located[0], end=claim.source_span.start + located[1])
         original = target.slice(content.text)
         replacement = output.replacement_text.strip()
-        issues = correction_issues(original, replacement, [c.quote for c in cited])
+        issues = correction_issues(
+            original, replacement, [c.quote for c in cited], before=sentence[: located[0]], after=sentence[located[1] :]
+        )
         if issues:
             return _review(result, issues)
         try:
@@ -223,15 +243,18 @@ class ClaimCorrector:
         """Verifies the corrected claim against the same evidence. Only SUPPORTED lets it stand."""
         assert self.verifier is not None
         claim = result.claim
-        if original in claim.text:
-            corrected = claim.text.replace(original, replacement, 1)
+        if original in claim.statement:
+            corrected = claim.statement.replace(original, replacement, 1)
         else:
             corrected = sentence[: located[0]] + replacement + sentence[located[1] :]
         if len(corrected) > MAX_CLAIM_CHARS:
             return None, CorrectionIssue(code=CorrectionIssueCode.RECHECK_UNAVAILABLE, detail="corrected claim too long")
         checked = self.verifier.verify(
             ClaimVerificationInput(
-                claim=Claim(claim_id=claim.claim_id, text=corrected, source_span=claim.source_span),
+                claim=Claim(
+                    claim_id=claim.claim_id, text=claim.text, source_span=claim.source_span,
+                    normalized_text=corrected if corrected != claim.text else None,
+                ),
                 passages=result.evidence,
             )
         )
