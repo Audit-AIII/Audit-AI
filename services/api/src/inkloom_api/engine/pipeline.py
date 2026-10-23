@@ -249,8 +249,13 @@ def claim_level_correction(text: str, claim: Claim, correction: Correction | Non
 
 
 def _make_external_call_logger(db: Session, review: Review, organisation_id: uuid.UUID):
+    return external_call_logger(db, organisation_id, review.request_id or "", review_id=review.id)
+
+
+def external_call_logger(db: Session, organisation_id: uuid.UUID, request_id: str, review_id: uuid.UUID | None = None):
     """Phase 5 task 9: every external call, logged with provider/model/latency/error code
-    only — never prompt or reply content, never credentials, never a raw provider error."""
+    only — never prompt or reply content, never credentials, never a raw provider error. Also
+    used by the Trust Scorecard's evaluation runs (review_id None, request_id "eval-<run id>")."""
 
     def on_attempt(*, provider: str, model: str | None, status: str, latency_ms: int, error_code: str | None) -> None:
         call_status = (
@@ -261,10 +266,10 @@ def _make_external_call_logger(db: Session, review: Review, organisation_id: uui
         db.add(
             ExternalCallLog(
                 organisation_id=organisation_id,
-                review_id=review.id,
+                review_id=review_id,
                 provider=provider,
                 model_id=model,
-                request_id=review.request_id or "",
+                request_id=request_id,
                 status=call_status.value,
                 latency_ms=latency_ms,
                 error_code=error_code,

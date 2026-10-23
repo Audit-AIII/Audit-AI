@@ -118,6 +118,14 @@ class ApprovalAction(str, Enum):
     CHANGES_REQUESTED = "changes_requested"
 
 
+class EvaluationRunStatus(str, Enum):
+    """`evaluation_runs.status` (migration 0009). PARTIAL: some claims got no verdict (a provider
+    failure or the run's call budget) - they count as "not flagged" and the note says so."""
+
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+
+
 class ExternalCallStatus(str, Enum):
     SUCCESS = "success"
     ERROR = "error"

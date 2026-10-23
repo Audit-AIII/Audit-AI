@@ -17,7 +17,7 @@ from .config import get_settings  # noqa: E402
 from .db import get_db  # noqa: E402
 from .errors import install_error_handlers  # noqa: E402
 from .logging import RequestIdMiddleware, configure_logging  # noqa: E402
-from .routers import analytics, auth, brands, content, content_versions, reviews  # noqa: E402
+from .routers import analytics, auth, brands, content, content_versions, evaluations, reviews  # noqa: E402
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -38,6 +38,7 @@ app.include_router(reviews.router)
 app.include_router(content.router)
 app.include_router(content_versions.router)
 app.include_router(analytics.router)
+app.include_router(evaluations.router)
 
 
 @app.get("/health")
