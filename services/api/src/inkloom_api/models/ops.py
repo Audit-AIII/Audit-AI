@@ -30,7 +30,9 @@ class ExternalCallLog(Base):
     organisation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    review_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("reviews.id"))
+    review_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("reviews.id", ondelete="SET NULL")
+    )
     provider: Mapped[str] = mapped_column(String(100), nullable=False)
     model_id: Mapped[str | None] = mapped_column(String(100))
     request_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
@@ -70,7 +72,9 @@ class ResultCache(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     cache_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
-    review_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("reviews.id"))
+    review_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("reviews.id", ondelete="SET NULL")
+    )
     report: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = created_at_column()
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

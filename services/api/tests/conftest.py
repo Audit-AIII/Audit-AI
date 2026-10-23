@@ -72,3 +72,15 @@ _PROVIDER_ENV_VARS = (
 def force_stub_mode(monkeypatch):
     for name in _PROVIDER_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Phase 5 task 7's rate limiter is in-memory, global, fixed-window state - without this,
+    the many tests that call POST /api/reviews would share counters and flake once enough of
+    them land inside the same window, unrelated to what any individual test is checking."""
+    from inkloom_api.rate_limit import reset_rate_limits
+
+    reset_rate_limits()
+    yield
+    reset_rate_limits()

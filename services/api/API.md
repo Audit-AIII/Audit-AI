@@ -5,16 +5,14 @@ need to put in to make it work**. Then it documents every route.
 
 ## Will it work right now?
 
-**No — three things are missing, in order:**
-
-| # | What's missing | Without it |
-|---|---|---|
-| 1 | `services/api/.env` doesn't exist yet (only `.env.example`) | The app won't even start: `DATABASE_URL` is a required setting with no default. |
-| 2 | Docker/Postgres isn't confirmed running on this machine | `alembic upgrade head` and every DB-backed route fail to connect. |
-| 3 | `OPENROUTER_API_KEY` / `INKLOOM_LLM_MODELS` aren't set | The app **does** start and `POST /api/reviews` **does** return `201`, but every review gets one fixed placeholder finding instead of a real one — see "Stub mode" below. This is a safe fallback, not a crash. |
-
-Fix #1 and #2 and the server runs with real tenancy/auth/storage. Fix #3 on top of that and you
-get real AI-verified findings. Do all three in the order below.
+**Yes** — verified against a real Postgres database, 84 tests pass in one command (see
+`README.md`, "Test"), and `scripts/seed.py` / `scripts/smoke_test.py` have both been run live
+against it. The one thing not currently working in this environment's own `.env`: no configured
+LLM provider (Gemini/Groq/OpenRouter/Ollama) is actually reachable right now — free-tier model
+ids go stale (see `member3_backend/STATUS.md`, "What's left from you"). Without a working
+provider, `POST /api/reviews` still returns `201` and completes, but every review gets one
+fixed placeholder finding instead of a real one — see "Stub mode" below. **This is a safe
+fallback, not a crash** — set up from scratch below if you don't already have `.env` in place.
 
 ## Setup, start to finish
 
@@ -66,46 +64,22 @@ python -m venv .venv
 .venv/Scripts/python -m alembic upgrade head
 ```
 
-### 4. Create a user to log in as
-
-There's no seed script yet (that's Phase 8). Run this once, with the same `.env` in place:
+### 4. Seed a demo user and brand to log in as
 
 ```sh
 cd services/api
-.venv/Scripts/python -c "
-from inkloom_api.db import get_session_factory
-from inkloom_api.auth.security import hash_password
-from inkloom_api.models import Organisation, User, Membership, BrandProfile, BrandSource, SourceVersion
-from inkloom_api.statuses import BrandSourceStatus
-import hashlib
-
-db = get_session_factory()()
-org = Organisation(name='Acme Corp', slug='acme')
-user = User(email='you@example.com', password_hash=hash_password('change-me'))
-db.add_all([org, user]); db.flush()
-db.add(Membership(organisation_id=org.id, user_id=user.id, role='admin', is_active=True))
-
-brand = BrandProfile(organisation_id=org.id, name='Acme Brand')
-db.add(brand); db.flush()
-source = BrandSource(brand_profile_id=brand.id, title='Product spec', status=BrandSourceStatus.APPROVED.value)
-db.add(source); db.flush()
-text = 'The Lumen Bottle keeps drinks cold for up to 24 hours. Body: 18/8 stainless steel with 70% recycled content.'
-db.add(SourceVersion(brand_source_id=source.id, version_number=1, text=text,
-                      text_sha256=hashlib.sha256(text.encode('utf-8')).hexdigest()))
-db.commit()
-print('organisation_id:', org.id)
-print('brand_id:', brand.id)
-print('login: you@example.com / change-me')
-"
+.venv/Scripts/python scripts/seed.py
 ```
 
-Keep the two printed ids — you'll need `brand_id` for step 6. **Role must be one of:**
-`submitter`, `source_manager`, `reviewer`, `approver`, `admin` (`admin` can do everything, see
-"Roles and permissions" below) — use `admin` for yourself while testing.
-
-A review needs at least one **approved** `BrandSource` with a `SourceVersion` to check content
-against — that's what the `source`/`SourceVersion` lines above create. Without one, every review
-for that brand comes back `failed` (by design — see "What `POST /api/reviews` can return" below).
+Creates a demo organisation, a brand with two **approved** sources (a review needs at least one
+to check content against — without one, every review for that brand comes back `failed` by
+design, see "What `POST /api/reviews` can return" below), and five users, one per role (all
+share one password, printed at the end). It also prints a `BRAND_ID` — keep it, you'll need it
+for step 6. Idempotent: safe to re-run, no-ops if the demo org already exists (delete it first,
+cascades, to reseed from scratch). See `services/api/README.md`, "Seed demo data", for what else
+it creates. **Role must be one of:** `submitter`, `source_manager`, `reviewer`, `approver`,
+`admin` (`admin` can do everything, see "Roles and permissions" below) — use the seeded admin
+login while testing.
 
 ### 5. Run the server
 
@@ -122,14 +96,14 @@ Interactive API docs are auto-published at `http://localhost:8000/docs` (Swagger
 ### 6. Log in, then submit a review
 
 ```sh
-# Login
+# Login (seeded admin - see step 4; password is whatever scripts/seed.py printed)
 curl -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "you@example.com", "password": "change-me"}'
+  -d '{"email": "admin@seed.inkloom.demo", "password": "<seed.py's printed password>"}'
 # -> copy "access_token" from the response
 
 TOKEN="<paste access_token here>"
-BRAND_ID="<paste brand_id from step 4 here>"
+BRAND_ID="<paste BRAND_ID from step 4 here>"
 
 curl -X POST http://localhost:8000/api/reviews \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
@@ -295,13 +269,15 @@ Phase 4+ (managing sources, approving content versions).
 
 ## Known gaps (don't be surprised by these)
 
-- **No seed script yet** — step 4 above is the manual workaround until Phase 8.
-- **Not verified against a live database in this environment** — Docker hasn't been confirmed
-  running where this was built. Every claim above has been checked by reading the code and by
-  running what's runnable without a DB (imports, route registration, the `.env`→`os.environ`
-  fix, offline SQL generation, 18 DB-free unit tests). Run
-  `DATABASE_URL=... AUTH_SECRET_KEY=... .venv/Scripts/python -m pytest` once Postgres is up to
-  confirm the rest for real.
+- **This route reference describes Phases 1-3 only** — Phases 4-7 added routes (brand source
+  upload/approve/withdraw/new-version, content new-version/history, content-version approve/
+  request-changes, review rerun) that aren't documented in "Full route reference" below yet.
+  See `services/api/README.md`'s architecture table and `member3_backend/STATUS.md` for what
+  those actually do until this file catches up.
+- **`ReviewOut` never exposes `content_item_id`**, only `content_version_id` - a real gap found
+  while building `scripts/smoke_test.py` (Phase 8). Creating a new content version needs the
+  item id; nothing in this flow's responses carries it today. See `README.md`'s "Known
+  limitations".
 - **No organisation switcher**, **no polling** (synchronous only), **no background jobs** —
   all explicit, confirmed simplifications for this phase, not oversights. See
   `services/api/README.md`'s "Open decisions" for the full list and the reasoning behind each.

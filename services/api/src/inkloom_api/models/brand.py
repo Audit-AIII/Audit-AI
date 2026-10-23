@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..statuses import BrandSourceSensitivity, BrandSourceStatus, SourceFileType, values
@@ -84,6 +84,10 @@ class SourceVersion(Base):
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Phase 7 task 4: every section's hash (section_diff.py), computed at creation time. Used to
+    # diff this version against the next one uploaded, so only dependents whose *cited* section
+    # actually changed get flipped to source_changed - not every dependent of the source.
+    section_hashes: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = created_at_column()
 

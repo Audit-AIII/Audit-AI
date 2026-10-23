@@ -37,10 +37,15 @@ class RequestChangesBody(BaseModel):
 
 
 def _latest_review_or_404(db: Session, content_version_id: uuid.UUID) -> Review:
+    """Locks the row (`FOR UPDATE`) so two concurrent decisions on the same review serialize:
+    the second transaction blocks here until the first commits, then re-reads the now-updated
+    status and is correctly rejected by `ensure_decidable` instead of racing it and writing a
+    second, contradictory `ApprovalEvent`."""
     review = (
         db.query(Review)
         .filter_by(content_version_id=content_version_id)
         .order_by(Review.created_at.desc())
+        .with_for_update()
         .first()
     )
     if review is None:

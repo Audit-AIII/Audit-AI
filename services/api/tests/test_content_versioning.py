@@ -104,6 +104,22 @@ def test_reviewer_cannot_approve_but_can_request_changes(client, force_stub_mode
     assert denied.status_code == 403
     assert denied.json()["error"]["code"] == "FORBIDDEN"
 
+    from inkloom_api.db import get_session_factory
+    from inkloom_api.models import AuditEvent
+
+    db = get_session_factory()()
+    denied_audit_events = (
+        db.query(AuditEvent)
+        .filter_by(entity_type="content_version", entity_id=content_version_id)
+        .all()
+    )
+    db.close()
+    # A permission denial is stopped by auth before any state change is attempted, so it is not
+    # itself audited - only actual decisions (below) are. Pinned here so this is a documented,
+    # tested choice rather than the open question STATUS.md flagged ("have not specifically
+    # verified an audit event is (or isn't) written on a rejected approval attempt").
+    assert denied_audit_events == []
+
     allowed = client.post(
         f"/api/content-versions/{content_version_id}/request-changes",
         json={"decision": "changes_requested", "note": "fix the terminology"},
@@ -113,6 +129,16 @@ def test_reviewer_cannot_approve_but_can_request_changes(client, force_stub_mode
     body = allowed.json()
     assert body["action"] == "changes_requested"
     assert body["note"] == "fix the terminology"
+
+    db = get_session_factory()()
+    recorded_audit_events = (
+        db.query(AuditEvent)
+        .filter_by(entity_type="content_version", entity_id=content_version_id)
+        .all()
+    )
+    db.close()
+    assert len(recorded_audit_events) == 1  # the actual decision IS audited
+    assert recorded_audit_events[0].event_type == "content_version.changes_requested"
 
 
 @requires_db
@@ -226,6 +252,104 @@ def test_concurrent_decisions_second_one_is_rejected_not_corrupting_state(
     db.close()
     assert len(events) == 1  # only the first decision was recorded
     assert events[0].action == "approved"
+
+
+@requires_db
+def test_truly_concurrent_decisions_the_db_lock_serializes_them(
+    client, force_stub_mode, fixture: Fixture
+) -> None:
+    """The sequential test above proves the *second* request is rejected once the *first* has
+    already committed - it never actually overlaps two transactions, so a plain
+    `threading.Barrier` before both reads is not enough: Python's GIL plus a sub-millisecond
+    local round trip means the first thread can easily finish its entire commit before the
+    second thread's SELECT ever runs, with or without a lock, and the test would pass for the
+    wrong reason either way. Instead this pins the timing explicitly with events: thread A's
+    SELECT is proven done and its transaction still open (it is parked, pre-commit, on
+    `a_may_commit`) before thread B's SELECT ... FOR UPDATE even starts - that SELECT is
+    content_versions.py's `_latest_review_or_404`, which real `POST .../approve` and
+    `POST .../request-changes` both call. If the lock in `_latest_review_or_404` is doing its
+    job, B's SELECT has to block until A commits and then correctly sees the new status; if it
+    isn't, B sails through on the stale pre-decision status and writes a second, contradictory
+    decision - which is exactly the bug this guards against."""
+    import threading
+    import time
+
+    from inkloom_api.approval_rules import InvalidReviewTransitionError, ensure_decidable
+    from inkloom_api.approval_service import check_approve_guards, record_decision
+    from inkloom_api.db import get_session_factory
+    from inkloom_api.models import ApprovalEvent, AuditEvent, ContentVersion
+    from inkloom_api.routers.content_versions import _latest_review_or_404
+    from inkloom_api.statuses import ApprovalAction
+
+    admin_token = _login(client, fixture.admin.email)
+    review = _submit(client, admin_token, fixture.brand.id)
+    content_version_id = uuid.UUID(review["content_version_id"])
+
+    session_factory = get_session_factory()
+    a_has_selected = threading.Event()  # A's SELECT returned; its transaction is still open
+    b_about_to_select = threading.Event()  # B is entering its own SELECT (may block there)
+    a_may_commit = threading.Event()  # main thread's go-ahead for A to finish and commit
+    results: dict[str, tuple[str, str | None]] = {}
+
+    def decide(action: ApprovalAction, name: str) -> None:
+        db = session_factory()
+        try:
+            if name == "B":
+                assert a_has_selected.wait(timeout=5)  # don't even try until A's row is locked
+                b_about_to_select.set()
+            locked_review = _latest_review_or_404(db, content_version_id)
+            if name == "A":
+                a_has_selected.set()
+                assert a_may_commit.wait(timeout=5)  # hold the open transaction open on purpose
+            content_version = db.get(ContentVersion, content_version_id)
+            try:
+                # Mirrors the two routes exactly: approve runs the full guard set,
+                # request-changes/reject only checks decidability.
+                if action is ApprovalAction.APPROVED:
+                    check_approve_guards(db, locked_review, content_version.content_item_id)
+                else:
+                    ensure_decidable(locked_review.status)
+                event = record_decision(
+                    db, locked_review, content_version, fixture.org.id, fixture.admin.id, action, None
+                )
+                db.commit()
+                results[name] = ("ok", event.action)
+            except InvalidReviewTransitionError:
+                db.rollback()
+                results[name] = ("conflict", None)
+        finally:
+            db.close()
+
+    t1 = threading.Thread(target=decide, args=(ApprovalAction.APPROVED, "A"))
+    t2 = threading.Thread(target=decide, args=(ApprovalAction.REJECTED, "B"))
+    t1.start()
+    t2.start()
+    assert b_about_to_select.wait(timeout=5)  # B is now calling _latest_review_or_404
+    time.sleep(0.3)  # give an unlocked SELECT plenty of time to return (it would, in well under this)
+    a_may_commit.set()  # only now let A proceed to commit - too late to rescue a buggy unlocked read
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+
+    # Whichever side ends up "ok" is irrelevant here - what's pinned by the events above is that
+    # B's SELECT is attempted strictly before A commits. Only the *property* matters: exactly one
+    # decision sticks, the other is a safe conflict, never both-ok (a lost update).
+    oks = [v for v in results.values() if v[0] == "ok"]
+    conflicts = [v for v in results.values() if v[0] == "conflict"]
+    assert len(oks) == 1 and len(conflicts) == 1, results
+    winning_action = oks[0][1]
+
+    db = session_factory()
+    events = db.query(ApprovalEvent).filter_by(content_version_id=content_version_id).all()
+    audit_events = (
+        db.query(AuditEvent)
+        .filter_by(entity_type="content_version", entity_id=str(content_version_id))
+        .all()
+    )
+    db.close()
+    assert len(events) == 1  # the loser never wrote a second ApprovalEvent
+    assert events[0].action == winning_action
+    assert len(audit_events) == 1  # and never a second, contradictory audit row either
+    assert audit_events[0].event_type == f"content_version.{winning_action}"
 
 
 @requires_db

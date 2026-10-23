@@ -133,6 +133,7 @@ class ReviewOut(BaseModel):
     report_status: str | None
     engine: EngineInfoOut | None
     error_summary: str | None
+    served_from_cache: bool
     started_at: datetime | None
     completed_at: datetime | None
     created_at: datetime
@@ -158,6 +159,7 @@ class ReviewOut(BaseModel):
             report_status=review.report_status,
             engine=engine,
             error_summary=review.error_summary,
+            served_from_cache=review.served_from_cache,
             started_at=review.started_at,
             completed_at=review.completed_at,
             created_at=review.created_at,
@@ -217,3 +219,23 @@ class ContentHistoryOut(BaseModel):
     content_item_id: uuid.UUID
     title: str
     versions: list[ContentVersionHistoryOut]
+
+
+# --- Phase 7: source lifecycle / InkWatch --------------------------------------------------
+
+
+class FlippedDependentOut(BaseModel):
+    content_version_id: uuid.UUID
+    review_id: uuid.UUID
+
+
+class WithdrawSourceResponse(BaseModel):
+    source: BrandSourceOut
+    reason: str
+    flipped: list[FlippedDependentOut]
+
+
+class NewSourceVersionResponse(BaseModel):
+    source: BrandSourceOut
+    version_number: int
+    flipped: list[FlippedDependentOut]

@@ -36,6 +36,9 @@ class Review(Base):
     request_id: Mapped[str | None] = mapped_column(String(128), index=True)
     report_status: Mapped[str | None] = mapped_column(String(20))  # engine ReportStatus, once received
     error_summary: Mapped[str | None] = mapped_column(Text)  # safe message only; never raw provider errors
+    # Phase 5 task 5: true when this review's findings were replayed from result_cache rather
+    # than actually sent to any provider.
+    served_from_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_at_column()
@@ -91,12 +94,23 @@ class EvidenceLink(Base):
     finding_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True
     )
-    source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("brand_sources.id"))
+    # SET NULL, not CASCADE: a brand_source is never hard-deleted by the app today (withdraw only
+    # changes its status - Phase 7), but if it ever were, the evidence record itself should
+    # survive for audit purposes with a now-dangling reference cleared, not vanish with it.
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("brand_sources.id", ondelete="SET NULL")
+    )
     source_version_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("source_versions.id")
+        UUID(as_uuid=True), ForeignKey("source_versions.id", ondelete="SET NULL")
     )
     quote: Mapped[str] = mapped_column(Text, nullable=False)
     relation: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Phase 7 task 4: the hash of the section (section_diff.py) this citation's quote_span fell
+    # inside, at the time the citation was made. Nullable: rows written before this column
+    # existed, or a citation whose span didn't cleanly fall in one section, have no value, and
+    # are simply never auto-flipped by the section-diff path (the manual withdraw still covers
+    # them, since it flips every dependent unconditionally).
+    cited_section_hash: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = created_at_column()
 
     finding: Mapped[Finding] = relationship(back_populates="evidence")

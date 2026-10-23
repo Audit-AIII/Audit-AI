@@ -27,6 +27,8 @@ from inkloom_verify.verification import ClaimVerifier, verify_claim
 from sqlalchemy.orm import Session
 
 from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, Finding, Review
+from ..result_cache import compute_cache_key, get_cached_report, materialize_cached_report, serialize_review_outcome, store_report
+from ..section_diff import section_hash_for_span
 from ..statuses import CheckType, EvidenceRelation, ExternalCallStatus, ReviewState, Severity, VerificationStatus
 from .corpus import CorpusEntry, build_corpus, corpus_lookup  # noqa: F401 (build_corpus re-exported for routers)
 from .evidence_validator import EvidenceIntegrityError, validate_all
@@ -68,7 +70,10 @@ _RELATION_FOR_VERDICT = {
 }
 
 
-def run_review(db: Session, review: Review, content_version: ContentVersion, corpus: list[CorpusEntry]) -> None:
+def run_review(
+    db: Session, review: Review, content_version: ContentVersion, corpus: list[CorpusEntry],
+    confidential: bool = False,
+) -> None:
     """Mutates `review` and adds `Finding`/`EvidenceLink` rows to `db`. Caller commits."""
     review.status = ReviewState.ANALYSING.value
     review.started_at = datetime.now(timezone.utc)
@@ -78,10 +83,25 @@ def run_review(db: Session, review: Review, content_version: ContentVersion, cor
         return
 
     organisation_id = content_version.content_item.organisation_id
-    provider = build_provider(on_attempt=_make_external_call_logger(db, review, organisation_id))
+
+    # Phase 5 task 5: a cache hit never touches a provider at all - zero external_call_log
+    # rows, and (combined with task 8 below) a confidential source cached from an earlier
+    # Ollama-only run stays confidential; nothing here re-routes it to the cloud.
+    cache_key = compute_cache_key(organisation_id, content_version, corpus)
+    cached = get_cached_report(db, cache_key)
+    if cached is not None:
+        materialize_cached_report(db, review, cached)
+        needs_review = any(f["requires_human_review"] for f in cached["findings"])
+        _finish(review, ReviewState.NEEDS_HUMAN_REVIEW if needs_review else ReviewState.COMPLETED)
+        return
+
+    provider = build_provider(confidential=confidential, on_attempt=_make_external_call_logger(db, review, organisation_id))
     if not provider.configured_providers:
         review.engine_provider = "stub-unconfigured"
-        reason = f"none configured (tried: {', '.join(provider.unconfigured)})"
+        if confidential:
+            reason = "a confidential source is in scope, so only local Ollama was tried, and it is not configured (OLLAMA_MODEL unset)"
+        else:
+            reason = f"none configured (tried: {', '.join(provider.unconfigured)})"
         _write_stub_finding(db, review, content_version, reason)
         _finish(review, ReviewState.NEEDS_HUMAN_REVIEW)
         return
@@ -100,18 +120,33 @@ def run_review(db: Session, review: Review, content_version: ContentVersion, cor
         _finish(review, ReviewState.FAILED, message)
         return
 
-    retriever = BM25Retriever(documents)
-    verifier = ClaimVerifier(provider, documents)
+    try:
+        retriever = BM25Retriever(documents)
+        verifier = ClaimVerifier(provider, documents)
+    except Exception as error:  # e.g. RetrievalError/RetrievalLimitError on a malformed corpus
+        _finish(review, ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
+        return
 
     needs_human_review = bool(extraction.errors)  # a partial extraction still needs a human look
     for claim in extraction.claims:
-        # ClaimVerifier.verify() catches ProviderError itself and returns an ERROR-verdict
-        # ClaimResult instead of raising, so there is nothing to catch here.
-        result = verify_claim(claim, retriever, verifier)
+        try:
+            # ClaimVerifier.verify() already catches ProviderError itself and returns an
+            # ERROR-verdict ClaimResult rather than raising, so reaching the except below means
+            # something unexpected - a bug, or engine output malformed in a way its own guards
+            # missed (Phase 8 checklist: "invalid schema is rejected"). One bad claim must never
+            # crash the whole request or silently drop the claim.
+            result = verify_claim(claim, retriever, verifier)
+        except Exception as error:
+            needs_human_review = True
+            _write_unexpected_error_finding(db, review, content_version, claim, error)
+            continue
         needs_human_review = needs_human_review or result.verdict is not Verdict.SUPPORTED
         _write_finding(db, review, content_version, claim, result, lookup, organisation_id)
 
     _finish(review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED)
+    # Only a genuine completed analysis is cached - never a stub result or a provider/corpus
+    # failure (both returned early above, before reaching here).
+    store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
 
 
 def _make_external_call_logger(db: Session, review: Review, organisation_id: uuid.UUID):
@@ -159,6 +194,28 @@ def _write_stub_finding(db: Session, review: Review, content_version: ContentVer
             explanation=f"{STUB_EXPLANATION} Reason: {reason}" if reason else STUB_EXPLANATION,
             verification_status=VerificationStatus.UNVERIFIED.value,
             requires_human_review=True,
+        )
+    )
+
+
+def _write_unexpected_error_finding(
+    db: Session, review: Review, content_version: ContentVersion, claim: Claim, error: Exception
+) -> None:
+    db.add(
+        Finding(
+            review_id=review.id,
+            severity=Severity.MEDIUM.value,
+            original_text=claim.source_span.slice(content_version.text),
+            span_start=claim.source_span.start,
+            span_end=claim.source_span.end,
+            check_type=CheckType.RETRIEVAL.value,
+            explanation=(
+                f"Verification failed unexpectedly for this claim ({type(error).__name__}); "
+                "treated as unverified rather than trusted."
+            ),
+            verification_status=VerificationStatus.UNVERIFIED.value,
+            requires_human_review=True,
+            engine_claim_id=claim.claim_id,
         )
     )
 
@@ -215,6 +272,9 @@ def _write_finding(
                 source_version_id=entry.source_version_id,
                 quote=citation.quote,
                 relation=relation.value,
+                # Phase 7 task 4: which section this citation came from, so a future source
+                # version upload can tell whether that exact section survived unchanged.
+                cited_section_hash=section_hash_for_span(entry.document, citation.quote_span),
             )
         )
 

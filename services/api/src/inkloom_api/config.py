@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     # Phase 4: brand source uploads. Never a public/static path - see .gitignore ("var/").
     brand_source_storage_dir: str = "var/brand_sources"
     max_source_upload_bytes: int = 10 * 1024 * 1024  # 10 MB
+    # Phase 5 task 7: rate limits on review submissions. In-memory, single-process (documented
+    # limitation - a multi-worker deployment would need a shared store; out of scope here).
+    rate_limit_submissions_per_user: int = 20
+    rate_limit_submissions_per_organisation: int = 100
+    rate_limit_window_seconds: float = 60.0
 
     @property
     def cors_origins(self) -> list[str]:
