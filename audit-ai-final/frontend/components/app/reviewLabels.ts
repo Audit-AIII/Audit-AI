@@ -46,6 +46,10 @@ export function reviewHeadline(r: ReviewOut, stub: boolean) {
 
 export const isStub = (f: FindingOut) => f.category === "stub";
 
+/** Placeholder review: the stub finding, or the engine itself reporting a stub provider
+ * (live backend sends engine.provider "stub-unconfigured" when no AI service is set up). */
+export const isStubReview = (r: ReviewOut) => r.findings.some(isStub) || /^stub/i.test(r.engine?.provider ?? "");
+
 /** Text after the "[STUB OUTPUT]" marker, for showing the server's own reason. */
 export const stubReason = (f: FindingOut) => (f.explanation ?? "").replace(/^\[STUB OUTPUT\]\s*/, "");
 

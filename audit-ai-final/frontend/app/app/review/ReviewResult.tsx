@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
-import { checkName, isStub, reviewHeadline, severity, stubReason, verdict } from "@/components/app/reviewLabels";
+import { checkName, isStub, isStubReview, reviewHeadline, severity, stubReason, verdict } from "@/components/app/reviewLabels";
 import { ApiError, api } from "@/lib/api/client";
 import type { FindingOut, ReviewOut } from "@/lib/api/types";
 import { segment } from "@/lib/text/codepoints";
@@ -102,7 +102,7 @@ function ReviewView({
   selected: string | null;
   onSelect: (id: string) => void;
 }) {
-  const stub = review.findings.some(isStub);
+  const stub = isStubReview(review);
   const findings = useMemo(
     () => [...review.findings].sort((a, b) => (ORDER[a.verification_status] ?? 2) - (ORDER[b.verification_status] ?? 2)),
     [review.findings],

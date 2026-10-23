@@ -1,5 +1,5 @@
 // End-to-end check of the API wiring against a fake backend that returns the documented shapes
-// (services/api/API.md + schemas.py). Run with the dev server on :3100: node qa/api-e2e.mjs
+// (services/api/API.md + schemas.py). Run with the dev server on :3000: node qa/api-e2e.mjs
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 
@@ -60,7 +60,7 @@ const STUB = review(
       verification_status: "unverified", suggested_correction: null, requires_human_review: true, evidence: [],
     },
   ],
-  { engine: null },
+  { engine: { provider: "stub-unconfigured", model_id: null, prompt_version: null, contract_version: "0.1.0" } },
 );
 
 const b = await chromium.launch();
@@ -103,7 +103,7 @@ await p.route(`${API}/**`, async (route) => {
   return json(404, err("NOT_FOUND", "not found"));
 });
 
-const go = (u) => p.goto(`http://localhost:3100${u}`, { waitUntil: "networkidle" });
+const go = (u) => p.goto(`http://localhost:3000${u}`, { waitUntil: "networkidle" });
 const text = (sel) => p.locator(sel).first().innerText();
 
 // 1. Login: wrong password shows the plain error, right password signs in, /me fills the status bar
