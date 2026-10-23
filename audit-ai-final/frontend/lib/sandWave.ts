@@ -15,6 +15,14 @@ export type SandGo = {
 
 export const SAND_EVENT = "sandwave:go";
 
+/** True while a sand transition is running (set by SandWave). Lets pages skip their own
+ * redirects, e.g. the workspace must not bounce to /login while signing out goes to "/". */
+let transitioning = false;
+export const isSandTransitioning = () => transitioning;
+export const setSandTransitioning = (on: boolean) => {
+  transitioning = on;
+};
+
 export function sandNavigate(href: string, beforeNavigate?: () => void) {
   window.dispatchEvent(new CustomEvent<SandGo>(SAND_EVENT, { detail: { href, beforeNavigate } }));
 }

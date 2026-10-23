@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AccountNav } from "@/components/layout/AccountNav";
 import { ApiError, api } from "@/lib/api/client";
 import { getSession, signIn, useSession } from "@/lib/session";
+import { isSandTransitioning } from "@/lib/sandWave";
 import { STAGES } from "./stages";
 
 /**
@@ -21,7 +22,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
-    if (!getSession()) router.replace("/login");
+    // Not while a sand transition runs: signing out navigates to "/" under the sand.
+    if (!getSession() && !isSandTransitioning()) router.replace("/login");
   }, [session, router]);
 
   // Re-check the stored session with the server once per visit (a membership can be deactivated

@@ -3,7 +3,7 @@
 import { gsap } from "gsap";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { SAND_EVENT, areaOf, type SandGo } from "@/lib/sandWave";
+import { SAND_EVENT, areaOf, setSandTransitioning, type SandGo } from "@/lib/sandWave";
 
 /**
  * Page transition between the landing side and the workspace: a wall of sand with a curling
@@ -43,13 +43,27 @@ export function SandWave() {
   // Path we are heading to while the sand covers the screen (null when idle).
   const pending = useRef<string | null>(null);
   const busy = useRef(false);
+  // A navigation asked for while a wave is still running: started as soon as it finishes, so a
+  // quick click (e.g. "Workspace" right after signing up) is never swallowed.
+  const queued = useRef<SandGo | null>(null);
+  const goRef = useRef<(g: SandGo) => void>(() => {});
+  const finish = () => {
+    busy.current = false;
+    setSandTransitioning(false);
+    const next = queued.current;
+    queued.current = null;
+    if (next) goRef.current(next);
+  };
 
   // Start a transition: surge in, then navigate once covered.
   useEffect(() => {
     const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const go = ({ href, beforeNavigate }: SandGo) => {
-      if (busy.current) return;
+      if (busy.current) {
+        queued.current = { href, beforeNavigate };
+        return;
+      }
       const el = root.current;
       const w = wave.current;
       if (!el || !w || reduced()) {
@@ -58,12 +72,13 @@ export function SandWave() {
         return;
       }
       busy.current = true;
+      setSandTransitioning(true);
       router.prefetch(href);
       // Safety net: if the new route never arrives, never leave the sand over the page.
       window.setTimeout(() => {
         if (!pending.current) return;
         pending.current = null;
-        gsap.to(el, { autoAlpha: 0, duration: 0.3, onComplete: () => void (busy.current = false) });
+        gsap.to(el, { autoAlpha: 0, duration: 0.3, onComplete: finish });
       }, 7000);
       const crestW = window.innerHeight * 0.4;
       gsap.killTweensOf([w, ".sandwave__grain"]);
@@ -83,6 +98,7 @@ export function SandWave() {
       });
     };
 
+    goRef.current = go;
     const onEvent = (e: Event) => go((e as CustomEvent<SandGo>).detail);
 
     // Same-origin links that cross between the landing side and the workspace.
@@ -123,7 +139,7 @@ export function SandWave() {
       const tl = gsap.timeline({
         onComplete: () => {
           gsap.set(el, { autoAlpha: 0 });
-          busy.current = false;
+          finish();
         },
       });
       // collapse: the wall slumps (squashes) and pours down off the screen
