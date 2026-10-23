@@ -6,7 +6,9 @@ import type {
   CreateReviewBody,
   ErrorBody,
   ErrorCode,
+  ApprovalEventOut,
   LoginResponse,
+  RequestChangesBody,
   ReviewOut,
   SessionInfo,
 } from "./types";
@@ -45,7 +47,9 @@ export class ApiError extends Error {
       case 404:
         return "We couldn't find that. It may not exist, or it belongs to another organisation.";
       case 409:
-        return "This was already sent with different content. Please try again.";
+        // The backend's 409 messages are safe and specific (stale version, wrong approver role,
+        // idempotency clash), so show them.
+        return `This can’t be done right now: ${this.message}.`;
       case 422:
         return `Something in the form isn't valid (${this.message}).`;
       case 429:
@@ -119,4 +123,13 @@ export const api = {
   createReview: (body: CreateReviewBody, idempotencyKey: string) =>
     request<ReviewOut>("/api/reviews", { method: "POST", body, headers: { "Idempotency-Key": idempotencyKey } }),
   review: (reviewId: string) => request<ReviewOut>(`/api/reviews/${encodeURIComponent(reviewId)}`),
+  /** Approves the content version's latest review. 409 when stale, not decidable, a cited source
+   * changed, or the caller's role doesn't match required_reviewer_role (message says which). */
+  approve: (contentVersionId: string) =>
+    request<ApprovalEventOut>(`/api/content-versions/${encodeURIComponent(contentVersionId)}/approve`, { method: "POST" }),
+  requestChanges: (contentVersionId: string, body: RequestChangesBody) =>
+    request<ApprovalEventOut>(`/api/content-versions/${encodeURIComponent(contentVersionId)}/request-changes`, {
+      method: "POST",
+      body,
+    }),
 };

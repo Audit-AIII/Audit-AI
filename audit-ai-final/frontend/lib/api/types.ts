@@ -111,6 +111,20 @@ export type ReviewOut = {
   required_reviewer_role: Open<"legal_reviewer" | "brand_manager"> | null;
 };
 
+/** POST /api/content-versions/{id}/approve and /request-changes */
+export type ApprovalEventOut = {
+  id: string;
+  content_version_id: string;
+  version_number: number | null;
+  action: Open<"approved" | "rejected" | "changes_requested">;
+  actor_user_id: string;
+  note: string | null;
+  created_at: string;
+};
+
+/** Body of POST /api/content-versions/{id}/request-changes (note: max 2000 characters). */
+export type RequestChangesBody = { decision: "changes_requested" | "rejected"; note?: string };
+
 export type CreateReviewBody = { brand_id: string; title?: string; text: string };
 
 export type ErrorCode = Open<
