@@ -10,11 +10,17 @@ a permission problem, so routers report it as 409, never 403 (phase6 "Tests (wri
 
 Pure logic, no DB, no FastAPI - every function here is a plain predicate or a plain exception, so
 the state machine itself is testable without a database.
+
+Individual-user mode (2026-10-24): the Phase 9 risk-based routing guard (`RoutingMismatchError` /
+`ensure_role_matches_routing`, "only a legal_reviewer may approve a high-risk review") was removed
+here - every account has exactly one person, who approves their own content. The guards that
+still make sense in a one-person account all remain: the review must be finished, the version
+must be current, and a cited source must not have been replaced since the review ran.
 """
 
 from __future__ import annotations
 
-from .statuses import MembershipRole, ReviewState
+from .statuses import ReviewState
 
 DECIDABLE_STATES = frozenset({ReviewState.COMPLETED.value, ReviewState.NEEDS_HUMAN_REVIEW.value})
 
@@ -40,22 +46,6 @@ class SupersededSourceError(Exception):
         super().__init__(f"cited source {brand_source_id} was superseded after this review ran")
 
 
-class RoutingMismatchError(Exception):
-    """Phase 9 stretch item 1: risk-based approval routing. A deterministic rule (see
-    `engine/pipeline.py`'s `_compute_required_reviewer_role`) assigns every decidable review a
-    `required_reviewer_role` — `legal_reviewer` for any high/critical finding, `brand_manager`
-    otherwise. Only that role, or `admin` (the one role that bypasses every guard in this
-    module, same as everywhere else), may *approve* it. This is deliberately narrower than
-    `ensure_decidable`/`ensure_not_stale`/`SupersededSourceError`: it applies to approval only,
-    never to request-changes/reject — rejecting stays safe for any reviewer regardless of risk
-    tier, same reasoning as those guards not applying to request-changes either."""
-
-    def __init__(self, required_reviewer_role: str, actor_role: str) -> None:
-        self.required_reviewer_role = required_reviewer_role
-        self.actor_role = actor_role
-        super().__init__(f"this review requires role '{required_reviewer_role}' to approve, not '{actor_role}'")
-
-
 def ensure_decidable(review_status: str) -> None:
     if review_status not in DECIDABLE_STATES:
         raise InvalidReviewTransitionError(review_status)
@@ -64,12 +54,3 @@ def ensure_decidable(review_status: str) -> None:
 def ensure_not_stale(reviewed_content_version_id: object, current_content_version_id: object) -> None:
     if reviewed_content_version_id != current_content_version_id:
         raise StaleApprovalError()
-
-
-def ensure_role_matches_routing(required_reviewer_role: str | None, actor_role: str) -> None:
-    """No routing assigned yet (e.g. a cached/legacy review predating this feature) -> anyone
-    with the APPROVE permission may still decide it, same as before this feature existed."""
-    if required_reviewer_role is None or actor_role == MembershipRole.ADMIN.value:
-        return
-    if actor_role != required_reviewer_role:
-        raise RoutingMismatchError(required_reviewer_role, actor_role)

@@ -59,12 +59,11 @@ Never commit a filled-in `.env` — only `.env.example` is tracked (`.gitignore`
 .venv/Scripts/python scripts/seed.py
 ```
 
-Creates one demo organisation, a brand with two approved sources, five users (one per
-membership role, same password — printed at the end), and four demo content items each run
-through a real review: a terminology violation, a contradicted claim, an unsupported promise
-and a prompt-injection sample. Synthetic data only, clearly labelled `[SEEDED]`. Idempotent —
-safe to re-run; delete the organisation first (cascades) to reseed from scratch. Prints the
-`BRAND_ID` the smoke test below needs.
+Creates two individual demo users, each with their own private account, two brands, approved
+brand documents and demo content checked against them (see the script's docstring). Demo reviews
+run through the offline scripted provider (`src/inkloom_api/engine/scripted_provider.py`, model
+id `scripted/demo-v1`), so no API key is needed. Synthetic data only, clearly labelled
+`[SEEDED]`. Idempotent per user. Prints each brand id.
 
 **Reseed after running the full test suite.** `test_migrations.py`'s downgrade-to-`base`-then-
 upgrade cycle wipes all data, seeded or not — this is deliberate (it proves migrations actually

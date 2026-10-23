@@ -37,38 +37,31 @@ finished; a human must still act via `approve` / `request-changes` to reach `app
 **Missing evidence means `unverified`, never `false`.** A finding with no supporting or
 contradicting evidence must use `verification_status = unverified`, not `contradicted`.
 
-## Role names (confirmed, Phase 2; `legal_reviewer`/`brand_manager` added Phase 9)
+## Accounts and roles (individual-user mode, 2026-10-24)
 
-One role per permission. The permission table lives in
-[`services/api/src/inkloom_api/auth/permissions.py`](../services/api/src/inkloom_api/auth/permissions.py).
+InkLoom is an **individual-user app**: one email = one private account, and each account can own
+several brands. There are no teams, invites, admins-vs-others or reviewer tiers. A user sees only
+their own brands, sources, content and reviews; any other account's id answers `404`,
+indistinguishable from an id that doesn't exist.
 
-| Role | submit | manage_sources | review | approve | administer |
-|---|---|---|---|---|---|
-| `submitter` | yes | | | | |
-| `source_manager` | | yes | | | |
-| `reviewer` | | | yes | | |
-| `approver` | | | yes | yes | |
-| `legal_reviewer` | | | yes | yes | |
-| `brand_manager` | | | yes | yes | |
-| `admin` | yes | yes | yes | yes | yes |
+Under the hood an account is an `organisation` with exactly one `membership`. Nothing in the API
+shape changed:
 
-The governance invariant `if role not allowed to approve ... deny` checks the `approve`
-permission, which `approver`, `legal_reviewer`, `brand_manager` and `admin` all hold. `admin`
-holds every permission rather than being a separate "can do nothing itself" role, so one person
-can run a brand-new organisation alone during setup.
-
-**Risk-based approval routing (Phase 9 stretch item 1).** Holding the `approve` permission is
-necessary but not sufficient for `legal_reviewer`/`brand_manager`: each `Review` also carries a
-deterministic `required_reviewer_role` (`"legal_reviewer"` if any finding is `high`/`critical`
-severity, `"brand_manager"` otherwise; `null` until the review reaches a decidable state) —
-`POST /api/content-versions/{id}/approve` additionally requires the caller's role to match it
-(`admin` always bypasses this, same as every other approval guard). `approver` is a plain
-`approve`-permission holder with no routing restriction of its own — it is simply never assigned
-as a `required_reviewer_role`, so it can only approve a review whose routing it was never
-checked against in the first place (i.e. in practice, use `legal_reviewer`/`brand_manager` for
-anything routed; `approver`/`admin` remain the unrestricted fallback). This restriction applies
-to **approve only** — `POST .../request-changes` (reject or request changes) is unaffected by
-routing, same as it is already unaffected by staleness or superseded-source checks.
+- `POST /api/auth/register` creates the account and returns `role: "admin"`, which now simply
+  means **account owner**. `GET /api/auth/me` and `POST /api/auth/login` return the same.
+- Roles no longer grant or restrict anything: every active membership holds every permission
+  (`services/api/src/inkloom_api/auth/permissions.py`). The other role names (`submitter`,
+  `source_manager`, `reviewer`, `approver`, `legal_reviewer`, `brand_manager`) are still valid
+  values of the column so old rows need no migration, but they behave exactly like `admin`.
+- **Risk-based routing is off.** Every new review has `required_reviewer_role: null` (the UI
+  shows that as "Any approver"). A review written before this change may still carry
+  `"legal_reviewer"`/`"brand_manager"`; it no longer restricts who can approve.
+- The user approves their own content ("ready to publish") with
+  `POST /api/content-versions/{id}/approve`, or sends it back with `.../request-changes`. The
+  approval guards that make sense for one person all remain (`409 CONFLICT`): the review must
+  be finished (`completed`/`needs_human_review`), the version must be the current one, and no
+  source the review cited may have been withdrawn or replaced since it ran.
+- A `403 FORBIDDEN` for a missing permission can no longer happen for an active account.
 
 ## Finding and Review schema
 
@@ -138,8 +131,8 @@ For Member 1: this is what replaces the placeholder localStorage session in
 | HTTP status | `error.code` | Meaning |
 |---|---|---|
 | 401 | `UNAUTHENTICATED` | No token, an invalid/expired token, or a membership that is no longer active. Send the user to login. |
-| 403 | `FORBIDDEN` | Authenticated, but the role lacks the permission the action needs. Show "not allowed", not a login prompt. |
-| 404 | `NOT_FOUND` | The resource doesn't exist, or it belongs to another organisation — these are indistinguishable on purpose (CONTRACTS.md-style tenant isolation). |
+| 403 | `FORBIDDEN` | Not raised for an active account in individual-user mode (roles no longer gate anything); kept in the table because the code still exists. |
+| 404 | `NOT_FOUND` | The resource doesn't exist, or it belongs to another account — these are indistinguishable on purpose (same code, same message). |
 | 422 | `VALIDATION_ERROR` | The request body/params failed validation. `message` lists field locations only, never the submitted value. |
 
 ## Example responses

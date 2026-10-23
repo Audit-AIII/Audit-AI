@@ -84,7 +84,12 @@ class MembershipRole(str, Enum):
     `LEGAL_REVIEWER` and `BRAND_MANAGER` added for Phase 9 stretch item 1 (risk-based approval
     routing, see `reviews.required_reviewer_role` and `approval_rules.ensure_role_matches_
     routing`) — a real contract change (new role names), confirmed with the team before adding,
-    not assumed."""
+    not assumed.
+
+    Individual-user mode (2026-10-24): roles no longer grant or restrict anything - every active
+    membership is the account owner and holds every permission (auth/permissions.py). New
+    accounts get `ADMIN`, meaning "account owner". The other names stay valid only so existing
+    rows and the CHECK constraint need no migration."""
 
     SUBMITTER = "submitter"
     SOURCE_MANAGER = "source_manager"

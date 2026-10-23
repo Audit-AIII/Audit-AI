@@ -18,9 +18,11 @@ engine" (00_CONTEXT.md).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from inkloom_verify.extraction import ClaimExtractor
+from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.retrieval import BM25Retriever
 from inkloom_verify.schemas import Claim, ClaimResult, Verdict
 from inkloom_verify.verification import ClaimVerifier, verify_claim
@@ -33,7 +35,6 @@ from ..statuses import (
     CheckType,
     EvidenceRelation,
     ExternalCallStatus,
-    MembershipRole,
     ReviewState,
     Severity,
     VerificationStatus,
@@ -41,6 +42,7 @@ from ..statuses import (
 from .corpus import CorpusEntry, build_corpus, corpus_lookup  # noqa: F401 (build_corpus re-exported for routers)
 from .evidence_validator import EvidenceIntegrityError, validate_all
 from .provider import build_provider
+from .providers.fallback import FallbackProvider
 
 STUB_EXPLANATION = (
     "[STUB OUTPUT] No LLM provider is configured for this backend (none of GEMINI_API_KEY, "
@@ -81,8 +83,14 @@ _RELATION_FOR_VERDICT = {
 def run_review(
     db: Session, review: Review, content_version: ContentVersion, corpus: list[CorpusEntry],
     confidential: bool = False,
+    provider_builders: list[tuple[str, Callable[[], LLMProvider]]] | None = None,
 ) -> None:
-    """Mutates `review` and adds `Finding`/`EvidenceLink` rows to `db`. Caller commits."""
+    """Mutates `review` and adds `Finding`/`EvidenceLink` rows to `db`. Caller commits.
+
+    `provider_builders` replaces the configured fallback chain (engine/provider.py) for this one
+    review - used only by `scripts/seed.py` to run demo reviews through the offline scripted
+    provider (engine/scripted_provider.py) with no API key. Every call is still logged to
+    external_call_log exactly like a real provider's."""
     review.status = ReviewState.ANALYSING.value
     review.started_at = datetime.now(timezone.utc)
 
@@ -96,14 +104,21 @@ def run_review(
     # rows, and (combined with task 8 below) a confidential source cached from an earlier
     # Ollama-only run stays confidential; nothing here re-routes it to the cloud.
     cache_key = compute_cache_key(organisation_id, content_version, corpus)
-    cached = get_cached_report(db, cache_key)
+    # A provider override (seed script) never reads or writes the cache: a scripted demo result
+    # must not be replayed later as if it were a real model's answer to the same text.
+    cached = get_cached_report(db, cache_key) if provider_builders is None else None
     if cached is not None:
         materialize_cached_report(db, review, cached)
         needs_review = any(f["requires_human_review"] for f in cached["findings"])
         _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_review else ReviewState.COMPLETED)
         return
 
-    provider = build_provider(confidential=confidential, on_attempt=_make_external_call_logger(db, review, organisation_id))
+    on_attempt = _make_external_call_logger(db, review, organisation_id)
+    provider = (
+        FallbackProvider(provider_builders, on_attempt=on_attempt)
+        if provider_builders is not None
+        else build_provider(confidential=confidential, on_attempt=on_attempt)
+    )
     if not provider.configured_providers:
         review.engine_provider = "stub-unconfigured"
         if confidential:
@@ -154,7 +169,8 @@ def run_review(
     _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED)
     # Only a genuine completed analysis is cached - never a stub result or a provider/corpus
     # failure (both returned early above, before reaching here).
-    store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
+    if provider_builders is None:
+        store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
 
 
 def _make_external_call_logger(db: Session, review: Review, organisation_id: uuid.UUID):
@@ -187,23 +203,10 @@ def _finish(db: Session, review: Review, state: ReviewState, error_summary: str 
     review.status = state.value
     review.error_summary = error_summary
     review.completed_at = datetime.now(timezone.utc)
-    if state in (ReviewState.COMPLETED, ReviewState.NEEDS_HUMAN_REVIEW):
-        # Phase 9 stretch item 1: only a decidable outcome has findings worth routing on - a
-        # FAILED review (no corpus, extraction failure, etc.) never reaches here with any.
-        review.required_reviewer_role = _compute_required_reviewer_role(db, review)
-
-
-_HIGH_RISK_SEVERITIES = frozenset({Severity.HIGH.value, Severity.CRITICAL.value})
-
-
-def _compute_required_reviewer_role(db: Session, review: Review) -> str:
-    """Deterministic risk-based routing (Phase 9 stretch item 1): any high/critical finding
-    routes to the legal reviewer; everything else (including zero findings) is a clean item for
-    the brand manager's one-click sign-off. Queried directly rather than via `review.findings`
-    so it sees exactly what was just flushed, regardless of how those rows were added."""
-    severities = db.query(Finding.severity).filter_by(review_id=review.id).all()
-    high_risk = any(severity in _HIGH_RISK_SEVERITIES for (severity,) in severities)
-    return (MembershipRole.LEGAL_REVIEWER if high_risk else MembershipRole.BRAND_MANAGER).value
+    # Individual-user mode: risk-based routing (Phase 9 stretch item 1) is off. The account owner
+    # approves their own content, so no review is routed to a reviewer role. The column stays
+    # (migration 0008) and is always written as NULL, which the UI shows as "Any approver".
+    review.required_reviewer_role = None
 
 
 def _write_stub_finding(db: Session, review: Review, content_version: ContentVersion, reason: str | None) -> None:

@@ -1,9 +1,10 @@
 """Brand listing/creation, brand source listing, upload and approval.
 
-`GET /api/brands` and `GET /api/brands/{id}/sources` need no specific permission — any active
-member may read. `POST /api/brands`, `POST .../sources` and `.../approve` are gated on
-`manage_sources`: only `source_manager` and `admin` hold it (see contract/README.md, "Role
-names") — self-serve registration's own user is always `admin`, so this never blocks them.
+Individual-user mode: each organisation is one user's private account, so `GET /api/brands` is
+that user's dashboard list of their own brands. Write routes keep `require_permission(...)`,
+which every active membership now satisfies (auth/permissions.py) - the access rule that matters
+is that every brand/source lookup is scoped to the caller's own account (tenancy.py: 404
+otherwise, never a hint that another account's brand exists).
 """
 
 from __future__ import annotations

@@ -1,5 +1,10 @@
-"""Unit tests for the permission table (phase2_auth_and_tenant_scoping.md task 3) and the
-AuthContext.require() check that enforces it. No database needed: this is pure logic.
+"""Permission rules in individual-user mode (product decision 2026-10-24). No database needed.
+
+Previously this file pinned a role -> permission matrix (submitter could only submit, reviewer
+could not approve, ...). InkLoom is now a one-person-per-account app: every active membership is
+the account owner and holds every permission, whatever role string it carries (registration
+writes "admin", which now just means "account owner"). Access between accounts is enforced by
+tenant scoping (test_cross_account_isolation.py, test_tenant_scoping.py), not by roles.
 """
 
 from __future__ import annotations
@@ -7,38 +12,21 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from fastapi import HTTPException
 
 from inkloom_api.auth.dependencies import AuthContext
 from inkloom_api.auth.permissions import Permission, role_has_permission
 from inkloom_api.models import Membership, Organisation, User
+from inkloom_api.statuses import MembershipRole
 
 
-@pytest.mark.parametrize(
-    "role,permission,expected",
-    [
-        ("submitter", Permission.SUBMIT, True),
-        ("submitter", Permission.APPROVE, False),
-        ("submitter", Permission.MANAGE_SOURCES, False),
-        ("source_manager", Permission.MANAGE_SOURCES, True),
-        ("source_manager", Permission.SUBMIT, False),
-        ("reviewer", Permission.REVIEW, True),
-        ("reviewer", Permission.APPROVE, False),
-        ("approver", Permission.REVIEW, True),
-        ("approver", Permission.APPROVE, True),
-        ("approver", Permission.MANAGE_SOURCES, False),
-        ("admin", Permission.SUBMIT, True),
-        ("admin", Permission.MANAGE_SOURCES, True),
-        ("admin", Permission.REVIEW, True),
-        ("admin", Permission.APPROVE, True),
-        ("admin", Permission.ADMINISTER, True),
-    ],
-)
-def test_role_has_permission_matrix(role: str, permission: Permission, expected: bool) -> None:
-    assert role_has_permission(role, permission) is expected
+@pytest.mark.parametrize("role", [r.value for r in MembershipRole])
+@pytest.mark.parametrize("permission", list(Permission))
+def test_every_known_role_holds_every_permission(role: str, permission: Permission) -> None:
+    assert role_has_permission(role, permission) is True
 
 
 def test_unknown_role_has_no_permissions() -> None:
+    """Defensive default; the memberships.role CHECK constraint already prevents this value."""
     assert role_has_permission("superuser", Permission.SUBMIT) is False
 
 
@@ -49,16 +37,7 @@ def _auth_context(role: str) -> AuthContext:
     return AuthContext(user=user, organisation=org, membership=membership)
 
 
-def test_submitter_cannot_escalate_to_approve() -> None:
-    """A submitter trying to use an approver-only action is denied with a safe 403, not granted
-    just because it asked (the "role escalation attempts are denied" test, task 20)."""
-    ctx = _auth_context("submitter")
-    with pytest.raises(HTTPException) as exc_info:
-        ctx.require(Permission.APPROVE)
-    assert exc_info.value.status_code == 403
-    assert "approve" in exc_info.value.detail
-    assert "submitter" not in exc_info.value.detail  # message names the permission, not the role
-
-
-def test_approver_can_approve() -> None:
-    _auth_context("approver").require(Permission.APPROVE)  # must not raise
+@pytest.mark.parametrize("role", ["admin", "submitter", "reviewer"])
+def test_account_owner_may_approve_whatever_role_string_it_has(role: str) -> None:
+    _auth_context(role).require(Permission.APPROVE)  # must not raise
+    _auth_context(role).require(Permission.MANAGE_SOURCES)  # must not raise

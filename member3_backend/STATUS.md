@@ -4,6 +4,12 @@
 **Last updated:** 2026-10-23 · **Tag:** `v0.1.0-phase8` (commit `cf4a6bc`) — local, known-good build; not yet deployed
 **Tests:** 99 / 99 passing against a real PostgreSQL database
 
+> **2026-10-24: individual-user mode.** InkLoom is now one email = one private account, owning
+> several brands. Roles no longer gate anything (`admin` = account owner), risk-based routing is
+> off (`required_reviewer_role` is always null on new reviews), and the user approves their own
+> content. Sections below that describe team roles and routing are historical; see
+> `contract/README.md`, "Accounts and roles", for the current rules.
+
 > Read this top to bottom to understand everything Member 3 built, why, and what's still open.
 > `00_CONTEXT.md` in this folder is the governance contract this whole service enforces.
 

@@ -3,8 +3,9 @@
 placeholder localStorage session — see contract/README.md for the behaviour this gives them.
 
 Registration (member3_backend/HANDOFF_self_serve_onboarding.md) is the self-serve onboarding
-entry point: a visitor signs up with any email and gets a private organisation, an `admin`
-membership and a starter brand, all in one transaction, with no brand id or invite needed.
+entry point: a visitor signs up with any email and gets a private account (an organisation only
+they belong to), an `admin` membership - which now just means "account owner" - and a starter
+brand, all in one transaction, with no brand id or invite needed.
 """
 
 from __future__ import annotations
@@ -140,6 +141,8 @@ def register(
 
     # role is always "admin" here - never taken from the request body (RegisterRequest has no
     # role/organisation_id field at all, so even an extra field in the body is silently ignored).
+    # Individual-user mode: "admin" simply means "account owner" - this organisation is this one
+    # person's private account, and roles no longer gate anything (auth/permissions.py).
     db.add(Membership(organisation_id=org.id, user_id=user.id, role=MembershipRole.ADMIN.value, is_active=True))
 
     brand = BrandProfile(organisation_id=org.id, name=brand_name)

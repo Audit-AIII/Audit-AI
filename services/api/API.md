@@ -71,15 +71,11 @@ cd services/api
 .venv/Scripts/python scripts/seed.py
 ```
 
-Creates a demo organisation, a brand with two **approved** sources (a review needs at least one
-to check content against — without one, every review for that brand comes back `failed` by
-design, see "What `POST /api/reviews` can return" below), and five users, one per role (all
-share one password, printed at the end). It also prints a `BRAND_ID` — keep it, you'll need it
-for step 6. Idempotent: safe to re-run, no-ops if the demo org already exists (delete it first,
-cascades, to reseed from scratch). See `services/api/README.md`, "Seed demo data", for what else
-it creates. **Role must be one of:** `submitter`, `source_manager`, `reviewer`, `approver`,
-`admin` (`admin` can do everything, see "Roles and permissions" below) — use the seeded admin
-login while testing.
+Creates two individual demo users (`asha@seed.inkloom.demo`, `ben@seed.inkloom.demo`), each with
+their own private account, two brands with **approved** brand documents, and demo content already
+checked against them. Demo reviews use the offline scripted provider (model id
+`scripted/demo-v1`), so seeding needs no API key, and everything is labelled `[SEEDED]`. Both users
+share one demo password, printed at the end along with each brand id. Idempotent per user.
 
 ### 5. Run the server
 
@@ -253,19 +249,15 @@ JavaScript client highlighting text must account for that (see `contract/README.
 Every response — success or error — carries `X-Request-ID`, echoed in `error.request_id` too.
 Match that to a server log line if something needs debugging.
 
-## Roles and permissions
+## Accounts and roles (individual-user mode)
 
-| Role | submit | manage_sources | review | approve | administer |
-|---|---|---|---|---|---|
-| `submitter` | yes | | | | |
-| `source_manager` | | yes | | | |
-| `reviewer` | | | yes | | |
-| `approver` | | | yes | yes | |
-| `admin` | yes | yes | yes | yes | yes |
-
-Neither route implemented so far (`GET /api/brands/{id}/sources`, `POST`/`GET /api/reviews`)
-requires a specific permission beyond being an active member — this table matters starting
-Phase 4+ (managing sources, approving content versions).
+InkLoom is an individual-user app: one email = one private account (an organisation with one
+membership), owning any number of brands. `role` is always `"admin"` for a registered user and
+now simply means **account owner**. Roles no longer grant or restrict anything (every active
+membership holds every permission), risk-based routing is off (`required_reviewer_role` is always
+`null` on new reviews), and the user approves their own content. Access between accounts is the
+only boundary: another account's id is a `404`, identical to an id that doesn't exist. Full
+detail: `contract/README.md`, "Accounts and roles".
 
 ## Self-serve onboarding
 

@@ -158,8 +158,9 @@ class ReviewOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     findings: list[FindingOut]
-    # Phase 9 stretch item 1: who may approve this review - "legal_reviewer" if any finding is
-    # high/critical severity, "brand_manager" otherwise, null until a decidable outcome exists.
+    # Kept for the UI's existing contract (it shows null as "Any approver"). Individual-user mode
+    # turned risk-based routing off, so every new review has null here; an older review may still
+    # carry "legal_reviewer"/"brand_manager", which no longer restricts who can approve it.
     required_reviewer_role: str | None
     # Self-serve onboarding: default None so an idempotency replay recorded before these fields
     # existed still parses (ReviewOut(**replay) in routers/reviews.py). Filled from
