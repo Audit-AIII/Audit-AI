@@ -15,7 +15,7 @@ const args = Object.fromEntries(
 const name = process.argv[2] ?? "shot";
 const w = Number(args.w ?? 1182);
 const h = Number(args.h ?? 937);
-const url = args.url ?? "http://localhost:3100/";
+const url = args.url ?? "http://localhost:3000/";
 const out = `qa/out/${name}.png`;
 
 const browser = await chromium.launch();

@@ -4,7 +4,7 @@ const b = await chromium.launch();
 for (const [w, h, rm] of [[1182, 937, "no-preference"], [390, 844, "no-preference"], [390, 844, "reduce"]]) {
   const p = await b.newPage({ viewport: { width: w, height: h }, reducedMotion: rm });
   const errs = []; p.on("pageerror", (e) => errs.push(e.message));
-  await p.goto("http://localhost:3100/", { waitUntil: "networkidle" });
+  await p.goto("http://localhost:3000/", { waitUntil: "networkidle" });
   await p.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 500) { scrollTo(0, y); await new Promise((r) => setTimeout(r, 60)); } });
   await p.waitForTimeout(800);
   const r = await p.evaluate(() => ({

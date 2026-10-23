@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1182, height: 937 } });
 const errs = []; p.on("pageerror", (e) => errs.push(e.message));
-const base = "http://localhost:3100";
+const base = "http://localhost:3000";
 await p.goto(base + "/app", { waitUntil: "networkidle" }); await p.waitForTimeout(800);
 console.log("signed-out /app redirects to:", new URL(p.url()).pathname);
 await p.goto(base + "/", { waitUntil: "networkidle" }); await p.waitForTimeout(800);

@@ -4,7 +4,7 @@ const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1182, height: 937 } });
 const errs = [];
 p.on("pageerror", (e) => errs.push(e.message));
-await p.goto("http://localhost:3100/", { waitUntil: "networkidle" });
+await p.goto("http://localhost:3000/", { waitUntil: "networkidle" });
 await p.evaluate(() => document.fonts.ready);
 const go = async (js, name, wait = 1600) => {
   await p.evaluate(js);

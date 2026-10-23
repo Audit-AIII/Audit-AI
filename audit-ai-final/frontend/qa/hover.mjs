@@ -1,7 +1,7 @@
 // Captures each hover/press micro-interaction: node qa/hover.mjs → qa/out/hover-*.png
 import { chromium } from "playwright";
 const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1182, height: 937 } });
-await p.goto("http://localhost:3100/", { waitUntil: "networkidle" }); await p.evaluate(() => document.fonts.ready); await p.waitForTimeout(1500);
+await p.goto("http://localhost:3000/", { waitUntil: "networkidle" }); await p.evaluate(() => document.fonts.ready); await p.waitForTimeout(1500);
 const shot = async (name, sel, pad = 24, act) => {
   const el = p.locator(sel).first(); const bb = await el.boundingBox();
   const clip = { x: Math.max(0, bb.x - pad), y: Math.max(0, bb.y - pad), width: bb.width + pad * 2, height: bb.height + pad * 2 };

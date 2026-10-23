@@ -1,7 +1,7 @@
 // Measures width ratios web font vs Arial to set size-adjust on the metric fallbacks in styles/base.css.
 import { chromium } from "playwright";
 const b = await chromium.launch(); const p = await b.newPage();
-await p.goto("http://localhost:3100/", { waitUntil: "networkidle" }); await p.evaluate(() => document.fonts.ready);
+await p.goto("http://localhost:3000/", { waitUntil: "networkidle" }); await p.evaluate(() => document.fonts.ready);
 console.log(await p.evaluate(() => {
   const s = "Audit AI reviews every draft against your approved guidelines CHECK FIRST PUBLISH SURE 0123";
   const c = document.createElement("canvas").getContext("2d"); const w = (f) => { c.font = f; return c.measureText(s).width; };

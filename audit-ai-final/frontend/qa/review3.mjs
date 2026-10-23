@@ -4,7 +4,7 @@ const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1182, height: 937 } });
 const errs = [];
 p.on("pageerror", (e) => errs.push(e.message));
-await p.goto("http://localhost:3100/", { waitUntil: "networkidle" });
+await p.goto("http://localhost:3000/", { waitUntil: "networkidle" });
 await p.evaluate(() => document.fonts.ready);
 await p.screenshot({ path: "qa/out/r3-header.png", clip: { x: 0, y: 0, width: 1182, height: 80 } });
 
@@ -25,7 +25,7 @@ for (const [i, f] of [[1, 0.1], [2, 0.37], [3, 0.62], [4, 0.95]]) {
   await p.screenshot({ path: `qa/out/r3-step${i}.png` });
 }
 
-await p.goto("http://localhost:3100/login", { waitUntil: "networkidle" });
+await p.goto("http://localhost:3000/login", { waitUntil: "networkidle" });
 await p.waitForTimeout(800);
 await p.screenshot({ path: "qa/out/r3-login.png" });
 await p.fill("#a-email", "demo@audit.ai");

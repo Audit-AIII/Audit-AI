@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1182, height: 937 } });
 const errs = []; p.on("pageerror", (e) => errs.push(e.message));
 const frames = async (tag, times) => { let t0 = 0; for (const t of times) { await p.waitForTimeout(t - t0); t0 = t; await p.screenshot({ path: `qa/out/wave-${tag}-${t}.png` }); } };
-await p.goto("http://localhost:3100/login", { waitUntil: "networkidle" });
+await p.goto("http://localhost:3000/login", { waitUntil: "networkidle" });
 await p.fill("#a-email", "chahit2006@gmail.com"); await p.fill("#a-password", "secret1");
 await p.click("button[type=submit]");
 await frames("in", [300, 600, 900, 1250, 1550, 1800, 2100, 3200]);

@@ -1,9 +1,9 @@
 import { chromium } from "playwright";
 const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1182, height: 937 } });
-await p.goto("http://localhost:3100/login", { waitUntil: "networkidle" });
+await p.goto("http://localhost:3000/login", { waitUntil: "networkidle" });
 await p.fill("#a-email", "chahit2006@gmail.com"); await p.fill("#a-password", "secret1"); await p.click("button[type=submit]");
 await p.waitForURL("**/app/sources"); await p.waitForTimeout(3000);
-await p.goto("http://localhost:3100/", { waitUntil: "networkidle" });
+await p.goto("http://localhost:3000/", { waitUntil: "networkidle" });
 await p.evaluate(() => { const e = document.querySelector("#faq"); scrollTo(0, e.getBoundingClientRect().top + scrollY - 80); }); await p.waitForTimeout(1500);
 await p.click("#faq .disclosure__summary >> nth=1"); await p.waitForTimeout(180); await p.screenshot({ path: "qa/out/dd-faq-mid.png" });
 await p.waitForTimeout(600); await p.screenshot({ path: "qa/out/dd-faq-open.png" });
