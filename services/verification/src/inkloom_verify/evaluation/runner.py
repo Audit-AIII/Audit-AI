@@ -567,13 +567,14 @@ def run(
     max_examples: int = 5,
     save_predictions: Path | None = None,
     verifier_prompt: str | None = None,
+    engine_predictor: Predictor | None = None,
 ) -> EvalReport:
     """Loads the dataset and one source of predictions, evaluates, and records how the run was made.
 
     The source is a predictions file, a baseline, or the engine run live with ``engine_provider``.
     ``save_predictions`` writes the predictions as JSONL, separate from the labels.
     """
-    sources = [predictions_path is not None, baseline is not None, engine_provider is not None]
+    sources = [predictions_path is not None, baseline is not None, engine_provider is not None or engine_predictor is not None]
     if sum(sources) != 1:
         raise EvaluationInputError("give exactly one of a predictions file, a baseline or an engine provider")
     all_records = load_records(dataset_path)
@@ -599,9 +600,10 @@ def run(
         model = BASELINES[baseline]()
         predictions = {r.record_id: model.predict(r) for r in records}
         predictor = PredictorInfo(kind="baseline", name=model.name)
-    if engine_provider is not None:
+    if engine_provider is not None or engine_predictor is not None:
         chunking, retrieval_config = retrieval if retrieval is not None else (ChunkingConfig(), RetrievalConfig())
-        engine = EngineVerifierPredictor(engine_provider, chunking, retrieval_config, verifier_prompt)
+        # A ready predictor (e.g. the full pipeline) is scored exactly like the verifier-only one.
+        engine = engine_predictor or EngineVerifierPredictor(engine_provider, chunking, retrieval_config, verifier_prompt)
         predictions = {r.record_id: engine.predict(r) for r in records}
         predictor = PredictorInfo(
             kind="engine",

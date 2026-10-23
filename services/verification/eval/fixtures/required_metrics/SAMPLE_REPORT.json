@@ -1,0 +1,123 @@
+{
+  "positive_class": "CONTRADICTED",
+  "counts": {
+    "evaluated": 8,
+    "tp": 2,
+    "fp": 1,
+    "fn": 2,
+    "tn": 3,
+    "missing_predictions": 1,
+    "error_predictions": 2,
+    "invalid_labels": 0,
+    "unexpected_predictions": 0
+  },
+  "contradicted_precision": {
+    "numerator": 2,
+    "denominator": 3,
+    "value": 0.6666666666666666
+  },
+  "contradicted_recall": {
+    "numerator": 2,
+    "denominator": 4,
+    "value": 0.5
+  },
+  "false_positive_rate": {
+    "numerator": 1,
+    "denominator": 4,
+    "value": 0.25
+  },
+  "false_negative_rate": {
+    "numerator": 2,
+    "denominator": 4,
+    "value": 0.5
+  },
+  "citation_validity": {
+    "numerator": 3,
+    "denominator": 5,
+    "value": 0.6
+  },
+  "citation_resolution": {
+    "numerator": 4,
+    "denominator": 5,
+    "value": 0.8
+  },
+  "citation_failures": {
+    "citations": 5,
+    "valid": 3,
+    "resolved": 4,
+    "does_not_resolve:quote_mismatch": 1,
+    "no_supporting_evidence_exists": 1
+  },
+  "retrieval_recall_at_5": {
+    "numerator": 6,
+    "denominator": 6,
+    "value": 1.0
+  },
+  "retrieval": {
+    "k": 5,
+    "with_gold_evidence": 6,
+    "excluded_without_gold_evidence": 2,
+    "empty_results": 0,
+    "misses": [],
+    "chunking": {
+      "strategy": "tokens",
+      "target_tokens": 300,
+      "min_tokens": 200,
+      "max_tokens": 400,
+      "overlap_tokens": 50,
+      "sentences_per_passage": 2,
+      "stride": 1,
+      "max_passage_chars": 1000
+    },
+    "retrieval": {
+      "top_k": 5,
+      "k1": 1.5,
+      "b": 0.75,
+      "min_matched_terms": 1,
+      "min_term_coverage": 0.25,
+      "suppress_overlaps": false
+    }
+  },
+  "human_review_share": {
+    "numerator": 5,
+    "denominator": 7,
+    "value": 0.7142857142857143
+  },
+  "review": {
+    "records_with_outcome": 7,
+    "excluded_without_outcome": 1,
+    "routed_by_label": {
+      "CONTRADICTED": 3,
+      "SUPPORTED": 1,
+      "NOT_ENOUGH_EVIDENCE": 1
+    },
+    "auto_cleared": 2,
+    "auto_cleared_but_not_supported": [
+      "v1-037"
+    ]
+  },
+  "correction_traceability": {
+    "numerator": 1,
+    "denominator": 2,
+    "value": 0.5
+  },
+  "corrections": {
+    "proposed": 2,
+    "traceable": 1,
+    "untraceable": [
+      {
+        "record_id": "v1-025",
+        "claim_id": "clm_0001",
+        "reasons": [
+          "unsupported:microwave"
+        ]
+      }
+    ],
+    "attempts_by_status": {
+      "proposed": 2,
+      "needs_human_review": 1
+    },
+    "claims_not_applicable": 4
+  },
+  "unavailable": {}
+}

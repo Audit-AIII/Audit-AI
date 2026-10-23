@@ -920,6 +920,10 @@ class EvalCategory(str, Enum):
     IRRELEVANT_REFERENCES = "irrelevant_references"  # references do not cover the topic at all
     PROMPT_INJECTION = "prompt_injection"  # a reference contains instructions aimed at the model
     CONFLICTING_EVIDENCE = "conflicting_evidence"  # references disagree with each other
+    # Dataset v2 (EVAL.md Phase 2):
+    NEAR_MISS = "near_miss"  # a figure close to the referenced one (5.3 g vs 5.2 g)
+    UNIT_MISMATCH = "unit_mismatch"  # the right number with the wrong unit (340 kg vs 340 g)
+    OUTDATED_FACT = "outdated_fact"  # a value a newer reference explicitly replaces
 
 
 class EvalRecord(_Contract):

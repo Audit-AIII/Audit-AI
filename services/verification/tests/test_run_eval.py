@@ -48,18 +48,18 @@ def test_default_run_passes_its_gates_and_writes_both_reports(default_run):
 def test_the_abstain_floor_is_never_presented_as_model_accuracy(default_run):
     _, report, text = default_run
     assert report["verdicts"]["source"] == "abstain" and report["verdicts"]["is_model_quality"] is False
-    assert "not model accuracy" in text and "Human-reviewed labels in eval/dataset.jsonl: 0/55" in text
+    assert "not model accuracy" in text and "Human-reviewed labels in eval/dataset.jsonl: 0/80" in text
 
 
 def test_report_has_every_required_metric(default_run):
     _, report, _ = default_run
     v = report["verdicts"]
-    assert v["examples"] == 55
+    assert v["examples"] == 80
     assert set(v["per_class"]) == {"SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE"}
     assert set(v["confusion"]["CONTRADICTED"]) == {"SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE", "ERROR"}
     for key in ("accuracy", "abstention_rate", "citation_validity", "false_supported_rate"):
         assert {"numerator", "denominator", "value"} <= set(v[key])
-    assert report["retrieval"]["dataset.jsonl"]["recall_at_5"]["denominator"] == 37
+    assert report["retrieval"]["dataset.jsonl"]["recall_at_5"]["denominator"] == 57  # records with gold evidence: 25 SUPPORTED + 32 CONTRADICTED
     assert report["faults"]["pass_rate"] == {"numerator": 18, "denominator": 18, "value": 1.0}
 
 
@@ -182,7 +182,7 @@ def test_dataset_covers_the_required_cases():
     categories = {c.value for r in records for c in r.categories}
     assert {"numeric", "date", "named_entity", "ambiguous", "conflicting_evidence", "prompt_injection", "compound"} <= categories
     conflicts = [r for r in records if "conflicting_evidence" in {c.value for c in r.categories}]
-    assert [r.expected_verdict.value for r in conflicts].count("NOT_ENOUGH_EVIDENCE") == 4
+    assert [r.expected_verdict.value for r in conflicts].count("NOT_ENOUGH_EVIDENCE") == 5  # v2-c01..c04, v3-021
     assert all(r.label_rationale for r in records)
     assert all(r.gold_evidence for r in records if r.expected_verdict.value != "NOT_ENOUGH_EVIDENCE")
 
@@ -221,7 +221,9 @@ def test_a_dry_run_pins_and_records_the_prompt_set(tmp_path, prompt_set):
     assert report["verdicts"]["is_model_quality"] is False
     calls = report["calls"]
     assert set(calls) == {"claim_extraction", "claim_verification", "claim_correction"}
-    assert calls["claim_extraction"]["calls"] == 24 and calls["claim_correction"]["calls"] == 19
+    # Full pipeline (EVAL Phase 3): 80 records + 24 extraction-set paragraphs; 19 correction cases.
+    assert calls["claim_extraction"]["calls"] == 104 and calls["claim_correction"]["calls"] == 19
+    assert report["run"]["pipeline"] == "full" and report["cases"]["records"] == 80
     assert all(s["repair_calls"] == 0 and s["errors"] == {} for s in calls.values())
 
 
