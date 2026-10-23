@@ -10,6 +10,8 @@ before applying.
 | Correction editor | `/app/review-edit?id=<review id>` |
 | Evidence coverage | `/app/coverage?id=<review id>` |
 | Review queue | `/app/queue` |
+| Insights | `/app/insights` |
+| Trust Scorecard | `/app/scorecard` |
 
 ## Guidelines
 
@@ -52,3 +54,12 @@ so `/app/review-edit` already highlights "Review" in the stage bar. Harmless; no
    ```tsx
    <a className="link" href="/app/queue">Open the review queue →</a>
    ```
+
+## Insights and Trust Scorecard
+
+6. **Links in the account menu (signed in), next to "Sign out".**
+   `components/layout/AccountNav.tsx`, line 66, after `<p className="account__menu-email">{session.email}</p>`, add:
+   ```tsx
+   <a className="link" href="/app/queue">Review queue</a> <a className="link" href="/app/insights">Insights</a> <a className="link" href="/app/scorecard">Trust Scorecard</a>
+   ```
+   (This menu also shows on the landing page, so these links would appear there too.)
