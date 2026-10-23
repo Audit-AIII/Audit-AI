@@ -9,6 +9,7 @@ before applying.
 | Guidelines | `/app/guidelines` |
 | Correction editor | `/app/review-edit?id=<review id>` |
 | Evidence coverage | `/app/coverage?id=<review id>` |
+| Review queue | `/app/queue` |
 
 ## Guidelines
 
@@ -41,4 +42,13 @@ so `/app/review-edit` already highlights "Review" in the stage bar. Harmless; no
    `app/app/review/ReviewResult.tsx`, at the same place as item 3 (before line 204), add:
    ```tsx
    <a className="link" href={`/app/coverage?id=${review.id}`}>See evidence coverage →</a>
+   ```
+
+## Review queue
+
+5. **Link from the Decide page's empty state ("No review chosen").**
+   `app/app/decide/DecidePanel.tsx`, line 52, inside `Empty`, after the existing
+   `<Button href="/app/draft">Check a draft →</Button>`, add:
+   ```tsx
+   <a className="link" href="/app/queue">Open the review queue →</a>
    ```
