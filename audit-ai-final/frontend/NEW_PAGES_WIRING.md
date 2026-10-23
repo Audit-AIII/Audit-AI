@@ -7,6 +7,7 @@ before applying.
 | Page | URL |
 |---|---|
 | Guidelines | `/app/guidelines` |
+| Correction editor | `/app/review-edit?id=<review id>` |
 
 ## Guidelines
 
@@ -21,3 +22,14 @@ before applying.
    ```ts
    { slug: "guidelines", n: "01b", label: "Guidelines", hint: "Upload, update or withdraw the documents drafts are checked against." },
    ```
+
+## Correction editor
+
+3. **Link from the Review page, next to "Choose what to do".**
+   `app/app/review/ReviewResult.tsx`, before the line with `Choose what to do →` (line 204), add:
+   ```tsx
+   <a className="link" href={`/app/review-edit?id=${review.id}`}>Fix the wording →</a>
+   ```
+
+Note: `components/app/AppShell.tsx` matches the stage bar with `pathname.startsWith("/app/review")`,
+so `/app/review-edit` already highlights "Review" in the stage bar. Harmless; no change proposed.
