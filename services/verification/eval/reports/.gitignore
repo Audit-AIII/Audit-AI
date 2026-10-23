@@ -1,0 +1,4 @@
+# Generated evaluation reports, never committed (CI uploads them as artifacts).
+*
+!.gitignore
+!README.md

@@ -15,7 +15,10 @@
         "absent_fact",
         "irrelevant_references",
         "prompt_injection",
-        "conflicting_evidence"
+        "conflicting_evidence",
+        "near_miss",
+        "unit_mismatch",
+        "outdated_fact"
       ],
       "title": "EvalCategory",
       "type": "string"

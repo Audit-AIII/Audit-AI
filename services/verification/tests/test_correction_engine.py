@@ -76,6 +76,7 @@ def test_corrector_is_never_invoked_for_other_verdicts(cases, verdict):
     data = base.model_dump()
     data["verdict"] = verdict
     data.pop("requires_human_review")  # re-derived from the new verdict
+    data.pop("review_reasons", None)
     data.pop("evidence_strength")
     if verdict != "SUPPORTED":
         data["citations"] = []
@@ -288,6 +289,7 @@ def results_with(verdicts: list[str], cases) -> list[ClaimResult]:
         data["claim"]["claim_id"] = f"clm_{i:04d}"
         data["verdict"] = verdict
         data.pop("requires_human_review")  # re-derived from the new verdict
+        data.pop("review_reasons", None)
         data.pop("evidence_strength")
         if verdict in ("NOT_ENOUGH_EVIDENCE", "ERROR"):
             data["citations"] = []

@@ -268,6 +268,7 @@ Optional `Idempotency-Key` header replays the first response. Rate-limited per u
 }
 ```
 
+<<<<<<< HEAD
 - **`category`** (real runs): `contradicted_claim`, `unsupported_claim` (unverified — no evidence
   either way, including a citation this backend's own validator rejected), `supported_claim`,
   `engine_error` (that one claim could not be checked). `stub` marks the no-provider placeholder.
@@ -293,6 +294,33 @@ from the caller's account only. Empty → `[]`. Another account's `brand_id` →
 
 ```
 GET /api/reviews?status=needs_human_review&status=completed&limit=20
+=======
+### `GET /api/evaluations/latest`
+The Trust Scorecard's data: the latest evaluation report of the verification engine. Any active
+member may read it (`401` without a token). It's a benchmark on the engine's synthetic,
+labelled dataset, not tenant data.
+
+The backend computes nothing. It serves the newest
+`services/verification/eval/reports/<timestamp>.summary.json` written by the engine's
+`eval/run_eval.py`, after the engine re-validates it (contract `evaluation-summary-v1`; JSON schema
+in `services/verification/schemas/evaluation_summary.schema.json`).
+
+Always `200` for a signed-in member, with `state`:
+- `available`: the full summary: outcome, source, dataset, model, prompts, retrieval, policy, the
+  eight metrics, confusion matrix, gates, three real cases, limitations. `stale: true` if the
+  dataset changed since.
+- `incomplete`: the newest run stopped; `error` says why.
+- `none`: no report yet; `how_to_run` gives the command.
+
+A report file that breaks the contract is a `500` with a generic message; its contents are never
+echoed. Settings: `EVALUATION_REPORTS_DIR` (default: this repository's
+`services/verification/eval/reports`). There is deliberately no `POST`: runs can call a paid model
+and take minutes, so evaluations run from the command line or CI.
+
+### Error shape (every route, on failure)
+```json
+{"error": {"code": "NOT_FOUND", "message": "brand not found", "request_id": "6b2e9a1c..."}}
+>>>>>>> 6b23c112bb2360f3710bc25c6629254199b169ad
 ```
 
 ### `POST /api/reviews/{id}/rerun` · content versions · decisions

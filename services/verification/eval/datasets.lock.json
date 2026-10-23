@@ -2,12 +2,12 @@
   "note": "Content hashes (line endings normalised) of every evaluation input. run_eval.py refuses to run if a file differs. Changing labels requires updating this file in the same, reviewed change.",
   "files": {
     "eval/dataset.jsonl": {
-      "sha256": "0516b9b8ce5b09e89a0c7241af750267a4a1041175a96afc3b30caf6a60d8f45",
-      "records": 55,
+      "sha256": "49d473fda43ee6f147c03497558eba5d3c38d113a39e40be540422da49677209",
+      "records": 80,
       "labels": {
-        "CONTRADICTED": 17,
-        "NOT_ENOUGH_EVIDENCE": 18,
-        "SUPPORTED": 20
+        "CONTRADICTED": 32,
+        "NOT_ENOUGH_EVIDENCE": 23,
+        "SUPPORTED": 25
       }
     },
     "eval/data/verification_v1.jsonl": {

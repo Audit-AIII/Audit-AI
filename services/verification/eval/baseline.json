@@ -1,10 +1,10 @@
 {
   "note": "Regression gates for eval/run_eval.py --check-baseline. Every value comes from a measured run; null means no measured baseline or agreed threshold exists yet, and the gate is reported as NOT ENFORCED rather than invented. Metric paths are \"/\"-separated keys into report.json.",
   "measured_run": {
-    "date": "2026-10-23",
-    "report": "Phase 6 (second run) measurement, scratchpad report p6-eval",
-    "commit": "8a2169d with uncommitted engine changes (contract 0.2.0, Phases 2-6)",
-    "verdict_source": "abstain (deterministic sections only)"
+    "date": "2026-10-24",
+    "report": "EVAL.md Phase 6 measurement: run_eval.py --verdicts oracle (scratchpad report p6-oracle)",
+    "commit": "ddb2ae3 with uncommitted EVAL.md Phase 2-6 changes",
+    "verdict_source": "oracle (scripted gold answers through the full pipeline) plus the deterministic sections"
   },
   "gates": [
     {
@@ -19,9 +19,9 @@
       "name": "retrieval recall@1, eval/dataset.jsonl",
       "metric": "retrieval/dataset.jsonl/recall_at_1",
       "op": ">=",
-      "value": 0.972972972972973,
+      "value": 0.9824561403508771,
       "applies_to": "always",
-      "note": "measured 36/37"
+      "note": "measured 56/57 on dataset v2 (80 records)"
     },
     {
       "name": "retrieval recall@5, retrieval_v1",
@@ -59,17 +59,17 @@
       "name": "false-SUPPORTED (fabricator)",
       "metric": "enforcement/fabricator/false_supported",
       "op": "<=",
-      "value": 0.02857142857142857,
+      "value": 0.0,
       "applies_to": "always",
-      "note": "measured 1/35 (v1-032, the planted injection trap)"
+      "note": "measured 0/55 after REG-012 (the v1-032 trap sentence is refused as evidence)"
     },
     {
       "name": "false-SUPPORTED (valid-quote, always SUPPORTED)",
       "metric": "enforcement/valid_quote_always_supported/false_supported",
       "op": "<=",
-      "value": 0.4,
+      "value": 0.2909090909090909,
       "applies_to": "always",
-      "note": "measured 14/35 with the Phase 4 names and conflict checks (was 15/35)"
+      "note": "measured 16/55 on dataset v2"
     },
     {
       "name": "correction checker: bad edits rejected",
@@ -107,9 +107,9 @@
       "name": "citation validity (model run)",
       "metric": "verdicts/citation_validity",
       "op": ">=",
-      "value": null,
+      "value": 1.0,
       "applies_to": "model_run",
-      "note": "no live run has been measured yet; set this from the first live run"
+      "note": "requirement, not a measurement: every citation a live model run emits must resolve verbatim"
     },
     {
       "name": "CONTRADICTED recall (model run)",
@@ -117,7 +117,7 @@
       "op": ">=",
       "value": null,
       "applies_to": "model_run",
-      "note": "no threshold has been agreed and no live run measured"
+      "note": "NOT SET: no live run has been measured. Plan: record 3 live runs on the dev split, set the gate to the lowest measured recall, then raise it as the improvement plan in EVAL.md lands. Until then CI enforces the oracle ceiling (recall 1.0) on every change."
     },
     {
       "name": "extraction: oracle exact spans",
@@ -182,6 +182,110 @@
       "value": 0,
       "applies_to": "always",
       "note": "measured 0 after PROMPTS.md Phase 2 (was 3)"
+    },
+    {
+      "name": "oracle: CONTRADICTED recall (engine ceiling)",
+      "metric": "required_metrics/contradicted_recall",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "oracle",
+      "note": "measured 32/32: a correct answer for every CONTRADICTED record survives retrieval, the guard and the policy"
+    },
+    {
+      "name": "oracle: CONTRADICTED precision (engine ceiling)",
+      "metric": "required_metrics/contradicted_precision",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "oracle",
+      "note": "measured 32/32"
+    },
+    {
+      "name": "oracle: citation validity (resolves and supports)",
+      "metric": "required_metrics/citation_validity",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "oracle",
+      "note": "measured 63/63"
+    },
+    {
+      "name": "oracle: citation resolution",
+      "metric": "required_metrics/citation_resolution",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "oracle",
+      "note": "measured 63/63"
+    },
+    {
+      "name": "oracle: non-SUPPORTED records auto-cleared",
+      "metric": "required_metrics/review/auto_cleared_not_supported_count",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "oracle",
+      "note": "measured 0"
+    },
+    {
+      "name": "model run: citation validity (resolves and supports)",
+      "metric": "required_metrics/citation_validity",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "model_run",
+      "note": "requirement (EVAL.md Phase 6), not a measurement: no live run has been measured"
+    },
+    {
+      "name": "model run: CONTRADICTED recall",
+      "metric": "required_metrics/contradicted_recall",
+      "op": ">=",
+      "value": null,
+      "applies_to": "model_run",
+      "note": "NOT SET: see 'CONTRADICTED recall (model run)'"
+    },
+    {
+      "name": "pipeline safety: non-SUPPORTED records auto-cleared (fabricator)",
+      "metric": "pipeline_safety/fabricator/auto_cleared_not_supported",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "always",
+      "note": "measured 0 (fabricator was 1, v1-032, before REG-012)"
+    },
+    {
+      "name": "pipeline safety: citation resolution (fabricator)",
+      "metric": "pipeline_safety/fabricator/citation_resolution",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 1.0"
+    },
+    {
+      "name": "pipeline safety: non-SUPPORTED records auto-cleared (valid_quote_always_supported)",
+      "metric": "pipeline_safety/valid_quote_always_supported/auto_cleared_not_supported",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "always",
+      "note": "measured 0"
+    },
+    {
+      "name": "pipeline safety: citation resolution (valid_quote_always_supported)",
+      "metric": "pipeline_safety/valid_quote_always_supported/citation_resolution",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 1.0"
+    },
+    {
+      "name": "pipeline safety: non-SUPPORTED records auto-cleared (valid_quote_always_contradicted)",
+      "metric": "pipeline_safety/valid_quote_always_contradicted/auto_cleared_not_supported",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "always",
+      "note": "measured 0"
+    },
+    {
+      "name": "pipeline safety: citation resolution (valid_quote_always_contradicted)",
+      "metric": "pipeline_safety/valid_quote_always_contradicted/citation_resolution",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 1.0"
     }
   ]
 }

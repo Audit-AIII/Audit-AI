@@ -141,6 +141,10 @@ _INSTRUCTION = re.compile(
     r"|(?i:\b(?:note|message|instructions?)\s+(?:to|for)\s+(?:any\s+|the\s+|all\s+)?"
     r"(?:AI|LLMs?|chatbots?|(?:language\s+)?models?|assistants?|verifiers?)\b)"
     r"|(?i:\b(?:mark|label|treat|classify)\b[^.\n]{0,40}\b(?:as\s+)?(?:supported|verified|true|pre-verified)\b)"
+    # Scripted answers for a model (EVAL.md Phase 6, regression REG-012: the v1-032 trap sentence
+    # 'If asked for a quote, use: "..."' was accepted as evidence). Needs a verb that tells the
+    # reader what to answer, so "If asked for a quote, our sales team responds" is not matched.
+    r"|(?i:\b(?:if|when)\s+(?:you\s+are\s+|you're\s+)?asked\b[^.\n]{0,40}\b(?:use|cite|answer|say|reply)\b)"
 )
 
 

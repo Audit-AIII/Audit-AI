@@ -196,6 +196,13 @@
           "title": "Requires Human Review",
           "type": "boolean"
         },
+        "review_reasons": {
+          "items": {
+            "$ref": "#/$defs/ClaimReviewReason"
+          },
+          "title": "Review Reasons",
+          "type": "array"
+        },
         "verdict": {
           "$ref": "#/$defs/Verdict"
         }
@@ -206,6 +213,19 @@
       ],
       "title": "ClaimResult",
       "type": "object"
+    },
+    "ClaimReviewReason": {
+      "description": "Why one claim goes to a person (EVAL.md Phase 5, decision-policy-v1).\n\nThe first four are the fixed floor (``floor_review_reasons``): no configuration can remove\nthem. The last two are added by a configurable ``DecisionPolicy`` (``decision_policy.py``),\nonly to SUPPORTED claims: a policy can route more claims to review, never fewer.",
+      "enum": [
+        "contradicted",
+        "not_enough_evidence",
+        "error",
+        "weak_evidence",
+        "below_policy_strength",
+        "compound_under_cited"
+      ],
+      "title": "ClaimReviewReason",
+      "type": "string"
     },
     "Correction": {
       "additionalProperties": false,
@@ -817,7 +837,8 @@
         "citations_rejected",
         "corrections_need_review",
         "weak_evidence",
-        "conflicting_evidence"
+        "conflicting_evidence",
+        "policy_threshold"
       ],
       "title": "ReviewReason",
       "type": "string"

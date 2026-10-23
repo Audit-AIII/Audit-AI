@@ -22,6 +22,7 @@ from inkloom_verify.evaluation.metrics import Ratio, ratio
 from inkloom_verify.evaluation.runner import EngineVerifierPredictor, _eval_claim, evaluate
 from inkloom_verify.pipeline import verify_request
 from inkloom_verify.providers.base import (
+    JsonCompletion,
     JsonCompletionRequest,
     MalformedOutputError,
     ProviderNotConfiguredError,
@@ -208,3 +209,52 @@ def load_fault_cases(path: Path) -> list[FaultCase]:
 
 def fault_pass_rate(outcomes: Sequence[FaultOutcome]) -> Ratio:
     return ratio(sum(o.passed for o in outcomes), len(outcomes))
+
+
+# --- Full-pipeline safety (EVAL.md Phase 6) ---------------------------------------------------------
+
+
+class _PipelineAdversary:
+    """Drives the full pipeline: every sentence is one claim, verification answers with the
+    adversary, corrections are declined."""
+
+    name = "scripted-adversary"
+
+    def __init__(self, adversary: Responder) -> None:
+        self.adversary = adversary
+
+    def sampling(self) -> dict[str, Any]:
+        return {}
+
+    def complete_json(self, request: JsonCompletionRequest) -> JsonCompletion:
+        if request.schema_name == "claim_extraction":
+            data = {"statements": [{"sentence_id": s["id"], "kind": "factual", "claims": [{"text": s["text"], "source_quote": s["text"]}]}
+                                   for s in data_block(request, "content_json")["sentences"]]}
+        elif request.schema_name == "claim_verification":
+            data = self.adversary(request)
+        else:
+            data = {"status": "needs_human_review", "original_text": "", "replacement_text": "", "citations": [],
+                    "reason": "Scripted adversary."}
+        return JsonCompletion(data=data, model="scripted/adversary", attempts=1)
+
+
+def pipeline_safety(records: Sequence[EvalRecord], adversary: Responder) -> dict[str, Any]:
+    """The adversary through ``verify_request`` (guard, support checks, decision policy) on every
+    record. Not model quality: it measures what the code lets through. The key number is
+    ``auto_cleared_not_supported``: records not labelled SUPPORTED that no person would review."""
+    from inkloom_verify.evaluation import required_metrics
+    from inkloom_verify.evaluation.pipeline_predictor import PipelinePredictor
+
+    predictor = PipelinePredictor(_PipelineAdversary(adversary))
+    predictions = {r.record_id: predictor.predict(r) for r in records}
+    m = required_metrics.compute(records, predictions, predictor.outcomes)
+    cleared = m.review["auto_cleared_but_not_supported"]
+    return {
+        "records": len(records),
+        "predicted": dict(sorted(Counter(p.verdict.value for p in predictions.values()).items())),
+        "auto_cleared_not_supported": len(cleared),
+        "auto_cleared_not_supported_records": cleared,
+        "citation_resolution": m.citation_resolution.value if m.citation_resolution else None,
+        "citations": m.citation_failures["citations"],
+        "human_review_share": m.human_review_share.value if m.human_review_share else None,
+    }

@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "evaluation-summary-v1",
+      "default": "evaluation-summary-v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "how_to_run": {
+      "default": "cd services/verification && python eval/run_eval.py --verdicts oracle --check-baseline",
+      "title": "How To Run",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "state": {
+      "const": "none",
+      "default": "none",
+      "title": "State",
+      "type": "string"
+    }
+  },
+  "required": [
+    "reason"
+  ],
+  "title": "NoEvaluation",
+  "type": "object"
+}

@@ -1,0 +1,14 @@
+{
+  "note": "The decision policy used by eval/run_eval.py (EVAL.md Phase 5). 'policy' is loaded into inkloom_verify.decision_policy.DecisionPolicy; the fixed review floor is not configurable. Change it only from a calibration proposal made on the dev split (python -m inkloom_verify.evaluation.calibrate) and reviewed by a person.",
+  "policy": {
+    "version": "decision-policy-v1",
+    "auto_clear_min_strength": "strong",
+    "compound_min_citations": 2
+  },
+  "calibration": {
+    "status": "not calibrated",
+    "split": "dev",
+    "reason": "No model-backed outcomes exist yet, so nothing has been tuned. The defaults follow the stated rule: avoid auto-clearing a claim that is not true before reducing review volume. 'strong' auto-clears a SUPPORTED claim only when code verified more than the model's word (its figures matched in the quotes, or two or more accepted citations from the top-ranked passage); a figure-free claim on one quote goes to a person. Compound claims need two accepted citations.",
+    "source_run": null
+  }
+}

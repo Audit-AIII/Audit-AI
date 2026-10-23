@@ -57,6 +57,18 @@ so `/app/review-edit` already highlights "Review" in the stage bar. Harmless; no
 
 ## Insights and Trust Scorecard
 
+**Trust Scorecard data (EVAL.md Phase 8):**
+- **Data:** `/app/scorecard` reads `GET /api/evaluations/latest` (now on the backend, any signed-in
+  member) through `latestEvaluation()` in `lib/additions/analytics.ts`. The response follows
+  contract `evaluation-summary-v1` (`services/verification/schemas/evaluation_summary.schema.json`)
+  and is checked by `parseEvaluation()`; a mismatch is shown as an error, never as data.
+- **No calculations here:** the page computes no metric. Metric values are the engine's own
+  `display` strings.
+- **States:** no report yet, an incomplete newest run, a stale report, and a backend without the
+  route.
+- **Removed:** the old "Run evaluation" button and the sample numbers. There is no `POST` endpoint
+  (runs can cost money and take minutes), and real results now exist.
+
 6. **Links in the account menu (signed in), next to "Sign out".**
    `components/layout/AccountNav.tsx`, line 66, after `<p className="account__menu-email">{session.email}</p>`, add:
    ```tsx

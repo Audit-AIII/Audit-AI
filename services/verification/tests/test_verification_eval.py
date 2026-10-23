@@ -31,20 +31,21 @@ def test_no_fabricated_quotation_survives_on_the_evaluation_set():
             accepted += 1
             assert citation.matches(documents[citation.doc_id]), record.record_id  # verbatim in this request's source
             assert result.claim.text in documents[citation.doc_id].text  # only "fabrications" that really exist
-    # v1-007's claim is verbatim in the company facts; v1-032's is the planted injection trap.
-    assert accepted == 2
+    # v1-007's claim is verbatim in the company facts. v1-032's planted trap quote was the second
+    # one until REG-012 (EVAL.md Phase 6): it is now refused as instruction text.
+    assert accepted == 1
 
 
 def test_fabricated_quotes_are_downgraded_not_accepted():
     outcomes = [r for _, r in run_adversary(fabricator) if r.citation_guard is not None]
     downgraded = [r for r in outcomes if r.citation_guard.downgraded]
-    assert len(outcomes) == 48 and len(downgraded) == 46
-    assert {rej.reason.value for r in downgraded for rej in r.citation_guard.rejected} == {"quote_not_found"}
+    assert len(outcomes) == 48 and len(downgraded) == 47  # 46 + v1-032 since REG-012
+    assert {rej.reason.value for r in downgraded for rej in r.citation_guard.rejected} == {"quote_not_found", "instruction_text"}
 
 
 @pytest.mark.parametrize(
     ("adversary", "max_false_supported"),
-    [(fabricator, 1), (valid_quote_always_supported, 14)],
+    [(fabricator, 0), (valid_quote_always_supported, 14)],  # fabricator 1 -> 0 since REG-012
     ids=["fabricator", "valid-quote-always-supported"],
 )
 def test_false_supported_bound_under_adversarial_models(adversary, max_false_supported):

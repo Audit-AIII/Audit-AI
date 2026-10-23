@@ -64,6 +64,7 @@
         "rejected": []
       },
       "evidence_strength": "strong",
+      "review_reasons": [],
       "requires_human_review": false
     },
     {
@@ -152,6 +153,9 @@
         "recheck_verdict": "SUPPORTED"
       },
       "evidence_strength": "moderate",
+      "review_reasons": [
+        "contradicted"
+      ],
       "requires_human_review": true
     },
     {
@@ -189,6 +193,9 @@
         "rejected": []
       },
       "evidence_strength": "none",
+      "review_reasons": [
+        "not_enough_evidence"
+      ],
       "requires_human_review": true
     },
     {
@@ -227,6 +234,9 @@
         "claim_id": "clm_0004"
       },
       "evidence_strength": "none",
+      "review_reasons": [
+        "error"
+      ],
       "requires_human_review": true
     }
   ],

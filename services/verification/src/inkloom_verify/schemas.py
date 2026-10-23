@@ -523,8 +523,47 @@ def review_needed(verdict: Verdict, strength: EvidenceStrength) -> bool:
     return verdict is not Verdict.SUPPORTED or strength is EvidenceStrength.WEAK
 
 
+class ClaimReviewReason(str, Enum):
+    """Why one claim goes to a person (EVAL.md Phase 5, decision-policy-v1).
+
+    The first four are the fixed floor (``floor_review_reasons``): no configuration can remove
+    them. The last two are added by a configurable ``DecisionPolicy`` (``decision_policy.py``),
+    only to SUPPORTED claims: a policy can route more claims to review, never fewer.
+    """
+
+    CONTRADICTED = "contradicted"
+    NOT_ENOUGH_EVIDENCE = "not_enough_evidence"  # includes missing sources and conflicting references
+    ERROR = "error"
+    WEAK_EVIDENCE = "weak_evidence"  # SUPPORTED, but no citation from the top-ranked passage
+    BELOW_POLICY_STRENGTH = "below_policy_strength"  # SUPPORTED, evidence below the policy's auto-clear minimum
+    COMPOUND_UNDER_CITED = "compound_under_cited"  # SUPPORTED compound claim with too few accepted citations
+
+
+FLOOR_REVIEW_REASONS = frozenset({ClaimReviewReason.CONTRADICTED, ClaimReviewReason.NOT_ENOUGH_EVIDENCE,
+                                  ClaimReviewReason.ERROR, ClaimReviewReason.WEAK_EVIDENCE})
+
+
+def floor_review_reasons(verdict: Verdict, strength: EvidenceStrength) -> list[ClaimReviewReason]:
+    """The fixed review floor (``review_needed`` as reasons); never configurable."""
+    if verdict is Verdict.CONTRADICTED:
+        return [ClaimReviewReason.CONTRADICTED]
+    if verdict is Verdict.NOT_ENOUGH_EVIDENCE:
+        return [ClaimReviewReason.NOT_ENOUGH_EVIDENCE]
+    if verdict is Verdict.ERROR:
+        return [ClaimReviewReason.ERROR]
+    return [ClaimReviewReason.WEAK_EVIDENCE] if strength is EvidenceStrength.WEAK else []
+
+
+def _review_reasons_default(data: dict[str, Any]) -> list[ClaimReviewReason]:
+    if "verdict" not in data:
+        return [ClaimReviewReason.ERROR]  # unknown: a person decides
+    return floor_review_reasons(data["verdict"], data.get("evidence_strength", EvidenceStrength.NONE))
+
+
 def _review_needed(data: dict[str, Any]) -> bool:
-    """Default for ClaimResult.requires_human_review; True when the verdict is unknown."""
+    """Default for ClaimResult.requires_human_review: true whenever any review reason applies."""
+    if "review_reasons" in data:
+        return bool(data["review_reasons"])
     if "verdict" not in data:
         return True
     return review_needed(data["verdict"], data.get("evidence_strength", EvidenceStrength.NONE))
@@ -613,8 +652,11 @@ class ClaimResult(_Contract):
     # Both derived from the fields above by fixed rules: filled in when omitted, rejected when they
     # disagree, so neither can be inflated by a caller or a model.
     evidence_strength: EvidenceStrength = Field(default_factory=_strength_default)
-    # True for every verdict except SUPPORTED, and for SUPPORTED on weak evidence: missing evidence,
-    # contradictions, failures and thin support always go to a person.
+    # Why a person must look (EVAL.md Phase 5). Always includes the fixed floor: every verdict
+    # except SUPPORTED, and SUPPORTED on weak evidence. A DecisionPolicy may add reasons to a
+    # SUPPORTED claim; nothing can remove one.
+    review_reasons: list[ClaimReviewReason] = Field(default_factory=_review_reasons_default)
+    # True exactly when there is at least one review reason.
     requires_human_review: Annotated[bool, Field(strict=True)] = Field(default_factory=_review_needed)
 
     @model_validator(mode="after")
@@ -629,10 +671,19 @@ class ClaimResult(_Contract):
         expected = evidence_strength(self.verdict, self.claim.statement, self.evidence, self.citations)
         if self.evidence_strength is not expected:
             raise ValueError(f"evidence_strength must be {expected.value} for this verdict and evidence")
-        if self.requires_human_review is not review_needed(self.verdict, self.evidence_strength):
-            raise ValueError(
-                "requires_human_review must be false only for SUPPORTED claims whose evidence is not weak"
-            )
+        reasons = set(self.review_reasons)
+        if len(reasons) != len(self.review_reasons):
+            raise ValueError("duplicate review reason")
+        floor = set(floor_review_reasons(self.verdict, self.evidence_strength))
+        if not floor <= reasons:
+            raise ValueError("review_reasons must include every floor reason for this verdict and evidence")
+        extra = reasons - floor
+        if extra & FLOOR_REVIEW_REASONS:
+            raise ValueError("a floor review reason that does not apply to this verdict and evidence")
+        if extra and self.verdict is not Verdict.SUPPORTED:
+            raise ValueError("policy review reasons apply only to SUPPORTED claims")
+        if self.requires_human_review is not bool(reasons):
+            raise ValueError("requires_human_review must be true exactly when there is a review reason")
         return self
 
     def _check_verdict_shape(self) -> None:
@@ -740,6 +791,7 @@ class ReviewReason(str, Enum):
     CORRECTIONS_NEED_REVIEW = "corrections_need_review"  # a correction could not be proposed safely
     WEAK_EVIDENCE = "weak_evidence"  # a SUPPORTED claim rests only on weak evidence
     CONFLICTING_EVIDENCE = "conflicting_evidence"  # the references disagree about a claim's figure
+    POLICY_THRESHOLD = "policy_threshold"  # the decision policy routed a SUPPORTED claim (EVAL.md Phase 5)
 
 
 class ReportScore(_Contract):
@@ -788,6 +840,7 @@ class ReportScore(_Contract):
                     and any(x.reason is GuardRejectionReason.CONFLICTING_EVIDENCE for x in r.citation_guard.rejected)
                     for r in results
                 )),
+                (ReviewReason.POLICY_THRESHOLD, any(set(r.review_reasons) - FLOOR_REVIEW_REASONS for r in results)),
             )
             if applies
         ]
@@ -920,6 +973,10 @@ class EvalCategory(str, Enum):
     IRRELEVANT_REFERENCES = "irrelevant_references"  # references do not cover the topic at all
     PROMPT_INJECTION = "prompt_injection"  # a reference contains instructions aimed at the model
     CONFLICTING_EVIDENCE = "conflicting_evidence"  # references disagree with each other
+    # Dataset v2 (EVAL.md Phase 2):
+    NEAR_MISS = "near_miss"  # a figure close to the referenced one (5.3 g vs 5.2 g)
+    UNIT_MISMATCH = "unit_mismatch"  # the right number with the wrong unit (340 kg vs 340 g)
+    OUTDATED_FACT = "outdated_fact"  # a value a newer reference explicitly replaces
 
 
 class EvalRecord(_Contract):

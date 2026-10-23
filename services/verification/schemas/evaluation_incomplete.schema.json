@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "Limitation": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "finding": {
+          "title": "Finding",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "measured",
+            "suspected",
+            "unsupported",
+            "not_implemented"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "topic": {
+          "title": "Topic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic",
+        "status",
+        "finding"
+      ],
+      "title": "Limitation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The newest run stopped before it finished: shown as such, never as an empty success.",
+  "properties": {
+    "contract": {
+      "const": "evaluation-summary-v1",
+      "default": "evaluation-summary-v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "error": {
+      "title": "Error",
+      "type": "string"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "$ref": "#/$defs/Limitation"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "report_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Report Id"
+    },
+    "state": {
+      "const": "incomplete",
+      "default": "incomplete",
+      "title": "State",
+      "type": "string"
+    },
+    "verdict_source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Verdict Source"
+    }
+  },
+  "required": [
+    "generated_at",
+    "verdict_source",
+    "error",
+    "limitations"
+  ],
+  "title": "IncompleteEvaluation",
+  "type": "object"
+}

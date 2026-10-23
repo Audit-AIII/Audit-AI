@@ -149,6 +149,7 @@ def test_a_report_must_echo_the_requests_reference_set():
 def test_review_flag_is_derived_from_the_verdict_when_omitted(fixture, index, expected):
     result = load(fixture)["results"][index]
     result.pop("requires_human_review")
+    result.pop("review_reasons", None)
     assert ClaimResult.model_validate(result).requires_human_review is expected
 
 
@@ -156,7 +157,7 @@ def test_error_results_always_require_review():
     result = load("claim_result_error.json")
     assert ClaimResult.model_validate(result).requires_human_review is True
     result["requires_human_review"] = False
-    with pytest.raises(ValidationError, match="false only for SUPPORTED"):
+    with pytest.raises(ValidationError, match="must be true exactly when there is a review reason"):
         ClaimResult.model_validate(result)
 
 

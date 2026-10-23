@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -28,6 +29,9 @@ class Settings(BaseSettings):
     # X-Forwarded-For, which an untrusted caller can set to anything.
     rate_limit_registrations_per_ip: int = 5
     rate_limit_registration_window_seconds: float = 600.0
+    # Trust Scorecard (GET /api/evaluations/latest): where the engine's evaluation runner writes
+    # its timestamped reports. Defaults to services/verification/eval/reports in this repository.
+    evaluation_reports_dir: str = str(Path(__file__).resolve().parents[3] / "verification" / "eval" / "reports")
 
     # Trust Scorecard (POST /api/evaluations): runs synchronously, bounded by the engine's own
     # call budget; at most one run per user per eval_min_interval_seconds.
