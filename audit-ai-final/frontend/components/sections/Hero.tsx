@@ -3,8 +3,8 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Button } from "@/components/primitives/Button";
 import { TextLink } from "@/components/primitives/TextLink";
+import { StartReviewButton } from "@/components/layout/StartReview";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -118,7 +118,7 @@ export function Hero() {
               shows why each problem was flagged, and a person always makes the final call.
             </p>
             <div className="hero__actions">
-              <Button href="/login">Start a review</Button>
+              <StartReviewButton />
               <TextLink href="#findings" arrow>
                 See an example
               </TextLink>

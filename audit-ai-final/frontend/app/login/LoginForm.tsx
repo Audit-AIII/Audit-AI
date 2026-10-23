@@ -1,13 +1,13 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Field } from "@/components/primitives/Field";
 import { ApiError, api } from "@/lib/api/client";
 import type { LoginResponse } from "@/lib/api/types";
 import { rememberBrand } from "@/lib/brand";
-import { signIn } from "@/lib/session";
+import { getSession, signIn } from "@/lib/session";
 import { sandNavigate } from "@/lib/sandWave";
 
 const PASSWORD_MIN = 8;
@@ -26,16 +26,30 @@ function startSession(res: LoginResponse) {
   });
 }
 
+/** Where to go after signing in: ?next= when it is a workspace path (never another site), else /app. */
+export function safeNext(raw: string | null): string {
+  return raw && /^\/app(\/|\?|$)/.test(raw) ? raw : "/app";
+}
+
 const generic = (err: unknown) => (err instanceof ApiError ? err.userMessage : "Something went wrong. Please try again.");
 
 /** Sign in (POST /api/auth/login) or, with ?mode=signup, create an account (POST /api/auth/register). */
 export function LoginForm() {
   const params = useSearchParams();
   const signup = params.get("mode") === "signup";
-  return signup ? <SignUpForm /> : <SignInForm expired={params.get("expired") === "1"} />;
+  const next = safeNext(params.get("next"));
+  const router = useRouter();
+  // Already signed in when the page opens (e.g. an old bookmark to /login): don't ask again, go
+  // where they were headed. Checked once on open only, so a sign-in made on this page isn't
+  // redirected twice (that one moves on under the sand wave). Sign-up page is left alone.
+  useEffect(() => {
+    if (getSession() && !signup) router.replace(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on open only
+  }, []);
+  return signup ? <SignUpForm /> : <SignInForm expired={params.get("expired") === "1"} next={next} />;
 }
 
-function SignInForm({ expired }: { expired: boolean }) {
+function SignInForm({ expired, next }: { expired: boolean; next: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,7 +62,7 @@ function SignInForm({ expired }: { expired: boolean }) {
     setError(null);
     try {
       startSession(await api.login(String(data.get("email") ?? "").trim(), String(data.get("password") ?? "")));
-      sandNavigate("/app");
+      sandNavigate(next);
     } catch (err) {
       // 401 here means wrong email/password (deliberately not told apart by the backend).
       setError(err instanceof ApiError && err.status === 401 ? "That email and password don't match an account." : generic(err));

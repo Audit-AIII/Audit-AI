@@ -1,6 +1,6 @@
-import { Button } from "@/components/primitives/Button";
 import { Heading } from "@/components/primitives/Heading";
 import { TextLink } from "@/components/primitives/TextLink";
+import { StartReviewButton } from "@/components/layout/StartReview";
 
 const ROLES = [
   { name: "Writer", does: "Sends drafts in and fixes what is flagged.", gets: "Every draft", caption: "Sends in" },
@@ -50,7 +50,7 @@ export function Roles() {
             ))}
           </ul>
           <div className="roles__actions">
-            <Button href="/login">Start a review</Button>
+            <StartReviewButton />
             <TextLink href="#findings" arrow>
               See an example
             </TextLink>

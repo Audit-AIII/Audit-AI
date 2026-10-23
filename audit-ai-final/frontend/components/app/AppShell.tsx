@@ -23,7 +23,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Not while a sand transition runs: signing out navigates to "/" under the sand.
-    if (!getSession() && !isSandTransitioning()) router.replace("/login");
+    // Remember where they were going, so signing in returns there.
+    if (!getSession() && !isSandTransitioning())
+      router.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
   }, [session, router]);
 
   // Re-check the stored session with the server once per visit (a membership can be deactivated

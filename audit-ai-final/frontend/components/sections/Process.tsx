@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Button } from "@/components/primitives/Button";
 import { Heading } from "@/components/primitives/Heading";
+import { StartReviewButton } from "@/components/layout/StartReview";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -158,7 +158,7 @@ export function Process() {
                 <li key={s.title} className={i === active ? "is-on" : undefined} />
               ))}
             </ol>
-            <Button href="/login">Try it on one draft</Button>
+            <StartReviewButton>Try it on one draft</StartReviewButton>
           </div>
         </div>
       </div>

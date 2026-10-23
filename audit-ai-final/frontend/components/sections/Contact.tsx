@@ -1,6 +1,6 @@
-import { Button } from "@/components/primitives/Button";
 import { TextLink } from "@/components/primitives/TextLink";
 import { Shore, type ShellSpot } from "@/components/layout/Shore";
+import { StartReviewButton } from "@/components/layout/StartReview";
 
 /** Closing call to action: the landing page hands off to sign-in, where the review workflow lives. */
 // Beach decor in the open sand right of the heading (hidden below 900px).
@@ -41,7 +41,7 @@ export function Contact() {
               Sign in to upload a draft, run the six checks and see every problem with the reason behind it.
             </p>
             <div className="hero__actions">
-              <Button href="/login">Start a review</Button>
+              <StartReviewButton />
               <TextLink href="/login?mode=signup" arrow>
                 Create an account
               </TextLink>
