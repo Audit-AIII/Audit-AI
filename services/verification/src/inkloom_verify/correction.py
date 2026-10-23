@@ -31,8 +31,9 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inkloom_verify.citation_guard import full_dates, quantities
-from inkloom_verify.extraction import QUALIFIERS, describe_validation_error, locate
+from inkloom_verify.extraction import _ATTRIBUTION, QUALIFIERS, describe_validation_error, locate
 from inkloom_verify.prompts import correction as prompt
+from inkloom_verify.prompts.loader import load_prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
 from inkloom_verify.schemas import (
     MAX_CLAIM_CHARS,
@@ -120,11 +121,16 @@ def correction_issues(
                 detail=("adds, without evidence: " + ", ".join(added + symbols + unpaired))[:300],
             )
         )
+    # A figure that loses its unit ("€99" -> "129"). A *swapped* unit ("5.2 kg" -> "5.2 g") keeps a
+    # unit; whether the new one is right is the pairing check above (it must be in the evidence).
     old_units = sorted(u for _, u in old_figures if u is not None)
-    new_units = [u for _, u in new_figures if u is not None]
-    dropped_units = sorted(set(u for u in old_units if old_units.count(u) > new_units.count(u)))
-    if dropped_units:
+    new_units = sorted(u for _, u in new_figures if u is not None)
+    if len(new_units) < len(old_units):
+        dropped_units = sorted(set(old_units) - set(new_units)) or old_units
         issues.append(CorrectionIssue(code=CorrectionIssueCode.DROPS_UNIT, detail=("drops: " + ", ".join(dropped_units))[:300]))
+    # The source a sentence names for its fact must survive the fix.
+    if len(_ATTRIBUTION.findall(old_text.casefold())) > len(_ATTRIBUTION.findall(new_text.casefold())):
+        issues.append(CorrectionIssue(code=CorrectionIssueCode.DROPS_ATTRIBUTION))
     evidence_text, original_cf, replacement_cf = " ".join(quotes).casefold(), original.casefold(), replacement.casefold()
     kept_by_evidence = [q for q in QUALIFIERS if _has_phrase(q, original_cf) and _has_phrase(q, evidence_text)]
     dropped = [q for q in kept_by_evidence if not _has_phrase(q, replacement_cf)]
@@ -155,6 +161,8 @@ class CorrectionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     max_output_tokens: int = Field(default=1_000, ge=256, le=8_000)
+    # The prompt file to load (prompts/<version>.txt). An exact version, never "latest".
+    prompt_version: str = prompt.PROMPT_VERSION
     # Re-verify the corrected claim against the same evidence; the proposal stands only if SUPPORTED.
     recheck: bool = True
 
@@ -169,6 +177,8 @@ class ClaimCorrector:
         self.provider = provider
         self.verifier = verifier
         self.config = config or CorrectionConfig()
+        self.prompt = load_prompt("correction", self.config.prompt_version)  # fails clearly if missing
+        self.prompt_sent = False
         self.models_used: set[str] = set()
         if self.config.recheck and verifier is None:
             raise ValueError("re-checking corrections needs a ClaimVerifier for the same request")
@@ -183,7 +193,7 @@ class ClaimCorrector:
         sentence = claim.source_span.slice(content.text)
         labels = {f"C{i}": c for i, c in enumerate(result.citations, start=1)}
         request = JsonCompletionRequest(
-            system=prompt.SYSTEM_PROMPT,
+            system=self.prompt.text,
             user=prompt.user_message(sentence, claim.statement, [(label, c.quote) for label, c in labels.items()]),
             schema_name="claim_correction",
             json_schema=prompt.OUTPUT_SCHEMA,
@@ -270,6 +280,7 @@ class ClaimCorrector:
         return checked.verdict, None
 
     def _ask(self, request: JsonCompletionRequest) -> _ModelOutput:
+        self.prompt_sent = True
         completion = self.provider.complete_json(request)
         self.models_used.add(completion.model)
         try:

@@ -166,6 +166,22 @@
       "value": null,
       "applies_to": "model_run",
       "note": "no live extraction run measured and no threshold agreed"
+    },
+    {
+      "name": "extraction: rejected rewordings keep exact spans (embellisher)",
+      "metric": "extraction/adversaries/embellisher/exact_span_matches",
+      "op": ">=",
+      "value": 1.0,
+      "applies_to": "always",
+      "note": "measured 33/33 after PROMPTS.md Phase 2 (was 0/33)"
+    },
+    {
+      "name": "extraction: rejected rewordings stay atomic (embellisher)",
+      "metric": "extraction/adversaries/embellisher/atomicity_violations",
+      "op": "<=",
+      "value": 0,
+      "applies_to": "always",
+      "note": "measured 0 after PROMPTS.md Phase 2 (was 3)"
     }
   ]
 }

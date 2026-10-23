@@ -59,7 +59,7 @@ def test_valid_models_and_their_schema_version():
     full = Report.model_validate(report(verdict()))
     for model in (claim, passage, item, result, full):
         assert model.schema_version == PUBLIC_SCHEMA_VERSION
-    assert json.loads(full.model_dump_json())["metadata"] == {"content_hash": HASH, "errors": []}
+    assert json.loads(full.model_dump_json())["metadata"] == {"content_hash": HASH, "errors": [], "prompt_versions": {}}
 
 
 def test_another_schema_version_is_refused():

@@ -245,8 +245,9 @@ def create_verify_router(
             logger.error("verify request=%s reference set %s is unusable", body.request_id, body.reference_set_id)
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "the reference set could not be used") from None
 
-        report = engine.verify(request, suggest_corrections=body.options.suggest_corrections,
-                               max_claims=body.options.max_claims)
+        # Corrections need the request's option AND the server's setting (approved, prompts Phase 4).
+        corrections = body.options.suggest_corrections and getattr(engine, "corrections_enabled", True)
+        report = engine.verify(request, suggest_corrections=corrections, max_claims=body.options.max_claims)
         # Whatever engine is plugged in, a report that does not answer this request (other tenant,
         # other documents, foreign evidence) never leaves the endpoint: ScopeViolation is a 500.
         check_report_scope(request, report)
@@ -255,13 +256,18 @@ def create_verify_router(
         if report.status is ReportStatus.FAILED:
             return _failed_run(report, body.request_id, engine.mode, default_retry_after)
         try:
-            public = to_public_report(report, suggest_corrections=body.options.suggest_corrections)
+            public = to_public_report(report, suggest_corrections=corrections)
         except NotRepresentable as problem:
             logger.error("verify request=%s report not representable: %s", body.request_id, type(problem).__name__)
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "the engine's result could not be returned") from None
-        # Already validated as a public Report with this request's options: returned as JSON
+        data = public.model_dump(mode="json")
+        if body.options.suggest_corrections and not corrections:  # asked for, but off on this server: say so
+            data["metadata"]["errors"].append({"code": ErrorCode.INVALID_REQUEST.value,
+                                               "message": "Corrections were requested but are disabled on this server."})
+            Report.model_validate(data, context={"suggest_corrections": False})
+        # Already validated as a public Report with the options that applied: returned as JSON
         # directly, so it is not re-validated without them.
-        return JSONResponse(public.model_dump(mode="json"), headers={ENGINE_MODE_HEADER: engine.mode})
+        return JSONResponse(data, headers={ENGINE_MODE_HEADER: engine.mode})
 
     return router
 

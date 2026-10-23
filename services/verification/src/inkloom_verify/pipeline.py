@@ -79,26 +79,31 @@ def verify_request(
     """Runs the full workflow for one request. All evidence comes from ``request.references``."""
     config = config or PipelineConfig()
     models: set[str] = set()
+    prompts: dict[str, str] = {}  # stage -> prompt version actually sent
     budgeted = BudgetedProvider(provider, config.budget)
     try:
-        results, errors = _run(request, budgeted, config, models)
-        report = _report(request, provider, results, errors, models)
+        results, errors = _run(request, budgeted, config, models, prompts)
+        report = _report(request, provider, results, errors, models, prompts)
         check_report_scope(request, report)
         logger.info("pipeline request=%s usage=%s", request.request_id, budgeted.usage())
         return report
     except ScopeViolation as violation:
         # Ids only (never text), so the violations are safe to log.
         logger.error("pipeline request=%s scope violation: %s", request.request_id, violation.violations[:5])
-        return _failed(request, provider, models, "The report did not match its request and was discarded.")
+        return _failed(request, provider, models, "The report did not match its request and was discarded.", prompts)
     except Exception as error:  # noqa: BLE001 - never fail open; the type name is safe to log, the message may not be
         logger.error("pipeline request=%s failed unexpectedly: %s", request.request_id, type(error).__name__)
-        return _failed(request, provider, models, "The verification engine failed unexpectedly.")
+        return _failed(request, provider, models, "The verification engine failed unexpectedly.", prompts)
 
 
 def _run(
-    request: VerificationRequest, provider: LLMProvider, config: PipelineConfig, models: set[str]
+    request: VerificationRequest, provider: LLMProvider, config: PipelineConfig, models: set[str],
+    prompts: dict[str, str],
 ) -> tuple[list[ClaimResult], list[ProcessingError]]:
-    extraction = ClaimExtractor(provider, config.extraction).extract(request.content)
+    extractor = ClaimExtractor(provider, config.extraction)
+    extraction = extractor.extract(request.content)
+    if extractor.prompt_sent:
+        prompts["extract_claims"] = extractor.prompt.version
     models.update(extraction.provenance.models)
     errors = list(extraction.errors) + _unchecked_sentences(extraction)
 
@@ -130,8 +135,12 @@ def _run(
                 result = _correction_failed(result)
         results.append(result)
     models.update(verifier.models_used)
+    if verifier.prompt_sent:
+        prompts["verify_claim"] = verifier.prompt.version
     if corrector is not None:
         models.update(corrector.models_used)
+        if corrector.prompt_sent:
+            prompts["correct_claim"] = corrector.prompt.version
     logger.info(
         "pipeline request=%s claims=%d errors=%d verdicts=%s",
         request.request_id, len(results), len(errors),
@@ -169,18 +178,23 @@ def _correction_failed(result: ClaimResult) -> ClaimResult:
 
 
 def _unchecked_sentences(extraction: ExtractionResult) -> list[ProcessingError]:
-    """Sentences the model skipped were never checked: say so, rather than report them as clean."""
-    skipped = sum(1 for w in extraction.warnings if w.code is WarningCode.SENTENCE_NOT_CLASSIFIED)
-    if not skipped:
-        return []
-    return [
-        ProcessingError(
-            code=ErrorCode.MALFORMED_MODEL_OUTPUT,
-            stage=PipelineStage.EXTRACTION,
+    """Sentences the model skipped, and claims that could not be placed exactly in the content,
+    were never checked: say so, rather than report the content as clean."""
+    codes = [w.code for w in extraction.warnings]
+    skipped = codes.count(WarningCode.SENTENCE_NOT_CLASSIFIED)
+    dropped = codes.count(WarningCode.QUOTE_NOT_FOUND) + codes.count(WarningCode.AMBIGUOUS_QUOTE)
+    errors = []
+    if skipped:
+        errors.append(ProcessingError(
+            code=ErrorCode.MALFORMED_MODEL_OUTPUT, stage=PipelineStage.EXTRACTION, retryable=True,
             message=f"{skipped} sentence(s) were not classified by the model and were not checked.",
-            retryable=True,
-        )
-    ]
+        ))
+    if dropped:
+        errors.append(ProcessingError(
+            code=ErrorCode.MALFORMED_MODEL_OUTPUT, stage=PipelineStage.EXTRACTION, retryable=True,
+            message=f"{dropped} extracted claim(s) could not be located exactly in the content and were not checked.",
+        ))
+    return errors
 
 
 def _status(results: list[ClaimResult], errors: list[ProcessingError]) -> ReportStatus:
@@ -191,13 +205,13 @@ def _status(results: list[ClaimResult], errors: list[ProcessingError]) -> Report
     return ReportStatus.COMPLETED
 
 
-def _provenance(provider: LLMProvider, models: set[str]) -> EngineProvenance:
+def _provenance(provider: LLMProvider, models: set[str], prompts: dict[str, str]) -> EngineProvenance:
     return EngineProvenance(
         engine_version=__version__,
         retrieval_method=RetrievalMethod.BM25,
         provider=provider.name,
         model_id=_model_ids(models),
-        prompt_versions=PROMPT_VERSIONS,
+        prompt_versions=dict(prompts),
     )
 
 
@@ -218,6 +232,7 @@ def _report(
     results: list[ClaimResult],
     errors: list[ProcessingError],
     models: set[str],
+    prompts: dict[str, str],
 ) -> VerificationReport:
     return VerificationReport(
         request_id=request.request_id,
@@ -229,16 +244,18 @@ def _report(
         status=_status(results, errors),
         results=results,
         errors=errors,
-        provenance=_provenance(provider, models),
+        provenance=_provenance(provider, models, prompts),
         score=ReportScore.compute(results, errors),
     )
 
 
-def _failed(request: VerificationRequest, provider: LLMProvider, models: set[str], message: str) -> VerificationReport:
+def _failed(
+    request: VerificationRequest, provider: LLMProvider, models: set[str], message: str, prompts: dict[str, str]
+) -> VerificationReport:
     error = ProcessingError(
         code=ErrorCode.INTERNAL_ERROR, stage=PipelineStage.REQUEST, message=message, retryable=False
     )
-    return _report(request, provider, [], [error], models)
+    return _report(request, provider, [], [error], models, prompts)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -283,12 +300,20 @@ class PipelineEngine:
         self.provider = provider
         self.config = config or PipelineConfig()
 
+    @property
+    def corrections_enabled(self) -> bool:
+        """The server-side setting (PipelineConfig.correct_contradicted)."""
+        return self.config.correct_contradicted
+
     def verify(
         self, request: VerificationRequest, *, suggest_corrections: bool = True, max_claims: int | None = None
     ) -> VerificationReport:
-        """``suggest_corrections`` and ``max_claims`` are the request's options (POST /v1/verify)."""
+        """``suggest_corrections`` and ``max_claims`` are the request's options (POST /v1/verify).
+        Corrections run only if the server allows them (``corrections_enabled``) **and** the request
+        asks for them: a request can never turn on what the server turned off."""
         extraction = self.config.extraction
         if max_claims is not None:
             extraction = extraction.model_copy(update={"max_claims": min(max_claims, extraction.max_claims)})
-        config = self.config.model_copy(update={"correct_contradicted": suggest_corrections, "extraction": extraction})
+        config = self.config.model_copy(update={"correct_contradicted": self.corrections_enabled and suggest_corrections,
+                                                "extraction": extraction})
         return verify_request(request, self.provider, config)

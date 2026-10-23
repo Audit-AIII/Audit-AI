@@ -25,7 +25,6 @@ from inkloom_verify import __version__
 from inkloom_verify.chunking import ChunkingConfig
 from inkloom_verify.evaluation import metrics
 from inkloom_verify.evaluation.metrics import DEFINITE, GOLD_CLASSES, CitationProblem, ClassMetrics, MacroF1, Ratio
-from inkloom_verify.prompts import verification as verification_prompt
 from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.retrieval import BM25Retriever, RetrievalConfig
 from inkloom_verify.schemas import CONTRACT_VERSION, Claim, EvalCategory, EvalRecord, EvalSplit, SourceSpan, Verdict
@@ -131,7 +130,7 @@ class EngineVerifierPredictor:
                 for c in result.citations
             ],
             model_id=",".join(sorted(verifier.models_used)) or None,
-            prompt_version=verification_prompt.PROMPT_VERSION if verifier.models_used else None,
+            prompt_version=verifier.prompt.version if verifier.prompt_sent else None,  # the version actually sent
         )
 
 
@@ -604,7 +603,7 @@ def run(
             kind="engine",
             name=engine.name,
             model_ids=sorted(engine.models),
-            prompt_versions=[verification_prompt.PROMPT_VERSION],
+            prompt_versions=sorted({p.prompt_version for p in predictions.values() if p.prompt_version}),
         )
     if save_predictions is not None:
         save_predictions.parent.mkdir(parents=True, exist_ok=True)

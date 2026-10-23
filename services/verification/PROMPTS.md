@@ -4,6 +4,36 @@ This covers every prompt the engine sends, the checks applied to each reply, and
 provider is configured. Prompts are versioned: changing a prompt's text means a new version
 string, and that string is recorded with every result.
 
+## Prompt files and versions
+
+- **Where the prompts live:** each prompt version is its own file in
+  [`src/inkloom_verify/prompts/`](src/inkloom_verify/prompts/), named by its version id:
+  `extract-claims-v1.txt`, `verify-claim-v1.txt`, `correct-claim-v1.txt`. The file holds the system
+  prompt.
+- **What stays in code:** the user-message and repair templates and the output schema stay in the
+  matching Python module, and are versioned with it.
+- **Released versions are listed in `prompts.lock.json`** with the SHA-256 of their text. **A
+  released prompt is never edited.** New wording goes in a new file (for example
+  `verify-claim-v2.txt`) and gets a new lock entry.
+- **What the loader enforces** (`prompts/loader.py`, `load_prompt(component, version)`):
+  - **exact versions only:** no "latest" and no fallback;
+  - a missing file, an empty file, or another component's version → `PromptNotFoundError`, which
+    names the versions that do exist;
+  - a released prompt whose text no longer matches the lock → `PromptIntegrityError`, so an edit
+    in place can't run;
+  - line endings are normalised to LF (a Windows checkout sends the same text), and
+    `.gitattributes` keeps the files LF in git.
+- **Choosing a version:** each component loads the version in its config
+  (`ExtractionConfig.prompt_version`, `VerificationConfig.prompt_version`,
+  `CorrectionConfig.prompt_version`; the defaults are the `v1` files). It fails at construction
+  if that version can't be loaded.
+- **What gets recorded:** the version **actually sent** to the model per stage is recorded in the
+  internal report (`provenance.prompt_versions`) and the public Report
+  (`metadata.prompt_versions`). A stage that made no call is absent: for example, no
+  `correct_claim` when nothing needed correcting.
+- **Phase 1 changed no wording:** the lock hashes were taken from the inline text before it was
+  moved into files, and a test checks the files still match.
+
 ## Provider: OpenRouter
 
 The engine calls one provider, [OpenRouter](https://openrouter.ai/docs), through
@@ -109,15 +139,22 @@ and they apply whatever the model returns.
 | Claims listed under a non-factual sentence | Ignored, with a warning. |
 | A factual sentence with no claims | The verbatim sentence becomes the claim. |
 | More than 10 claims for one sentence | The first 10 are kept. |
-| `source_quote` not found in the sentence (whitespace, curly quotes and case are tolerated) | **The verbatim sentence becomes the claim**, warning `quote_not_found`. |
-| A claim that adds or changes a number or month, drops a qualifier (`up to`, `about`, `only`, `can`, `may`, …), a negation (`not`, `no`, `never`, `n't`, `-free`, …) or an attribution (`according to`, `says`, …), or uses a word that appears nowhere in the content | **The verbatim sentence becomes the claim**, warning `rewrite_rejected` listing the reasons. |
-| Claim text that is blank or over 1,000 characters | The verbatim sentence becomes the claim. |
+| `source_quote` not found in its sentence (whitespace, curly quotes and case are tolerated when matching; the claim's text is always the content's own characters) | **The claim is dropped**, warning `quote_not_found`. The report says how many claims couldn't be located (`metadata.errors`). |
+| `source_quote` occurs several times in its sentence | If exactly that many claims quote it, they get the occurrences **left to right**. Otherwise the claims are **dropped**, warning `ambiguous_quote`, and counted in the same report error. A span is never guessed. Repeats in *different* sentences are told apart by sentence id. |
+| A claim that adds or changes a number or month, drops a qualifier (`up to`, `about`, `only`, `can`, `may`, …), a negation (`not`, `no`, `never`, `n't`, `-free`, …) or an attribution (`according to`, `says`, …), or uses a word that appears nowhere in the content | **The quote's own text becomes the claim** (the rewording is discarded), warning `rewrite_rejected` listing the reasons. The claim stays atomic. |
+| Claim text that is blank or over 1,000 characters | The quote's own text becomes the claim. |
 | Duplicate claim (same text and span) | Dropped. |
 | More than 200 claims | The first 200 are kept, with error `LIMIT_EXCEEDED`. |
 | Empty, whitespace-only or over-100,000-character input | `INVALID_REQUEST`; no call is made. |
 
-The guarantee: every claim's `source_span` is real text from the input. Every claim's text is
-either a rewording that passed all the checks, or the source sentence itself. Claims are
+The guarantee (PROMPTS.md Phase 2):
+- **Offsets are computed in code,** never taken from the model.
+- **Every claim's `text` is exactly `content[start:end]`.**
+- **`normalized_text`, if present, is a rewording that passed every check.**
+- **Claims that can't be placed exactly are dropped and reported,** never moved to a guessed
+  span or widened to the whole sentence.
+
+The prompt itself (`extract-claims-v1`) is unchanged. Claims are
 numbered `clm_0001`, `clm_0002`, … in sentence order, and duplicates don't consume a number.
 The same model output always gives the same ids.
 
@@ -190,7 +227,7 @@ makes runs more repeatable but not guaranteed identical.
 | No passages retrieved | `NOT_ENOUGH_EVIDENCE`, no model call |
 | A retrieved passage doesn't match its document in this request | `ERROR` (`INTERNAL_ERROR`, stage `citation_validation`), no model call |
 | Timeout, rate limit, unavailable provider, missing configuration, credit or credential failure | `ERROR` with the provider's error code, `claim_id` and `retryable`. The retrieved evidence is kept for display. **Never shown as a verdict.** |
-| Reply doesn't fit the schema | One repair call listing the problems (never echoing the reply). Still invalid: `ERROR` (`MALFORMED_MODEL_OUTPUT`) |
+| Reply doesn't fit the schema | Up to `VerificationConfig.max_repairs` repair calls (default 1, at most 3) listing the problems (never echoing the reply). Still invalid: `ERROR` (`MALFORMED_MODEL_OUTPUT`) |
 | Model answers `NOT_ENOUGH_EVIDENCE` | `NOT_ENOUGH_EVIDENCE`; any citations it gave are dropped |
 | Model answers `SUPPORTED`/`CONTRADICTED` and every citation passes the guard | That verdict, with the guard's verbatim citations |
 | Model answers `SUPPORTED`/`CONTRADICTED` with no citation, or with **any** citation the guard rejects | **Downgraded to `NOT_ENOUGH_EVIDENCE`.** `citation_guard` records the model's verdict and each rejection |
@@ -235,6 +272,7 @@ SUPPORTED answer stands only if the cited quotes actually carry the claim's figu
 | Every date in the claim (a month next to a day or year number) appears in the cited quotes. The verb "may" isn't a month. | `unsupported_date` |
 | If a quote qualifies a figure the claim repeats ("up to 12 hours", "about", "at least", "more than", …), the claim keeps that qualifier | `missing_qualifier` |
 | Every capitalised name in the claim, after its leading subject run, appears in a cited passage. Months and all-capital acronyms ("CEO") are skipped. | `unsupported_name` |
+| The claim and the cited quotes agree on negation: "The bottle is dishwasher safe" is not supported by the exact, complete quote "The bottle is not dishwasher safe" (PROMPTS.md Phase 3; 0 of 45 labelled SUPPORTED records disagree on negation) | `negation_mismatch` |
 
 **Why names are checked against passages, not quotes.** Quotes rarely repeat the claim's subject:
 a quote-level rule would reject 17 of the 20 labelled SUPPORTED records. The subject run ("The
@@ -340,7 +378,8 @@ is recorded separately as `correction`: `target_span`, `original_text`, `replace
 | **Every word, number and currency or unit symbol (`€ $ £ ¥ % °`) the replacement adds appears in the cited quotes.** Only grammatical words are exempt: a, an, the, of, and, is, are, was, were, be, been, to, in, on, at, for, with, by, from, as, its, it, this, that, these, those, their, our. Modal and commitment words such as *will, can, may, always, only, guaranteed* are **not** exempt. | `unsupported_addition` |
 | A qualifier (`up to`, `about`, `only`, …) used by both the original and the evidence is still in the replacement | `drops_qualifier` |
 | **Figures are compared in the claim's own sentence** (the unit may sit outside the replaced words: `€` + `99`). Every new number that has a unit or currency appears in the cited quotes **with that same unit**: `€36` is rejected when the evidence's 36 is hours. Every new whole date appears in the quotes as that whole date: `2 April 2025` is rejected when the quotes give 2 April 2026 and, elsewhere, 2025. | `unsupported_addition` |
-| No unit or currency the original had disappears (`€99` → `129`, `7 g` → `5.2`) | `drops_unit` |
+| No figure loses its unit or currency (`€99` → `129`, `7 g` → `5.2`). A *swapped* unit (`5.2 kg` → `5.2 g`) is allowed when the evidence gives that number with that unit (prompts Phase 4 fixed a false positive here). | `drops_unit` |
+| No attribution the sentence had ("according to", "says", "reported", …) disappears (prompts Phase 4) | `drops_attribution` |
 | Word-level edit distance ≤ max(4, ⌈original words / 2⌉) | `not_minimal` |
 | The `Correction` contract accepts it (for example, numbers must come from cited quotes) | `invalid_correction` |
 | **Re-check:** the corrected claim, verified against the same evidence passages with the verifier and citation guard, is `SUPPORTED` | `recheck_not_supported` (verdict recorded) or `recheck_unavailable` |

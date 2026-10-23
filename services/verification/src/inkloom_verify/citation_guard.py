@@ -253,6 +253,11 @@ def support_problems(claim: str, quotes: list[str], passages: list[str] | None =
         context = " ".join(passages)
         if any(not re.search(rf"(?<!\w){re.escape(name)}(?!\w)", context) for name in names(claim)):
             problems.append(GuardRejectionReason.UNSUPPORTED_NAME)
+    # "The bottle is dishwasher safe" is not supported by "The bottle is not dishwasher safe", even
+    # though that quote is exact and complete. Measured (PROMPTS.md Phase 3): 0 of 45 labelled
+    # SUPPORTED records have a claim and gold quotes that disagree on negation.
+    if (NEGATION.search(claim_cf) is None) != (NEGATION.search(evidence.casefold()) is None):
+        problems.append(GuardRejectionReason.NEGATION_MISMATCH)
     return problems
 
 

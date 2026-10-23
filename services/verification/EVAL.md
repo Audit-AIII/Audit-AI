@@ -435,7 +435,7 @@ before a proposal is accepted.
 | Retrieval recall@1 / @3 / @5, retrieval_v1 | 100% (32/32) at every k |
 | Correction checks | bad rejected 28/28; good accepted 17/18; false accepts 0 |
 | Extraction, oracle replay | recall 33/33, precision 33/33, exact spans 33/33, 0 not atomic, 0 opinions, 0 slice violations |
-| Extraction, embellisher | 0 unsafe rewordings kept. Every embellished claim falls back to its source sentence, so the 3 compound sentences become 3 non-atomic claims: safe, less precise. |
+| Extraction, embellisher | 0 unsafe rewordings kept. Every embellished claim falls back to its source sentence, so the 3 compound sentences become 3 non-atomic claims: safe, less precise. **Since PROMPTS.md Phase 2, a rejected rewording keeps its quote's own span: 33/33 exact spans, 0 non-atomic (new gates).** |
 | Extraction, merger / opinion leaker | 3 not-atomic claims / 9 opinions extracted, precision 33/42: both visible in the metrics |
 | Enforcement | fabricator 2 accepted, 0 quotes not in any source, false-SUPPORTED 1/35; valid quote always SUPPORTED: 20 accepted, false-SUPPORTED 14/35; always CONTRADICTED: 50 accepted, 0/35 |
 | Error handling | 18/18 fault cases |

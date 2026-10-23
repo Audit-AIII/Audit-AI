@@ -35,6 +35,10 @@
   ],
   "metadata": {
     "content_hash": "8e61bd862a08a05ee728ac35d549c2a3171535c0746b7c0822e4618a12d11bed",
-    "errors": []
+    "errors": [],
+    "prompt_versions": {
+      "extract_claims": "extract-claims-v1",
+      "verify_claim": "verify-claim-v1"
+    }
   }
 }

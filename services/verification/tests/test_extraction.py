@@ -174,10 +174,13 @@ def test_unsplit_compound_is_kept_whole():
         ("The bottle can keep drinks cold.", "The bottle keeps drinks cold.", "The bottle can keep drinks cold.", "qualifiers"),
     ],
 )
-def test_meaning_changing_rewrites_fall_back_to_the_sentence(sentence, claim, quote, problem):
+def test_meaning_changing_rewrites_keep_the_quotes_own_text(sentence, claim, quote, problem):
+    """PROMPTS.md Phase 2: the located quote keeps its exact span; only the rewording is discarded
+    (it used to fall back to the whole sentence)."""
     result, _ = run(sentence, {sentence: ("factual", [(claim, quote)])})
-    assert texts(result) == [sentence]
-    assert result.claims[0].source_span.slice(sentence) == sentence
+    [extracted] = result.claims
+    assert extracted.text == quote and extracted.normalized_text is None
+    assert extracted.source_span.slice(sentence) == quote
     [warning] = result.warnings
     assert warning.code is WarningCode.REWRITE_REJECTED
     assert problem in warning.message
@@ -238,10 +241,12 @@ def test_quote_is_located_despite_whitespace_case_and_quote_marks():
     assert locate("   ", sentence) is None
 
 
-def test_unlocatable_quote_falls_back_to_the_sentence():
+def test_an_unlocatable_quote_drops_its_claim():
+    """PROMPTS.md Phase 2: a claim that cannot be located exactly is dropped, with a diagnostic
+    (it used to fall back to the whole sentence)."""
     text = "The case holds 48 g of batteries."
     result, _ = run(text, {text: ("factual", [("The case holds 48 g of batteries.", "The case weighs 48 g")])})
-    assert texts(result) == [text]
+    assert result.claims == []
     assert codes(result) == [WarningCode.QUOTE_NOT_FOUND]
 
 

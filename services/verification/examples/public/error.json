@@ -25,6 +25,10 @@
   ],
   "metadata": {
     "content_hash": "e72116b036b0e8e34b1308d77fd0b596b0c9a4af9f35eb549eda935043e3080a",
-    "errors": []
+    "errors": [],
+    "prompt_versions": {
+      "extract_claims": "extract-claims-v1",
+      "verify_claim": "verify-claim-v1"
+    }
   }
 }

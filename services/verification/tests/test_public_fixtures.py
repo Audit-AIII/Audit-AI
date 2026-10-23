@@ -64,7 +64,10 @@ def test_every_model_carries_the_approved_schema_version(name):
 @pytest.mark.parametrize("name", FILES)
 def test_metadata_matches_the_agreed_contract(name):
     data, manifest = load(name), MANIFEST[name]
-    assert set(data["metadata"]) == {"content_hash", "errors"}
+    assert set(data["metadata"]) == {"content_hash", "errors", "prompt_versions"}
+    used = {"extract_claims", "verify_claim"} | ({"correct_claim"} if any(
+        c["verdict"]["correction"] for c in data["claims"]) else set())
+    assert set(data["metadata"]["prompt_versions"]) == used  # a stage is listed only if its prompt was sent
     assert data["metadata"]["content_hash"] == hashlib.sha256(manifest["content"].encode("utf-8")).hexdigest()
 
 

@@ -326,6 +326,7 @@
         "not_minimal",
         "drops_qualifier",
         "drops_unit",
+        "drops_attribution",
         "recheck_not_supported",
         "recheck_unavailable",
         "invalid_correction"
@@ -539,6 +540,7 @@
         "unsupported_date",
         "missing_qualifier",
         "unsupported_name",
+        "negation_mismatch",
         "conflicting_evidence"
       ],
       "title": "GuardRejectionReason",

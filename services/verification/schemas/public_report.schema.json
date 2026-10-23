@@ -203,6 +203,23 @@
           },
           "title": "Errors",
           "type": "array"
+        },
+        "prompt_versions": {
+          "additionalProperties": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "default": {},
+          "propertyNames": {
+            "enum": [
+              "extract_claims",
+              "verify_claim",
+              "correct_claim"
+            ]
+          },
+          "title": "Prompt Versions",
+          "type": "object"
         }
       },
       "required": [

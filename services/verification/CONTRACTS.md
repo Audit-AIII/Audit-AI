@@ -67,7 +67,7 @@ Mutation tests break each fixture's rule and require it to be rejected.
 | `Passage` | `schema_version`, `doc_id`, `location` {`start`, `end`}, `text`, `score` (BM25; only comparable within one claim) |
 | `Evidence` | `schema_version`, `doc_id`, `location` {`start`, `end`}, `quote` (exactly the text at `location`) |
 | `Verdict` (`VerdictResult` in Python) | `schema_version`, `status`, `confidence`, `evidence`, `correction`, `needs_human_review`, `error_code` |
-| `Report` | `schema_version`, `request_id`, `claims` (a list of {`claim`, `verdict`}), `metadata` {`content_hash`} |
+| `Report` | `schema_version`, `request_id`, `claims` (a list of {`claim`, `verdict`}), `metadata` {`content_hash`, `errors`, `prompt_versions`} |
 
 **Approved decisions (2026-10-23):**
 1. A new public layer; the internal models are untouched.
@@ -252,8 +252,8 @@ Additional rules:
   Rejection reasons are `no_citation`, `unknown_passage`, `passage_provenance_invalid`,
   `quote_not_found`, `quote_too_short` and `partial_quote_drops_negation`. Since Phase 4 there
   are also support checks for SUPPORTED answers, which carry no `passage_id`:
-  `unsupported_quantity`, `unsupported_date`, `missing_qualifier` and (Phase 4 of the second
-  run) `unsupported_name`.
+  `unsupported_quantity`, `unsupported_date`, `missing_qualifier`, (Phase 4 of the second
+  run) `unsupported_name`, and (prompts Phase 3) `negation_mismatch`.
 
   **Conflicting evidence** (`conflicting_evidence`, with the `passage_id` of the disagreeing
   passage) applies to SUPPORTED and CONTRADICTED answers that passed every other check. One
@@ -279,7 +279,7 @@ Additional rules:
   - attempts exist only on `CONTRADICTED` results;
   - a `correction` requires an attempt with status `proposed`, and a `proposed` attempt requires the `correction`;
   - a `proposed` attempt has no issues and no error, and if it was re-checked the re-check was `SUPPORTED`.
-- Issue codes: `model_declined`, `no_citation`, `unknown_citation`, `target_not_found`, `no_change`, `unsupported_addition`, `drops_qualifier`, `drops_unit` (Phase 5, second run), `not_minimal`, `recheck_not_supported`, `recheck_unavailable`, `invalid_correction`. See [PROMPTS.md](PROMPTS.md#prompt-correct-claim-v1).
+- Issue codes: `model_declined`, `no_citation`, `unknown_citation`, `target_not_found`, `no_change`, `unsupported_addition`, `drops_qualifier`, `drops_unit` (Phase 5, second run), `drops_attribution` (prompts Phase 4), `not_minimal`, `recheck_not_supported`, `recheck_unavailable`, `invalid_correction`. See [PROMPTS.md](PROMPTS.md#prompt-correct-claim-v1).
 
 ### Reports
 

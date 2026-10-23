@@ -1,0 +1,2 @@
+# Prompt files are sent to models byte for byte: keep LF in every checkout (the loader also normalises).
+src/inkloom_verify/prompts/*.txt text eol=lf

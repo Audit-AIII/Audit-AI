@@ -216,8 +216,8 @@ def test_contamination_is_not_safe_to_continue_past():
 
     original = pipeline._report
 
-    def contaminated(req, provider, results, errors, models):
-        report = original(req, provider, results, errors, models)
+    def contaminated(*args):
+        report = original(*args)
         data = json.loads(report.model_dump_json())
         data["tenant_id"] = "tenant-other"
         return type(report).model_validate(data)

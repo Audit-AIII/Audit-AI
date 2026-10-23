@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inkloom_verify.chunking import sentence_spans
 from inkloom_verify.prompts import extraction as prompt
+from inkloom_verify.prompts.loader import load_prompt
 from inkloom_verify.providers.base import (
     ACCOUNT_ERRORS,
     JsonCompletionRequest,
@@ -93,12 +94,15 @@ class ExtractionConfig(BaseModel):
     max_output_tokens: Annotated[int, Field(strict=True, ge=256, le=32_000)] = 4_000
     max_claims: Annotated[int, Field(strict=True, ge=1, le=MAX_CLAIMS)] = MAX_CLAIMS
     max_claims_per_sentence: Annotated[int, Field(strict=True, ge=1, le=50)] = 10
+    # The prompt file to load (prompts/<version>.txt). An exact version, never "latest".
+    prompt_version: str = prompt.PROMPT_VERSION
 
 
 class WarningCode(str, Enum):
-    QUOTE_NOT_FOUND = "quote_not_found"  # source_quote is not in the sentence; used the sentence
-    REWRITE_REJECTED = "rewrite_rejected"  # claim text changed the meaning; used the sentence
-    CLAIM_TOO_LONG = "claim_too_long"  # claim text blank or over the limit; used the sentence
+    QUOTE_NOT_FOUND = "quote_not_found"  # source_quote is not in the sentence; the claim is dropped
+    AMBIGUOUS_QUOTE = "ambiguous_quote"  # source_quote occurs several times; which one is unknown; dropped
+    REWRITE_REJECTED = "rewrite_rejected"  # the rewording changed the meaning; the quote's own text is used
+    CLAIM_TOO_LONG = "claim_too_long"  # claim text blank or over the limit; the quote's own text is used
     FACTUAL_WITHOUT_CLAIMS = "factual_without_claims"  # sentence marked factual, no claims; used the sentence
     CLAIMS_ON_NON_FACTUAL = "claims_on_non_factual"  # claims listed for a non-factual sentence; ignored
     TOO_MANY_CLAIMS_IN_SENTENCE = "too_many_claims_in_sentence"  # extra claims ignored
@@ -214,6 +218,26 @@ def locate(quote: str, sentence: str) -> tuple[int, int] | None:
     return (match.start(), match.end()) if match else None
 
 
+def locate_all(quote: str, sentence: str) -> list[tuple[int, int]]:
+    """Every non-overlapping occurrence of ``quote`` in ``sentence``, left to right, with the same
+    tolerance as ``locate``: exact first, then whitespace and quotation marks, then case."""
+    quote = quote.strip()
+    if not quote:
+        return []
+    exact, start = [], sentence.find(quote)
+    while start >= 0:
+        exact.append((start, start + len(quote)))
+        start = sentence.find(quote, start + len(quote))
+    if exact:
+        return exact
+    pattern = _quote_pattern(quote)
+    for flags in (0, re.IGNORECASE):
+        found = [(m.start(), m.end()) for m in re.finditer(pattern, sentence, flags)]
+        if found:
+            return found
+    return []
+
+
 # --- Extraction --------------------------------------------------------------------------------
 
 
@@ -227,6 +251,8 @@ class ClaimExtractor:
     def __init__(self, provider: LLMProvider, config: ExtractionConfig | None = None) -> None:
         self.provider = provider
         self.config = config or ExtractionConfig()
+        self.prompt = load_prompt("extraction", self.config.prompt_version)  # fails clearly if missing
+        self.prompt_sent = False
 
     def extract(self, content: InputContent | str) -> ExtractionResult:
         stats = _CallStats()
@@ -234,7 +260,7 @@ class ClaimExtractor:
         def result(**fields: Any) -> ExtractionResult:
             return ExtractionResult(
                 provenance=ExtractionProvenance(
-                    prompt_version=prompt.PROMPT_VERSION,
+                    prompt_version=self.prompt.version,
                     provider=self.provider.name,
                     sampling=self.provider.sampling(),
                     models=sorted(stats.models),
@@ -310,6 +336,7 @@ class ClaimExtractor:
 
     def _complete(self, request: JsonCompletionRequest, stats: _CallStats) -> dict[str, Any]:
         stats.calls += 1
+        self.prompt_sent = True
         completion = self.provider.complete_json(request)
         stats.models.add(completion.model)
         return completion.data
@@ -317,7 +344,7 @@ class ClaimExtractor:
     def _classify(self, batch: list[tuple[str, str]], stats: _CallStats) -> _ModelOutput:
         """Asks the model once, and once more with the problems listed if the reply is unusable."""
         request = JsonCompletionRequest(
-            system=prompt.SYSTEM_PROMPT,
+            system=self.prompt.text,
             user=prompt.user_message(batch),
             schema_name="claim_extraction",
             json_schema=prompt.OUTPUT_SCHEMA,
@@ -371,39 +398,65 @@ class ClaimExtractor:
             limit = self.config.max_claims_per_sentence
             if len(statement.claims) > limit:
                 warn(WarningCode.TOO_MANY_CLAIMS_IN_SENTENCE, sid, f"only the first {limit} claims kept")
-            for model_claim in statement.claims[:limit]:
-                proposed.append(self._ground(model_claim, sid, span, text, warn))
+            proposed.extend(self._ground_sentence(statement.claims[:limit], sid, span, text, warn))
         for sid in batch:
             if sid not in kinds:
                 warn(WarningCode.SENTENCE_NOT_CLASSIFIED, sid, "the model did not classify this sentence")
         return proposed
 
+    @classmethod
+    def _ground_sentence(
+        cls, model_claims: list[_ModelClaim], sid: str, span: SourceSpan, text: str, warn: Any
+    ) -> list[tuple[str, str | None, SourceSpan]]:
+        """Places each claim at its source_quote, computed here: the model's offsets are never used.
+
+        A quote is searched for only inside its own sentence. When it occurs several times there,
+        the occurrences go to the claims quoting it in order, left to right, but only if exactly
+        that many claims quote it; otherwise which occurrence each claim means is unknown, and
+        those claims are dropped rather than given a guessed span. A quote that is not in the
+        sentence drops its claim. Dropped claims are reported (the pipeline turns them into a
+        request-level error), never silently replaced by the whole sentence.
+        """
+        sentence = span.slice(text)
+        occurrences = {id(c): locate_all(c.source_quote, sentence) for c in model_claims}
+        # Claims quoting the same occurrences, in model order.
+        groups: dict[tuple[tuple[int, int], ...], list[_ModelClaim]] = {}
+        for claim in model_claims:
+            groups.setdefault(tuple(occurrences[id(claim)]), []).append(claim)
+        grounded = []
+        for claim in model_claims:
+            found = occurrences[id(claim)]
+            if not found:
+                warn(WarningCode.QUOTE_NOT_FOUND, sid, "source_quote is not in the sentence; the claim was dropped")
+                continue
+            group = groups[tuple(found)]
+            if len(found) > 1 and len(group) != len(found):
+                warn(WarningCode.AMBIGUOUS_QUOTE, sid,
+                     f"source_quote occurs {len(found)} times in the sentence; the claim was dropped")
+                continue
+            start, end = found[group.index(claim)] if len(found) > 1 else found[0]
+            grounded.append(cls._ground(claim, sid, SourceSpan(start=span.start + start, end=span.start + end), text, warn))
+        return grounded
+
     @staticmethod
     def _ground(
-        model_claim: _ModelClaim, sid: str, span: SourceSpan, text: str, warn: Any
+        model_claim: _ModelClaim, sid: str, quote_span: SourceSpan, text: str, warn: Any
     ) -> tuple[str, str | None, SourceSpan]:
-        """(sentence id, the model's rewording or None, where the claim's words are), falling back
-        to the whole sentence when the claim cannot be trusted. Claim.text is always the content
-        at that span; the rewording only becomes ``normalized_text``."""
-        fallback = (sid, None, span)
+        """(sentence id, the model's rewording or None, the claim's span). Claim.text is always the
+        content at ``quote_span``; a rewording becomes ``normalized_text`` only if it is safe."""
+        source = quote_span.slice(text)
         claim_text = model_claim.text.strip()
         if not claim_text or len(claim_text) > MAX_CLAIM_CHARS:
-            warn(WarningCode.CLAIM_TOO_LONG, sid, "claim text blank or too long; the sentence is used")
-            return fallback
+            warn(WarningCode.CLAIM_TOO_LONG, sid, "claim text blank or too long; the quote's own text is used")
+            return sid, None, quote_span
         if has_hidden_characters(claim_text):
-            warn(WarningCode.REWRITE_REJECTED, sid, "the rewording contains control or invisible characters; the source text is used")
-            return fallback
-        sentence = span.slice(text)
-        located = locate(model_claim.source_quote, sentence)
-        if located is None:
-            warn(WarningCode.QUOTE_NOT_FOUND, sid, "source_quote is not in the sentence; the sentence is used")
-            return fallback
-        quote_span = SourceSpan(start=span.start + located[0], end=span.start + located[1])
-        problems = rewrite_problems(claim_text, quote_span.slice(text), text)
+            warn(WarningCode.REWRITE_REJECTED, sid, "the rewording contains control or invisible characters; the quote's own text is used")
+            return sid, None, quote_span
+        problems = rewrite_problems(claim_text, source, text)
         if problems:
-            warn(WarningCode.REWRITE_REJECTED, sid, "; ".join(problems) + "; the sentence is used")
-            return fallback
-        return sid, (claim_text if claim_text != quote_span.slice(text) else None), quote_span
+            warn(WarningCode.REWRITE_REJECTED, sid, "; ".join(problems) + "; the quote's own text is used")
+            return sid, None, quote_span
+        return sid, (claim_text if claim_text != source else None), quote_span
 
     @staticmethod
     def _number(

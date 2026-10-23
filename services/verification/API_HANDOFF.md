@@ -61,6 +61,7 @@ always present in responses. A field that doesn't apply is `null` or `[]`.
 | `claims[].verdict.error_code` | string or `null` | Only on `ERROR` (section 8) |
 | `metadata.content_hash` | string | Lowercase hex SHA-256 of `content.text`, UTF-8 |
 | `metadata.errors[]` | array of `{code, message}` | Request-level problems in a report that still has results (section 8) |
+| `metadata.prompt_versions` | object | The prompt version actually sent per stage, e.g. `{"extract_claims": "extract-claims-v1", "verify_claim": "verify-claim-v1"}`. Keys are `extract_claims`, `verify_claim` and `correct_claim`; a stage that made no model call is absent (added in prompts Phase 1). |
 
 **`confidence` is not a probability.** It's a fixed map of the engine's evidence strength:
 - none → 0.0;
@@ -104,8 +105,14 @@ response;** take them from your own sources.
 
 ## 5. Corrections
 
-- **Only for `CONTRADICTED`, and only when `options.suggest_corrections` is true** (the default).
-  When it's false, no verdict carries a correction and the engine doesn't attempt one.
+- **Only for `CONTRADICTED`, and only when the request asks (`options.suggest_corrections`, default
+  true) _and_ the server allows it** (`PipelineConfig.correct_contradicted`). A request can't turn on
+  what the server turned off.
+- When it's false, or the server has corrections off, no verdict carries a correction and the
+  engine doesn't attempt one.
+- If the request asked but the server has them off, `metadata.errors` says so:
+  `INVALID_REQUEST`, "Corrections were requested but are disabled on this server." (prompts
+  Phase 4)
 - When it's true, every `CONTRADICTED` verdict carries one of three outcomes:
   - `{"status": "proposed", "span", "original_text", "replacement_text", "evidence"}`;
   - `{"status": "needs_human_review"}` (no safe correction exists);
@@ -281,7 +288,7 @@ INKLOOM_REGENERATE_EXAMPLES=1 python -m pytest -q tests/test_api.py tests/test_a
 - Corrections that mispair units or drop them are refused.
 
 **Additive (no consumer change required; strict enum parsers must accept the new values):**
-- **Public, inside 0.1.0:** `metadata.errors`.
+- **Public, inside 0.1.0:** `metadata.errors`; `metadata.prompt_versions` (prompts Phase 1).
 - **Internal, inside 0.2.0:**
   - `EvidencePassage.reference_set_id`;
   - `ProcessingError.retry_after_seconds`;

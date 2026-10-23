@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from inkloom_verify.citation_guard import CitationGuard, conflicting_passage, support_problems
 from inkloom_verify.extraction import describe_validation_error
 from inkloom_verify.prompts import verification as prompt
+from inkloom_verify.prompts.loader import load_prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
 from inkloom_verify.retrieval import EvidenceRetriever
 from inkloom_verify.security import clean_display_text
@@ -67,6 +68,12 @@ class VerificationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     max_output_tokens: int = Field(default=1_500, ge=256, le=8_000)
+    # Repair calls after a reply that does not match the schema, before MALFORMED_MODEL_OUTPUT
+    # (HTTP 422 UNPARSEABLE_MODEL_OUTPUT when no claim could be checked). Transient provider
+    # failures are retried by the provider adapter itself (INKLOOM_LLM_MAX_RETRIES).
+    max_repairs: int = Field(default=1, ge=0, le=3)
+    # The prompt file to load (prompts/<version>.txt). An exact version, never "latest".
+    prompt_version: str = prompt.PROMPT_VERSION
 
 
 class ClaimVerifier:
@@ -81,6 +88,8 @@ class ClaimVerifier:
         self.provider = provider
         self.documents = list(documents)
         self.config = config or VerificationConfig()
+        self.prompt = load_prompt("verification", self.config.prompt_version)  # fails clearly if missing
+        self.prompt_sent = False
         self.models_used: set[str] = set()
 
     def verify(self, verifier_input: ClaimVerificationInput) -> ClaimResult:
@@ -101,7 +110,7 @@ class ClaimVerifier:
 
         labels = {f"P{i}": p.passage_id for i, p in enumerate(passages, start=1)}
         request = JsonCompletionRequest(
-            system=prompt.SYSTEM_PROMPT,
+            system=self.prompt.text,
             user=prompt.user_message(claim.statement, [(label, guard.passages[pid].text) for label, pid in labels.items()]),
             schema_name="claim_verification",
             json_schema=prompt.OUTPUT_SCHEMA,
@@ -175,21 +184,21 @@ class ClaimVerifier:
         )
 
     def _ask(self, request: JsonCompletionRequest) -> _ModelOutput:
-        """One call, and one repair call listing the problems if the reply does not fit the schema."""
-        completion = self.provider.complete_json(request)
-        self.models_used.add(completion.model)
-        try:
-            return _ModelOutput.model_validate(completion.data)
-        except ValidationError as error:
-            problems = describe_validation_error(error)
-        repaired = self.provider.complete_json(
-            request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+        """One call, then up to ``max_repairs`` repair calls listing the problems (never the reply)
+        while the reply does not fit the schema."""
+        self.prompt_sent = True
+        current = request
+        for attempt in range(self.config.max_repairs + 1):
+            completion = self.provider.complete_json(current)
+            self.models_used.add(completion.model)
+            try:
+                return _ModelOutput.model_validate(completion.data)
+            except ValidationError as error:
+                problems = describe_validation_error(error)
+            current = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+        raise MalformedOutputError(
+            f"Verification output did not match the schema after {self.config.max_repairs} repair attempt(s)."
         )
-        self.models_used.add(repaired.model)
-        try:
-            return _ModelOutput.model_validate(repaired.data)
-        except ValidationError:
-            raise MalformedOutputError("Verification output did not match the schema after one repair attempt.") from None
 
     @staticmethod
     def _error(claim: Claim, passages: list[EvidencePassage], error: ProcessingError) -> ClaimResult:

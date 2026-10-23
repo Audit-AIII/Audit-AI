@@ -124,6 +124,11 @@
   ],
   "metadata": {
     "content_hash": "3c50cd21b86bf1cab8b203495c7b457e1cbe9075bd89bfabde9f1b6dbe507328",
-    "errors": []
+    "errors": [],
+    "prompt_versions": {
+      "extract_claims": "extract-claims-v1",
+      "verify_claim": "verify-claim-v1",
+      "correct_claim": "correct-claim-v1"
+    }
   }
 }

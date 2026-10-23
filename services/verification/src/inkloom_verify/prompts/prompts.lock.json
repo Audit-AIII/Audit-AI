@@ -1,0 +1,17 @@
+{
+  "note": "Released prompt versions and the SHA-256 of their text (UTF-8, line endings normalised to LF, without the file's final newline). A released prompt is never edited: change the wording in a new version file and add it here. The loader refuses a released version whose text no longer matches.",
+  "released": {
+    "extract-claims-v1": {
+      "component": "extraction",
+      "sha256": "d7f14fc360aaecfbe5fe6f1560341d079781ba945ba519f207ed6797466a7bec"
+    },
+    "verify-claim-v1": {
+      "component": "verification",
+      "sha256": "5d8506866d6f947f359127a202c719c619cd085aea785141552b3582f3edf1c4"
+    },
+    "correct-claim-v1": {
+      "component": "correction",
+      "sha256": "82602e695c086cb48e975651b67108a996bb7434ea587e2b83bf92fe3f8bc011"
+    }
+  }
+}

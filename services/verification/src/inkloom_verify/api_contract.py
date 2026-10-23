@@ -35,6 +35,7 @@ from inkloom_verify.schemas import (
     ErrorCode,
     EvidencePassage,
     EvidenceStrength,
+    Label,
     PassageText,
     ReferenceSetId,
     ReportStatus,
@@ -208,9 +209,15 @@ class ReportError(_Public):
     message: Annotated[str, Field(min_length=1, max_length=MAX_ERROR_MESSAGE_CHARS)]
 
 
+PromptStage = Literal["extract_claims", "verify_claim", "correct_claim"]
+
+
 class ReportMetadata(_Public):
     content_hash: Sha256Hex  # lowercase hex SHA-256 of the content, UTF-8
     errors: list[ReportError] = []  # request-level problems; empty when the run had none
+    # Prompt version actually sent per stage (extract_claims, verify_claim, correct_claim). A stage
+    # that made no model call is absent.
+    prompt_versions: dict[PromptStage, Label] = {}
 
 
 class Report(_Public):
@@ -318,7 +325,8 @@ def to_public_report(report: VerificationReport, suggest_corrections: bool = Tru
         for r in report.results
     ]
     metadata = {"content_hash": report.content_sha256,
-                "errors": [{"code": e.code.value, "message": e.message} for e in report.errors]}
+                "errors": [{"code": e.code.value, "message": e.message} for e in report.errors],
+                "prompt_versions": dict(report.provenance.prompt_versions)}
     data = {"request_id": report.request_id, "claims": claims, "metadata": metadata}
     return Report.model_validate(data, context={"suggest_corrections": suggest_corrections})
 

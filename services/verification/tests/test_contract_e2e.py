@@ -149,7 +149,10 @@ def test_10_every_fixture_validates(name):
 
 def test_11_required_metadata():
     data = client().post("/v1/verify", json=body()).json()
-    assert set(data["metadata"]) == {"content_hash", "errors"}
+    assert set(data["metadata"]) == {"content_hash", "errors", "prompt_versions"}
+    # The versions actually sent: careful_model reaches all three stages (one claim is CONTRADICTED).
+    assert data["metadata"]["prompt_versions"] == {"extract_claims": "extract-claims-v1", "verify_claim": "verify-claim-v1",
+                                                   "correct_claim": "correct-claim-v1"}
     assert data["metadata"]["content_hash"] == hashlib.sha256(CONTENT.encode("utf-8")).hexdigest()
     assert REPORT_SCHEMA["required"] == ["request_id", "claims", "metadata"]
     assert REPORT_SCHEMA["$defs"]["ReportMetadata"]["required"] == ["content_hash"]

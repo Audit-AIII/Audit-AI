@@ -439,6 +439,7 @@ class CorrectionIssueCode(str, Enum):
     NOT_MINIMAL = "not_minimal"  # rewrites more than the minimality bound allows
     DROPS_QUALIFIER = "drops_qualifier"  # removes a qualifier ("up to", "about") that the evidence also uses
     DROPS_UNIT = "drops_unit"  # removes a unit or currency from a figure ("€99" -> "129")
+    DROPS_ATTRIBUTION = "drops_attribution"  # removes "according to", "says", ... that the sentence had
     RECHECK_NOT_SUPPORTED = "recheck_not_supported"  # the corrected claim did not verify as SUPPORTED
     RECHECK_UNAVAILABLE = "recheck_unavailable"  # the re-check could not run
     INVALID_CORRECTION = "invalid_correction"  # the proposal broke the Correction contract
@@ -541,6 +542,7 @@ class GuardRejectionReason(str, Enum):
     UNSUPPORTED_DATE = "unsupported_date"  # a date in the claim is not in the cited quotes
     MISSING_QUALIFIER = "missing_qualifier"  # the quotes qualify a figure ("up to 12") that the claim states flatly
     UNSUPPORTED_NAME = "unsupported_name"  # a capitalised name in the claim is in none of the cited passages
+    NEGATION_MISMATCH = "negation_mismatch"  # the claim is negated and the quotes are not, or the reverse
     # Applied to SUPPORTED and CONTRADICTED answers that passed every other check; passage_id is
     # the passage from another document that gives a different value:
     CONFLICTING_EVIDENCE = "conflicting_evidence"  # one document backs the claim's figure, another contradicts it
