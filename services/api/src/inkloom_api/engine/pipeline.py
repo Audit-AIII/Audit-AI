@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, Finding, Review
 from ..result_cache import compute_cache_key, get_cached_report, materialize_cached_report, serialize_review_outcome, store_report
 from ..section_diff import section_hash_for_span
+from ..softening_guard import softening_issues
 from ..statuses import (
     CheckType,
     EvidenceRelation,
@@ -161,6 +162,8 @@ def run_review(
         # corrector shares the provider (so its calls are logged to external_call_log like every
         # other call) and re-checks each proposal with the same verifier (recheck=True default).
         corrector = ClaimCorrector(provider, verifier)
+        softener_class = load_softener_class()
+        softener = softener_class(provider) if softener_class is not None else None
         content = InputContent(text=content_version.text)
     except Exception as error:  # e.g. RetrievalError/RetrievalLimitError on a malformed corpus
         _finish(db, review, ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
@@ -180,9 +183,12 @@ def run_review(
             _write_unexpected_error_finding(db, review, content_version, claim, error)
             continue
         needs_human_review = needs_human_review or result.verdict is not Verdict.SUPPORTED
+        softening = None
         if result.verdict is Verdict.CONTRADICTED:
             result = _propose_correction(corrector, result, content, review)
-        _write_finding(db, review, content_version, claim, result, lookup, organisation_id)
+        elif result.verdict is Verdict.NOT_ENOUGH_EVIDENCE and softener is not None:
+            softening = _propose_softening(softener, result, content, review)
+        _write_finding(db, review, content_version, claim, result, lookup, organisation_id, softening)
 
     _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED)
     # Only a genuine completed analysis is cached - never a stub result or a provider/corpus
@@ -203,10 +209,37 @@ def _propose_correction(corrector: ClaimCorrector, result: ClaimResult, content:
         return result
 
 
+def load_softener_class():
+    """The engine's softening step for UNVERIFIED claims, if this engine version has one.
+
+    Not built yet: it needs a change in Member 2's engine, proposed in
+    member3_backend/HANDOFF_unverified_suggestions.md as
+    `inkloom_verify.softening.ClaimSoftener(provider).soften(result, content)` returning an object
+    with `target_span` / `original_text` / `replacement_text`, or None. Until that module exists
+    this returns None and nothing changes; once it ships, suggestions appear with no backend
+    change - still behind softening_guard.py and never changing the verdict."""
+    try:
+        from inkloom_verify.softening import ClaimSoftener  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+    return ClaimSoftener
+
+
+def _propose_softening(softener, result: ClaimResult, content: InputContent, review: Review):
+    try:
+        return softener.soften(result, content)
+    except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
+        logger.error("review=%s claim=%s softening failed unexpectedly: %s",
+                     review.id, result.claim.claim_id, type(error).__name__)
+        return None
+
+
 def claim_level_correction(text: str, claim: Claim, correction: Correction | None) -> str | None:
     """The engine proposes a targeted edit (e.g. "24 hours" -> "12 hours"); the UI replaces the
     finding's whole `original_text` with `suggested_correction`, so store the claim span with the
-    edit applied. None if there is no correction or its target is not inside the claim's span."""
+    edit applied. None if there is no correction or its target is not inside the claim's span.
+    Also used for an unverified claim's softened wording (any object with `target_span` and
+    `replacement_text`)."""
     if correction is None:
         return None
     span, target = claim.source_span, correction.target_span
@@ -299,10 +332,22 @@ def _write_finding(
     result: ClaimResult,
     lookup: dict[tuple[str, str], CorpusEntry],
     organisation_id: uuid.UUID,
+    softening=None,
 ) -> None:
     verdict = result.verdict
     explanation = result.error.message if result.error else result.model_rationale
     suggested_correction = claim_level_correction(content_version.text, claim, result.correction)
+    if verdict is Verdict.NOT_ENOUGH_EVIDENCE:
+        # A safer wording for an unverified claim: from the engine's softening step, or a
+        # correction the engine attached to an unverified result (both are only proposals; the
+        # finding stays unverified). No evidence exists to check it against, so it must pass the
+        # backend's own deterministic rules (softening_guard.py) or it is dropped.
+        proposal = softening if softening is not None else result.correction
+        rewritten = claim_level_correction(content_version.text, claim, proposal)
+        original = claim.source_span.slice(content_version.text)
+        suggested_correction = rewritten if rewritten is not None and not softening_issues(original, rewritten) else None
+    elif verdict is Verdict.ERROR:
+        suggested_correction = None
 
     valid_entries: list[CorpusEntry] = []
     if verdict in (Verdict.SUPPORTED, Verdict.CONTRADICTED):
