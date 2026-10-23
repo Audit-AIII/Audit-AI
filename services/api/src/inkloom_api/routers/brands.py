@@ -1,8 +1,9 @@
-"""Brand source listing, upload and approval.
+"""Brand listing/creation, brand source listing, upload and approval.
 
-`GET /api/brands/{id}/sources` (Phase 2) needs no specific permission — any active member may
-read. `POST .../sources` and `.../approve` (Phase 4) are gated on `manage_sources`: only
-`source_manager` and `admin` hold it (see contract/README.md, "Role names").
+`GET /api/brands` and `GET /api/brands/{id}/sources` need no specific permission — any active
+member may read. `POST /api/brands`, `POST .../sources` and `.../approve` are gated on
+`manage_sources`: only `source_manager` and `admin` hold it (see contract/README.md, "Role
+names") — self-serve registration's own user is always `admin`, so this never blocks them.
 """
 
 from __future__ import annotations
@@ -13,7 +14,9 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from inkloom_verify.schemas import ReferenceDocument
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..audit import log_audit_event
@@ -21,8 +24,8 @@ from ..auth.dependencies import AuthContext, get_current_membership, require_per
 from ..auth.permissions import Permission
 from ..config import Settings, get_settings
 from ..db import get_db
-from ..models import AuditEvent, BrandSource, SourceVersion
-from ..schemas import BrandSourceOut, FlippedDependentOut, NewSourceVersionResponse, WithdrawSourceResponse
+from ..models import AuditEvent, BrandProfile, BrandSource, SourceVersion
+from ..schemas import BrandOut, BrandSourceOut, FlippedDependentOut, NewSourceVersionResponse, WithdrawSourceResponse
 from ..section_diff import document_section_hashes
 from ..source_lifecycle import apply_new_version_diff, withdraw_source
 from ..source_upload import extract_text, file_type_from_name, read_limited, store_upload
@@ -30,6 +33,99 @@ from ..statuses import BrandSourceSensitivity, BrandSourceStatus
 from ..tenancy import get_brand_profile_or_404, get_brand_source_or_404
 
 router = APIRouter(prefix="/api/brands", tags=["brands"])
+
+_DUPLICATE_BRAND_NAME = "a brand with this name already exists"
+
+
+def _approved_source_counts(db: Session, organisation_id: uuid.UUID) -> dict[uuid.UUID, int]:
+    rows = (
+        db.query(BrandSource.brand_profile_id, func.count(BrandSource.id))
+        .join(BrandProfile, BrandSource.brand_profile_id == BrandProfile.id)
+        .filter(
+            BrandProfile.organisation_id == organisation_id,
+            BrandSource.status == BrandSourceStatus.APPROVED.value,
+        )
+        .group_by(BrandSource.brand_profile_id)
+        .all()
+    )
+    return dict(rows)
+
+
+@router.get("", response_model=list[BrandOut])
+def list_brands(
+    auth: AuthContext = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> list[BrandOut]:
+    brands = (
+        db.query(BrandProfile)
+        .filter(BrandProfile.organisation_id == auth.organisation_id)
+        .order_by(BrandProfile.created_at, BrandProfile.name)
+        .all()
+    )
+    counts = _approved_source_counts(db, auth.organisation_id)  # one GROUP BY query, not N+1
+    return [
+        BrandOut(
+            id=brand.id,
+            name=brand.name,
+            description=brand.description,
+            approved_source_count=counts.get(brand.id, 0),
+            created_at=brand.created_at,
+        )
+        for brand in brands
+    ]
+
+
+class BrandCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("name must not be blank")
+        return value
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def _blank_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+
+@router.post("", response_model=BrandOut, status_code=201)
+def create_brand(
+    body: BrandCreateRequest,
+    auth: AuthContext = Depends(require_permission(Permission.MANAGE_SOURCES)),
+    db: Session = Depends(get_db),
+) -> BrandOut:
+    # organisation_id comes only from the token - a caller can never create a brand in another
+    # tenant's organisation by passing one in the body (there is no such field to pass).
+    brand = BrandProfile(organisation_id=auth.organisation_id, name=body.name, description=body.description)
+    db.add(brand)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, _DUPLICATE_BRAND_NAME) from None
+
+    log_audit_event(
+        db,
+        organisation_id=auth.organisation_id,
+        actor_user_id=auth.user_id,
+        event_type="brand.created",
+        entity_type="brand_profile",
+        entity_id=brand.id,
+        details={"name": brand.name},
+    )
+    db.commit()
+    db.refresh(brand)
+    return BrandOut(
+        id=brand.id, name=brand.name, description=brand.description, approved_source_count=0, created_at=brand.created_at
+    )
 
 
 @router.get("/{brand_id}/sources", response_model=list[BrandSourceOut])
@@ -53,11 +149,16 @@ def upload_brand_source(
     brand_id: uuid.UUID,
     title: str = Form(..., max_length=300),
     sensitivity: str = Form(BrandSourceSensitivity.NORMAL.value),
+    approve: bool = Form(False),
     file: UploadFile = File(...),
     auth: AuthContext = Depends(require_permission(Permission.MANAGE_SOURCES)),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> BrandSourceOut:
+    """Self-serve onboarding uploads its one brand-fact PDF with `approve=true` so it's
+    immediately usable by a review in the same step - safe because this route already requires
+    `manage_sources` (the same permission `.../approve` requires); the default (`False`) is
+    unchanged for every other caller."""
     brand = get_brand_profile_or_404(db, auth.organisation_id, brand_id)
     if sensitivity not in (BrandSourceSensitivity.NORMAL.value, BrandSourceSensitivity.CONFIDENTIAL.value):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "sensitivity must be 'normal' or 'confidential'")
@@ -70,7 +171,7 @@ def upload_brand_source(
     source = BrandSource(
         brand_profile_id=brand.id,
         title=title,
-        status=BrandSourceStatus.DRAFT.value,  # always draft until explicitly approved (task 3)
+        status=BrandSourceStatus.APPROVED.value if approve else BrandSourceStatus.DRAFT.value,
         sensitivity=sensitivity,
         source_type=file_type.value,
         storage_path=storage_path,
@@ -102,6 +203,17 @@ def upload_brand_source(
             details={"source_type": file_type.value, "sensitivity": sensitivity},
         )
     )
+    if approve:
+        db.add(
+            AuditEvent(
+                organisation_id=auth.organisation_id,
+                actor_user_id=auth.user_id,
+                event_type="brand_source.approved",
+                entity_type="brand_source",
+                entity_id=str(source.id),
+                details={"previous_status": "draft", "approved_on_upload": True},
+            )
+        )
     db.commit()
     db.refresh(source)
     return BrandSourceOut.from_model(source)

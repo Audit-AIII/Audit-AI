@@ -267,6 +267,14 @@ Neither route implemented so far (`GET /api/brands/{id}/sources`, `POST`/`GET /a
 requires a specific permission beyond being an active member — this table matters starting
 Phase 4+ (managing sources, approving content versions).
 
+## Self-serve onboarding
+
+`POST /api/auth/register`, `GET`/`POST /api/brands` and `POST /api/reviews/upload` let a visitor
+sign up with any email and get a private organisation, an `admin` membership and a starter brand
+in one transaction, upload one brand-fact file (approved in the same step), then check a draft
+against it — no brand id ever needed by hand. Full route reference, example requests/responses,
+error codes and known limits: **[`member3_backend/HANDOFF_self_serve_onboarding.md`](../../member3_backend/HANDOFF_self_serve_onboarding.md)**.
+
 ## Known gaps (don't be surprised by these)
 
 - **This route reference describes Phases 1-3 only** — Phases 4-7 added routes (brand source
@@ -274,10 +282,6 @@ Phase 4+ (managing sources, approving content versions).
   request-changes, review rerun) that aren't documented in "Full route reference" below yet.
   See `services/api/README.md`'s architecture table and `member3_backend/STATUS.md` for what
   those actually do until this file catches up.
-- **`ReviewOut` never exposes `content_item_id`**, only `content_version_id` - a real gap found
-  while building `scripts/smoke_test.py` (Phase 8). Creating a new content version needs the
-  item id; nothing in this flow's responses carries it today. See `README.md`'s "Known
-  limitations".
 - **No organisation switcher**, **no polling** (synchronous only), **no background jobs** —
   all explicit, confirmed simplifications for this phase, not oversights. See
   `services/api/README.md`'s "Open decisions" for the full list and the reasoning behind each.

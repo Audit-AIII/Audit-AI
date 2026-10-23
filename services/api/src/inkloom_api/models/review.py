@@ -58,6 +58,10 @@ class Review(Base):
     updated_at: Mapped[datetime] = updated_at_column()
 
     findings: Mapped[list["Finding"]] = relationship(back_populates="review")
+    # Read-only: lets ReviewOut.from_model reach content_item_id / brand_id / title / text
+    # without a second query, via the content_version's own existing `content_item` relationship
+    # (models/content.py). No migration needed - the content_version_id FK already exists.
+    content_version: Mapped["ContentVersion"] = relationship("ContentVersion", viewonly=True)
 
 
 class Finding(Base):

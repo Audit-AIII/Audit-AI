@@ -11,7 +11,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 
 from .auth.dependencies import AuthContext, require_permission
 from .auth.permissions import Permission
@@ -20,6 +20,7 @@ from .config import Settings, get_settings
 _lock = Lock()
 _user_hits: dict[str, list[float]] = defaultdict(list)
 _org_hits: dict[str, list[float]] = defaultdict(list)
+_ip_hits: dict[str, list[float]] = defaultdict(list)
 
 
 def _prune_and_count(hits: list[float], window_seconds: float, now: float) -> int:
@@ -34,6 +35,7 @@ def reset_rate_limits() -> None:
     with _lock:
         _user_hits.clear()
         _org_hits.clear()
+        _ip_hits.clear()
 
 
 def enforce_submission_rate_limit(auth: AuthContext, settings: Settings) -> None:
@@ -51,6 +53,24 @@ def enforce_submission_rate_limit(auth: AuthContext, settings: Settings) -> None
             )
         _user_hits[user_key].append(now)
         _org_hits[org_key].append(now)
+
+
+def enforce_registration_rate_limit(request: Request, settings: Settings = Depends(get_settings)) -> None:
+    """`Depends(enforce_registration_rate_limit)` on `POST /api/auth/register`. Unauthenticated -
+    there is no user or organisation yet - so this keys on the caller's IP alone, read only from
+    `request.client.host` (never the `X-Forwarded-For` header, which an untrusted caller can set
+    to anything and use to reset their own budget)."""
+    now = time.monotonic()
+    ip_key = request.client.host if request.client else "unknown"
+    with _lock:
+        if (
+            _prune_and_count(_ip_hits[ip_key], settings.rate_limit_registration_window_seconds, now)
+            >= settings.rate_limit_registrations_per_ip
+        ):
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS, "too many registration attempts from this address; slow down"
+            )
+        _ip_hits[ip_key].append(now)
 
 
 def rate_limited_submit_permission():

@@ -34,6 +34,25 @@ class SessionInfo(BaseModel):
 class LoginResponse(SessionInfo):
     access_token: str
     token_type: str = "bearer"
+    # None by default so a response built before this field existed (there isn't one today, but
+    # future replay/cache paths might) still validates. Login and register both set the real
+    # value explicitly.
+    expires_in: int | None = None
+
+
+class BrandOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None
+    approved_source_count: int
+    created_at: datetime
+
+
+class RegisterResponse(LoginResponse):
+    """POST /api/auth/register: everything a login gets, plus the brand created in the same
+    transaction - the caller never needs to look up a brand_id separately."""
+
+    brand: BrandOut
 
 
 class BrandSourceOut(BaseModel):
@@ -142,6 +161,15 @@ class ReviewOut(BaseModel):
     # Phase 9 stretch item 1: who may approve this review - "legal_reviewer" if any finding is
     # high/critical severity, "brand_manager" otherwise, null until a decidable outcome exists.
     required_reviewer_role: str | None
+    # Self-serve onboarding: default None so an idempotency replay recorded before these fields
+    # existed still parses (ReviewOut(**replay) in routers/reviews.py). Filled from
+    # review.content_version (Review.content_version, a viewonly relationship) and that version's
+    # own existing `content_item` relationship - no new query, no migration.
+    content_item_id: uuid.UUID | None = None
+    brand_id: uuid.UUID | None = None
+    title: str | None = None
+    version_number: int | None = None
+    text: str | None = None
 
     @classmethod
     def from_model(cls, review) -> "ReviewOut":
@@ -155,6 +183,8 @@ class ReviewOut(BaseModel):
             if review.engine_provider
             else None
         )
+        content_version = review.content_version
+        content_item = content_version.content_item if content_version is not None else None
         return cls(
             id=review.id,
             content_version_id=review.content_version_id,
@@ -169,6 +199,11 @@ class ReviewOut(BaseModel):
             updated_at=review.updated_at,
             findings=[FindingOut.from_model(f) for f in review.findings],
             required_reviewer_role=review.required_reviewer_role,
+            content_item_id=content_version.content_item_id if content_version is not None else None,
+            brand_id=content_item.brand_profile_id if content_item is not None else None,
+            title=content_item.title if content_item is not None else None,
+            version_number=content_version.version_number if content_version is not None else None,
+            text=content_version.text if content_version is not None else None,
         )
 
 

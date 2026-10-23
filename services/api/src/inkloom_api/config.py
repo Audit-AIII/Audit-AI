@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     rate_limit_submissions_per_user: int = 20
     rate_limit_submissions_per_organisation: int = 100
     rate_limit_window_seconds: float = 60.0
+    # Self-serve onboarding (POST /api/auth/register): keyed on request.client.host only - never
+    # X-Forwarded-For, which an untrusted caller can set to anything.
+    rate_limit_registrations_per_ip: int = 5
+    rate_limit_registration_window_seconds: float = 600.0
 
     @property
     def cors_origins(self) -> list[str]:
