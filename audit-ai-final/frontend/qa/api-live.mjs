@@ -2,6 +2,7 @@
 // Usage: AUDIT_EMAIL=... AUDIT_PASSWORD=... AUDIT_BRAND_ID=... node qa/api-live.mjs
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
+import { shimBrandsList } from "./lib/brands-shim.mjs";
 
 const { AUDIT_EMAIL: email, AUDIT_PASSWORD: password, AUDIT_BRAND_ID: brand } = process.env;
 if (!email || !password || !brand) throw new Error("set AUDIT_EMAIL, AUDIT_PASSWORD, AUDIT_BRAND_ID");
@@ -14,6 +15,7 @@ const failed = [];
 p.on("pageerror", (e) => pageErrors.push(e.message));
 p.on("requestfailed", (r) => r.url().includes(":8000") && failed.push(`${r.method()} ${r.url()} ${r.failure()?.errorText}`));
 const text = (sel) => p.locator(sel).first().innerText();
+await shimBrandsList(p, { brandId: brand, name: "Lumen Goods [seeded]" });
 
 // Sign in (wrong password first)
 await p.goto(`${WEB}/login`, { waitUntil: "networkidle" });
@@ -28,8 +30,6 @@ await p.waitForTimeout(2500);
 console.log("ok  sign in; status bar:", await text(".app__status-sample"));
 
 // Sources
-await p.fill(".brand-form input", brand);
-await p.click(".brand-form button");
 await p.waitForSelector(".rows__item", { timeout: 15000 });
 console.log("ok  sources:", (await p.locator(".rows__title").allInnerTexts()).join(" | "));
 

@@ -65,18 +65,13 @@ The frontend follows the code (`schemas.py`). Please update `API.md`, or tell me
 
 Ordered by how much they block the demo.
 
-1. **No way to find the caller's brands.** `login` and `/me` return no brand, and there is no
-   `GET /api/brands`. The frontend can't discover a `brand_id`, so for now the user pastes it once
-   on the Sources stage (the seed script prints it). Proposal: `GET /api/brands` →
-   `[{id, name}]` for the caller's organisation, or a `brands` list on `/me`.
-2. **`Review` doesn't include the submitted `text`.** Highlighting needs the full text plus the
-   spans. The frontend keeps its own copy in the browser that sent it, so a refresh works. But
-   opening a review on another device, or from someone else's link, shows the findings without
-   highlights. Proposal: add `text` (and `title`) to `Review`, or a `GET /api/content-versions/{id}`
-   that returns it.
-3. **`Review` doesn't say which brand or content item it belongs to.** Needed to show "checked
-   against brand X" and to create a new version (`content_item_id`, already in API.md "Known
-   gaps").
+1. ~~**No way to find the caller's brands.**~~ **Fixed by the onboarding contract** (`GET /api/brands`).
+   The frontend no longer has a Brand ID field: it picks the brand from that list.
+2. ~~**`Review` doesn't include the submitted `text`.**~~ **Fixed by the onboarding contract**
+   (`ReviewOut.text`). The frontend uses it first; this browser's own copy is only a fallback for
+   older backends.
+3. ~~**`Review` doesn't say which brand or content item it belongs to.**~~ **Fixed by the onboarding
+   contract** (`ReviewOut.brand_id`, `content_item_id`, `title`, `version_number`).
 4. **Evidence has `source_id` but no source title.** To show "From: Product spec v1" the
    frontend would have to load the brand's sources and match ids, which needs the brand id (item 1).
    Proposal: add `source_title` and `source_version_number` to each evidence item.
@@ -89,12 +84,48 @@ Ordered by how much they block the demo.
    better.
 7. **No `GET /api/reviews` list.** There is no way to show "your recent reviews" after the browser
    forgets the last id.
-8. **No token expiry in the login response** (`expires_in`). Tokens last
+8. **No token expiry in the login response** (`expires_in`). *Added by the onboarding contract;
+   the frontend types it but doesn't use it yet.* Tokens last
    `AUTH_TOKEN_TTL_MINUTES`, 720 (12 h) by default, but the client isn't told. The frontend only
    learns a token expired when a call returns 401. That is handled: it signs out and sends the
    user to sign in with a "session ended" note.
-9. **No sign-up route.** The "Create account" page now says accounts are created by an admin
-   instead of pretending to make one.
+9. ~~**No sign-up route.**~~ **Fixed by the onboarding contract** (`POST /api/auth/register`); the
+   "Create account" page is now a real sign-up form.
+
+## 5. Onboarding contract: status on `main` (checked 2026-10-23, after `git pull`)
+
+The frontend is built to the agreed contract. **These parts of it are not on the backend's `main` yet**,
+so self-serve sign-up does not work end to end until they land:
+
+| Contract item | Live today |
+|---|---|
+| `POST /api/auth/register` | **404** (route missing) |
+| `GET /api/brands`, `POST /api/brands` | **404**. The workspace can't load a brand at all until this lands: Sources and Draft show "We couldn't find that". |
+| `POST /api/reviews/upload` | **405** (`/api/reviews/{review_id}` matches the path; there's no POST route) |
+| `POST /api/brands/{id}/sources` field `approve` | **ignored**: the source is always saved as `draft`. The frontend handles this: if a manager's upload comes back `draft`, it calls the existing `/approve` route straight away. Confirmed live: upload 201, then approve 200. Harmless once `approve=true` is honoured. |
+| `ReviewOut.content_item_id / brand_id / title / version_number / text` | absent (typed as optional in the frontend; `text` falls back to the browser's copy) |
+| `LoginResponse.expires_in` | absent |
+
+What the frontend sends, so you can match it:
+- `POST /api/brands/{id}/sources` multipart fields: `file`, `title`, `sensitivity` (`normal` or
+  `confidential`), `approve` (`"true"` or `"false"`). Matches the existing route's `Form(...)`
+  names; `approve` is the only new one.
+- `POST /api/reviews/upload` multipart fields: `brand_id`, `file`, `title` (only when given), plus an
+  `Idempotency-Key` header.
+- `POST /api/auth/register` JSON: `email`, `password`, and optionally `display_name` and `brand_name`.
+  `organisation_name` isn't sent; the form doesn't ask for it.
+- Multipart requests carry no hand-set `Content-Type`; the browser sends
+  `multipart/form-data; boundary=…`. Confirmed live on the upload route.
+
+Please also check on your side:
+- **Email case:** does `register` treat `NOVA@EXAMPLE.COM` and `nova@example.com` as the same
+  account (409)? `login` looks users up with `User.email == body.email` (exact match), so a mixed-case
+  sign-up could create a second account or fail to sign in. The frontend sends the email as typed.
+- **Image-only PDFs:** confirmed live, `POST …/sources` returns 422 for a PDF with no extractable
+  text. `/api/reviews/upload` should do the same; the frontend shows "We couldn't read that file".
+- **Workspace data wiped by tests:** running `pytest` against the dev database deleted the seeded
+  demo organisation (Postgres stats: 50 organisations inserted, 50 deleted). The tests should use
+  their own database.
 
 ## 3. Setup notes
 

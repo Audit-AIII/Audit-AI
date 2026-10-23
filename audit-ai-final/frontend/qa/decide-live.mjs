@@ -3,6 +3,7 @@
 // (seeded users are <role>@seed.inkloom.demo; credentials come from the environment, never commit them)
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
+import { shimBrandsList } from "./lib/brands-shim.mjs";
 
 const { AUDIT_PASSWORD: password, AUDIT_BRAND_ID: brand } = process.env;
 if (!password || !brand) throw new Error("set AUDIT_PASSWORD, AUDIT_BRAND_ID");
@@ -21,7 +22,7 @@ async function as(role) {
   await p.fill("#a-password", password);
   await p.click("button[type=submit]");
   await p.waitForURL("**/app/sources", { timeout: 15000 });
-  await p.evaluate((id) => localStorage.setItem("audit-ai.brand-id", id), brand);
+  await shimBrandsList(ctx, { brandId: brand, name: "Lumen Goods [seeded]" });
   return { p, ctx };
 }
 async function submit(p, text) {

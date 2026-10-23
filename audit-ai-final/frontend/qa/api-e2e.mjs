@@ -86,6 +86,7 @@ await p.route(`${API}/**`, async (route) => {
       : json(401, err("UNAUTHENTICATED", "invalid email or password"));
   }
   if (path === "/api/auth/me") return json(200, { user: USER, organisation: ORG, role: "admin" });
+  if (path === "/api/brands") return json(200, [{ id: BRAND, name: "Lumen Goods", description: null, approved_source_count: 2, created_at: now }]);
   if (path === `/api/brands/${BRAND}/sources`)
     return json(200, [
       { id: "s1", brand_profile_id: BRAND, title: "Product spec", status: "approved", sensitivity: "normal", source_type: null, latest_version: 1, created_at: now, updated_at: now },
@@ -120,17 +121,12 @@ await p.waitForTimeout(2500);
 assert.match(await text(".app__status-sample"), /Seed Demo Org/i);
 console.log("ok  login: 401 message, success, /me");
 
-// 2. Sources: unknown brand -> 404 message; real brand -> list
-await p.fill(".brand-form input", "not-a-brand");
-await p.click(".brand-form button");
-await p.waitForSelector(".app-alert--bad");
-assert.match(await text(".app-alert--bad"), /No brand with that ID/);
-await p.fill(".brand-form input", BRAND);
-await p.click(".brand-form button");
+// 2. Sources: brand picked automatically from GET /api/brands, documents listed
 await p.waitForSelector(".rows__item");
+assert.equal(await p.locator("text=Brand ID").count(), 0);
 assert.equal(await p.locator(".rows__item").count(), 2);
-assert.match(await text(".rows"), /Brand guide[\s\S]*Version 4 · PDF/);
-console.log("ok  sources: 404, list");
+assert.match(await text(".rows"), /Brand guide[\s\S]*PDF · Version 4/);
+console.log("ok  sources: brand from /api/brands, list");
 
 // 3. Draft -> POST (stub) -> Review; refresh keeps it
 await go("/app/draft");
