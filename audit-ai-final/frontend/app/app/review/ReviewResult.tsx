@@ -9,7 +9,7 @@ import { checkName, isStub, isStubReview, reviewHeadline, severity, stubReason, 
 import { ApiError, api } from "@/lib/api/client";
 import type { FindingOut, ReviewOut } from "@/lib/api/types";
 import { segment } from "@/lib/text/codepoints";
-import { getReviewText } from "@/lib/workspace";
+import { getReviewText, setLastReviewId } from "@/lib/workspace";
 
 type Load = { state: "loading" } | { state: "ok"; review: ReviewOut } | { state: "error"; message: string; requestId: string | null };
 
@@ -44,7 +44,11 @@ function ReviewLoader({ id }: { id: string }) {
     let live = true;
     api
       .review(id)
-      .then((review) => live && setLoad({ state: "ok", review }))
+      .then((review) => {
+        if (!live) return;
+        setLastReviewId(review.id); // Decide / Record pick this up from the stage bar
+        setLoad({ state: "ok", review });
+      })
       .catch((err) => {
         if (!live) return;
         const message =
@@ -197,7 +201,7 @@ function ReviewView({
         <Panel n="03" label="Why it was flagged" title={current ? (isStub(current) ? "Placeholder" : verdict(current.verification_status).label) : "–"}>
           {current ? <FindingDetail f={current} /> : <p className="t-body panel__note">Pick a problem to see why.</p>}
           <EngineNote review={review} stub={stub} />
-          {current && !isStub(current) && <Button href="/app/decide">Choose what to do →</Button>}
+          <Button href={`/app/decide?id=${review.id}`}>Choose what to do →</Button>
         </Panel>
       </Panels>
     </>

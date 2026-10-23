@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels } from "@/components/app/Stage";
+import { canSubmit, roleName } from "@/components/app/roles";
 import { ApiError, api } from "@/lib/api/client";
+import { useSession } from "@/lib/session";
 import { getBrandId, rememberReviewText } from "@/lib/workspace";
 
 const MAX = 100_000; // backend limit, in characters (code points)
@@ -13,6 +15,8 @@ const MAX = 100_000; // backend limit, in characters (code points)
 /** New review: sends the draft to POST /api/reviews and opens the result on the Review stage. */
 export function DraftForm() {
   const router = useRouter();
+  const role = useSession()?.role ?? "";
+  const allowed = canSubmit(role);
   // Workspace stages render only on the client (AppShell waits for the session), so reading
   // localStorage in an initialiser is safe here.
   const [brandId] = useState(getBrandId);
@@ -96,12 +100,18 @@ export function DraftForm() {
             This can take up to a minute. Each problem we find shows the reason and the document it came from. Nothing is
             changed for you.
           </p>
+          {!allowed && (
+            <p className="app-alert" role="note">
+              Your role ({roleName(role)}) can’t send drafts for checking. A submitter or admin needs to do this. You can still
+              review and decide on drafts others send.
+            </p>
+          )}
           {error && (
             <p className="app-alert app-alert--bad" role="alert">
               {error}
             </p>
           )}
-          <Button type="submit" disabled={busy} aria-busy={busy}>
+          <Button type="submit" disabled={busy || !allowed} aria-busy={busy}>
             {busy ? "Checking…" : "Check my draft →"}
           </Button>
         </Panel>
