@@ -1,18 +1,13 @@
 # INKLOOM AI backend — API reference and setup
 
-This answers two questions: **will the AI engine work right now**, and **exactly what do you
-need to put in to make it work**. Then it documents every route.
+InkLoom is an **individual-user app**: one email = one private account, owning several brands.
+The user checks drafts against their brand's approved documents, gets evidence for every finding
+(claims without evidence are **unverified**, never "false"), sees suggested safer rewrites, and
+marks their own content ready to publish. No teams, roles or reviewer tiers.
 
-## Will it work right now?
-
-**Yes** — verified against a real Postgres database, 84 tests pass in one command (see
-`README.md`, "Test"), and `scripts/seed.py` / `scripts/smoke_test.py` have both been run live
-against it. The one thing not currently working in this environment's own `.env`: no configured
-LLM provider (Gemini/Groq/OpenRouter/Ollama) is actually reachable right now — free-tier model
-ids go stale (see `member3_backend/STATUS.md`, "What's left from you"). Without a working
-provider, `POST /api/reviews` still returns `201` and completes, but every review gets one
-fixed placeholder finding instead of a real one — see "Stub mode" below. **This is a safe
-fallback, not a crash** — set up from scratch below if you don't already have `.env` in place.
+Status (2026-10-24): every route below is live, verified against a real PostgreSQL database
+(182 tests, `README.md` → "Test") and over real HTTP (`scripts/smoke_test.py`), including real
+AI reviews through Gemini (`gemini-3.5-flash-lite`).
 
 ## Setup, start to finish
 
@@ -23,257 +18,369 @@ cd services/api
 cp .env.example .env
 ```
 
-Open `.env` and fill in:
+Fill in `AUTH_SECRET_KEY` (`python -c "import secrets; print(secrets.token_urlsafe(32))"`) and one AI
+provider (see "AI providers" below). `DATABASE_URL`'s default matches `docker-compose.yml`.
 
-- `AUTH_SECRET_KEY` — generate one:
-  ```sh
-  python -c "import secrets; print(secrets.token_urlsafe(32))"
-  ```
-- `DATABASE_URL` — leave the default (`postgresql+psycopg://inkloom:inkloom@localhost:5432/inkloom`)
-  if you use the provided `docker-compose.yml` unchanged.
-- `OPENROUTER_API_KEY` and `INKLOOM_LLM_MODELS` — leave blank for now if you don't have a key
-  yet; the server still runs, just in stub mode (see below). Fill these in once you have a key
-  — see "Getting an OpenRouter key" below for exactly what to put there.
-
-**Why `.env` alone is enough for the AI engine too:** `main.py` calls `load_dotenv()` before
-anything else runs, which loads every key in `.env` into the real process environment — not just
-the ones this app's own `Settings` class knows about. That matters because Member 2's engine
-(`inkloom_verify.providers.openrouter`) reads `OPENROUTER_API_KEY` / `INKLOOM_LLM_MODELS`
-directly from `os.environ`, not from anything this app passes it. (This wasn't wired until this
-pass — `pydantic-settings`' own `.env` parsing only populates its declared fields, and never
-touches `os.environ`, so without `load_dotenv()` a key placed in `.env` would silently never
-reach the engine. Fixed in `main.py`; verified by hand — see the repo's commit history for
-`main.py` around this doc's date if you want to see the exact check.)
+`main.py` calls `load_dotenv()` first, so every key in `.env` reaches the real process environment —
+the engine (`inkloom_verify`) reads some provider settings straight from `os.environ`.
 
 ### 2. Start Postgres
 
-Needs Docker Desktop actually running (not just installed) — check with `docker ps` first.
-
 ```sh
-docker compose up -d
+docker compose up -d        # needs Docker Desktop running
 ```
 
-### 3. Install dependencies and run migrations
+### 3. Install and migrate
 
 ```sh
-cd services/api
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"        # on macOS/Linux: .venv/bin/python
-.venv/Scripts/python -m pip install -e ../verification  # Member 2's engine, editable install
-
-.venv/Scripts/python -m alembic upgrade head
+.venv/Scripts/python -m pip install -e ".[dev]"          # macOS/Linux: .venv/bin/python
+.venv/Scripts/python -m pip install -e ../verification    # Member 2's engine, editable
+.venv/Scripts/python -m alembic upgrade head              # migrations 0001-0009
 ```
 
-### 4. Seed a demo user and brand to log in as
+### 4. Seed two demo accounts (optional)
 
 ```sh
-cd services/api
-.venv/Scripts/python scripts/seed.py
+.venv/Scripts/python scripts/seed.py            # --reset to delete and reseed them
 ```
 
-Creates two individual demo users (`asha@seed.inkloom.demo`, `ben@seed.inkloom.demo`), each with
-their own private account, two brands with **approved** brand documents, and demo content already
-checked against them. Demo reviews use the offline scripted provider (model id
-`scripted/demo-v1`), so seeding needs no API key, and everything is labelled `[SEEDED]`. Both users
-share one demo password, printed at the end along with each brand id. Idempotent per user.
+Two individual demo users (`asha@seed.inkloom.demo`, `ben@seed.inkloom.demo`), each with a private
+account, two brands, approved brand documents, and content in every state: completed,
+needs_human_review, approved, changes_requested, source_changed (a withdrawn document), an item
+with two versions, and "India's number one …" claims flagged unverified. Demo reviews use the
+offline scripted provider (model id `scripted/demo-v1`) — no API key needed — and everything is
+labelled `[SEEDED]`. The shared demo password is printed at the end.
 
-### 5. Run the server
+### 5. Run
 
 ```sh
 .venv/Scripts/python -m uvicorn inkloom_api.main:app --reload
 ```
 
-`GET http://localhost:8000/health` should return `{"status": "ok"}`. If it doesn't, Postgres
-isn't reachable — go back to step 2.
+`GET http://localhost:8000/health` → `{"status": "ok"}`. Swagger UI at `/docs`.
 
-Interactive API docs are auto-published at `http://localhost:8000/docs` (Swagger UI) and
-`/redoc` — useful for trying requests by hand without `curl`.
-
-### 6. Log in, then submit a review
+### 6. Smoke test (server running)
 
 ```sh
-# Login (seeded admin - see step 4; password is whatever scripts/seed.py printed)
-curl -X POST http://localhost:8000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@seed.inkloom.demo", "password": "<seed.py's printed password>"}'
-# -> copy "access_token" from the response
-
-TOKEN="<paste access_token here>"
-BRAND_ID="<paste BRAND_ID from step 4 here>"
-
-curl -X POST http://localhost:8000/api/reviews \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d "{\"brand_id\": \"$BRAND_ID\", \"text\": \"The Lumen Bottle keeps drinks cold for up to 24 hours. It is made from 90% recycled steel.\"}"
+.venv/Scripts/python scripts/smoke_test.py      # BASE_URL=... to point elsewhere
 ```
 
-- **No `OPENROUTER_API_KEY` set** → `201`, `status: "needs_human_review"`, one finding with
-  `category: "stub"` and an explanation starting `[STUB OUTPUT]`. This proves the whole pipeline
-  (auth → tenancy → storage → response shape) works; it is not a real verification.
-- **`OPENROUTER_API_KEY` set correctly** → the real engine runs: claims get extracted from the
-  text, each is checked against the brand's approved source text, and you get real
-  `supported`/`contradicted`/`unverified` findings with evidence quotes.
+Registers a fresh user → uploads a document → reviews a draft → lists reviews → fetches the review →
+analytics → latest evaluation (404 before any run) → approves. No seed data needed.
 
-## Getting an OpenRouter key (for real AI checks)
+## AI providers
 
-1. Sign up and create a key at [openrouter.ai/keys](https://openrouter.ai/keys). Put it in
-   `.env` as `OPENROUTER_API_KEY`.
-2. Pick 1-5 model ids from [openrouter.ai/models](https://openrouter.ai/models) that support
-   **structured outputs** (JSON schema mode) — filter by that capability on the models page.
-   Member 2's team's stated preference (`services/verification/PROMPTS.md`): a Gemini Flash
-   model first, a Llama model as fallback. **Copy the exact current ids from that page** — they
-   change over time and none are hard-coded anywhere in this repo, by design. As of this
-   writing, ids of that shape look like `google/gemini-2.5-flash` and
-   `meta-llama/llama-3.1-8b-instruct`, but confirm on the models page before using them.
-3. Put them comma-separated in `.env` as `INKLOOM_LLM_MODELS`, e.g.:
-   ```
-   INKLOOM_LLM_MODELS=google/gemini-2.5-flash,meta-llama/llama-3.1-8b-instruct
-   ```
-4. Restart the server (env vars are read once at process start).
+Tried in this fixed order on every call, falling through on any failure: **Gemini → Groq →
+OpenRouter `:free` → local Ollama** (only Ollama for confidential sources). Configure at least one in
+`.env`; `.env.example` documents each, with the model ids verified on 2026-10-24:
 
-**Cost and data note:** once a key is set, submitted content is sent to OpenRouter and on to
-whichever model answers (`INKLOOM_LLM_DATA_COLLECTION=deny`, the default, limits this to
-providers that don't retain prompt data, but the content still leaves the machine). Each call
-costs whatever OpenRouter charges for the model used. Don't point this at confidential content
-until that's acceptable for your use.
-
-## What `POST /api/reviews` can return
-
-Analysis is **synchronous** — the request blocks until one of these three outcomes is reached,
-and the response already reflects it:
-
-| `status` | When | `findings` |
+| Provider | Variables | Verified id |
 |---|---|---|
-| `completed` | Real engine ran; every claim came back `SUPPORTED` (or there was nothing to check) | Zero or more, all `supported` |
-| `needs_human_review` | Real engine ran and at least one claim needs a look, **or** no LLM provider is configured (stub mode) | Real findings, or one `category: "stub"` placeholder |
-| `failed` | The brand has no approved source to check against, or claim extraction itself could not run | Empty, with `error_summary` explaining why |
+| Gemini | `GEMINI_API_KEY`, `GEMINI_MODEL` | `gemini-3.5-flash-lite` (recommended, ~1s/call); `gemini-3.6-flash` works but is slower |
+| OpenRouter | `OPENROUTER_API_KEY`, `INKLOOM_LLM_MODELS` | `nvidia/nemotron-3.5-super-vl:free` |
+| Groq | `GROQ_API_KEY`, `GROQ_MODEL` | not configured here |
+| Ollama | `OLLAMA_MODEL` (`OLLAMA_BASE_URL`) | not configured here |
 
-`failed` here is a normal `201` response with `status: "failed"` in the body — not an HTTP error.
-The review resource was created; it just has nothing usable in it.
+Pick ids from the providers' live lists (Gemini: ai.google.dev/gemini-api/docs/models; OpenRouter:
+`https://openrouter.ai/api/v1/models` — a model without `response_format` in `supported_parameters`
+answers 404 here). With **no** provider configured, reviews still complete with one clearly labelled
+placeholder finding (`category: "stub"`, explanation starting `[STUB OUTPUT]`), and
+`POST /api/evaluations` answers 409.
 
-## Full route reference
+Content sent for review leaves the machine for the configured cloud provider (see `DISCLOSURE.md`).
 
-All routes except `/health` and `/api/auth/login` require `Authorization: Bearer <access_token>`.
+## Conventions
 
-### `GET /health`
-No auth. `200 {"status": "ok"}` if the database is reachable.
+- Every route except `/health`, `POST /api/auth/login` and `POST /api/auth/register` needs
+  `Authorization: Bearer <access_token>`.
+- **Scope comes only from the token.** Every id in a path or query is checked against the caller's
+  own account; another account's id answers `404`, identical (code and message) to an id that does
+  not exist.
+- **Errors**: `{"error": {"code", "message", "request_id"}}`. Codes: `UNAUTHENTICATED` (401),
+  `FORBIDDEN` (403 — not raised for an active account any more), `NOT_FOUND` (404), `CONFLICT` (409),
+  `VALIDATION_ERROR` (422 — field locations only, never the submitted value), `RATE_LIMITED` (429),
+  `INTERNAL_ERROR` (500). Every response carries `X-Request-ID`.
+- `span` offsets are Unicode **code points** into the submitted text, not UTF-16 units.
+- Reviews run **synchronously**: the POST response is the finished result.
+- Every state change writes an audit event; provider calls are logged (metadata only) to
+  `external_call_log`.
 
-### `POST /api/auth/login`
-No auth. Body: `{"email": "...", "password": "..."}`.
+## Accounts and roles
 
-**200:**
+`POST /api/auth/register` creates a private account (an organisation with one membership) and
+returns `role: "admin"`, which simply means **account owner**. Roles no longer grant or restrict
+anything; risk-based routing is off, so `required_reviewer_role` is `null` on every new review (the
+UI shows "Any approver"). The user approves their own content. Guards that still apply on approve
+(409): the review must be finished (`completed` / `needs_human_review`), the version must be the
+current one, and no cited source may have been withdrawn or replaced since the review ran.
+
+## Routes
+
+| Method & path | Purpose |
+|---|---|
+| `GET /health` | Liveness + DB check |
+| `POST /api/auth/register` | Sign up: account + starter brand + token |
+| `POST /api/auth/login` | Email + password → token |
+| `GET /api/auth/me` | Current session |
+| `GET /api/brands` | The user's brands (dashboard list, with review stats) |
+| `POST /api/brands` | Create a brand |
+| `GET /api/brands/{brand_id}/sources` | A brand's documents |
+| `POST /api/brands/{brand_id}/sources` | Upload a document (.txt/.pdf/.docx), optionally approved at once |
+| `POST /api/brands/{brand_id}/sources/{source_id}/approve` | Approve a draft document |
+| `POST /api/brands/{brand_id}/sources/{source_id}/withdraw` | Withdraw an approved document; approved dependents → `source_changed` |
+| `POST /api/brands/{brand_id}/sources/{source_id}/versions` | New version of a document; flips only dependents whose cited section changed |
+| `POST /api/reviews` | Check pasted text |
+| `POST /api/reviews/upload` | Check an uploaded draft file |
+| `GET /api/reviews` | **New.** The review queue: list the user's reviews |
+| `GET /api/reviews/{review_id}` | One review |
+| `POST /api/reviews/{review_id}/rerun` | Re-check the same version |
+| `POST /api/content/{content_item_id}/versions` | Save an edit as a new version and check it |
+| `GET /api/content/{content_item_id}/history` | Versions, reviews and decisions |
+| `POST /api/content-versions/{content_version_id}/approve` | Mark ready to publish |
+| `POST /api/content-versions/{content_version_id}/request-changes` | Send back (`changes_requested` / `rejected`) |
+| `GET /api/analytics/brand-risk` | **New.** Insights numbers |
+| `GET /api/evaluations/latest` | **New.** Latest Trust Scorecard run |
+| `POST /api/evaluations` | **New.** Run the labelled evaluation |
+
+### `POST /api/auth/register`
+
+Body: `{"email", "password", "display_name"?, "organisation_name"?, "brand_name"?}` (password 8+
+characters, ≤ 72 bytes). **201**:
+
 ```json
 {
-  "access_token": "eyJ...",
-  "token_type": "bearer",
-  "user": {"id": "...", "email": "...", "display_name": null},
-  "organisation": {"id": "...", "name": "Acme Corp", "slug": "acme"},
-  "role": "admin"
+  "access_token": "eyJ...", "token_type": "bearer", "expires_in": 43200,
+  "user": {"id": "...", "email": "ada@example.com", "display_name": null},
+  "organisation": {"id": "...", "name": "ada's workspace", "slug": "ada-s-workspace-3f9a1c2b"},
+  "role": "admin",
+  "brand": {"id": "...", "name": "My brand", "description": null, "approved_source_count": 0,
+            "created_at": "2026-10-24T10:00:00Z", "review_count": 0, "open_review_count": 0, "last_review_at": null}
 }
 ```
-**401** (same message whether the email is unknown, the password is wrong, or the account has no
-active organisation membership — deliberately indistinguishable):
+409 duplicate email (case-insensitive), 422 bad input, 429 more than 5 sign-ups per IP per 10 minutes.
+Detail: `member3_backend/HANDOFF_self_serve_onboarding.md`.
+
+### `POST /api/auth/login` · `GET /api/auth/me`
+
+Login body `{"email", "password"}` → same shape as register minus `brand`. 401 `invalid email or
+password` for any failure (indistinguishable on purpose). `me` → `{"user", "organisation", "role"}`.
+
+### `GET /api/brands` — dashboard list
+
+Oldest first (the sign-up brand is `[0]`). Review stats are real counts; zero / `null` when none.
+
 ```json
-{"error": {"code": "UNAUTHENTICATED", "message": "invalid email or password", "request_id": "..."}}
+[
+  {
+    "id": "...", "name": "My brand", "description": null, "approved_source_count": 1,
+    "created_at": "2026-10-24T09:00:00Z",
+    "review_count": 5,
+    "open_review_count": 2,
+    "last_review_at": "2026-10-24T11:42:10Z"
+  }
+]
 ```
+- `review_count`: every review of this brand's content.
+- `open_review_count`: reviews **waiting for the user's decision** = the latest review of each content
+  item's *current* version, in `completed` or `needs_human_review`. A review left on an older version,
+  or superseded by a rerun, is not counted (approving it would be refused).
+- `last_review_at`: newest review's `created_at`, or `null`.
 
-A token is scoped to **one organisation**, decided at login. A user in more than one
-organisation gets whichever membership was created first — no org switcher yet.
+`POST /api/brands` body `{"name", "description"?}` → 201 `BrandOut` (stats 0 / null); 409 duplicate name.
 
-### `GET /api/auth/me`
-Returns `{"user", "organisation", "role"}` (no token field) for the caller's current session.
-Use this to restore a session on page load rather than trusting a cached copy — a membership can
-be deactivated between requests.
+### Brand documents
 
-### `GET /api/brands/{brand_id}/sources`
-Any active member of the organisation may call this (no specific permission required). Returns
-a list of the brand's `BrandSource` rows:
+`GET /api/brands/{id}/sources` →
 ```json
-[{"id": "...", "brand_profile_id": "...", "title": "Product spec", "status": "approved", "sensitivity": "normal", "created_at": "...", "updated_at": "..."}]
+[{"id": "...", "brand_profile_id": "...", "title": "Fact Sheet", "status": "approved", "sensitivity": "normal",
+  "source_type": "txt", "latest_version": 1, "created_at": "...", "updated_at": "..."}]
 ```
-`brand_id` belonging to another organisation returns `404`, identical to a `brand_id` that
-doesn't exist at all — this never reveals whether another tenant's data exists.
+`POST` (multipart): `file`, `title`, `sensitivity` (`normal` | `confidential`), `approve` (`true` to
+approve on upload) → 201 one item of the above. `.../withdraw` body `{"status": "superseded" |
+"archived", "reason"}` → `{"source", "reason", "flipped": [{"content_version_id", "review_id"}]}`.
+`.../versions` (multipart `file`) → `{"source", "version_number", "flipped"}`. A confidential source
+in scope keeps the whole review on local Ollama only.
 
-### `POST /api/reviews`
-Body: `{"brand_id": "...", "title"?: "...", "text": "..."}` (`text` 1-100,000 characters).
-Returns `201` with the full `Review` shape below (see "What `POST /api/reviews` can return"
-above for what `status` ends up as). `brand_id` from another organisation: `404`.
+### `POST /api/reviews` · `POST /api/reviews/upload`
 
-### `GET /api/reviews/{review_id}`
-Returns the same `Review` shape. Scoped to the caller's organisation (`404` for any other
-tenant's review, same indistinguishable-404 rule as brands).
+Body `{"brand_id", "title"?, "text"}` (text ≤ 100,000 chars), or multipart `brand_id`, `title`?, `file`.
+Optional `Idempotency-Key` header replays the first response. Rate-limited per user and account.
+**201** with the Review shape below. `status`:
 
-**Review shape** (both routes return this):
+| `status` | When |
+|---|---|
+| `completed` | Every claim supported (or nothing to check) — **never** means approved |
+| `needs_human_review` | At least one claim contradicted / unverified / errored, or stub mode |
+| `failed` | No approved document for the brand, or claim extraction failed (`error_summary` says why) |
+
+### Review shape (all review routes)
+
 ```json
 {
   "id": "...",
   "content_version_id": "...",
+  "content_item_id": "...",
+  "brand_id": "...",
+  "brand_name": "Kora Phones",
+  "title": "Kora X2 launch ad",
+  "version_number": 1,
+  "text": "The Kora X2 is India's number one smartphone. It packs a 6,000 mAh battery.",
   "status": "needs_human_review",
   "report_status": null,
-  "engine": {"provider": "openrouter", "model_id": "google/gemini-2.5-flash", "prompt_version": "extract-claims-v1", "contract_version": "0.1.0"},
+  "engine": {"provider": "fallback", "model_id": "gemini:gemini-3.5-flash-lite",
+             "prompt_version": "extract-claims-v1", "contract_version": "0.2.0"},
   "error_summary": null,
+  "served_from_cache": false,
+  "required_reviewer_role": null,
   "started_at": "...", "completed_at": "...", "created_at": "...", "updated_at": "...",
   "findings": [
     {
       "finding_id": "...",
-      "category": null,
-      "severity": "high",
-      "original_text": "It is made from 90% recycled steel.",
-      "span": {"start": 55, "end": 90},
+      "category": "unsupported_claim",
+      "severity": "medium",
+      "original_text": "The Kora X2 is India's number one smartphone.",
+      "span": {"start": 0, "end": 45},
       "check_type": "retrieval",
-      "explanation": "P1 gives 70% recycled content, not 90%.",
+      "explanation": "None of the approved documents mention market rankings.",
+      "verification_status": "unverified",
+      "suggested_correction": null,
+      "requires_human_review": true,
+      "evidence": []
+    },
+    {
+      "finding_id": "...",
+      "category": "contradicted_claim",
+      "severity": "high",
+      "original_text": "It packs a 6,000 mAh battery.",
+      "span": {"start": 46, "end": 75},
+      "check_type": "retrieval",
+      "explanation": "The fact sheet gives a 5,000 mAh battery, not 6,000 mAh.",
       "verification_status": "contradicted",
-      "suggested_correction": "It is made from 70% recycled steel.",
+      "suggested_correction": "It packs a 5,000 mAh battery.",
       "requires_human_review": true,
       "evidence": [
-        {"id": "...", "source_id": "...", "source_version_id": "...", "quote": "70% recycled content", "relation": "contradicts"}
+        {"id": "...", "source_id": "...", "source_version_id": "...", "quote": "Battery: 5,000 mAh.",
+         "relation": "contradicts", "source_title": "Kora X2 Product Fact Sheet", "source_version_number": 1}
       ]
     }
   ]
 }
 ```
-`span` offsets are Unicode **code points** into the submitted `text`, not UTF-16 code units — a
-JavaScript client highlighting text must account for that (see `contract/README.md`, "Offsets").
 
-### Error shape (every route, on failure)
-```json
-{"error": {"code": "NOT_FOUND", "message": "brand not found", "request_id": "6b2e9a1c..."}}
+- **`category`** (real runs): `contradicted_claim`, `unsupported_claim` (unverified — no evidence
+  either way, including a citation this backend's own validator rejected), `supported_claim`,
+  `engine_error` (that one claim could not be checked). `stub` marks the no-provider placeholder.
+  `null` only on findings written before this field was filled.
+- **`suggested_correction`**: the **whole `original_text` rewritten**, so the UI can do
+  `draft.replace(original_text, suggested_correction)`. For contradicted claims it comes from the
+  engine's corrector, is backed by the cited quote and re-verified as supported, and is dropped if
+  this backend's evidence validation downgrades the finding. For unverified claims it stays `null`
+  until Member 2's softening step ships (`member3_backend/HANDOFF_unverified_suggestions.md`); the
+  backend already accepts and rule-checks it, and the finding stays `unverified`. A suggestion is
+  only ever offered — nothing is applied automatically.
+- **`evidence[].source_title` / `source_version_number`**: the document and the version the quote was
+  actually taken from (still the old number after the document gets a new version).
+- `brand_name`, `content_item_id`, `title`, `version_number`, `text`: `null` only on very old rows.
+- `required_reviewer_role`: always `null` on new reviews (routing is off).
+
+### `GET /api/reviews` — review queue
+
+Query: `status` (repeatable — any matches), `brand_id` (optional), `limit` (default 50, 1–100),
+`offset` (default 0). **200**: a plain JSON **array** of full Review objects (above), newest first,
+from the caller's account only. Empty → `[]`. Another account's `brand_id` → 404. Bad
+`status`/`limit`/`offset`/`brand_id` → 422.
+
 ```
-| HTTP | `code` | Meaning |
-|---|---|---|
-| 401 | `UNAUTHENTICATED` | No token, invalid/expired token, or a membership no longer active |
-| 403 | `FORBIDDEN` | Authenticated, but the role lacks the needed permission |
-| 404 | `NOT_FOUND` | Doesn't exist, or belongs to another organisation — indistinguishable on purpose |
-| 422 | `VALIDATION_ERROR` | Request body/params failed validation; lists field locations only, never the submitted value |
-| 500 | `INTERNAL_ERROR` | Unexpected server error |
+GET /api/reviews?status=needs_human_review&status=completed&limit=20
+```
 
-Every response — success or error — carries `X-Request-ID`, echoed in `error.request_id` too.
-Match that to a server log line if something needs debugging.
+### `POST /api/reviews/{id}/rerun` · content versions · decisions
 
-## Accounts and roles (individual-user mode)
+- `rerun` → 201 a new Review of the same version (the old review is untouched).
+- `POST /api/content/{content_item_id}/versions` body `{"text"}` → 201
+  `{"content_version_id", "version_number", "is_current": true, "review": <Review>}`.
+- `GET /api/content/{content_item_id}/history` →
+  `{"content_item_id", "title", "versions": [{"id", "version_number", "is_current", "created_by",
+  "created_at", "reviews": [{"id", "status", "created_at"}], "decisions": [<ApprovalEvent>]}]}`.
+- `POST /api/content-versions/{id}/approve` → 201 ApprovalEvent:
+  `{"id", "content_version_id", "version_number", "action": "approved", "actor_user_id", "note": null, "created_at"}`.
+  409 if not decidable, stale, or a cited document was withdrawn/replaced ("rerun the review first").
+- `POST /api/content-versions/{id}/request-changes` body `{"decision": "changes_requested" | "rejected",
+  "note"?}` → 201 ApprovalEvent. 409 only if the review is not decidable.
 
-InkLoom is an individual-user app: one email = one private account (an organisation with one
-membership), owning any number of brands. `role` is always `"admin"` for a registered user and
-now simply means **account owner**. Roles no longer grant or restrict anything (every active
-membership holds every permission), risk-based routing is off (`required_reviewer_role` is always
-`null` on new reviews), and the user approves their own content. Access between accounts is the
-only boundary: another account's id is a `404`, identical to an id that doesn't exist. Full
-detail: `contract/README.md`, "Accounts and roles".
+### `GET /api/analytics/brand-risk` — Insights
 
-## Self-serve onboarding
+Query: `brand_id` (the page always sends it; omitted = every brand in the account), `days`
+(default 30, 1–365). **200**, computed only from real rows for reviews created in the period:
 
-`POST /api/auth/register`, `GET`/`POST /api/brands` and `POST /api/reviews/upload` let a visitor
-sign up with any email and get a private organisation, an `admin` membership and a starter brand
-in one transaction, upload one brand-fact file (approved in the same step), then check a draft
-against it — no brand id ever needed by hand. Full route reference, example requests/responses,
-error codes and known limits: **[`member3_backend/HANDOFF_self_serve_onboarding.md`](../../member3_backend/HANDOFF_self_serve_onboarding.md)**.
+```json
+{
+  "top_categories": [{"category": "unsupported_claim", "count": 4}, {"category": "contradicted_claim", "count": 2}],
+  "median_turnaround_minutes": 95.0,
+  "re_review_rate": 0.25,
+  "queue_age_minutes": {"median": 180.0, "oldest": 2880.0},
+  "sample_size": 12
+}
+```
+- `top_categories`: finding counts by `category`, excluding `stub`, `supported_claim` and null;
+  descending; top 6.
+- `median_turnaround_minutes`: review created → its first decision; `null` if none decided.
+- `re_review_rate`: share of the period's content items with 2+ versions; `null` if no items.
+- `queue_age_minutes`: now − created for the period's reviews waiting for a decision (same definition
+  as `open_review_count`); `null`s if none.
+- `sample_size`: reviews counted. Zero reviews → `{"top_categories": [], "median_turnaround_minutes":
+  null, "re_review_rate": null, "queue_age_minutes": {"median": null, "oldest": null}, "sample_size": 0}`.
+- Another account's `brand_id` → 404; bad `days` → 422.
 
-## Known gaps (don't be surprised by these)
+### `GET /api/evaluations/latest` · `POST /api/evaluations` — Trust Scorecard
 
-- **This route reference describes Phases 1-3 only** — Phases 4-7 added routes (brand source
-  upload/approve/withdraw/new-version, content new-version/history, content-version approve/
-  request-changes, review rerun) that aren't documented in "Full route reference" below yet.
-  See `services/api/README.md`'s architecture table and `member3_backend/STATUS.md` for what
-  those actually do until this file catches up.
-- **No organisation switcher**, **no polling** (synchronous only), **no background jobs** —
-  all explicit, confirmed simplifications for this phase, not oversights. See
-  `services/api/README.md`'s "Open decisions" for the full list and the reasoning behind each.
+`POST` runs the engine's labelled claim-verification evaluation
+(`services/verification/eval/dataset.jsonl`, 55 claims: 20 supported, 17 contradicted, 18 without
+evidence; refused if it no longer matches the engine's label lock) synchronously through this
+backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
+`EVAL_DEADLINE_SECONDS`). Takes ~1–4 minutes. **201**, and `GET .../latest` returns the same:
+
+```json
+{
+  "catch_rate": 1.0,
+  "false_positive_rate": 0.0,
+  "per_check": [
+    {"check": "verification", "catch_rate": 1.0, "false_positive_rate": 0.0, "n": 55},
+    {"check": "numeric", "catch_rate": 1.0, "false_positive_rate": 0.0, "n": 26},
+    {"check": "absent_fact", "catch_rate": 1.0, "false_positive_rate": null, "n": 9}
+  ],
+  "sample_size": 55,
+  "run_at": "2026-10-24T01:31:02Z",
+  "id": "...",
+  "status": "partial",
+  "engine_prompt_version": "verify-claim-v1",
+  "dataset_version": "dataset.jsonl@0516b9b8ce5b",
+  "limits_note": "Measured on 55 labelled claims from the engine's own test set (...). This is a small test set: it shows the checker was tested, not a universal accuracy figure, ...",
+  "latency_ms_p50": 1098.0,
+  "provider_failure_rate": 0.0364
+}
+```
+- `catch_rate` = claims labelled contradicted or no-evidence that were flagged (contradicted or
+  unverified) / all such claims — recall on claims that should be flagged.
+- `false_positive_rate` = claims labelled supported that were flagged / all supported claims.
+- A claim with no verdict (provider failure, budget) counts as not flagged and is reported in
+  `provider_failure_rate`; `status` is `partial` when there were any. `null` = zero denominator.
+- `per_check`: `verification` overall, then one entry per labelled kind of hard case (numeric, date,
+  named_entity, prompt_injection, …), largest first.
+- Model-reported confidence is never used.
+
+Errors: `GET .../latest` with no run yet → **404** `no evaluation has been run yet`. `POST` with no
+provider configured → **409**, nothing stored. `POST` where more than 20% of claims got no verdict
+(`EVAL_MAX_PROVIDER_FAILURE_RATE`) → **409** "…was not saved…", nothing stored (its real calls stay in
+`external_call_log`). More than one run per user per 10 minutes (stored or discarded) → **429**.
+
+## Known limits
+
+- Rate limiting and idempotency replay are in-process memory (single worker); the evaluation's
+  10-minute limit is in the database.
+- No org switcher, no invites, no password reset, no email verification (individual accounts).
+- A full `pytest` run wipes the database (the migrations round-trip test) — reseed afterwards with
+  `scripts/seed.py --reset`.
+- Unverified-claim suggestions wait on the engine's softening step (handoff to Member 2).
+- Not deployed yet.

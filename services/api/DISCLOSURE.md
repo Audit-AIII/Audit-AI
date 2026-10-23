@@ -11,7 +11,9 @@ skeleton, SQLAlchemy models, Alembic migrations, structured logging/error handli
 `contract/` files, the LLM provider fallback adapter (`engine/providers/`), the result cache,
 idempotency and rate-limiting layers, the approval/versioning/audit state machine, and the
 source-lifecycle (withdraw/new-version/section-diff) logic — under this member's direction and
-review, and tested against a real Postgres database before being treated as done.
+review, and tested against a real Postgres database before being treated as done. The individual-user round (2026-10-24: individual-account mode, finding categories, suggested
+corrections, review queue, analytics, Trust Scorecard, scripted demo provider, seed rewrite) was
+also written with Claude Code under the same direction, with every change committed separately.
 
 ## External services
 
@@ -34,6 +36,15 @@ review, and tested against a real Postgres database before being treated as done
     (`external_call_log`) — never prompt content, completions, or raw provider error bodies.
   - A result that is served from the cache (`result_cache.py`) makes no external call at all,
     confidential or not.
+  - Besides claim extraction and verification, the same chain now also receives: for a
+    contradicted claim, the author's sentence, the claim and the cited source quotes (the engine's
+    corrector) and the corrected claim with the same passages (its re-check); for an unverified
+    claim, the sentence and claim (the engine's softening step, once Member 2 ships it).
+  - `POST /api/evaluations` (Trust Scorecard) sends the engine's synthetic labelled test claims and
+    their synthetic reference documents (`services/verification/eval/dataset.jsonl`) through the
+    same chain - no user content. Calls are logged with request id `eval-<run id>`.
+  - `scripts/seed.py` and the test suite make no provider call: they use the stub or the offline
+    scripted provider (`src/inkloom_api/engine/scripted_provider.py`, model id `scripted/demo-v1`).
 - No other external service is called.
 
 ## Data handling

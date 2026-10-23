@@ -83,6 +83,30 @@ units, so a JavaScript frontend highlighting text must convert
 (`Array.from(text).slice(start, end).join("")`), not index `text` directly, when the text
 contains characters outside the Basic Multilingual Plane (emoji, etc).
 
+**Fields added 2026-10-24 (all additive; existing fields unchanged).** On `Review`:
+`brand_name` (alongside the earlier `content_item_id`, `brand_id`, `title`, `version_number`,
+`text`). On each evidence item: `source_title`, `source_version_number` (the document version the
+quote was taken from). `category` is now filled on real runs: `contradicted_claim`,
+`unsupported_claim` (unverified - no evidence either way), `supported_claim`, `engine_error` (that
+claim could not be checked); `stub` still marks the no-provider placeholder. `suggested_correction`
+is the **whole `original_text` rewritten** (swap it in with `draft.replace(original_text,
+suggested_correction)`); it is an evidence-backed, re-verified fix for contradicted claims, and stays
+`null` for unverified claims until the engine's softening step ships
+(`member3_backend/HANDOFF_unverified_suggestions.md`). It is only ever a suggestion.
+`BrandOut` (`GET /api/brands`) gained `review_count`, `open_review_count` (reviews waiting for the
+user's decision) and `last_review_at`.
+
+## Routes for the new UI pages (2026-10-24)
+
+Full shapes and example JSON: `services/api/API.md`.
+
+| Route | Page | Notes |
+|---|---|---|
+| `GET /api/reviews?status=&brand_id=&limit=&offset=` | Review queue | Plain JSON array of full `Review` objects, newest first; `status` repeatable; limit 1-100 (default 50) |
+| `GET /api/analytics/brand-risk?brand_id=&days=` | Insights | `{top_categories, median_turnaround_minutes, re_review_rate, queue_age_minutes: {median, oldest}, sample_size}`; zero data -> `[]`, `null`s, `0` |
+| `GET /api/evaluations/latest` | Trust Scorecard | 404 until a run exists ("not available yet") |
+| `POST /api/evaluations` | Trust Scorecard "Run evaluation" | 201 `{catch_rate, false_positive_rate, per_check, sample_size, run_at, ...}`; 409 no provider or too many provider failures (message is user-readable); 429 more than once per 10 minutes |
+
 ## Submitting a review (Phase 3)
 
 - **`POST /api/reviews`** — body `{"brand_id", "title"? , "text"}`. `brand_id` must be a brand

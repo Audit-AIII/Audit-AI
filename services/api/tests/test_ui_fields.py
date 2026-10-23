@@ -144,3 +144,23 @@ def test_brand_stats_counts_and_open_definition(client, force_stub_mode, account
     assert main["open_review_count"] == 2  # edited v2 + rerun
     assert datetime.fromisoformat(main["last_review_at"]) == datetime.fromisoformat(rerun.json()["created_at"])
     assert (brands[second_brand["id"]]["review_count"], brands[second_brand["id"]]["last_review_at"]) == (0, None)
+
+
+@requires_db
+def test_contract_schemas_declare_every_field_a_real_review_returns(client, monkeypatch, account_factory) -> None:
+    """contract/schemas/*.json use additionalProperties: false - a real response must not carry a
+    key they don't declare, and must carry every key they require (keeps the contract honest)."""
+    import json
+    from pathlib import Path
+
+    contract = Path(__file__).resolve().parents[3] / "contract" / "schemas"
+    review_schema = json.loads((contract / "review.schema.json").read_text(encoding="utf-8"))
+    finding_schema = json.loads((contract / "finding.schema.json").read_text(encoding="utf-8"))
+    evidence_schema = finding_schema["definitions"]["EvidenceLink"]
+
+    use_scripted_provider(monkeypatch, RULES)
+    review = account_factory("owner").submit(MIXED_TEXT)
+    finding = next(f for f in review["findings"] if f["evidence"])
+    for body, schema in ((review, review_schema), (finding, finding_schema), (finding["evidence"][0], evidence_schema)):
+        assert set(body) <= set(schema["properties"]), set(body) - set(schema["properties"])
+        assert set(schema["required"]) <= set(body)
