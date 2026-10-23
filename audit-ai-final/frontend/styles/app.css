@@ -300,6 +300,7 @@ textarea.draft__text {
   .app__account .account { flex-wrap: nowrap; }
   .app__account .account__who { max-width: 210px; }
   .app__account .account__menu { position: absolute; margin-top: 0; }
+  .app__account .account__menu:not(.is-open) { display: grid; }
 }
 @media (prefers-reduced-motion: reduce) {
   .stage, .option, .tick, .dropzone, .dropzone__btn, .decision, .rows__item { transition: none; }

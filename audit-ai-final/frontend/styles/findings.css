@@ -3,7 +3,7 @@
    ========================================================================== */
 .findings__head { margin-bottom: clamp(64px, 9vw, 110px); }
 .findings__title { max-width: 9ch; margin: 0; }
-.findings__intro { max-width: 36ch; margin: 0; }
+.findings__intro { max-width: 36ch; margin: 0; font-size: 22px; }
 .findings__badge {
   display: inline-block;
   margin: 0 10px 8px 0;

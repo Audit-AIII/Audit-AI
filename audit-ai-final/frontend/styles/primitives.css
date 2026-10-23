@@ -271,7 +271,7 @@ textarea.field__input { min-height: 150px; resize: vertical; }
 .spec__row dd { margin: 0; font-size: 15px; line-height: 1.35; }
 
 /* ---- Disclosure (FAQ row) ---- */
-.disclosure { position: relative; }
+.disclosure { position: relative; interpolate-size: allow-keywords; }
 .disclosure::before {
   content: "";
   position: absolute;
@@ -327,6 +327,17 @@ textarea.field__input { min-height: 150px; resize: vertical; }
 .disclosure[open] .disclosure__mark::after { transform: rotate(0deg); }
 .disclosure__answer { max-width: 62ch; padding: 0 64px 30px 0; }
 
+/* Drop-down: the answer area grows open/closed (browsers with ::details-content), and the answer
+   itself slides down and fades in on open (everywhere). */
+.disclosure::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition: block-size var(--dur-mid) var(--ease-enter), content-visibility var(--dur-mid) allow-discrete;
+}
+.disclosure[open]::details-content { block-size: auto; }
+.disclosure[open] .disclosure__answer { animation: drop-in var(--dur-mid) var(--ease-enter) both; }
+@keyframes drop-in { from { opacity: 0; translate: 0 -10px; } }
+
 @media (max-width: 767px) {
   .disclosure__summary { padding: 22px 0; gap: 16px; }
   .disclosure__question { font-size: 19px; }
@@ -335,6 +346,7 @@ textarea.field__input { min-height: 150px; resize: vertical; }
 
 @media (prefers-reduced-motion: reduce) {
   .btn, .btn::after, .icon-btn, .icon-btn::after, .icon-btn__glyph, .icon-btn__glyph::before, .icon-btn__glyph::after,
-  .link, .link-arrow__glyph, .disclosure__mark, .disclosure__mark::before, .disclosure__mark::after { transition: none; }
+  .link, .link-arrow__glyph, .disclosure__mark, .disclosure__mark::before, .disclosure__mark::after, .disclosure::details-content { transition: none; }
+  .disclosure[open] .disclosure__answer { animation: none; }
   .btn:hover, .btn:active, .link:active, .link-arrow:hover .link-arrow__glyph { transform: none; }
 }

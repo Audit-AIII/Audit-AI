@@ -35,7 +35,7 @@
 .sources__name { margin: 0; }
 .sources__meta { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 0; }
 .sources__meta dt { margin-bottom: 6px; }
-.sources__meta dd { margin: 0; font-size: 15px; line-height: 1.4; }
+.sources__meta dd { margin: 0; font-size: 18px; line-height: 1.45; }
 
 /* Source drawings (paper objects: raised = a thing you added) */
 .src { position: relative; display: flex; align-items: center; justify-content: center; gap: 14px; height: 120px; }
@@ -108,7 +108,7 @@
 }
 .sources__punch-text { max-width: 440px; }
 .sources__punch-text .t-title { margin: 0 0 12px; }
-.sources__punch-text p { margin: 0; }
+.sources__punch-text p { margin: 0; font-size: 19px; line-height: 1.55; }
 .disc {
   display: grid;
   place-items: center;

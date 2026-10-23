@@ -1,0 +1,16 @@
+import { chromium } from "playwright";
+const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1182, height: 937 } });
+await p.goto("http://localhost:3100/login", { waitUntil: "networkidle" });
+await p.fill("#a-email", "chahit2006@gmail.com"); await p.fill("#a-password", "secret1"); await p.click("button[type=submit]");
+await p.waitForURL("**/app/sources"); await p.waitForTimeout(3000);
+await p.goto("http://localhost:3100/", { waitUntil: "networkidle" });
+await p.evaluate(() => { const e = document.querySelector("#faq"); scrollTo(0, e.getBoundingClientRect().top + scrollY - 80); }); await p.waitForTimeout(1500);
+await p.click("#faq .disclosure__summary >> nth=1"); await p.waitForTimeout(180); await p.screenshot({ path: "qa/out/dd-faq-mid.png" });
+await p.waitForTimeout(600); await p.screenshot({ path: "qa/out/dd-faq-open.png" });
+console.log("faq height", await p.evaluate(() => document.querySelectorAll("#faq .disclosure")[1].offsetHeight));
+await p.evaluate(() => scrollTo(0, 0)); await p.waitForTimeout(800);
+await p.click(".account__who"); await p.waitForTimeout(90); await p.screenshot({ path: "qa/out/dd-acc-mid.png", clip: { x: 700, y: 0, width: 482, height: 260 } });
+await p.waitForTimeout(400); await p.screenshot({ path: "qa/out/dd-acc-open.png", clip: { x: 700, y: 0, width: 482, height: 260 } });
+await p.keyboard.press("Escape"); await p.waitForTimeout(400);
+console.log("menu visibility after close", await p.evaluate(() => getComputedStyle(document.querySelector(".account__menu")).visibility));
+await b.close();

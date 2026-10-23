@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { signOut, useSession } from "@/lib/session";
+import { sandNavigate } from "@/lib/sandWave";
 
 /**
  * Header account area. Signed out: Sign in + Sign up.
@@ -15,7 +15,6 @@ export function AccountNav({ onNavigate, inApp = false }: { onNavigate?: () => v
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +61,7 @@ export function AccountNav({ onNavigate, inApp = false }: { onNavigate?: () => v
             ▾
           </span>
         </button>
-        <div id={menuId} className="account__menu card" hidden={!open}>
+        <div id={menuId} className={`account__menu card${open ? " is-open" : ""}`}>
           <p className="t-caption account__menu-label">Signed in as</p>
           <p className="account__menu-email">{session.email}</p>
           <button
@@ -70,9 +69,10 @@ export function AccountNav({ onNavigate, inApp = false }: { onNavigate?: () => v
             className="link link--tap"
             onClick={() => {
               setOpen(false);
-              signOut();
               onNavigate?.();
-              if (inApp) router.push("/");
+              // In the workspace: sign out under the sand wave, then land on the home page.
+              if (inApp) sandNavigate("/", signOut);
+              else signOut();
             }}
           >
             Sign out

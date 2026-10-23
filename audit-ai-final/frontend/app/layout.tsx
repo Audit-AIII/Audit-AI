@@ -3,6 +3,7 @@ import "@fontsource-variable/gabarito";
 import "@fontsource-variable/instrument-sans";
 import "./globals.css";
 import { ReliefDefs } from "@/components/layout/ReliefDefs";
+import { SandWave } from "@/components/layout/SandWave";
 
 export const metadata: Metadata = {
   title: "Audit AI — check first, publish sure",
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         </a>
         <ReliefDefs />
         {children}
+        <SandWave />
       </body>
     </html>
   );

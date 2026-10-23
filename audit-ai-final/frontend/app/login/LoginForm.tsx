@@ -1,14 +1,14 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Field } from "@/components/primitives/Field";
 import { signIn } from "@/lib/session";
+import { sandNavigate } from "@/lib/sandWave";
 
 /** Sign in / create account card. Mock auth: a valid form stores the email as the session and opens the workspace. */
 export function LoginForm() {
-  const router = useRouter();
   const signup = useSearchParams().get("mode") === "signup";
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -19,7 +19,7 @@ export function LoginForm() {
     const email = String(data.get("email") ?? "").trim();
     const name = String(data.get("name") ?? "").trim() || undefined;
     signIn({ email, name });
-    router.push("/app");
+    sandNavigate("/app");
   };
 
   return (

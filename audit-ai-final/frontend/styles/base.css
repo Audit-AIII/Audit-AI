@@ -282,3 +282,40 @@ body {
 
 /* Phones and tablets stack the layout, so there is no empty sand to put shells in */
 @media (max-width: 900px) { .shore { display: none; } }
+
+/* ---- Sand-wave page transition (components/layout/SandWave.tsx) ----
+   One SVG wall of wet sand: a curling crest on the leading (left) edge, a dune edge along the top
+   that shows as it collapses, foam on both. GSAP moves .sandwave__wave; this is the look. */
+.sandwave { position: fixed; inset: 0; z-index: 1000; visibility: hidden; opacity: 0; overflow: hidden; pointer-events: none; }
+.sandwave__wave {
+  position: absolute;
+  left: 0;
+  top: -12vh;
+  width: calc(100vw + 40vh);
+  height: 124vh;
+  will-change: transform;
+}
+.sandwave__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* soft shadow thrown ahead of the wall and below its edge as it collapses */
+  filter: drop-shadow(-22px 14px 26px rgb(31 20 11 / .42)) drop-shadow(-4px 3px 5px rgb(31 20 11 / .3));
+}
+.sandwave__wet-front { stop-color: color-mix(in srgb, var(--canvas) 58%, var(--ink-2)); }
+.sandwave__wet-mid { stop-color: color-mix(in srgb, var(--canvas) 78%, var(--ink-2)); }
+.sandwave__wet-back { stop-color: color-mix(in srgb, var(--canvas) 92%, var(--paper-hi)); }
+.sandwave__curl { fill: color-mix(in srgb, var(--ink-2) 75%, var(--deep)); opacity: .55; }
+.sandwave__foam { fill: none; stroke: var(--paper-hi); stroke-linecap: round; stroke-dasharray: 46 10 14 8; vector-effect: non-scaling-stroke; }
+.sandwave__foam--crest { stroke-width: 6; opacity: .92; }
+.sandwave__foam--top { stroke-width: 4; opacity: .75; }
+.sandwave__grains { position: absolute; inset: 0; }
+.sandwave__grain {
+  position: absolute;
+  top: 0;
+  border-radius: var(--r-round);
+  background: color-mix(in srgb, var(--canvas) 62%, var(--ink-2));
+  box-shadow: -1px -1px 0 rgb(247 232 210 / .5);
+  opacity: 0;
+}
