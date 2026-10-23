@@ -307,3 +307,41 @@ textarea.draft__text {
   .option:hover, .dropzone:hover .dropzone__btn { translate: none; }
   .stage:hover { translate: none; }
 }
+
+/* ---- Live API states (Sources / Draft / Review wired to the backend) ---- */
+.app-alert { margin: 0 0 4px; padding: 14px 16px; border-radius: var(--r-ui); outline: 1.5px dashed var(--ink-2); outline-offset: -1px; font-size: 17px; line-height: 1.5; }
+.app-alert--bad { outline: 0; background: var(--bad-tint); box-shadow: var(--shadow-well); }
+/* Placeholder (stub) result: dashed and plain, so it never reads as a verified verdict */
+.app-alert--placeholder { margin-bottom: 20px; outline-style: dashed; outline-width: 2px; background-color: var(--protect-tint); }
+.app > main > .app-alert { margin-bottom: 20px; }
+.app-empty { display: grid; justify-items: start; gap: 16px; max-width: 560px; padding: 28px; }
+.app-empty p { margin: 0; }
+.panel__hint { margin: -6px 0 0; color: var(--ink-2); }
+.brand-form { display: grid; gap: 16px; }
+.brand-form .btn { justify-self: start; }
+.brand-pill { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 14px; border-radius: var(--r-ui); box-shadow: var(--shadow-well); }
+.brand-pill__id { font: 600 16px / 1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+.draft__count { margin: -8px 0 0; justify-self: end; color: var(--ink-2); }
+.draft__count.is-over { color: var(--bad); }
+.draft__count.is-over::before { content: "≠ "; }
+
+/* Problems list items are buttons (keyboard path: Tab to a problem, Enter shows why) */
+button.rows__item { width: 100%; border: 0; border-bottom: 1px dashed color-mix(in srgb, var(--ink-2) 55%, transparent); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+button.rows__item > span { display: grid; gap: 4px; }
+button.rows__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.problem--stub .rows__title { color: var(--ink-2); font-style: italic; }
+.chip--neutral { outline: 1px solid var(--ink-2); outline-offset: -1px; }
+.chip--placeholder { outline: 1.5px dashed var(--ink-2); outline-offset: -1px; color: var(--ink-2); }
+
+/* Highlighted spans in the draft are buttons too */
+.heat__mark { padding: 2px 3px; border-radius: var(--r-tag); color: var(--ink); cursor: pointer; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.heat__ok { background: var(--ok-tint); }
+.heat__placeholder { background: transparent; outline: 1.5px dashed var(--ink-2); outline-offset: 0; }
+.heat__mark.is-current { text-decoration: underline 2px; text-underline-offset: 4px; }
+.heat__mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.finding-detail { display: grid; gap: 14px; }
+.evidence--placeholder { background: none; box-shadow: var(--shadow-well); outline: 1.5px dashed var(--ink-2); outline-offset: -1px; color: var(--ink); }
+.evidence--placeholder .t-caption { color: var(--ink-2); }
+.engine-note { margin: auto 0 0; color: var(--ink-2); letter-spacing: .04em; text-transform: none; }
+.request-id { font: 600 14px / 1 ui-monospace, monospace; letter-spacing: 0; text-transform: none; user-select: all; }
