@@ -8,6 +8,7 @@ before applying.
 |---|---|
 | Guidelines | `/app/guidelines` |
 | Correction editor | `/app/review-edit?id=<review id>` |
+| Evidence coverage | `/app/coverage?id=<review id>` |
 
 ## Guidelines
 
@@ -33,3 +34,11 @@ before applying.
 
 Note: `components/app/AppShell.tsx` matches the stage bar with `pathname.startsWith("/app/review")`,
 so `/app/review-edit` already highlights "Review" in the stage bar. Harmless; no change proposed.
+
+## Evidence coverage
+
+4. **Link from the Review page, beside the legend in "Your draft".**
+   `app/app/review/ReviewResult.tsx`, at the same place as item 3 (before line 204), add:
+   ```tsx
+   <a className="link" href={`/app/coverage?id=${review.id}`}>See evidence coverage →</a>
+   ```
