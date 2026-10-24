@@ -104,6 +104,9 @@ class Finding(Base):
     requires_human_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # The engine's claim_id (inkloom_verify.schemas.ClaimId), kept for traceability. Opaque here.
     engine_claim_id: Mapped[str | None] = mapped_column(String(80))
+    # Why a claim finding needs a person (migration 0013): the engine's ClaimReviewReason values.
+    # [] when it doesn't; null on rule and stub findings and on rows written before 0013.
+    review_reasons: Mapped[list | None] = mapped_column(JSONB)
     # Rule findings only (check_type "rule", migration 0010); null on claim findings.
     rule_id: Mapped[str | None] = mapped_column(String(128))  # engine ids are up to 128 chars
     rule_type: Mapped[str | None] = mapped_column(String(40))
