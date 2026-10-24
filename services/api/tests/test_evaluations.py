@@ -1,9 +1,6 @@
 """Trust Scorecard: GET /api/evaluations/latest and POST /api/evaluations (step 7).
 
-Runs use the engine's real labelled dataset (services/verification/eval/dataset.jsonl) and the
-engine's real verifier, behind the offline scripted provider - so the numbers below are exactly
-derivable from the labels. The counts are read from the dataset (N, POSITIVES, NEGATIVES below),
-not hard-coded: the dataset grew from 55 to 80 claims in EVAL.md Phase 2.
+Runs use the engine's real labelled dataset (services/verification/eval/dataset.jsonl; its size and label split are read from the file, not hardcoded, so the dataset can grow; it grew from 55 to 80 claims in EVAL.md Phase 2) and the engine's real verifier, behind the offline scripted provider - so the numbers below are exactly derivable from the labels.
 
 1. latest before any run -> 404 NOT_FOUND (never 200 with missing numbers);
    -> test_latest_is_404_before_any_run
@@ -37,9 +34,8 @@ from inkloom_api.models import EvaluationRun, ExternalCallLog
 DATASET = Path(inkloom_verify.__file__).resolve().parents[2] / "eval" / "dataset.jsonl"
 LABELS = [json.loads(line)["expected_verdict"] for line in DATASET.read_text(encoding="utf-8").splitlines() if line.strip()]
 N = len(LABELS)
-POSITIVES = sum(label in ("CONTRADICTED", "NOT_ENOUGH_EVIDENCE") for label in LABELS)  # should be flagged
-NEGATIVES = sum(label == "SUPPORTED" for label in LABELS)  # should be cleared
-assert POSITIVES + NEGATIVES == N
+N_SUPPORTED = LABELS.count("SUPPORTED")
+N_FLAGGABLE = N - N_SUPPORTED  # CONTRADICTED + NOT_ENOUGH_EVIDENCE
 EVALUATION_KEYS = {"catch_rate", "false_positive_rate", "per_check", "sample_size", "run_at"}
 
 
@@ -113,8 +109,8 @@ def test_run_returns_evaluation_shape_and_is_stored(client, scripted_eval, db_se
     # are none); every one of them is logged.
     assert 0 < len(calls) == run.metrics["calls_used"] <= N
     assert {c.review_id for c in calls} == {None}
-    assert run.metrics["catch_rate"] == {"numerator": POSITIVES, "denominator": POSITIVES, "value": 1.0}
-    assert run.metrics["false_positive_rate"] == {"numerator": NEGATIVES, "denominator": NEGATIVES, "value": 1.0}
+assert run.metrics["catch_rate"] == {"numerator": N_FLAGGABLE, "denominator": N_FLAGGABLE, "value": 1.0}
+    assert run.metrics["false_positive_rate"] == {"numerator": N_SUPPORTED, "denominator": N_SUPPORTED, "value": 1.0}
     assert {str(c.organisation_id) for c in calls} == {owner.organisation_id}
 
 
@@ -132,10 +128,10 @@ def test_call_budget_bounds_the_run(client, scripted_eval, monkeypatch, db_sessi
     assert body["status"] == "partial"
     assert 0 < errors <= N - 10  # claims after the budget ran out got no verdict (a few need no call)
     # ERROR is neither flagged nor cleared: same denominators, fewer flagged.
-    assert run.metrics["catch_rate"]["denominator"] == POSITIVES and run.metrics["false_positive_rate"]["denominator"] == NEGATIVES
+assert run.metrics["catch_rate"]["denominator"] == N_FLAGGABLE and run.metrics["false_positive_rate"]["denominator"] == N_SUPPORTED
     flagged = run.metrics["catch_rate"]["numerator"] + run.metrics["false_positive_rate"]["numerator"]
     assert flagged == N - errors  # every answered claim was flagged (always-abstaining checker)
-    assert body["catch_rate"] == round(run.metrics["catch_rate"]["numerator"] / POSITIVES, 4) < 1.0
+    assert body["catch_rate"] == round(run.metrics["catch_rate"]["numerator"] / N_FLAGGABLE, 4) < 1.0
     assert "got no verdict" in body["limits_note"]
 
 

@@ -268,7 +268,6 @@ Optional `Idempotency-Key` header replays the first response. Rate-limited per u
 }
 ```
 
-<<<<<<< HEAD
 - **`category`** (real runs): `contradicted_claim`, `unsupported_claim` (unverified — no evidence
   either way, including a citation this backend's own validator rejected), `supported_claim`,
   `engine_error` (that one claim could not be checked). `stub` marks the no-provider placeholder.
@@ -294,33 +293,6 @@ from the caller's account only. Empty → `[]`. Another account's `brand_id` →
 
 ```
 GET /api/reviews?status=needs_human_review&status=completed&limit=20
-=======
-### `GET /api/evaluations/latest`
-The Trust Scorecard's data: the latest evaluation report of the verification engine. Any active
-member may read it (`401` without a token). It's a benchmark on the engine's synthetic,
-labelled dataset, not tenant data.
-
-The backend computes nothing. It serves the newest
-`services/verification/eval/reports/<timestamp>.summary.json` written by the engine's
-`eval/run_eval.py`, after the engine re-validates it (contract `evaluation-summary-v1`; JSON schema
-in `services/verification/schemas/evaluation_summary.schema.json`).
-
-Always `200` for a signed-in member, with `state`:
-- `available`: the full summary: outcome, source, dataset, model, prompts, retrieval, policy, the
-  eight metrics, confusion matrix, gates, three real cases, limitations. `stale: true` if the
-  dataset changed since.
-- `incomplete`: the newest run stopped; `error` says why.
-- `none`: no report yet; `how_to_run` gives the command.
-
-A report file that breaks the contract is a `500` with a generic message; its contents are never
-echoed. Settings: `EVALUATION_REPORTS_DIR` (default: this repository's
-`services/verification/eval/reports`). There is deliberately no `POST`: runs can call a paid model
-and take minutes, so evaluations run from the command line or CI.
-
-### Error shape (every route, on failure)
-```json
-{"error": {"code": "NOT_FOUND", "message": "brand not found", "request_id": "6b2e9a1c..."}}
->>>>>>> 6b23c112bb2360f3710bc25c6629254199b169ad
 ```
 
 ### `POST /api/reviews/{id}/rerun` · content versions · decisions
@@ -364,7 +336,7 @@ Query: `brand_id` (the page always sends it; omitted = every brand in the accoun
 ### `GET /api/evaluations/latest` · `POST /api/evaluations` — Trust Scorecard
 
 `POST` runs the engine's labelled claim-verification evaluation
-(`services/verification/eval/dataset.jsonl`, 55 claims: 20 supported, 17 contradicted, 18 without
+(`services/verification/eval/dataset.jsonl`, 80 claims: 25 supported, 32 contradicted, 23 without
 evidence; refused if it no longer matches the engine's label lock) synchronously through this
 backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
 `EVAL_DEADLINE_SECONDS`). Takes ~1–4 minutes. **201**, and `GET .../latest` returns the same:
@@ -374,17 +346,17 @@ backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
   "catch_rate": 1.0,
   "false_positive_rate": 0.0,
   "per_check": [
-    {"check": "verification", "catch_rate": 1.0, "false_positive_rate": 0.0, "n": 55},
+    {"check": "verification", "catch_rate": 1.0, "false_positive_rate": 0.0, "n": 80},
     {"check": "numeric", "catch_rate": 1.0, "false_positive_rate": 0.0, "n": 26},
     {"check": "absent_fact", "catch_rate": 1.0, "false_positive_rate": null, "n": 9}
   ],
-  "sample_size": 55,
+  "sample_size": 80,
   "run_at": "2026-10-24T01:31:02Z",
   "id": "...",
   "status": "partial",
   "engine_prompt_version": "verify-claim-v1",
   "dataset_version": "dataset.jsonl@0516b9b8ce5b",
-  "limits_note": "Measured on 55 labelled claims from the engine's own test set (...). This is a small test set: it shows the checker was tested, not a universal accuracy figure, ...",
+  "limits_note": "Measured on 80 labelled claims from the engine's own test set (...). This is a small test set: it shows the checker was tested, not a universal accuracy figure, ...",
   "latency_ms_p50": 1098.0,
   "provider_failure_rate": 0.0364
 }

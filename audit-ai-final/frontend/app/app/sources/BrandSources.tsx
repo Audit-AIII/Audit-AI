@@ -271,6 +271,7 @@ export function BrandSources() {
           </p>
         )}
         <Button href="/app/draft">Next: check a draft →</Button>
+        <a className="link" href="/app/guidelines">Manage versions and withdrawals →</a>
       </Panel>
     </Panels>
   );

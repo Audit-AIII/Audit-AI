@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
-import { Dropzone, Panel, Panels } from "@/components/app/Stage";
+import { Dropzone, Option, Panel, Panels } from "@/components/app/Stage";
 import { canSubmit, roleName } from "@/components/app/roles";
 import { ACCEPTED_FILE_TYPES, ApiError, MAX_UPLOAD_BYTES, api } from "@/lib/api/client";
 import { useActiveBrand } from "@/lib/brand";
@@ -12,6 +12,10 @@ import { useSession } from "@/lib/session";
 import { rememberReviewText } from "@/lib/workspace";
 
 const MAX = 100_000; // backend limit, in characters (code points)
+
+// Optional label only: the review request has no field for it (brand_id, title, text), so it is
+// never sent. Kept so the writer can note it; wire it up once the backend accepts a content type.
+const PLACES = ["Website", "Social media", "Email", "Product page", "Other"];
 
 /** New review: pasted text -> POST /api/reviews, or a file -> POST /api/reviews/upload. */
 export function DraftForm() {
@@ -141,6 +145,15 @@ export function DraftForm() {
             </p>
           )}
           <p className="t-body panel__note">Your text is checked against the approved documents saved for this brand.</p>
+          <fieldset className="options" style={{ border: 0, margin: 0, padding: 0 }}>
+            <legend className="field__label" style={{ marginBottom: 10 }}>
+              Where will this be posted? (optional)
+            </legend>
+            {PLACES.map((p) => (
+              <Option key={p} type="radio" name="place" label={p} />
+            ))}
+            <p className="t-caption panel__hint">For your own reference: this isn’t used by the check yet.</p>
+          </fieldset>
         </Panel>
 
         <Panel n="03" label="Check it" title="Run the check">

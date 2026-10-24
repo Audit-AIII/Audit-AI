@@ -1,7 +1,8 @@
-# Wiring the new pages (proposals only: none of these are applied)
+# Wiring the new pages
 
-The new pages are reachable by direct URL only. Each item below is a single change you could
-approve on its own. Line numbers are from the commit that added this file; check them again
+**Status (2026-10-24):** items 1, 3, 4 and 5 are **applied**. Item 6 was replaced by a role-filtered
+"More" group in the account menu (applied). Item 2 (sixth stage) is **not applied**; the five-stage
+bar is unchanged. Each item below was a single change approved on its own. Line numbers are from the commit that added this file; check them again
 before applying.
 
 | Page | URL |
@@ -15,13 +16,13 @@ before applying.
 
 ## Guidelines
 
-1. **Link from Sources (Panel 3, under "Next: check a draft").**
+1. ✅ **Applied.** **Link from Sources (Panel 3, under "Next: check a draft").**
    `app/app/sources/BrandSources.tsx`, after line 273, add:
    ```tsx
    <a className="link" href="/app/guidelines">Manage versions and withdrawals →</a>
    ```
 
-2. **Optional: a sixth item in the stage bar.** Not recommended: it changes the five-stage bar
+2. ✗ **Not applied.** **Optional: a sixth item in the stage bar.** Not recommended: it changes the five-stage bar
    on every page. `components/app/stages.ts`, after the `sources` entry (line 3), add:
    ```ts
    { slug: "guidelines", n: "01b", label: "Guidelines", hint: "Upload, update or withdraw the documents drafts are checked against." },
@@ -29,7 +30,7 @@ before applying.
 
 ## Correction editor
 
-3. **Link from the Review page, next to "Choose what to do".**
+3. ✅ **Applied.** **Link from the Review page, next to "Choose what to do".**
    `app/app/review/ReviewResult.tsx`, before the line with `Choose what to do →` (line 204), add:
    ```tsx
    <a className="link" href={`/app/review-edit?id=${review.id}`}>Fix the wording →</a>
@@ -40,7 +41,7 @@ so `/app/review-edit` already highlights "Review" in the stage bar. Harmless; no
 
 ## Evidence coverage
 
-4. **Link from the Review page, beside the legend in "Your draft".**
+4. ✅ **Applied** (placed with item 3, above "Choose what to do"). **Link from the Review page.**
    `app/app/review/ReviewResult.tsx`, at the same place as item 3 (before line 204), add:
    ```tsx
    <a className="link" href={`/app/coverage?id=${review.id}`}>See evidence coverage →</a>
@@ -48,7 +49,7 @@ so `/app/review-edit` already highlights "Review" in the stage bar. Harmless; no
 
 ## Review queue
 
-5. **Link from the Decide page's empty state ("No review chosen").**
+5. ✅ **Applied.** **Link from the Decide page's empty state ("No review chosen").**
    `app/app/decide/DecidePanel.tsx`, line 52, inside `Empty`, after the existing
    `<Button href="/app/draft">Check a draft →</Button>`, add:
    ```tsx
@@ -69,7 +70,7 @@ so `/app/review-edit` already highlights "Review" in the stage bar. Harmless; no
 - **Removed:** the old "Run evaluation" button and the sample numbers. There is no `POST` endpoint
   (runs can cost money and take minutes), and real results now exist.
 
-6. **Links in the account menu (signed in), next to "Sign out".**
+6. ✅ **Applied as a "More" group instead** (`components/layout/AccountNav.tsx`, above Sign out), each link shown only to roles that can use the page: Review queue (`canReview`), Guidelines (`canManageSources`), Insights (`canApprove`), Trust Scorecard (everyone). Original proposal: **Links in the account menu (signed in), next to "Sign out".**
    `components/layout/AccountNav.tsx`, line 66, after `<p className="account__menu-email">{session.email}</p>`, add:
    ```tsx
    <a className="link" href="/app/queue">Review queue</a> <a className="link" href="/app/insights">Insights</a> <a className="link" href="/app/scorecard">Trust Scorecard</a>
