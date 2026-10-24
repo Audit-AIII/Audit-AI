@@ -22,9 +22,13 @@ also written with Claude Code under the same direction, with every change commit
 - **LLM providers (Phase 5)** — the review pipeline's `FallbackProvider`
   (`src/inkloom_api/engine/providers/fallback.py`) tries each configured provider in a fixed
   order, falling through to the next on any failure:
-  1. **Google Gemini** (Google AI Studio, free tier) — `GEMINI_API_KEY`.
-  2. **Groq** (Llama 3.3 70B / Llama 4 / gpt-oss, free tier) — `GROQ_API_KEY`.
-  3. **OpenRouter** `:free` models — `OPENROUTER_API_KEY`.
+  1. **Google Gemini** — `GEMINI_API_KEY`, used **only with `GEMINI_PAID_TIER=true`** on a paid
+     key: free-tier prompts may be used by Google to improve its products, so a free key is
+     refused.
+  2. **Groq** — `GROQ_API_KEY` (no extra gate in this backend; check Groq's data terms).
+  3. **OpenRouter** — `OPENROUTER_API_KEY`, with `INKLOOM_LLM_DATA_COLLECTION=deny` by default
+     (only providers that don't collect prompts).
+  Which keys are actually configured is not decided yet; see `AI_PROVIDER_KEYS.md`.
   4. **Local Ollama** — no key, nothing leaves the machine. The *only* provider ever used for a
      review whose corpus includes a `confidential` brand source (`build_provider(confidential=
      True)` never even constructs a cloud provider builder — proven in
@@ -36,10 +40,16 @@ also written with Claude Code under the same direction, with every change commit
     (`external_call_log`) — never prompt content, completions, or raw provider error bodies.
   - A result that is served from the cache (`result_cache.py`) makes no external call at all,
     confidential or not.
-  - Besides claim extraction and verification, the same chain now also receives: for a
-    contradicted claim, the author's sentence, the claim and the cited source quotes (the engine's
-    corrector) and the corrected claim with the same passages (its re-check); for an unverified
-    claim, the sentence and claim (the engine's softening step, once Member 2 ships it).
+  - What each kind of call sends (every one through the same chain, logged as above):
+    - **Claim extraction:** the draft's text.
+    - **Verification:** one claim and the passages retrieved for it from the brand's approved
+      documents.
+    - **Correction** (contradicted claims): the author's sentence, the claim and the cited source
+      quotes; then the corrected claim with the same passages (the engine's re-check).
+    - **Safer wording** (unverified claims; the engine's `ClaimSoftener`): the sentence and the claim.
+  - Sent to no model: **brand rules** (terminology, compliance, accessibility run locally and
+    deterministically) and **Intent-lock phrases** (checked locally by the engine and again by
+    this backend; they are not part of any prompt). Dismissals and comments stay in the database.
   - `POST /api/evaluations` (Trust Scorecard) sends the engine's synthetic labelled test claims and
     their synthetic reference documents (`services/verification/eval/dataset.jsonl`) through the
     same chain - no user content. Calls are logged with request id `eval-<run id>`.
@@ -56,7 +66,9 @@ also written with Claude Code under the same direction, with every change commit
 - Submitted content and brand source text do leave this process for cloud-provider calls (Gemini
   / Groq / OpenRouter), **except** when any source in the review is marked `confidential`, in
   which case only the local Ollama provider is ever used (Phase 5 task 8).
-- The idempotency-replay cache (`idempotency.py`) and rate limiter (`rate_limit.py`) are both
-  in-process memory only — correct for this project's single-process demo deployment, reset on
-  restart, not shared across multiple worker processes. Documented as a known limitation, not
-  hidden.
+- The rate limiter (`rate_limit.py`) is in-process memory only - correct for a single-worker
+  deployment (the Dockerfile and `scripts/start.sh` run exactly one), reset on restart.
+  Idempotency keys (`idempotency.py`) are stored in the database.
+- On a cloud host without Ollama, a review whose brand has a `confidential` document **fails
+  closed**: no cloud provider is tried, the review gets the labelled stub finding, and nothing
+  leaves the server.

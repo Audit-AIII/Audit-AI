@@ -1,0 +1,15 @@
+# Build context is the repository root (services/api/Dockerfile). Keep secrets and local state out.
+**/.env
+**/.env.*
+!**/.env.example
+.git
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/*.egg-info
+**/node_modules
+audit-ai-final
+saved-work
+services/api/var
+services/verification/eval/reports
