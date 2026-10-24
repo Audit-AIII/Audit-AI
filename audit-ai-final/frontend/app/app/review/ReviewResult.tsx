@@ -164,6 +164,8 @@ function ReviewView({
         </div>
       )}
 
+      {!stub && findings.length > 0 && <Tally findings={findings} current={current?.finding_id} onSelect={onSelect} />}
+
       <Panels>
         <Panel n="01" label="Your draft" title="Problems marked">
           {fullText !== null ? (
@@ -264,6 +266,47 @@ function ReviewView({
       </Panels>
       <RuleChecks review={review} />
     </>
+  );
+}
+
+/**
+ * What the checker found, at a glance: one raised tile per kind of result (same glyph and words as
+ * the finding chips), worst first, with its count. A tile jumps to the first finding of that kind.
+ * Dismissed findings stay counted in their kind; the dismissed total is shown on its own.
+ */
+function Tally({ findings, current, onSelect }: { findings: FindingOut[]; current?: string; onSelect: (id: string) => void }) {
+  const groups = new Map<string, { chip: ReturnType<typeof findingChip>; items: FindingOut[] }>();
+  for (const f of findings) {
+    if (isStub(f)) continue;
+    const chip = findingChip(f);
+    const g = groups.get(chip.label) ?? { chip, items: [] };
+    g.items.push(f);
+    groups.set(chip.label, g);
+  }
+  const dismissed = findings.filter(isDismissed).length;
+  return (
+    <section className="tally" aria-label="What the checker found">
+      <ul className="tally__list">
+        {[...groups.values()].map(({ chip, items }) => {
+          const on = items.some((f) => f.finding_id === current);
+          return (
+            <li key={chip.label}>
+              <button type="button" className={`tally__tile${on ? " is-on" : ""}`} onClick={() => onSelect(items[0].finding_id)} aria-pressed={on}>
+                <span className="tally__count">{items.length}</span>
+                <span className={`chip chip--${chip.tone}`}>
+                  {chip.glyph} {chip.label}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {dismissed > 0 && (
+        <p className="t-caption tally__note">
+          <span aria-hidden="true">{DISMISSED.glyph}</span> {dismissed} dismissed by you (still counted above)
+        </p>
+      )}
+    </section>
   );
 }
 
