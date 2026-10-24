@@ -144,7 +144,38 @@ export type FindingOut = {
   /** Unverified claims only: a softened rewrite that is NOT backed by evidence (suggested_correction
    * stays empty for unverified claims on backends that send this). */
   safer_wording?: string | null;
+  /** Intent-lock: a stored suggestion was hidden on read because it would remove a locked phrase
+   * (suggested_correction / safer_wording are then null). Re-run for one that keeps the locks. */
+  withheld_by_intent_lock?: boolean;
+  /** Set while the finding is dismissed. Dismissed is NOT "supported": the verdict is unchanged. */
+  dismissal?: DismissalOut | null;
+  comment_count?: number;
 };
+
+/* ---- Dismiss, comments, Intent-lock (API.md "Dismiss and comments" / "Intent-lock";
+   routers/findings.py, routers/content_versions.py, schemas.py DismissalOut) ---- */
+
+/** On a finding while it is dismissed. */
+export type DismissalOut = { by_user_id: string | null; at: string; note: string | null };
+/** POST /api/findings/{id}/dismiss and /restore (201). */
+export type FindingDecision = {
+  id: string;
+  finding_id: string;
+  action: Open<"dismissed" | "restored">;
+  note: string | null;
+  actor_user_id: string | null;
+  created_at: string;
+};
+/** GET /api/findings/{id}/comments (oldest first) and POST (201). */
+export type FindingComment = { id: string; finding_id: string; author_user_id: string | null; body: string; created_at: string };
+/** GET / PUT /api/content-versions/{id}/locks. */
+export type LocksOut = { content_version_id: string; locked_phrases: string[] };
+
+/** findings.py DecisionBody.note / CommentBody.body max_length; intent_lock.py MAX_LOCKS / MAX_LOCK_CHARS. */
+export const NOTE_MAX = 2000;
+export const COMMENT_MAX = 2000;
+export const LOCKS_MAX = 50;
+export const LOCK_MAX_CHARS = 200;
 
 export type EngineInfo = {
   provider: string | null;
@@ -181,6 +212,8 @@ export type ReviewOut = {
   rules_status?: RulesStatus | null;
   /** One record per rule that ran; null when the rules did not run. */
   rule_checks?: RuleCheck[] | null;
+  /** Intent-lock list of the reviewed content version; null/absent on older backends. */
+  locked_phrases?: string[] | null;
 };
 
 /** Stored brand rules (BrandRules, services/verification/schemas/brand_rules.schema.json).

@@ -1,6 +1,7 @@
 /* ==========================================================================
    Additive workspace pages (guidelines, review-edit, coverage, queue, insights, scorecard).
-   Imported only by those routes' own layouts (components/additions/AdditionsFrame.tsx).
+   Imported by those routes' own layouts (components/additions/AdditionsFrame.tsx), and by the
+   Dismiss / comments components and DecidePanel, which also render on the Review and Decide stages.
    Every class is prefixed "add-"; no element, :root or existing-class selectors; tokens only.
    ========================================================================== */
 
@@ -269,3 +270,33 @@
 /* Rule findings in the editor: underline, not an evidence tint */
 .add-mark--rule { background: transparent; box-shadow: inset 0 -3px 0 var(--ink); }
 .add-rules-json { min-height: 320px; font: 400 15px / 1.5 ui-monospace, monospace; }
+
+/* Scorecard run report: panels size to their content (the stage panels' min-height leaves gaps) */
+.add-run .panel { min-height: 0; }
+
+/* Per-finding Dismiss and comments. "Dismissed" is a glyph + word with a dotted outline; it never
+   takes the supported (ok) look and never replaces the verdict chip. */
+.add-dismissed { outline: 1.5px dotted var(--ink-2); outline-offset: -1px; color: var(--ink); background: transparent; }
+.add-heat-dismissed { margin-left: 4px; padding: 0 5px; border-radius: var(--r-tag); outline: 1.5px dotted var(--ink-2); outline-offset: -1px; font-size: 14px; white-space: nowrap; }
+.add-dismiss, .add-comments { display: grid; gap: 8px; justify-items: start; margin-top: 8px; }
+.add-dismiss > textarea, .add-comments textarea { justify-self: stretch; }
+.add-textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-ui);
+  background: transparent;
+  color: var(--ink);
+  font: 400 16px / 1.4 var(--font-body);
+  box-shadow: var(--shadow-well);
+  resize: vertical;
+}
+.add-textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.add-textarea:disabled { opacity: .6; }
+.add-prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.add-comment-list { display: grid; gap: 10px; width: 100%; margin: 0; padding: 0; list-style: none; }
+.add-comment { padding: 10px 12px; border-radius: var(--r-ui); outline: 1px dashed var(--ink-2); outline-offset: -1px; }
+.add-comment__meta { margin: 0 0 4px; }
+.add-comment__body { margin: 0; font-size: 16px; line-height: 1.5; }
+.add-count { font-size: 14px; white-space: nowrap; }
