@@ -19,14 +19,18 @@ who, when and which version. Roles, risk routing and invites are deferred to the
 
 | Built today | Planned |
 |---|---|
-| Factual-claim checking: claims in a draft are extracted and checked against the brand's approved documents (supported / contradicted / unverified), with the quote behind each verdict | Tone checks |
-| Upload brand documents (PDF, Word, text) and drafts (paste or upload) | Terminology (wording) checks: engine module built and tested, not yet run in reviews |
-| Decide on each review: approve, send back with a note, or reject; every decision is recorded | Accessibility checks (alt text, link text, headings, captions, contrast): engine module built and tested, not yet run in reviews |
-| Versions: edit a draft, save a new version, check it again; an old approval never applies to a newer version | Visual (logo and colour) checks |
-| Source Watch: withdrawing or replacing an approved document sends dependent approvals back for review | Comments on findings |
-| Trust Scorecard: benchmark results of the verifier, from the engine's evaluation runner | Multi-user roles (separate writers, reviewers, approvers) |
+| Factual-claim checking: claims in a draft are extracted and checked against the brand's approved documents (supported / contradicted / unverified / documents disagree), with the quote behind each verdict | Tone checks |
+| Upload brand documents (PDF, Word, text) and drafts (paste or upload) | Visual (logo and colour) checks |
+| Terminology and accessibility checks run on every review, with a brand rules editor | Multi-user roles (separate writers, reviewers, approvers) |
+| Suggestions: evidence-backed corrections, and a labelled "safer wording, not evidence-backed" for unverified claims | |
+| Decide on each review: approve, send back with a note, or reject; every decision is recorded | |
+| Versions: edit a draft, save a new version, check it again; an old approval never applies to a newer version | |
+| Source Watch: withdrawing or replacing an approved document sends dependent approvals back for review | |
+| Intent-lock: must-keep phrases saved on the server; no suggestion that removes one is offered, and an edit that drops one is warned about | |
+| Dismiss and restore a finding (the verdict stays as it was), and comments on findings | |
+| Trust Scorecard: run the verifier's labelled evaluation from the page and see the run's numbers (needs an AI provider key; none is configured yet) | |
 
-The landing page marks the four planned checks as "Coming next".
+The landing page (`components/sections/Checks.tsx`) still marks terminology and accessibility as "Coming next" although they now run on every review; it needs updating (frontend).
 
 ## Architecture
 
@@ -199,11 +203,10 @@ From `member3_backend/STATUS.md` §10, plus two frontend notes:
 
 ## Roadmap
 
-1. Tone, terminology, accessibility and visual checks (shown as "Coming next" today).
-2. Show the engine's safer rewrite for unverified claims as its own, labelled suggestion.
+1. Tone and visual checks.
+2. Choose the AI provider keys (`services/api/AI_PROVIDER_KEYS.md`) and run a real evaluation.
 3. Local Ollama set up for confidential documents.
-4. Comments on findings.
-5. Multi-user accounts and invites.
-6. Separate reviewer and approver roles, including an "author cannot approve" rule.
-7. Risk-based routing (risky drafts to a reviewer).
-8. Deployment.
+4. Multi-user accounts and invites.
+5. Separate reviewer and approver roles, including an "author cannot approve" rule.
+6. Risk-based routing (risky drafts to a reviewer).
+7. Deployment.
