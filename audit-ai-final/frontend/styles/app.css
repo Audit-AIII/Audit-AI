@@ -505,15 +505,19 @@ select.field__input { cursor: pointer; }
 @keyframes app-sink { from { opacity: 0; transform: translate(5px, -10px) scale(1.02); } }
 @keyframes app-shift { from { opacity: 0; transform: translateY(10px); } }
 
-/* Boxes: a deeper soft drop under every raised card, dealt in on arrival, lifting 2px on hover */
+/* Boxes: lit paper edges like the landing cards - a fine white rim on the top-left, a faint dark
+   edge on the bottom-right - plus a deeper soft drop outside; dealt in on arrival, lift 2px on hover */
 .app__main .card {
-  box-shadow: var(--shadow-raised), 0 28px 54px -26px color-mix(in srgb, var(--deep) 48%, transparent);
+  --card-rim: inset 1.5px 1.5px 0 color-mix(in srgb, var(--paper-hi) 72%, transparent), inset -1px -1px 0 color-mix(in srgb, var(--deep) 14%, transparent);
+  box-shadow: var(--card-rim), var(--shadow-raised), 0 28px 54px -26px color-mix(in srgb, var(--deep) 48%, transparent);
   transition: box-shadow var(--dur-mid) var(--ease-ui), translate var(--dur-mid) var(--ease-ui);
 }
 .app__main .card:hover {
   translate: 0 -2px;
-  box-shadow: var(--shadow-raised), 0 38px 64px -26px color-mix(in srgb, var(--deep) 54%, transparent);
+  box-shadow: var(--card-rim), var(--shadow-raised), 0 38px 64px -26px color-mix(in srgb, var(--deep) 54%, transparent);
 }
+/* Pressed boxes inside cards (number tiles, notes) get the matching light lip on their lower edge */
+.app__main .add-metric, .app__main .panel__tab { box-shadow: var(--shadow-well), 0 1px 0 color-mix(in srgb, var(--paper-hi) 60%, transparent); }
 .app__main .panel { animation: app-deal var(--dur-mid) var(--ease-enter) backwards; }
 .app__main .panels > :nth-child(2) { animation-delay: 70ms; }
 .app__main .panels > :nth-child(3) { animation-delay: 140ms; }

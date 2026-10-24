@@ -21,6 +21,8 @@ export type BrandRisk = {
   re_review_rate: number | null;
   queue_age_minutes: { median: number | null; oldest: number | null };
   sample_size: number;
+  /** Additive (API.md): of the period's flagged findings, how many the user dismissed; value null when none. */
+  dismissed_finding_rate?: { numerator: number; denominator: number; value: number | null } | null;
 };
 export type Maybe<T> = { available: true; data: T } | { available: false };
 

@@ -300,3 +300,45 @@
 .add-comment__meta { margin: 0 0 4px; }
 .add-comment__body { margin: 0; font-size: 16px; line-height: 1.5; }
 .add-count { font-size: 14px; white-space: nowrap; }
+
+/* ---- Dashboard: extra panels (counted from the API's reviews and documents) ---- */
+.add-insights .panels { margin-bottom: 22px; }
+.add-status-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.add-status-list li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(40px, 1fr) 32px; align-items: center; gap: 10px; font-size: 15px; }
+.add-status-list b, .add-mix__legend b { justify-self: end; font: 700 18px / 1 var(--font-display); }
+.add-status-list .is-zero, .add-mix__legend .is-zero { opacity: .45; }
+.add-status-list .add-badge { justify-self: start; }
+/* Verdict mix: one pressed trough, raised segments in the status tints (legend carries glyph + words) */
+.add-mix { display: flex; gap: 3px; height: 22px; padding: 3px; border-radius: var(--r-ui); box-shadow: var(--shadow-well); }
+.add-mix__seg { flex: 1 1 0; min-width: 6px; border-radius: var(--r-tag); box-shadow: var(--shadow-press), inset 1px 1px 0 color-mix(in srgb, var(--paper-hi) 70%, transparent); animation: add-grow var(--dur-mid) var(--ease-enter) backwards; transform-origin: left; }
+.add-mix__seg--contradicted { background: var(--bad-tint); }
+.add-mix__seg--conflicting_sources { background: repeating-linear-gradient(135deg, var(--warn-tint) 0 5px, var(--canvas) 5px 8px); }
+.add-mix__seg--unverified { background: var(--warn-tint); }
+.add-mix__seg--rule { background: repeating-linear-gradient(90deg, var(--canvas) 0 4px, color-mix(in srgb, var(--ink) 25%, var(--canvas)) 4px 6px); }
+.add-mix__seg--supported { background: var(--ok-tint); }
+.add-mix__legend { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.add-mix__legend li { display: grid; grid-template-columns: minmax(0, 1fr) 36px 44px; align-items: center; gap: 8px; font-size: 15px; }
+.add-mix__legend li > :last-child { justify-self: end; }
+.add-mix__legend .chip { justify-self: start; }
+@keyframes add-grow { from { transform: scaleX(0); } }
+/* Activity: seven raised columns standing in pressed slots, count above, day below */
+.add-cols { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; align-items: end; margin: 0; padding: 0; list-style: none; }
+.add-cols li { display: grid; justify-items: center; gap: 6px; }
+.add-cols__n { font: 700 16px / 1 var(--font-display); }
+.add-cols__bar { display: flex; align-items: flex-end; width: 100%; max-width: 34px; height: 120px; padding: 3px; border-radius: var(--r-ui); box-shadow: var(--shadow-well); }
+.add-cols__bar > span { display: block; width: 100%; min-height: 2px; border-radius: var(--r-tag); background: var(--ink-2); box-shadow: var(--shadow-raised), inset 1px 1px 0 color-mix(in srgb, var(--paper-hi) 35%, transparent); animation: add-rise var(--dur-mid) var(--ease-enter) backwards; transform-origin: bottom; }
+.add-cols li:nth-child(n) .add-cols__bar > span { animation-delay: calc(var(--i, 0) * 40ms); }
+.add-cols__day { color: var(--ink-2); font-size: 13px; font-weight: 600; }
+@keyframes add-rise { from { transform: scaleY(0); } }
+
+/* ---- Queue: one-line titles, row press on hover, time as "… ago" ---- */
+.add-queue-title { display: inline-block; vertical-align: top; max-width: min(56ch, 100%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add-table tbody tr { transition: background-color var(--dur-base), box-shadow var(--dur-base) var(--ease-ui); }
+.add-table tbody tr:hover { background-color: color-mix(in srgb, var(--deep) 4%, transparent); box-shadow: inset 3px 0 0 var(--ink-2); }
+.add-table time { white-space: nowrap; }
+.add-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+@media (max-width: 767px) { .add-queue-title { max-width: 26ch; } }
+@media (prefers-reduced-motion: reduce) {
+  .add-mix__seg, .add-cols__bar > span { animation: none; }
+  .add-table tbody tr { transition: none; }
+}
