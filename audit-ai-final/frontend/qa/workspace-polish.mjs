@@ -62,10 +62,19 @@ console.log("ok  backdrop is decorative (aria-hidden, no pointer events); cards 
 // 3) tally on a review with mixed results
 await p.goto(`${WEB}/app/review?id=polish-test`); await p.waitForSelector(".tally");
 const tally = await p.locator(".tally").innerText();
-for (const re of [/1\s*≠ Doesn’t match/i, /2\s*\? Not proven yet/i, /1\s*✓ Matches/i, /1 dismissed by you \(still counted above\)/i]) assert.match(tally, re);
-await p.locator(".tally__tile", { hasText: "Matches" }).click();
+for (const re of [/4\s*findings/i, /1 dismissed/i, /1\s*≠ Doesn’t match/i, /0\s*⇄ Documents disagree/i, /2\s*\? Not proven yet/i, /0\s*§ Brand rule/i, /1\s*✓ Matches/i]) assert.match(tally, re);
+assert.equal(await p.locator(".tally__cell").count(), 5, "fixed five columns");
+assert.equal(await p.locator(".tally__cell", { hasText: "Brand rule" }).isDisabled(), true, "empty kinds dimmed, not clickable");
+// matte status highlights: ink readable on each (WCAG ratio >= 7)
+const ratios = await p.evaluate(() => {
+  const lum = (c) => { const [r, g, b] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  return [".heat__bad", ".heat__warn", ".heat__ok"].map((sel) => { const el = document.querySelector(sel); const cs = getComputedStyle(el); const a = lum(cs.backgroundColor), b = lum(cs.color); return +(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toFixed(2)); });
+});
+for (const x of ratios) assert.ok(x >= 7, `highlight contrast ${x}`);
+console.log(`    highlight contrast red/ochre/green: ${ratios.join(" / ")}`);
+await p.locator(".tally__cell", { hasText: "Matches" }).click();
 assert.match(await p.locator(".problem.is-selected").innerText(), /750 ml/, "a tile jumps to its first finding");
-assert.equal(await p.locator(".tally__tile", { hasText: "Matches" }).getAttribute("aria-pressed"), "true");
+assert.equal(await p.locator(".tally__cell", { hasText: "Matches" }).getAttribute("aria-pressed"), "true");
 for (const w of [1440, 390]) { await p.setViewportSize({ width: w, height: w > 500 ? 900 : 844 }); await p.waitForTimeout(300); await noScroll(w); await p.screenshot({ path: `qa/out/polish-review-${w}.png`, fullPage: true }); }
 await p.setViewportSize({ width: 1440, height: 900 });
 console.log("ok  review tally: counts per kind with the chip words, dismissed counted, tile selects its first finding");
