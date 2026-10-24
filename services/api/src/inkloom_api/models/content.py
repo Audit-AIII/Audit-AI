@@ -11,7 +11,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import text as sql_text  # the model has a column named `text`
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,6 +50,10 @@ class ContentVersion(Base):
     __tablename__ = "content_versions"
     __table_args__ = (
         UniqueConstraint("content_item_id", "version_number", name="uq_content_version_number"),
+        # Exactly one current version per content item (migration 0003). Declared here too so the
+        # models match the migrations (`alembic check`).
+        Index("uq_content_versions_one_current_per_item", "content_item_id", unique=True,
+              postgresql_where=sql_text("is_current")),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()

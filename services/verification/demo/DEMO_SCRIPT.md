@@ -37,7 +37,7 @@ Rehearsed on 2026-10-24 with `demo/demo-check.mjs`: every scene below passed in 
 | 2:45 | Point at "Checked by fallback · scripted/demo-v1" | "This demo data was produced by the real engine with a scripted stand-in for the model, labelled so it can't be mistaken for a live model." |
 | 3:00 | **Choose what to do** (Decide): approve / send back / reject | "The tool proposes; the owner decides. Every decision is recorded with who, when and which version." |
 | 3:30 | **Queue**, and the "source changed" review | "Source Watch: replacing an approved document sends dependent approvals back for review." |
-| 4:00 | Terminal: `demo/rules_demo.py` | "Terminology and accessibility rules are deterministic: no model. They're built and tested in the engine, but not yet shown in the app." Point at `not_checkable`: "no data is never reported as passed." |
+| 4:00 | A review with rule findings in the app (the backend runs the rules on every review), or the terminal: `demo/rules_demo.py` | "Terminology and accessibility rules are deterministic: no model." Point at a `not_checkable` check: "no data is never reported as passed." |
 | 4:30 | Limitations (§4) | Be explicit. |
 
 ## 3. Fallback plan if the live provider fails
@@ -55,9 +55,11 @@ Rehearsed on 2026-10-24 with `demo/demo-check.mjs`: every scene below passed in 
   guard limitations (EVAL.md).
 - **The deterministic guard isn't a semantic check.** A real quote with the right figure for the
   wrong property, or half of a compound claim, can still pass.
-- **Not wired into the app yet:** terminology and accessibility rules, the separate "safer wording"
-  field, the conflicting-sources status, and server-side Intent-lock (HANDOFF_STEPS_6_8.md).
-- **Not built:** comments on findings and per-finding Dismiss.
+- **Uploaded files are checked as plain text only.** Image alt text, captions and colour contrast
+  inside uploaded PDFs or Word files report "not checkable" (RULES_HANDOFF.md §5).
+- **Rules, safer wording, conflicting sources, Intent-lock, Dismiss and comments** are in the app
+  (backend Phases 6–7). This script was rehearsed before they landed, so re-run
+  `demo/demo-check.mjs` and check the seeded data before showing them.
 - **The app isn't deployed.**
 
 ## 5. Recording the fallback video

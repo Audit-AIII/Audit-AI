@@ -221,7 +221,14 @@ def _normalised(text: str) -> str:
     return " ".join(unicodedata.normalize("NFC", text).split()).casefold()
 
 
+_HIDDEN = re.compile(r"[\x00-\x1f\x7f-\x9f\u200b-\u200d\u2060\ufeff\u202a-\u202e\u2066-\u2069]")
+
+
 def _clip(text: str, limit: int = MAX_RULE_TEXT_CHARS) -> str:
+    """One display line for an explanation: explanations quote matched text from the submitted
+    draft, which may hold line breaks or invisible characters; they become spaces / are dropped,
+    so the explanation is a valid RuleText and cannot reorder or hide what a reviewer sees."""
+    text = " ".join(_HIDDEN.sub(" ", text).split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 

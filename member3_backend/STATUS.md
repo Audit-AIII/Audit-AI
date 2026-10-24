@@ -175,6 +175,7 @@ then switched off by the individual-user decision.
 | Phase 5 | branch `darsh/phase5-workflow` | Review workflow audited against 00_CONTEXT.md invariants and approval_rules.py; no code change needed. `test_review_workflow.py` (16 tests, mutation-checked) pins every decision from every decided state (409, nothing changed), failed / source_changed undecidable by any route, every route leaves a finished review, a decision that fails mid-write is rolled back whole, and new version / rerun are the way forward. Open decision: a stub (no-provider) review can be approved |
 | Phase 6 | branch `darsh/phase6-engine` | Engine gaps 1-2 closed (Krish's acceptance tests pass, all 16 integration tests green): `conflicting_sources` status; softened wording moved to new `safer_wording` (migration 0011), `suggested_correction` evidence-backed only. **Real evaluation BLOCKED (2026-10-24, rechecked):** Gemini off by the privacy rule (free-tier key, no GEMINI_PAID_TIER); OpenRouter free key ~50 req/day < 80+ needed; nemotron free refuses data_collection=deny (needs free-model training opt-in); gemma and xing4.0 free return 429; no local Ollama. Replay of Krish's run4 cassette: 80/80 no verdict (the recorded run was itself mostly rate-limited). Local `.env` has INKLOOM_LLM_DATA_COLLECTION=allow, weaker than the project default (deny) |
 | Phase 7 | branch `darsh/phase7-findings` | Intent-lock enforced server-side (locks per version, passed to the engine's corrector and softener, every suggestion re-checked with `check_replacement` before storing and withheld on read if locks changed later; in the cache key; new versions inherit). Per-finding Dismiss / restore as separate rows, finding never touched. Comments on findings. `test_intent_lock_dismiss_comments.py` (10 tests; bypass tests mutation-checked). Softening already done in Phase 6 |
+| Phase 8 | branch `darsh/phase8-verify` | Final verification on a clean venv from constraints.txt: 288 passed / 0 skipped; pip-audit clean (58 packages; a stale local venv had pypdf 5.9.0 with 12 CVEs - docs now install with -c constraints.txt); `alembic check` failed on a partial unique index missing from the models (since 0003) - declared in ContentVersion, now clean; wheel builds; smoke test passes over real HTTP (stub mode). CI job 3 added: full suite on real Postgres + alembic check, fails on any skip (rehearsed locally without .env) |
 
 Trust Scorecard real run (gemini-3.5-flash-lite, engine dataset of 55 claims at the time; it is now 80): 53 answered,
 catch_rate 1.0 (35/35), false_positive_rate 0.0 (0/18 answered supported). Small synthetic set —
@@ -188,7 +189,7 @@ of time on free-tier 503s; such runs (>20% claims without a verdict) are now ref
 ```sh
 cd services/api
 set -a; source .env; set +a
-.venv/Scripts/python -m pytest -q          # 288 passed, 0 skipped, ~82s, real PostgreSQL 18.6 (2026-10-24, branch darsh/phase7-findings)
+.venv/Scripts/python -m pytest -q          # 288 passed, 0 skipped, ~85s, real PostgreSQL 18.6, exact pins from constraints.txt (2026-10-24, branch darsh/phase8-verify)
 ```
 
 Covers: cross-account isolation (every route), revoked memberships, approval guards and state

@@ -1,8 +1,8 @@
 """Demo: the engine's deterministic terminology and accessibility rules on a sample draft.
 
-The rules module is not yet wired into reviews (backend gap 3, HANDOFF_STEPS_6_8.md), so the demo
-shows it from the engine directly. The draft and the brand rules below are demo fixtures (the
-fictional Lumen Goods brand); no model is called. Run from services/verification:
+The backend runs these rules on every review; this script shows the engine's view directly, for
+a terminal demo or when the app is unavailable. The draft and the brand rules below are demo
+fixtures (the fictional Lumen Goods brand); no model is called. Run from services/verification:
 
     .venv/Scripts/python demo/rules_demo.py
 """

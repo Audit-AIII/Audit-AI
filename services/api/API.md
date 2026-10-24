@@ -6,7 +6,7 @@ The user checks drafts against their brand's approved documents, gets evidence f
 marks their own content ready to publish. No teams, roles or reviewer tiers.
 
 Status (2026-10-24): every route below is live, verified against a real PostgreSQL database
-(182 tests, `README.md` → "Test") and over real HTTP (`scripts/smoke_test.py`), including real
+(288 tests, `README.md` → "Test") and over real HTTP (`scripts/smoke_test.py`), including real
 AI reviews through Gemini (`gemini-3.5-flash-lite`).
 
 ## Setup, start to finish
@@ -34,9 +34,8 @@ docker compose up -d        # needs Docker Desktop running
 
 ```sh
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"          # macOS/Linux: .venv/bin/python
-.venv/Scripts/python -m pip install -e ../verification    # Member 2's engine, editable
-.venv/Scripts/python -m alembic upgrade head              # migrations 0001-0009
+.venv/Scripts/python -m pip install -e ".[dev]" -e ../verification -c constraints.txt   # exact tested versions; macOS/Linux: .venv/bin/python
+.venv/Scripts/python -m alembic upgrade head              # migrations 0001-0012
 ```
 
 ### 4. Seed two demo accounts (optional)

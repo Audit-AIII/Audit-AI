@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+// add- classes (Dismissed badge, buttons, states); this route has no AdditionsFrame.
+import "@/styles/additions.css";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { findingChip, isStub, isStubReview, isWholeDraft, suggestionFor } from "@/components/app/reviewLabels";
 import { isDecidable } from "@/components/app/roles";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import { history, itemIdOf } from "@/lib/additions/content";
+import { DISMISSED, isDismissed, openDismissed } from "@/lib/additions/findingState";
 import { ApiError, api } from "@/lib/api/client";
 import type { ApprovalEventOut, ReviewOut } from "@/lib/api/types";
 import { saveDecision } from "@/lib/workspace";
@@ -86,6 +89,8 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
   const decidable = isDecidable(review.status);
   const open = review.findings.filter((f) => !isStub(f) && f.verification_status !== "supported");
   const fixes = review.findings.filter((f) => suggestionFor(f) !== null);
+  // Dismissed findings stay listed and counted; dismissing never unblocks a decision.
+  const counts = openDismissed(open);
 
   const approveBlock = !decidable
     ? null // the outcome banner explains
@@ -160,7 +165,12 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
       )}
 
       <Panels>
-        <Panel n="01" label="What was found" title={open.length ? `${open.length} open problem${open.length === 1 ? "" : "s"}` : "No open problems"}>
+        <Panel n="01" label="What was found" title={open.length ? `${open.length} problem${open.length === 1 ? "" : "s"}` : "No open problems"}>
+          {open.length > 0 && (
+            <p className="t-body panel__note">
+              {counts.open} open, {counts.dismissed} dismissed
+            </p>
+          )}
           {open.length > 0 ? (
             <ul className="rows">
               {open.map((f) => {
@@ -173,6 +183,14 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
                         <span className={`chip chip--${v.tone}`}>
                           {v.glyph} {v.label}
                         </span>
+                        {isDismissed(f) && (
+                          <>
+                            {" "}
+                            <span className="chip add-dismissed">
+                              <span aria-hidden="true">{DISMISSED.glyph}</span> {DISMISSED.label}
+                            </span>
+                          </>
+                        )}
                       </p>
                     </div>
                   </li>

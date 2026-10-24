@@ -78,8 +78,8 @@ LIMITATIONS: list[Limitation] = [
         finding="Deterministic terminology, brand-compliance and accessibility rules exist (rules.py) and are unit "
                 "tested, but they are not part of the labelled dataset, so this report says nothing about them. "
                 "Accessibility checks read only Markdown/HTML in the submitted text and the metadata given: images, "
-                "colours and media inside uploaded files are not inspected (those checks report not_checkable). The "
-                "backend does not run them in reviews yet.",
+                "colours and media inside uploaded files are not inspected (those checks report not_checkable; the "
+                "backend passes no ContentMetadata yet).",
         evidence=["tests/test_rules_contract.py::test_one_check_record_per_rule_with_honest_statuses",
                   "tests/test_rules_accessibility.py::test_no_images_anywhere_is_not_checkable_with_a_reason_about_uploaded_files"]),
     Limitation(
