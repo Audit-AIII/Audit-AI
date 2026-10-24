@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -350,6 +351,52 @@ def approve_brand_source(
     db.commit()
     db.refresh(source)
     return BrandSourceOut.from_model(source)
+
+
+class DeletedSourceOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    deleted: Literal[True] = True
+
+
+@router.delete("/{brand_id}/sources/{source_id}", response_model=DeletedSourceOut)
+def delete_brand_source(
+    brand_id: uuid.UUID,
+    source_id: uuid.UUID,
+    auth: AuthContext = Depends(require_permission(Permission.MANAGE_SOURCES)),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> DeletedSourceOut:
+    """Deletes a source that was never approved (`draft`): it was never used by a check and can't
+    be cited, so removing it loses no record. Approved and withdrawn (superseded / archived)
+    sources are part of the audit trail and are refused with 409 - withdraw an approved one
+    instead. Its versions go with it (ON DELETE CASCADE) and so does the uploaded file on disk.
+    Audited as `brand_source.deleted` (title and status only, never the text)."""
+    source = get_brand_source_or_404(db, auth.organisation_id, brand_id, source_id)
+    if source.status != BrandSourceStatus.DRAFT.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "only a document that was never approved can be deleted; withdraw an approved document instead",
+        )
+    storage_path = source.storage_path
+    deleted = DeletedSourceOut(id=source.id, title=source.title)
+    log_audit_event(
+        db,
+        organisation_id=auth.organisation_id,
+        actor_user_id=auth.user_id,
+        event_type="brand_source.deleted",
+        entity_type="brand_source",
+        entity_id=source.id,
+        details={"title": source.title, "status": source.status},
+    )
+    db.delete(source)
+    db.commit()
+    if storage_path:
+        base = Path(settings.brand_source_storage_dir).resolve()
+        target = (base / storage_path).resolve()
+        if target.is_relative_to(base):  # stored paths are generated, but never follow one outside the store
+            target.unlink(missing_ok=True)
+    return deleted
 
 
 # --- Brand rules (terminology, compliance, accessibility; migration 0010) -----------------------

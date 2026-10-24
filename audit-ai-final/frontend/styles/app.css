@@ -611,3 +611,99 @@ button.rows__item { transition: background-color var(--dur-base), translate var(
    Below 1280px the title strip is too narrow (long titles, head buttons), so only the tide stays. */
 .app__ambient .shore { z-index: 0; }
 @media (max-width: 1279px) { .app__ambient .shell:not(.shell--tide) { display: none; } }
+
+/* ---- Sources: chosen-file preview, bin buttons, privacy tag, withdrawn fold ---- */
+.fpreview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border-radius: var(--r-ui);
+  box-shadow: var(--shadow-well);
+  animation: app-deal var(--dur-mid) var(--ease-enter) backwards;
+}
+/* a small raised paper page, lit from the top-left, with the file's start on it */
+.fpreview__page {
+  position: relative;
+  width: 96px;
+  height: 124px;
+  overflow: hidden;
+  border-radius: var(--r-tag);
+  background-color: var(--paper-hi);
+  box-shadow: var(--shadow-press), 0 10px 18px -8px color-mix(in srgb, var(--deep) 45%, transparent);
+  rotate: -2deg;
+}
+.fpreview__pdf { position: relative; width: 400%; height: 400%; border: 0; transform: scale(.25); transform-origin: 0 0; pointer-events: none; background: transparent; color-scheme: light; }
+.fpreview__text { margin: 0; padding: 8px 7px; color: var(--ink); font: 400 6.5px / 1.35 var(--font-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+.fpreview__sheet { position: absolute; inset: 14px 10px 26px; }
+.fpreview__lines { position: absolute; inset: 0; background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--ink-2) 35%, transparent) 0 2px, transparent 2px 9px); -webkit-mask-image: linear-gradient(90deg, #000 70%, transparent); mask-image: linear-gradient(90deg, #000 70%, transparent); }
+.fpreview__badge {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 3px 6px;
+  border-radius: var(--r-tag);
+  background-color: var(--surface);
+  color: var(--canvas);
+  font: 700 10px / 1 var(--font-display);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-window);
+}
+.fpreview__info { display: grid; gap: 4px; min-width: 0; }
+.fpreview__name { margin: 0; font-weight: 600; font-size: 17px; overflow-wrap: anywhere; }
+.fpreview__meta { margin: 0; color: var(--ink-2); font-size: 15px; }
+.fpreview__note { margin: 0; color: var(--surface); font-size: 14px; line-height: 1.4; }
+
+/* Bin: a raised square button; the lid lifts on hover, it presses in when clicked */
+.bin {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ui);
+  background-color: var(--canvas);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+  cursor: pointer;
+  transition: box-shadow var(--dur-base) var(--ease-ui), translate var(--dur-base) var(--ease-ui), color var(--dur-base);
+}
+.bin__icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.bin__lid { transform-origin: 18px 6px; transition: rotate var(--dur-base) var(--ease-ui), translate var(--dur-base) var(--ease-ui); }
+.bin:hover:not(:disabled) { box-shadow: var(--shadow-press); translate: 1px 2px; color: var(--bad); }
+.bin:hover:not(:disabled) .bin__lid { rotate: 14deg; translate: 0 -1px; }
+.bin:active:not(:disabled) { box-shadow: var(--shadow-well); }
+.bin:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bin:disabled { cursor: not-allowed; opacity: .55; }
+
+/* Privacy tag: one line, sentence case, padlock glyph (closed = private, open = not private) */
+.privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: var(--r-tag);
+  outline: 1px dashed var(--ink-2);
+  outline-offset: -1px;
+  color: var(--ink);
+  font: 600 14px / 1 var(--font-body);
+  white-space: nowrap;
+}
+.privacy svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.privacy--private { background-color: var(--surface); background-image: var(--grain-dark); color: var(--canvas); outline: 0; box-shadow: var(--shadow-window); }
+.rows__actions { display: flex; align-items: center; gap: 8px; }
+.sources-withdrawn { margin-top: 4px; }
+.sources-withdrawn > summary { padding: 10px 2px; color: var(--ink-2); font-size: 15px; font-weight: 600; cursor: pointer; }
+.sources-withdrawn > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sources-withdrawn .rows__item { opacity: .8; }
+@media (max-width: 767px) { .fpreview { grid-template-columns: auto minmax(0, 1fr); } .fpreview .bin { grid-column: 2; justify-self: start; } }
+@media (prefers-reduced-motion: reduce) {
+  .fpreview { animation: none; }
+  .bin, .bin__lid { transition: none; }
+  .bin:hover:not(:disabled), .bin:hover:not(:disabled) .bin__lid { translate: none; rotate: none; }
+}

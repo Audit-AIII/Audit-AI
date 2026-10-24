@@ -209,6 +209,11 @@ approve on upload) → 201 one item of the above. `.../withdraw` body `{"status"
 "archived", "reason"}` → `{"source", "reason", "flipped": [{"content_version_id", "review_id"}]}`.
 `.../versions` (multipart `file`) → `{"source", "version_number", "flipped"}`. A confidential source
 in scope keeps the whole review on local Ollama only.
+`DELETE /api/brands/{id}/sources/{source_id}` → 200 `{"id", "title", "deleted": true}`: deletes a source that was **never approved**
+(`status: "draft"`), with its versions and its uploaded file; audited as `brand_source.deleted`
+(title and status only). Approved, superseded or archived sources are part of the record → 409
+"only a document that was never approved can be deleted; withdraw an approved document instead".
+Another account's source → 404.
 
 ### Brand rules — `GET` / `PUT /api/brands/{id}/rules`
 
