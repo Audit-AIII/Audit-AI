@@ -42,7 +42,8 @@ export function splitSentences(text: string): { text: string; start: number; end
 
 export function coverage(text: string, findings: FindingOut[]) {
   const ranged = findings
-    .filter((f) => f.verification_status !== "not_applicable")
+    // claims only: a brand-rule finding is never a claim verdict, whatever status it carries
+    .filter((f) => f.check_type !== "rule" && f.verification_status !== "not_applicable")
     .map((f) => ({ f, ...spanToUtf16(text, f.span) }));
   const sentences: Sentence[] = splitSentences(text).map((s) => {
     const hits = ranged.filter((r) => r.start < s.end && r.end > s.start).map((r) => r.f);

@@ -10,6 +10,9 @@ import type {
   CreateReviewBody,
   ErrorBody,
   ErrorCode,
+  FindingComment,
+  FindingDecision,
+  LocksOut,
   LoginResponse,
   RegisterBody,
   RegisterResponse,
@@ -119,6 +122,10 @@ export function preflight(body: unknown, form: FormData | undefined, headers: Re
 }
 
 /** 409 "still being processed": the same Idempotency-Key is already in flight on the server. */
+/** The backend's own message for 409 / 422 (it says exactly what is wrong); plain text otherwise. */
+export const backendMessage = (err: unknown) =>
+  err instanceof ApiError ? (err.status === 409 || err.status === 422 ? err.message : err.userMessage) : "Something went wrong. Please try again.";
+
 export const isStillProcessing = (err: unknown) =>
   err instanceof ApiError && err.status === 409 && /still being processed/i.test(err.message);
 
@@ -250,6 +257,21 @@ export const api = {
    * changed, or the caller's role doesn't match required_reviewer_role (message says which). */
   approve: (contentVersionId: string) =>
     request<ApprovalEventOut>(`/api/content-versions/${encodeURIComponent(contentVersionId)}/approve`, { method: "POST" }),
+  /** Dismiss / restore one finding (reversible; never changes the finding or the review). 409 = already
+   * dismissed / not dismissed. */
+  dismissFinding: (findingId: string, note?: string) =>
+    request<FindingDecision>(`/api/findings/${encodeURIComponent(findingId)}/dismiss`, { method: "POST", body: note ? { note } : {} }),
+  restoreFinding: (findingId: string) => request<FindingDecision>(`/api/findings/${encodeURIComponent(findingId)}/restore`, { method: "POST", body: {} }),
+  findingComments: (findingId: string) => request<FindingComment[]>(`/api/findings/${encodeURIComponent(findingId)}/comments`),
+  addFindingComment: (findingId: string, body: string) =>
+    request<FindingComment>(`/api/findings/${encodeURIComponent(findingId)}/comments`, { method: "POST", body: { body } }),
+  getLocks: (contentVersionId: string) => request<LocksOut>(`/api/content-versions/${encodeURIComponent(contentVersionId)}/locks`),
+  /** Replaces the whole list (server dedupes; invalid -> 422 with the reason). */
+  putLocks: (contentVersionId: string, lockedPhrases: string[]) =>
+    request<LocksOut>(`/api/content-versions/${encodeURIComponent(contentVersionId)}/locks`, {
+      method: "PUT",
+      body: { locked_phrases: lockedPhrases },
+    }),
   requestChanges: (contentVersionId: string, body: RequestChangesBody) =>
     request<ApprovalEventOut>(`/api/content-versions/${encodeURIComponent(contentVersionId)}/request-changes`, {
       method: "POST",

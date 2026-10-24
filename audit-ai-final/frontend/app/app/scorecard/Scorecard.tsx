@@ -1,26 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ConfirmDialog } from "@/components/additions/ConfirmDialog";
 import { Metric } from "@/components/additions/Metrics";
 import { EmptyState, ErrorState, LoadingState, NeedsBackend } from "@/components/additions/States";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
+import { Button } from "@/components/primitives/Button";
+import { ApiError } from "@/lib/api/client";
 import {
   latestEvaluation,
+  runEvaluation,
   type EvalCase,
   type EvalGate,
   type EvaluationResponse,
   type EvaluationSummary,
+  type LatestEvaluation,
   type Limitation,
   type Maybe,
 } from "@/lib/additions/analytics";
+import { RunReport } from "./RunReport";
 
 /**
  * Trust Scorecard: the latest evaluation report of the verification engine (EVAL.md Phase 8).
- * Every number comes from GET /api/evaluations/latest (contract evaluation-summary-v1), which
- * serves what the engine's evaluation runner measured. Nothing is computed or invented here.
+ * Every number comes from GET /api/evaluations/latest: a stored run (EvaluationOut, see RunReport)
+ * or the older evaluation-summary-v1 report. Nothing is computed or invented here.
  * Benchmark results on a labelled, synthetic dataset: never live production statistics.
  */
-type Load = { state: "loading" } | { state: "ok"; result: Maybe<EvaluationResponse> } | { state: "error"; error: unknown };
+type Load = { state: "loading" } | { state: "ok"; result: Maybe<LatestEvaluation> } | { state: "error"; error: unknown };
+
+/**
+ * Run evaluation (POST /api/evaluations). Synchronous on the server, bounded by its call budget
+ * (eval_deadline_seconds, 300 s), so the request has no client timeout. One run per user per
+ * eval_min_interval_seconds (600 s), counted for discarded runs too.
+ * "failed" keeps the backend's message as-is; `retryAt` keeps Retry disabled while a retry could only
+ * hit the interval limit; `check` offers "Check for a result" (a run may still be going).
+ */
+type Run =
+  | { phase: "idle" }
+  | { phase: "confirm" }
+  | { phase: "running" }
+  | { phase: "failed"; message: string; retryAt: number | null; check: boolean };
+const RUN_INTERVAL_MS = 10 * 60_000;
+const RUNNING_TEXT = "Running... this can take up to 5 minutes. Keep this tab open.";
+const NETWORK_TEXT = "Could not reach the server. The run may still be going; check again in a few minutes.";
+
+function failure(err: unknown): Extract<Run, { phase: "failed" }> {
+  const later = Date.now() + RUN_INTERVAL_MS;
+  if (!(err instanceof ApiError)) return { phase: "failed", message: "Something went wrong. Please try again.", retryAt: null, check: false };
+  if (err.status === 0) return { phase: "failed", message: NETWORK_TEXT, retryAt: later, check: true };
+  if (err.status === 429) {
+    if (/already running/i.test(err.message)) return { phase: "failed", message: err.message, retryAt: later, check: true };
+    const minutes = Number(/every (\d+) minutes?/i.exec(err.message)?.[1]);
+    return { phase: "failed", message: err.message, retryAt: minutes > 0 ? Date.now() + minutes * 60_000 : later, check: false };
+  }
+  // 409 after the provider was called (run discarded): it still counts toward the interval.
+  if (err.status === 409 && /could not answer/i.test(err.message)) return { phase: "failed", message: err.message, retryAt: later, check: false };
+  // 409 no provider / dataset problem: nothing ran, so a retry is allowed straight away.
+  if (err.status === 409) return { phase: "failed", message: err.message, retryAt: null, check: false };
+  return { phase: "failed", message: err.userMessage, retryAt: null, check: false };
+}
 
 const VERDICT: Record<string, { glyph: string; label: string; tone: string }> = {
   SUPPORTED: { glyph: "✓", label: "Supported", tone: "ok" },
@@ -56,6 +94,43 @@ const show = (v: unknown) => (v === null || v === undefined ? "not recorded" : t
 export function Scorecard() {
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [tick, setTick] = useState(0);
+  const [run, setRun] = useState<Run>({ phase: "idle" });
+  const [now, setNow] = useState(() => Date.now());
+  const sending = useRef(false);
+  const retryAt = run.phase === "failed" ? run.retryAt : null;
+  useEffect(() => {
+    if (retryAt === null) return;
+    const t = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(t);
+  }, [retryAt]);
+
+  async function start() {
+    if (sending.current) return; // no double submit
+    sending.current = true;
+    setRun({ phase: "running" });
+    try {
+      const result = await runEvaluation();
+      setLoad({ state: "ok", result: { available: true, data: { kind: "run", run: result } } });
+      setRun({ phase: "idle" });
+      latestEvaluation() // refresh the latest state quietly; the returned run is already on screen
+        .then((latest) => latest.available && latest.data.kind === "run" && setLoad({ state: "ok", result: latest }))
+        .catch(() => {});
+    } catch (err) {
+      setNow(Date.now());
+      setRun(failure(err));
+    } finally {
+      sending.current = false;
+    }
+  }
+  const running = run.phase === "running";
+  const waiting = retryAt !== null && now < retryAt;
+  const openConfirm = () => setRun({ phase: "confirm" });
+  const runButton = (
+    <Button onClick={openConfirm} disabled={running || waiting} aria-busy={running}>
+      {running ? "Running…" : "Run evaluation"}
+    </Button>
+  );
+
   useEffect(() => {
     let live = true;
     latestEvaluation()
@@ -68,7 +143,51 @@ export function Scorecard() {
 
   return (
     <>
-      <StageHead title="Trust Scorecard" status="Benchmark results · not live statistics" />
+      <StageHead title="Trust Scorecard" status="Benchmark results · not live statistics">
+        {runButton}
+      </StageHead>
+      <p className="add-sr" role="status" aria-live="polite">
+        {running ? RUNNING_TEXT : ""}
+      </p>
+      {running && (
+        <div className="add-state add-state--loading" aria-hidden="true">
+          <span className="add-state__spinner" /> {RUNNING_TEXT}
+        </div>
+      )}
+      {run.phase === "failed" && (
+        <div className="app-alert app-alert--bad add-stack" role="alert">
+          <span>
+            <b>The evaluation did not run.</b> {run.message}
+          </span>
+          <span className="add-row">
+            <button type="button" className="add-btn-small" onClick={openConfirm} disabled={waiting}>
+              Retry
+            </button>
+            {run.check && (
+              <button type="button" className="add-btn-small" onClick={() => setTick((t) => t + 1)}>
+                Check for a result
+              </button>
+            )}
+            {waiting && retryAt !== null && (
+              <span className="add-note">
+                Retry is available from {new Date(retryAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (one run every 10 minutes).
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+      <ConfirmDialog
+        open={run.phase === "confirm"}
+        title="Run evaluation?"
+        confirmLabel="Run evaluation"
+        onConfirm={start}
+        onCancel={() => setRun({ phase: "idle" })}
+      >
+        <p>
+          This sends about 80 labelled test claims to the AI provider. It takes 1 to 5 minutes, uses provider quota, and can be run once
+          every 10 minutes.
+        </p>
+      </ConfirmDialog>
       {load.state === "loading" && <LoadingState label="Loading the latest evaluation…" />}
       {load.state === "error" && <ErrorState error={load.error} onRetry={() => setTick((t) => t + 1)} />}
       {load.state === "ok" && !load.result.available && (
@@ -76,18 +195,19 @@ export function Scorecard() {
           <code className="add-mono">GET /api/evaluations/latest</code> is not on this server. No evaluation number is shown without it.
         </NeedsBackend>
       )}
-      {load.state === "ok" && load.result.available && <Result data={load.result.data} />}
+      {load.state === "ok" && load.result.available &&
+        (load.result.data.kind === "run" ? <RunReport run={load.result.data.run} /> : <Result data={load.result.data.summary} runButton={runButton} />)}
     </>
   );
 }
 
-function Result({ data }: { data: EvaluationResponse }) {
+function Result({ data, runButton }: { data: EvaluationResponse; runButton: ReactNode }) {
   if (data.state === "none") {
-    // TODO: add a "Run evaluation" button once the backend design for POST /api/evaluations is agreed.
     return (
       <EmptyState title="No evaluation yet">
         <p className="add-note">Results appear here after an evaluation is run. These are benchmark results, not live statistics.</p>
         {data.how_to_run && <code className="add-mono">{data.how_to_run}</code>}
+        <div style={{ marginTop: 12 }}>{runButton}</div>
       </EmptyState>
     );
   }

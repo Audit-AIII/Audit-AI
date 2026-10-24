@@ -1,0 +1,63 @@
+{
+  "catch_rate": 1.0,
+  "false_positive_rate": 0.0,
+  "per_check": [
+    {
+      "check": "verification",
+      "catch_rate": 1.0,
+      "false_positive_rate": 0.0,
+      "n": 80
+    },
+    {
+      "check": "numeric",
+      "catch_rate": 1.0,
+      "false_positive_rate": 0.0,
+      "n": 26
+    },
+    {
+      "check": "absent_fact",
+      "catch_rate": 1.0,
+      "false_positive_rate": null,
+      "n": 9
+    }
+  ],
+  "sample_size": 80,
+  "run_at": "2026-10-24T01:31:02Z",
+  "id": "00000000-0000-4000-8000-000000000001",
+  "status": "partial",
+  "engine_prompt_version": "verify-claim-v1",
+  "dataset_version": "dataset.jsonl@0516b9b8ce5b",
+  "limits_note": "Measured on 80 labelled claims from the engine's own test set (...). This is a small test set: it shows the checker was tested, not a universal accuracy figure, ...",
+  "latency_ms_p50": 1098.0,
+  "provider_failure_rate": 0.0364,
+  "coverage": "verifier_only",
+  "by_split": {
+    "dev": {
+      "n": 55,
+      "catch_rate": {
+        "numerator": 37,
+        "denominator": 37,
+        "value": 1.0
+      },
+      "false_positive_rate": {
+        "numerator": 0,
+        "denominator": 18,
+        "value": 0.0
+      }
+    },
+    "heldout": {
+      "n": 25,
+      "catch_rate": {
+        "numerator": 18,
+        "denominator": 18,
+        "value": 1.0
+      },
+      "false_positive_rate": {
+        "numerator": 0,
+        "denominator": 7,
+        "value": 0.0
+      }
+    }
+  },
+  "provider_mode": "live"
+}
