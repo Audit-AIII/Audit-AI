@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Field } from "@/components/primitives/Field";
+import { PasswordField } from "@/components/primitives/PasswordField";
 import { ApiError, api } from "@/lib/api/client";
 import type { LoginResponse } from "@/lib/api/types";
 import { rememberBrand } from "@/lib/brand";
@@ -82,7 +83,7 @@ function SignInForm({ expired, next }: { expired: boolean; next: string }) {
       )}
       <form className="auth__form" onSubmit={onSubmit}>
         <Field label="Work email" id="a-email" name="email" type="email" autoComplete="email" required />
-        <Field label="Password" id="a-password" name="password" type="password" autoComplete="current-password" required />
+        <PasswordField label="Password" id="a-password" name="password" autoComplete="current-password" required />
         {error && (
           <p className="auth__alert auth__alert--bad" role="alert">
             {error}
@@ -156,22 +157,20 @@ function SignUpForm() {
       <form className="auth__form" onSubmit={onSubmit}>
         <Field label="Your name (optional)" id="a-name" name="name" autoComplete="name" maxLength={200} />
         <Field label="Work email" id="a-email" name="email" type="email" autoComplete="email" required />
-        <Field
+        <PasswordField
           label="Password (8 characters or more)"
           id="a-password"
           name="password"
-          type="password"
           autoComplete="new-password"
           minLength={PASSWORD_MIN}
           maxLength={PASSWORD_MAX_BYTES}
           required
           onInput={(e) => e.currentTarget.setCustomValidity("")}
         />
-        <Field
+        <PasswordField
           label="Confirm password"
           id="a-confirm"
           name="confirm"
-          type="password"
           autoComplete="new-password"
           required
           onInput={(e) => e.currentTarget.setCustomValidity("")}
