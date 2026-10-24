@@ -2,14 +2,15 @@ import { Heading } from "@/components/primitives/Heading";
 import { TextLink } from "@/components/primitives/TextLink";
 import { StartReviewButton } from "@/components/layout/StartReview";
 
-// Today every account is one person who writes, checks and decides. Separate team roles are planned.
+// Single-user accounts (DECISIONS.md, decision 1): the owner writes, checks and decides.
 const ROLES = [
-  { name: "Writer", does: "Sends drafts in and fixes what is flagged.", gets: "Every draft", caption: "Sends in" },
-  { name: "Decider", does: "Reads why each line was flagged, then approves, sends back or rejects.", gets: "Checked drafts", caption: "Decides" },
-  { name: "Team roles", does: "Planned: separate reviewers and managers, with risky drafts routed to a reviewer.", gets: "Planned", caption: "Not yet" },
+  { name: "You approve", does: "Nothing is approved for you. Approve, send back or reject is always your click.", gets: "Your call", caption: "Decides" },
+  { name: "Every decision is saved", does: "Who decided, when, and which version of the draft.", gets: "Full record", caption: "Saved" },
+  { name: "Your documents stay yours", does: "One private account per user. Nobody else sees your brands or drafts.", gets: "Private", caption: "Yours" },
+  { name: "Teams", does: "Planned: inviting others into an account.", gets: "Planned", caption: "Not yet" },
 ];
 
-const PATH = ["Draft", "Checked", "Being reviewed", "Approved"];
+const PATH = ["Draft", "Checked", "Your decision", "Approved"];
 
 /** Roles replace pricing tiers: an approval-path card beside the role rows. */
 export function Roles() {
@@ -31,12 +32,11 @@ export function Roles() {
               </li>
             ))}
           </ol>
-          <p className="t-caption roles__fork">Planned: Risky → Reviewer · Clean → Manager</p>
         </div>
 
         <div className="roles__sheet card" data-r="scale">
           <Heading id="roles-title" className="roles__title">
-            A person makes every call
+            You decide
           </Heading>
           <ul className="roles__list">
             {ROLES.map((r) => (

@@ -115,7 +115,7 @@ export function Hero() {
           <div className="hero__aside">
             <p className="t-lead">
               Audit AI checks every draft against your approved documents and facts before it goes live. It
-              shows why each problem was flagged, and a person always makes the final call.
+              shows why each problem was flagged, and you always make the final call.
             </p>
             <div className="hero__actions">
               <StartReviewButton />

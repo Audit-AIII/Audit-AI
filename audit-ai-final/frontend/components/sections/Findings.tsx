@@ -59,7 +59,7 @@ const FINDINGS: Finding[] = [
     source: "Your approved documents",
     excerpt: "No approved document ranks the product “number one”.",
     title: "“India’s number-one eco-friendly solution”",
-    copy: "Nothing you have approved backs up “number one”. Audit AI suggests softer wording, and a person decides.",
+    copy: "Nothing you have approved backs up “number one”. Audit AI suggests softer wording, and you decide.",
     spec: { check: "Claims", source: "Your approved documents", result: "Not proven yet: needs softer wording" },
     snippet: {
       channel: "Social post",
