@@ -24,13 +24,24 @@ const STATUS_LABEL: Record<string, string> = {
   source_changed: "Source changed, re-check",
 };
 
-function age(iso: string) {
+/** When the review was started, as "22 min ago" (the exact date and time is in the tooltip). */
+function ago(iso: string) {
   if (!iso) return "–";
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${mins} min`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
   const h = Math.round(mins / 60);
-  return h < 48 ? `${h} h` : `${Math.round(h / 24)} days`;
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`;
 }
+const STATUS_GLYPH: Record<string, string> = {
+  needs_human_review: "●",
+  completed: "○",
+  approved: "✓",
+  changes_requested: "↩",
+  rejected: "≠",
+  failed: "!",
+  source_changed: "↻",
+};
 
 export function Queue() {
   const { value: brands } = useBrands();
@@ -88,7 +99,7 @@ function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: str
             <th scope="col">Draft</th>
             <th scope="col">Brand</th>
             <th scope="col">Risk</th>
-            <th scope="col">Age</th>
+            <th scope="col">Time</th>
             <th scope="col">Status</th>
           </tr>
         </thead>
@@ -98,7 +109,7 @@ function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: str
             return (
               <tr key={r.id}>
                 <td>
-                  <a className="link" href={`/app/decide?id=${r.id}`}>
+                  <a className="link add-queue-title" href={`/app/decide?id=${r.id}`} title={r.title}>
                     {r.title}
                   </a>
                   {r.placeholder && <div className="add-note add-muted">◌ Placeholder check (no AI ran)</div>}
@@ -109,8 +120,16 @@ function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: str
                     <span aria-hidden="true">{risk.glyph}</span> {risk.label}
                   </span>
                 </td>
-                <td>{age(r.createdAt)}</td>
-                <td>{STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " ")}</td>
+                <td>
+                  <time dateTime={r.createdAt} title={r.createdAt ? new Date(r.createdAt).toLocaleString() : undefined}>
+                    {ago(r.createdAt)}
+                  </time>
+                </td>
+                <td>
+                  <span className="add-status">
+                    <span aria-hidden="true">{STATUS_GLYPH[r.status] ?? "·"}</span> {STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " ")}
+                  </span>
+                </td>
               </tr>
             );
           })}
