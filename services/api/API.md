@@ -318,6 +318,21 @@ account.
 - **`verification_status: "conflicting_sources"`**: the brand's approved documents disagree about
   the claim (the engine's citation guard caught it), so it was not decided either way; the
   explanation says so and it always needs a person. Category stays `unsupported_claim`.
+- **`review_reasons`** (claim findings; additive): why a person must decide - the engine's own
+  values, `[]` when `requires_human_review` is false, `null` on rule and stub findings and on rows
+  from before this field:
+
+  | Value | Meaning |
+  |---|---|
+  | `contradicted` | an approved document says otherwise |
+  | `not_enough_evidence` | no document backs it, the documents disagree, or this backend's own citation check rejected the engine's quote |
+  | `error` | the claim could not be checked (provider failure, or the decision policy itself failed) |
+  | `weak_evidence` | supported, but not by the best-matching passage |
+  | `below_policy_strength` | supported, but on less than strong evidence |
+  | `compound_under_cited` | supported, but the claim joins several facts and rests on one quote |
+
+  The last three are on **supported** claims: show "supported, but please check: ..." rather than a
+  problem.
 - **`evidence[].source_title` / `source_version_number`**: the document and the version the quote was
   actually taken from (still the old number after the document gets a new version).
 - `brand_name`, `content_item_id`, `title`, `version_number`, `text`: `null` only on very old rows.
@@ -374,7 +389,12 @@ GET /api/reviews?status=needs_human_review&status=completed&limit=20
   `{"content_version_id", "version_number", "is_current": true, "review": <Review>}`.
 - `GET /api/content/{content_item_id}/history` →
   `{"content_item_id", "title", "versions": [{"id", "version_number", "is_current", "created_by",
-  "created_at", "reviews": [{"id", "status", "created_at"}], "decisions": [<ApprovalEvent>]}]}`.
+  "created_at", "reviews": [{"id", "status", "created_at"}], "decisions": [<ApprovalEvent>],
+  "finding_events": [{"event_type", "finding_id", "actor_user_id", "created_at", "note"}]}]}`.
+  `finding_events` (additive) is what the user did to that version's findings, oldest first:
+  `event_type` `finding.dismissed` | `finding.restored` | `finding.commented`; `note` is the
+  Dismiss / restore note (null for comments). A comment's text is never here
+  (`GET /api/findings/{id}/comments`).
 - `POST /api/content-versions/{id}/approve` → 201 ApprovalEvent:
   `{"id", "content_version_id", "version_number", "action": "approved", "actor_user_id", "note": null, "created_at"}`.
   409 if not decidable, stale, or a cited document was withdrawn/replaced ("rerun the review first").
@@ -394,7 +414,9 @@ n times.
   (`suggested_correction` / `safer_wording` `null`, `withheld_by_intent_lock: true`). Re-run for a
   suggestion that keeps them. Locks are part of the result-cache key.
 - A new version (`POST /api/content/{id}/versions`) inherits the current version's locks. The
-  user's own edits are not blocked when they drop a locked phrase.
+  user's own edits are **warned, not blocked**: the response has `lock_warnings: [{"phrase",
+  "occurrences_before", "occurrences_after"}]` for every locked phrase the edit kept fewer times
+  than the previous version (empty when all are kept); the version is saved either way.
 - The review shape carries `locked_phrases`. Audited as `content_version.locks_updated` (count only).
 
 ### Dismiss and comments — `/api/findings/{finding_id}/...`
@@ -422,7 +444,8 @@ Query: `brand_id` (the page always sends it; omitted = every brand in the accoun
   "median_turnaround_minutes": 95.0,
   "re_review_rate": 0.25,
   "queue_age_minutes": {"median": 180.0, "oldest": 2880.0},
-  "sample_size": 12
+  "sample_size": 12,
+  "dismissed_finding_rate": {"numerator": 1, "denominator": 6, "value": 0.1667}
 }
 ```
 - `top_categories`: finding counts by `category`, excluding `stub`, `supported_claim` and null;
@@ -433,6 +456,10 @@ Query: `brand_id` (the page always sends it; omitted = every brand in the accoun
   as `open_review_count`); `null`s if none.
 - `sample_size`: reviews counted. Zero reviews → `{"top_categories": [], "median_turnaround_minutes":
   null, "re_review_rate": null, "queue_age_minutes": {"median": null, "oldest": null}, "sample_size": 0}`.
+- `dismissed_finding_rate` (additive): of the period's flagged findings (the same set
+  `top_categories` counts), how many the user has dismissed. Only each finding's latest decision
+  counts (dismissed then restored = not dismissed). `value` is `null` when nothing is flagged. A
+  live false-positive signal from the user's own decisions, not a measured accuracy.
 - Another account's `brand_id` → 404; bad `days` → 422.
 
 ### `GET /api/evaluations/latest` · `POST /api/evaluations` — Trust Scorecard
@@ -485,6 +512,9 @@ backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
 - `per_check`: `verification` overall, then one entry per labelled kind of hard case (numeric, date,
   named_entity, prompt_injection, …), largest first.
 - Model-reported confidence is never used.
+- **No `contract` key**, ever: the Scorecard page tells this shape from the engine's older
+  `evaluation-summary-v1` by "has `catch_rate` and `per_check`, and no `contract` key". New fields
+  are additive only.
 
 Additive fields (the Scorecard's `Evaluation` type is unchanged):
 
@@ -512,7 +542,10 @@ from `services/verification/eval/run_eval.py`, not an endpoint.
 Errors: `GET .../latest` with no run yet → **404** `no evaluation has been run yet`. `POST` with no
 provider configured → **409**, nothing stored. `POST` where more than 20% of claims got no verdict
 (`EVAL_MAX_PROVIDER_FAILURE_RATE`) → **409** "…was not saved…", nothing stored (its real calls stay in
-`external_call_log`). More than one run per user per 10 minutes (stored or discarded) → **429**.
+`external_call_log`). More than one run per user per 10 minutes (stored or discarded) → **429**,
+and a second run while one is still going → **429** "already running". Both carry a `Retry-After`
+header and the same number of seconds as `error.retry_after` in the body: the rest of the
+10-minute window, or the running evaluation's time limit (`EVAL_DEADLINE_SECONDS`).
 
 ## Known limits
 

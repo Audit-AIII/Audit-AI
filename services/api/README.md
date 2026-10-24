@@ -36,7 +36,8 @@ cp .env.example .env    # fill in AUTH_SECRET_KEY; DATABASE_URL default matches 
 ## Environment variables
 
 Everything is documented inline in [`.env.example`](.env.example) — copy it to `.env` and fill
-in what you need. Summary:
+in what you need. Which AI keys each part needs, and the free-key findings:
+[`AI_PROVIDER_KEYS.md`](AI_PROVIDER_KEYS.md). Summary:
 
 | Variable | Required? | What it's for |
 |---|---|---|
@@ -73,12 +74,19 @@ reverse cleanly), not a bug, but it means demo data doesn't survive a full `pyte
 
 ## Test
 
+**Never run the suite against a database you care about:** `test_migrations.py` downgrades to
+`base`, which drops every table (it once wiped the dev seed data). Use a throwaway schema in the
+same database instead; it needs no extra privileges:
+
 ```sh
+set -a; source .env; set +a                                      # DATABASE_URL = your dev database
+python -c "import os; from sqlalchemy import create_engine, text; e = create_engine(os.environ['DATABASE_URL']); c = e.connect(); c.execute(text('CREATE SCHEMA IF NOT EXISTS inkloom_test')); c.commit()"
+export DATABASE_URL="${DATABASE_URL}?options=-csearch_path%3Dinkloom_test"   # tests only see this schema
+.venv/Scripts/python -m alembic upgrade head
 .venv/Scripts/python -m pytest -q
 ```
 
-Runs the whole suite against the real database at `DATABASE_URL` (DB-backed tests skip
-automatically if it isn't reachable - CI fails on any skip). 288 tests, ~85s.
+DB-backed tests skip automatically if the database isn't reachable (CI fails on any skip).
 `.venv/Scripts/python -m alembic check` confirms the models match the migrations.
 CI (`.github/workflows/repo-integrity.yml`, job 3) runs both on every push and pull request. Offline: every test that runs a review uses the
 stub or the scripted provider (`src/inkloom_api/engine/scripted_provider.py`), never a real model.
@@ -244,6 +252,43 @@ through this service's own provider adapter (`engine/providers/`), not a provide
 engine calls directly — see `CONTRACTS.md` in `services/verification` for the open integration
 questions this answers (tenant id from the authenticated context, not the request body; this
 service generates `request_id` and owns validation-error handling).
+
+### Why the backend runs its own claim pipeline (not `verify_request`)
+
+The engine has a single entry point, `inkloom_verify.pipeline.verify_request` (request in, report
+out). The backend deliberately does **not** call it: `engine/pipeline.py` drives the same engine
+components claim by claim, because several things the backend must do happen *between* the
+engine's steps or around a single claim, and `verify_request` only returns a finished report.
+Option (b) of the 2026-10-24 plan, taken as the recommended default; reopen it if the team prefers routing through `verify_request`.
+
+What the backend does that `verify_request` does not:
+- **Its own evidence check** (`engine/evidence_validator.py`): every citation is re-validated
+  against the backend's own copy of the approved source; a failure downgrades *that one claim*
+  to unverified and is audited. (`verify_request` instead discards a whole report that fails its
+  scope check.)
+- **Safer wording, corrections and Intent-lock re-checked here** (`softening_guard.py`,
+  `intent_lock_guard.py`) before anything is stored, whatever the engine returned.
+- **Stub mode** (no provider configured), the **result cache**, **per-call logging** to
+  `external_call_log`, **confidential routing** (Ollama only), and the backend's own **call
+  budget** settings (`REVIEW_MAX_*`).
+- **Brand rules** via `evaluate_rules` with the default accessibility checks
+  (`engine/brand_rules.py`); `verify_request` runs `check_rules` only when rules are given.
+- `completed` never means approved; a per-claim failure becomes one `engine_error` finding.
+
+Shared with `verify_request` (the engine's own code, not a copy): extraction, BM25 retrieval,
+the verifier and its **citation guard** (inside `verify_claim`), the corrector (re-check on), the
+softener, the call budget wrapper, and since 2026-10-24 the **decision policy**:
+`apply_policy(result, DecisionPolicy())` runs on every claim, so a SUPPORTED claim on less than
+strong evidence, or a compound claim on one quote, still goes to a person
+(`tests/test_decision_policy.py`).
+
+Still different (known, accepted):
+- `verify_request` reports sentences extraction could not turn into claims as request errors;
+  the backend only keeps extraction's own errors.
+- Retrieval: `verify_request` uses `BM25Retriever.for_request` and the config's `top_k`; the
+  backend uses `BM25Retriever(documents)` with the engine's default `top_k`.
+- The engine's `review_reasons` (why a SUPPORTED claim needs review) are not stored or returned
+  yet; the finding only has `requires_human_review`.
 
 ## Frontend integration (Member 1)
 
