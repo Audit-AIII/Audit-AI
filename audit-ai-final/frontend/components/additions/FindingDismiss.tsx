@@ -1,6 +1,8 @@
 "use client";
 
 import { useId, useState } from "react";
+// add- classes (Dismissed badge, buttons, states); this route has no AdditionsFrame.
+import "@/styles/additions.css";
 import { api, backendMessage } from "@/lib/api/client";
 import type { FindingDecision, FindingOut } from "@/lib/api/types";
 import { codePoints, DISMISSED, noteProblem, TEXT_MAX } from "@/lib/additions/findingState";
@@ -38,7 +40,7 @@ export function FindingDismiss({ f, onDecided }: { f: FindingOut; onDecided: (d:
       {f.dismissal ? (
         <>
           <p className="t-body panel__note">
-            <span className="chip chip--dismissed">
+            <span className="chip add-dismissed">
               <span aria-hidden="true">{DISMISSED.glyph}</span> {DISMISSED.label}
             </span>{" "}
             Dismissed by you on {new Date(f.dismissal.at).toLocaleString()}.

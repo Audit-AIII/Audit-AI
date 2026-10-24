@@ -228,7 +228,7 @@ function ReviewView({
                             </span>
                           )}{" "}
                           {isDismissed(f) && (
-                            <span className="chip chip--dismissed">
+                            <span className="chip add-dismissed">
                               <span aria-hidden="true">{DISMISSED.glyph}</span> {DISMISSED.label}
                             </span>
                           )}{" "}
@@ -447,7 +447,7 @@ function HeatText({
               {p.text}
             </mark>
             {dismissed && (
-              <span className="heat__dismissed" aria-hidden="true">
+              <span className="add-heat-dismissed" aria-hidden="true">
                 {DISMISSED.glyph} {DISMISSED.label}
               </span>
             )}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+// add- classes (Dismissed badge, buttons, states); this route has no AdditionsFrame.
+import "@/styles/additions.css";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { findingChip, isStub, isStubReview, isWholeDraft, suggestionFor } from "@/components/app/reviewLabels";
@@ -184,7 +186,7 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
                         {isDismissed(f) && (
                           <>
                             {" "}
-                            <span className="chip chip--dismissed">
+                            <span className="chip add-dismissed">
                               <span aria-hidden="true">{DISMISSED.glyph}</span> {DISMISSED.label}
                             </span>
                           </>

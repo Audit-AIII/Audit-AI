@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+// add- classes (Dismissed badge, buttons, states); this route has no AdditionsFrame.
+import "@/styles/additions.css";
 import { EmptyState, ErrorState, LoadingState } from "@/components/additions/States";
 import { api, backendMessage } from "@/lib/api/client";
 import type { FindingComment } from "@/lib/api/types";

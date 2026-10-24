@@ -1,6 +1,7 @@
 /* ==========================================================================
    Additive workspace pages (guidelines, review-edit, coverage, queue, insights, scorecard).
-   Imported only by those routes' own layouts (components/additions/AdditionsFrame.tsx).
+   Imported by those routes' own layouts (components/additions/AdditionsFrame.tsx), and by the
+   Dismiss / comments components and DecidePanel, which also render on the Review and Decide stages.
    Every class is prefixed "add-"; no element, :root or existing-class selectors; tokens only.
    ========================================================================== */
 
@@ -272,8 +273,8 @@
 
 /* Per-finding Dismiss and comments. "Dismissed" is a glyph + word with a dotted outline; it never
    takes the supported (ok) look and never replaces the verdict chip. */
-.chip--dismissed { outline: 1.5px dotted var(--ink-2); outline-offset: -1px; color: var(--ink); background: transparent; }
-.heat__dismissed { margin-left: 4px; padding: 0 5px; border-radius: var(--r-tag); outline: 1.5px dotted var(--ink-2); outline-offset: -1px; font-size: 14px; white-space: nowrap; }
+.add-dismissed { outline: 1.5px dotted var(--ink-2); outline-offset: -1px; color: var(--ink); background: transparent; }
+.add-heat-dismissed { margin-left: 4px; padding: 0 5px; border-radius: var(--r-tag); outline: 1.5px dotted var(--ink-2); outline-offset: -1px; font-size: 14px; white-space: nowrap; }
 .add-dismiss, .add-comments { display: grid; gap: 8px; justify-items: start; margin-top: 8px; }
 .add-dismiss > textarea, .add-comments textarea { justify-self: stretch; }
 .add-textarea {
