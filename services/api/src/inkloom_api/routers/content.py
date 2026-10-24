@@ -18,13 +18,14 @@ from ..audit import log_audit_event
 from ..auth.dependencies import AuthContext, get_current_membership, require_permission
 from ..auth.permissions import Permission
 from ..db import get_db
-from ..models import ApprovalEvent, ContentVersion, Review
+from ..models import ApprovalEvent, ContentVersion, Finding, FindingComment, FindingDecision, Review
 from ..request_text import StoredText
 from ..review_runner import start_review
 from ..schemas import (
     ApprovalEventOut,
     ContentHistoryOut,
     ContentVersionHistoryOut,
+    FindingEventOut,
     NewVersionResponse,
     ReviewOut,
     ReviewSummaryOut,
@@ -93,6 +94,35 @@ def create_version(
     )
 
 
+def _finding_events(db: Session, review_ids: list[uuid.UUID]) -> list[FindingEventOut]:
+    """Dismiss / restore / comment on the findings of these reviews, oldest first. Never the
+    comment text."""
+    if not review_ids:
+        return []
+    decisions = (
+        db.query(FindingDecision)
+        .join(Finding, Finding.finding_id == FindingDecision.finding_id)
+        .filter(Finding.review_id.in_(review_ids))
+        .all()
+    )
+    comments = (
+        db.query(FindingComment)
+        .join(Finding, Finding.finding_id == FindingComment.finding_id)
+        .filter(Finding.review_id.in_(review_ids))
+        .all()
+    )
+    events = [
+        FindingEventOut(event_type=f"finding.{d.action}", finding_id=d.finding_id, actor_user_id=d.actor_user_id,
+                        created_at=d.created_at, note=d.note)
+        for d in decisions
+    ] + [
+        FindingEventOut(event_type="finding.commented", finding_id=c.finding_id, actor_user_id=c.author_user_id,
+                        created_at=c.created_at, note=None)
+        for c in comments
+    ]
+    return sorted(events, key=lambda e: e.created_at)
+
+
 @router.get("/{content_item_id}/history", response_model=ContentHistoryOut)
 def get_history(
     content_item_id: uuid.UUID,
@@ -125,6 +155,7 @@ def get_history(
                 created_at=version.created_at,
                 reviews=[ReviewSummaryOut.from_model(r) for r in reviews],
                 decisions=[ApprovalEventOut.from_model(d, version.version_number) for d in decisions],
+                finding_events=_finding_events(db, [r.id for r in reviews]),
             )
         )
 

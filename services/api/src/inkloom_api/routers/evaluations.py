@@ -15,6 +15,7 @@ restart), and never two at once for the same user.
 
 from __future__ import annotations
 
+import math
 import threading
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -126,20 +127,26 @@ def _enforce_interval(db: Session, auth: AuthContext, settings: Settings) -> Non
     """Counts every run that actually called the provider - stored or discarded - from the
     audit trail, so the limit survives a restart and a discarded run can't be retried at once.
     A request refused before any call (no provider configured) writes no event and isn't counted."""
-    since = datetime.now(timezone.utc) - timedelta(seconds=settings.eval_min_interval_seconds)
-    recent = (
-        db.query(AuditEvent.id)
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(seconds=settings.eval_min_interval_seconds)
+    latest = (
+        db.query(AuditEvent.created_at)
         .filter(
             AuditEvent.actor_user_id == auth.user_id,
             AuditEvent.event_type.in_(_ATTEMPT_EVENTS),
             AuditEvent.created_at >= since,
         )
+        .order_by(AuditEvent.created_at.desc())
         .first()
     )
-    if recent is not None:
+    if latest is not None:
         minutes = max(1, round(settings.eval_min_interval_seconds / 60))
+        # Seconds until the newest counted attempt leaves the window. Errors.py copies the
+        # Retry-After header into the body as error.retry_after (same as the review rate limit).
+        wait = max(1, math.ceil(settings.eval_min_interval_seconds - (now - latest.created_at).total_seconds()))
         raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, f"an evaluation can be run once every {minutes} minutes; try again later"
+            status.HTTP_429_TOO_MANY_REQUESTS, f"an evaluation can be run once every {minutes} minutes; try again later",
+            headers={"Retry-After": str(wait)},
         )
 
 
@@ -152,7 +159,10 @@ def create_evaluation(
     _enforce_interval(db, auth, settings)
     with _in_flight_lock:
         if auth.user_id in _in_flight:
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "an evaluation is already running for this account")
+            # How long the running one can take at most (its time limit), so a retry after it
+            # meets a finished run.
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "an evaluation is already running for this account",
+                                headers={"Retry-After": str(max(1, math.ceil(settings.eval_deadline_seconds)))})
         _in_flight.add(auth.user_id)
     try:
         run_id = uuid.uuid4()

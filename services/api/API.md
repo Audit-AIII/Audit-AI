@@ -374,7 +374,12 @@ GET /api/reviews?status=needs_human_review&status=completed&limit=20
   `{"content_version_id", "version_number", "is_current": true, "review": <Review>}`.
 - `GET /api/content/{content_item_id}/history` →
   `{"content_item_id", "title", "versions": [{"id", "version_number", "is_current", "created_by",
-  "created_at", "reviews": [{"id", "status", "created_at"}], "decisions": [<ApprovalEvent>]}]}`.
+  "created_at", "reviews": [{"id", "status", "created_at"}], "decisions": [<ApprovalEvent>],
+  "finding_events": [{"event_type", "finding_id", "actor_user_id", "created_at", "note"}]}]}`.
+  `finding_events` (additive) is what the user did to that version's findings, oldest first:
+  `event_type` `finding.dismissed` | `finding.restored` | `finding.commented`; `note` is the
+  Dismiss / restore note (null for comments). A comment's text is never here
+  (`GET /api/findings/{id}/comments`).
 - `POST /api/content-versions/{id}/approve` → 201 ApprovalEvent:
   `{"id", "content_version_id", "version_number", "action": "approved", "actor_user_id", "note": null, "created_at"}`.
   409 if not decidable, stale, or a cited document was withdrawn/replaced ("rerun the review first").
@@ -512,7 +517,10 @@ from `services/verification/eval/run_eval.py`, not an endpoint.
 Errors: `GET .../latest` with no run yet → **404** `no evaluation has been run yet`. `POST` with no
 provider configured → **409**, nothing stored. `POST` where more than 20% of claims got no verdict
 (`EVAL_MAX_PROVIDER_FAILURE_RATE`) → **409** "…was not saved…", nothing stored (its real calls stay in
-`external_call_log`). More than one run per user per 10 minutes (stored or discarded) → **429**.
+`external_call_log`). More than one run per user per 10 minutes (stored or discarded) → **429**,
+and a second run while one is still going → **429** "already running". Both carry a `Retry-After`
+header and the same number of seconds as `error.retry_after` in the body: the rest of the
+10-minute window, or the running evaluation's time limit (`EVAL_DEADLINE_SECONDS`).
 
 ## Known limits
 

@@ -334,6 +334,18 @@ class ReviewSummaryOut(BaseModel):
         return cls(id=review.id, status=review.status, created_at=review.created_at)
 
 
+class FindingEventOut(BaseModel):
+    """Something the user did to one finding of this version's reviews (Dismiss, restore, a
+    comment). `note` is the user's own Dismiss/restore note; a comment's text is never here
+    (GET /api/findings/{id}/comments has it)."""
+
+    event_type: str  # "finding.dismissed" | "finding.restored" | "finding.commented"
+    finding_id: uuid.UUID
+    actor_user_id: uuid.UUID | None
+    created_at: datetime
+    note: str | None
+
+
 class ContentVersionHistoryOut(BaseModel):
     id: uuid.UUID
     version_number: int
@@ -342,6 +354,7 @@ class ContentVersionHistoryOut(BaseModel):
     created_at: datetime
     reviews: list[ReviewSummaryOut]
     decisions: list[ApprovalEventOut]
+    finding_events: list[FindingEventOut] = []  # additive; oldest first
 
 
 class ContentHistoryOut(BaseModel):
