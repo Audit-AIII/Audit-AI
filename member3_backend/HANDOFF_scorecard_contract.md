@@ -74,4 +74,5 @@ What each one measures:
 and keeps the engine's report where Krish wants it. Whichever we pick, the two
 `false_positive_rate`s must never be shown side by side under the same label.
 
-Decision: **A**, implemented by the frontend in PR #9 (2026-10-24). No backend change was needed.
+Decision: A - implemented in PR #9 (frontend). No backend change was needed. Do not add a
+`contract` key to `EvaluationOut`: the page treats a response with one as the old format.

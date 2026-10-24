@@ -1,8 +1,5 @@
-"""GET /api/evaluations/latest and POST /api/evaluations - the Trust Scorecard.
-
-Contract (2026-10-24, member3_backend/HANDOFF_scorecard_contract.md): the Scorecard page parses
-this response (EvaluationOut) since frontend PR #9; the engine's file-based "evaluation-summary-v1"
-stays a run_eval.py CLI/CI artifact. Change fields here only additively.
+"""GET /api/evaluations/latest and POST /api/evaluations - the Trust Scorecard page (frontend
+lib/additions/analytics.ts parses `EvaluationOut`).
 
 `latest` answers 404 until the account has run one: the Scorecard page treats 404 as "not
 available yet", whereas a 200 with missing numbers would render "undefined" / "Invalid Date".
@@ -66,7 +63,9 @@ class SplitOut(BaseModel):
 
 
 class EvaluationOut(BaseModel):
-    # The Scorecard's core fields (see the contract note at the top):
+    # The Scorecard's contract: the page parses exactly these fields (API.md). Additive changes
+    # only, and never a `contract` key - the page tells this shape from the old
+    # evaluation-summary-v1 by "has catch_rate and per_check, and no contract key".
     catch_rate: float | None
     false_positive_rate: float | None
     per_check: list[PerCheckOut]

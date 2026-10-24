@@ -28,7 +28,7 @@ from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig
 from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
 from inkloom_verify.retrieval import BM25Retriever
-from inkloom_verify.schemas import Claim, ClaimResult, Correction, InputContent, Verdict
+from inkloom_verify.schemas import Claim, ClaimResult, ClaimReviewReason, Correction, InputContent, Verdict
 from inkloom_verify.verification import ClaimVerifier, verify_claim
 from sqlalchemy.orm import Session
 
@@ -383,6 +383,7 @@ def _write_unexpected_error_finding(
             ),
             verification_status=VerificationStatus.UNVERIFIED.value,
             requires_human_review=True,
+            review_reasons=[ClaimReviewReason.ERROR.value],
             engine_claim_id=claim.claim_id,
         )
     )
@@ -438,6 +439,9 @@ def _write_finding(
     if breaks_locks(content_version.text, span.start, span.end, safer_wording, locks):
         safer_wording = None
 
+    requires_review = verdict is not Verdict.SUPPORTED or result.requires_human_review
+    review_reasons = _review_reasons(result, verdict, requires_review)
+
     status = _STATUS_FOR_VERDICT[verdict]
     if verdict is Verdict.NOT_ENOUGH_EVIDENCE and result.conflicting_sources:
         # The engine's citation guard found approved documents that disagree (its answer became
@@ -462,7 +466,8 @@ def _write_finding(
         safer_wording=safer_wording,
         # The engine's decision (floor + policy, _with_decision_policy), and always for anything
         # this backend downgraded or could not confirm.
-        requires_human_review=verdict is not Verdict.SUPPORTED or result.requires_human_review,
+        requires_human_review=requires_review,
+        review_reasons=review_reasons,
         engine_claim_id=claim.claim_id,
     )
     db.add(finding)
@@ -485,6 +490,18 @@ def _write_finding(
             )
         )
     return finding.requires_human_review
+
+
+def _review_reasons(result: ClaimResult, verdict: Verdict, requires_review: bool) -> list[str]:
+    """The engine's ClaimReviewReason values for the stored verdict. If this backend downgraded
+    the claim (its own citation check), the engine's reasons no longer apply: not_enough_evidence.
+    A claim that needs review with no reason recorded (the decision policy itself failed) says error."""
+    if not requires_review:
+        return []
+    if verdict is not result.verdict:
+        return [ClaimReviewReason.NOT_ENOUGH_EVIDENCE.value]
+    reasons = [reason.value for reason in result.review_reasons]
+    return reasons or [ClaimReviewReason.ERROR.value]
 
 
 def _log_integrity_rejection(

@@ -25,6 +25,7 @@ def test_single_fact_on_strong_evidence_is_cleared(client, monkeypatch, account_
     review = account_factory("owner").submit(SINGLE)
     [finding] = review["findings"]
     assert (finding["verification_status"], finding["requires_human_review"]) == ("supported", False)
+    assert finding["review_reasons"] == []
     assert review["status"] == "completed"
 
 
@@ -35,6 +36,7 @@ def test_compound_claim_on_one_quote_goes_to_a_person(client, monkeypatch, accou
     [finding] = review["findings"]
     assert finding["verification_status"] == "supported"  # the verdict is unchanged...
     assert finding["requires_human_review"] is True  # ...but one quote doesn't settle two facts
+    assert finding["review_reasons"] == ["compound_under_cited"]  # and the UI can say why
     assert review["status"] == "needs_human_review"
 
 
@@ -50,4 +52,26 @@ def test_a_failing_policy_sends_the_claim_to_a_person(client, monkeypatch, accou
     review = account_factory("owner").submit(SINGLE)
     [finding] = review["findings"]
     assert (finding["verification_status"], finding["requires_human_review"]) == ("supported", True)
+    assert finding["review_reasons"] == ["error"]  # reviewed, and never with an empty reason
     assert review["status"] == "needs_human_review"
+
+
+@requires_db
+def test_review_reasons_for_each_kind_of_finding(client, monkeypatch, account_factory) -> None:
+    use_scripted_provider(monkeypatch, [
+        ScriptedRule("24 hours of playback per charge", "CONTRADICTED", "up to 12 hours of playback per charge", "12 hours."),
+        ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No rankings."),
+    ])
+    review = account_factory("owner").submit(
+        "Lumen Pods offer up to 24 hours of playback per charge. Lumen Pods are India's number one earbuds. BUY NOW TODAY."
+    )
+    reasons = {f["category"]: f["review_reasons"] for f in review["findings"]}
+    assert reasons["contradicted_claim"] == ["contradicted"]
+    assert reasons["unsupported_claim"] == ["not_enough_evidence"]
+    assert reasons["accessibility"] is None  # rule findings: not a claim decision
+
+
+@requires_db
+def test_stub_findings_have_no_review_reasons(client, force_stub_mode, account_factory) -> None:
+    [stub] = account_factory("owner").submit(SINGLE)["findings"]
+    assert stub["category"] == "stub" and stub["review_reasons"] is None
