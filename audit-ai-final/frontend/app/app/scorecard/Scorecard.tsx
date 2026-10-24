@@ -10,9 +10,12 @@ import {
   type EvalGate,
   type EvaluationResponse,
   type EvaluationSummary,
+  type LatestEvaluation,
   type Limitation,
   type Maybe,
+  type RunEvaluation,
 } from "@/lib/additions/analytics";
+import { formatRate } from "@/lib/additions/evaluationRun";
 
 /**
  * Trust Scorecard: the latest evaluation report of the verification engine (EVAL.md Phase 8).
@@ -20,7 +23,7 @@ import {
  * serves what the engine's evaluation runner measured. Nothing is computed or invented here.
  * Benchmark results on a labelled, synthetic dataset: never live production statistics.
  */
-type Load = { state: "loading" } | { state: "ok"; result: Maybe<EvaluationResponse> } | { state: "error"; error: unknown };
+type Load = { state: "loading" } | { state: "ok"; result: Maybe<LatestEvaluation> } | { state: "error"; error: unknown };
 
 const VERDICT: Record<string, { glyph: string; label: string; tone: string }> = {
   SUPPORTED: { glyph: "✓", label: "Supported", tone: "ok" },
@@ -76,8 +79,20 @@ export function Scorecard() {
           <code className="add-mono">GET /api/evaluations/latest</code> is not on this server. No evaluation number is shown without it.
         </NeedsBackend>
       )}
-      {load.state === "ok" && load.result.available && <Result data={load.result.data} />}
+      {load.state === "ok" && load.result.available &&
+        (load.result.data.kind === "run" ? <RunView run={load.result.data.run} /> : <Result data={load.result.data.summary} />)}
     </>
+  );
+}
+
+/** A stored evaluation run (EvaluationOut). */
+function RunView({ run }: { run: RunEvaluation }) {
+  return (
+    <dl className="spec">
+      <Row k="Catch rate" v={formatRate(run.catch_rate)} />
+      <Row k="False-positive rate" v={formatRate(run.false_positive_rate)} />
+      <Row k="Run at" v={new Date(run.run_at).toLocaleString()} />
+    </dl>
   );
 }
 
