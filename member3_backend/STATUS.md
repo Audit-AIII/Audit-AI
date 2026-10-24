@@ -1,9 +1,8 @@
 # Member 3 (Backend) — Project Status
 
 **Team:** CodeNinjas · **Product:** InkLoom AI · **Member:** Member 3 — Backend, Security & Governance
-**Last updated:** 2026-10-24 · **Tests:** 294 / 294 passing against a real PostgreSQL database
-(main + PRs `feat/engine-alignment`, `feat/workflow-gaps`, `feat/deploy-docs`, merged locally;
-288 on main alone) · **Smoke test:** passing over real HTTP in stub mode (the earlier real-provider
+**Last updated:** 2026-10-24 · **Tests:** 300 / 300 passing against a real PostgreSQL database
+(throwaway schema; main after PRs #11-#14) · **Smoke test:** passing over real HTTP in stub mode (the earlier real-provider
 run used a free Gemini key, which the privacy rule now refuses) · **not deployed** (host not chosen)
 
 > `00_CONTEXT.md` in this folder is the original governance contract. Where it mentions team roles,
@@ -38,7 +37,7 @@ Implemented without changing the UI or dropping anything:
 
 | Area | Description |
 |---|---|
-| Database | PostgreSQL, 19 tables, 12 Alembic migrations |
+| Database | PostgreSQL, 19 tables, 13 Alembic migrations |
 | Auth | Email + password, JWT bearer tokens, self-serve registration (one private account per email) |
 | Isolation | Every query scoped to the caller's own account; other accounts' data unreachable by construction |
 | API | FastAPI, 31 HTTP routes across 8 routers |
@@ -90,6 +89,7 @@ verified on a live database (and by `tests/test_migrations.py` on every run).
 | 0010 | `brand_rules_and_rule_findings` | **New.** `brand_profiles.rules`, rule fields on findings, `reviews.rules_status` / `rule_checks` |
 | 0011 | `findings_safer_wording` | **New.** `findings.safer_wording` (softened wording, not evidence-backed) |
 | 0012 | `intent_lock_dismiss_comments` | **New.** `content_versions.locked_phrases`, `finding_decisions`, `finding_comments` |
+| 0013 | `findings_review_reasons` | **New.** `findings.review_reasons` (why a claim needs a person) |
 
 Tables: `organisations` (= accounts), `users`, `memberships`, `brand_profiles`, `brand_sources`,
 `source_versions`, `content_items`, `content_versions`, `reviews`, `findings`, `evidence_links`,
@@ -178,7 +178,8 @@ then switched off by the individual-user decision.
 | Phase 6 | branch `darsh/phase6-engine` | Engine gaps 1-2 closed (Krish's acceptance tests pass, all 16 integration tests green): `conflicting_sources` status; softened wording moved to new `safer_wording` (migration 0011), `suggested_correction` evidence-backed only. **Real evaluation BLOCKED (2026-10-24, rechecked):** Gemini off by the privacy rule (free-tier key, no GEMINI_PAID_TIER); OpenRouter free key ~50 req/day < 80+ needed; nemotron free refuses data_collection=deny (needs free-model training opt-in); gemma and xing4.0 free return 429; no local Ollama. Replay of Krish's run4 cassette: 80/80 no verdict (the recorded run was itself mostly rate-limited). Local `.env` has INKLOOM_LLM_DATA_COLLECTION=allow, weaker than the project default (deny) |
 | Phase 7 | branch `darsh/phase7-findings` | Intent-lock enforced server-side (locks per version, passed to the engine's corrector and softener, every suggestion re-checked with `check_replacement` before storing and withheld on read if locks changed later; in the cache key; new versions inherit). Per-finding Dismiss / restore as separate rows, finding never touched. Comments on findings. `test_intent_lock_dismiss_comments.py` (10 tests; bypass tests mutation-checked). Softening already done in Phase 6 |
 | Phase 8 | branch `darsh/phase8-verify` | Final verification on a clean venv from constraints.txt: 288 passed / 0 skipped; pip-audit clean (58 packages; a stale local venv had pypdf 5.9.0 with 12 CVEs - docs now install with -c constraints.txt); `alembic check` failed on a partial unique index missing from the models (since 0003) - declared in ContentVersion, now clean; wheel builds; smoke test passes over real HTTP (stub mode). CI job 3 added: full suite on real Postgres + alembic check, fails on any skip (rehearsed locally without .env) |
-| Plan steps 6-8 | PRs `feat/engine-alignment`, `feat/workflow-gaps`, `feat/deploy-docs` | Engine: the backend keeps its own claim loop (README explains every difference from `verify_request`) but now applies the engine's own decision policy (`apply_policy`), so weakly supported or compound-on-one-quote claims go to a person. Scorecard contract settled by frontend PR #9 (frontend parses the backend's run). Insights `dismissed_finding_rate`; `lock_warnings` on new versions (warn, never block). Dockerfile + start script (one worker, migrate on start), deploy and demo-rehearsal docs, DISCLOSURE updated, `AI_PROVIDER_KEYS.md`. **Real evaluation: still BLOCKED** - no AI keys chosen (see AI_PROVIDER_KEYS.md); privacy defaults unchanged. **Deploy: BLOCKED** - no host chosen; seeded public URL, public smoke test and release tag wait for it |
+| Plan steps 6-8 | PRs #11 (test-schema fix), #12 (engine alignment), #13 (workflow gaps), #14 (frontend requests), and `feat/deploy-docs` | Engine: the backend keeps its own claim loop (README explains every difference from `verify_request`) but now applies the engine's own decision policy (`apply_policy`), so weakly supported or compound-on-one-quote claims go to a person. Scorecard contract settled by frontend PR #9 (frontend parses the backend's run). Insights `dismissed_finding_rate`; `lock_warnings` on new versions (warn, never block). Dockerfile + start script (one worker, migrate on start), deploy and demo-rehearsal docs, DISCLOSURE updated, `AI_PROVIDER_KEYS.md`. **Real evaluation: still BLOCKED** - no AI keys chosen (see AI_PROVIDER_KEYS.md); privacy defaults unchanged. **Deploy: BLOCKED** - no host chosen; seeded public URL, public smoke test and release tag wait for it |
+| Frontend requests | PRs #12, #14 | `review_reasons` on findings (migration 0013); `Retry-After` / `error.retry_after` on evaluation 429s; `finding_events` per version in content history. Tests now run in a throwaway schema (PR #11: db.py kept URL options); a test run no longer wipes the dev seed data |
 
 Trust Scorecard real run (gemini-3.5-flash-lite, engine dataset of 55 claims at the time; it is now 80): 53 answered,
 catch_rate 1.0 (35/35), false_positive_rate 0.0 (0/18 answered supported). Small synthetic set —
@@ -192,7 +193,9 @@ of time on free-tier 503s; such runs (>20% claims without a verdict) are now ref
 ```sh
 cd services/api
 set -a; source .env; set +a
-.venv/Scripts/python -m pytest -q          # 288 passed, 0 skipped, ~85s, real PostgreSQL 18.6, exact pins from constraints.txt (2026-10-24, branch darsh/phase8-verify)
+export DATABASE_URL="${DATABASE_URL}?options=-csearch_path%3Dinkloom_test"   # throwaway schema, see README "Test"
+.venv/Scripts/python -m alembic upgrade head
+.venv/Scripts/python -m pytest -q          # 300 passed, 0 skipped, ~105s, real PostgreSQL 18.6 (2026-10-24, main after PR #14)
 ```
 
 Covers: cross-account isolation (every route), revoked memberships, approval guards and state
