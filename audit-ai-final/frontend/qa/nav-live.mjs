@@ -1,4 +1,4 @@
-// Workspace nav: /app -> /app/insights; second row marks the active page; no stage lit on
+// Workspace nav: /app -> /app/insights; the Workspace menu marks the active page; no stage lit on
 // workspace pages or /app/review-edit; sensible footer hint; every page within two clicks.
 // AUDIT_EMAIL / AUDIT_PASSWORD / REVIEW_ID env. node qa/nav-live.mjs
 import { chromium } from "playwright";
@@ -13,8 +13,8 @@ await p.fill("#a-email", email); await p.fill("#a-password", password); await p.
 await p.waitForURL("**/app/insights", { timeout: 20000 });
 console.log("ok  /app -> /app/insights");
 const state = () => p.evaluate(() => ({
-  stage: document.querySelector('.stages [aria-current="page"]')?.textContent?.trim() ?? null,
-  more: document.querySelector('nav[aria-label="Workspace"] [aria-current="page"]')?.textContent?.trim() ?? null,
+  stage: document.querySelector('.track [aria-current="page"]')?.textContent?.trim() ?? null,
+  more: document.querySelector('.wsmenu__item[aria-current="page"] .wsmenu__item-label')?.textContent?.trim() ?? null,
   hint: document.querySelector(".app__status p")?.textContent?.trim(),
 }));
 for (const [path, more] of [["/app/insights", "Dashboard"], ["/app/queue", "Queue"], ["/app/guidelines", "Guidelines"], ["/app/scorecard", "Scorecard"]]) {
@@ -31,7 +31,7 @@ for (const path of [`/app/review-edit?id=${rid}`, `/app/coverage?id=${rid}`]) {
 await p.goto(`${WEB}/app/review?id=${rid}`, { waitUntil: "networkidle" });
 assert.equal((await state()).stage, "03Review");
 // two-click reach: from any workspace page every destination is one click; per-review pages via Review (2 clicks)
-const links = await p.evaluate(() => [...document.querySelectorAll(".stages a, nav[aria-label='Workspace'] a, main a")].map((a) => new URL(a.href).pathname));
+const links = await p.evaluate(() => [...document.querySelectorAll(".track a, .wsmenu__list a, main a")].map((a) => new URL(a.href).pathname));
 for (const need of ["/app/sources", "/app/draft", "/app/review", "/app/decide", "/app/record", "/app/insights", "/app/queue", "/app/guidelines", "/app/scorecard", "/app/review-edit", "/app/coverage"])
   assert.ok(links.includes(need), `reachable from Review: ${need}`);
 console.log("ok  from the Review page all 11 workspace pages are one click away (so ≤2 from anywhere)");

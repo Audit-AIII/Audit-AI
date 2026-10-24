@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/additions/ConfirmDialog";
 import { Metric } from "@/components/additions/Metrics";
 import { EmptyState, ErrorState, LoadingState, NeedsBackend } from "@/components/additions/States";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
+import { Thinking } from "@/components/app/Thinking";
 import { Button } from "@/components/primitives/Button";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -149,11 +150,7 @@ export function Scorecard() {
       <p className="add-sr" role="status" aria-live="polite">
         {running ? RUNNING_TEXT : ""}
       </p>
-      {running && (
-        <div className="add-state add-state--loading" aria-hidden="true">
-          <span className="add-state__spinner" /> {RUNNING_TEXT}
-        </div>
-      )}
+      {running && <Thinking label="Running the evaluation" detail="This can take up to 5 minutes. Keep this tab open." announce={false} />}
       {run.phase === "failed" && (
         <div className="app-alert app-alert--bad add-stack" role="alert">
           <span>

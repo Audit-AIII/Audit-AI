@@ -13,7 +13,7 @@ for (const path of [`/app/review?id=${rid}`, `/app/decide?id=${rid}`, "/app/insi
   await p.goto(WEB + path, { waitUntil: "networkidle" }); await p.waitForTimeout(600);
   const r = await p.evaluate(() => ({
     over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    hidden: [...document.querySelectorAll(".stage")].filter((s) => { const b = s.getBoundingClientRect(); return b.right > innerWidth || b.left < 0; }).map((s) => s.textContent),
+    hidden: [...document.querySelectorAll(".track__stage")].filter((s) => { const b = s.getBoundingClientRect(); return b.right > innerWidth || b.left < 0; }).map((s) => s.textContent),
   }));
   assert.equal(r.over, 0, `${path}: horizontal page scroll`); assert.deepEqual(r.hidden, [], `${path}: stages off-screen`);
   const name = path.split("?")[0].split("/").pop();
@@ -21,5 +21,5 @@ for (const path of [`/app/review?id=${rid}`, `/app/decide?id=${rid}`, "/app/insi
   await p.locator(".app__status").screenshot({ path: `qa/out/mobile-${name}-footer.png` });
   console.log(`ok  ${path.split("?")[0].padEnd(13)} scrollWidth==clientWidth, all 5 stages on screen`);
 }
-await p.click(".stage >> text=Record"); await p.waitForURL("**/app/record**");
+await p.click(".track__stage >> text=Record"); await p.waitForURL("**/app/record**");
 console.log("ok  Record stage reachable by tap"); await b.close();
