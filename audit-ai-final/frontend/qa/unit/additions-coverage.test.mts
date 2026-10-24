@@ -11,4 +11,6 @@ const c = coverage(T, [f("a", "One charge lasts 24 hours.", "contradicted"), f("
 assert.deepEqual(c.sentences.map((s) => s.status), ["none", "contradicted", "supported", "none"]);
 assert.equal(c.percent, 50);
 assert.equal(coverage(T, []).percent, null, "no claims -> no percentage");
+const rule = { ...f("r", "Enjoy!", "unverified"), check_type: "rule" } as never;
+assert.equal(coverage(T, [rule]).sentences[3].status, "none", "a rule finding never shows as Not proven yet / Matches");
 console.log("additions coverage: all assertions passed");
