@@ -10,6 +10,7 @@ import { sandNavigate } from "@/lib/sandWave";
 const MORE: { href: string; label: string }[] = [
   { href: "/app/queue", label: "Review queue" },
   { href: "/app/guidelines", label: "Guidelines" },
+  { href: "/app/rules", label: "Brand rules" },
   { href: "/app/insights", label: "Insights" },
   { href: "/app/scorecard", label: "Trust Scorecard" },
 ];

@@ -15,7 +15,8 @@ export function verdict(status: FindingOut["verification_status"]) {
     case "conflicting_sources":
       return { glyph: "⇄", label: "Your documents disagree", tone: "unverified" };
     case "not_applicable":
-      return { glyph: "–", label: "Not checked", tone: "neutral" };
+      // Not a claim verdict (rule findings carry this; see findingChip for how they are shown).
+      return { glyph: "–", label: "No claim verdict", tone: "neutral" };
     default:
       return { glyph: "?", label: human(status), tone: "unverified" };
   }
@@ -27,11 +28,57 @@ export function severity(s: FindingOut["severity"]) {
   return { marks: "●".repeat(n) + "○".repeat(4 - n), word: human(s) };
 }
 
+/* ---- Brand-rule findings (check_type "rule"): not claim verdicts ---- */
+
+export const isRule = (f: FindingOut) => f.check_type === "rule";
+/** "document" scope: something is missing from the whole draft (the span just anchors on line 1). */
+export const isWholeDraft = (f: FindingOut) => isRule(f) && f.scope === "document";
+
+const RULE_CATEGORY: Record<string, string> = {
+  terminology: "Terminology",
+  brand_compliance: "Brand compliance",
+  accessibility: "Accessibility",
+};
+export const ruleCategoryLabel = (c: string | null | undefined) => (c ? (RULE_CATEGORY[c] ?? human(c)) : "Brand rule");
+
+const RULE_TYPE: Record<string, string> = {
+  required_term: "Required term",
+  prohibited_term: "Prohibited term",
+  product_naming: "Product name",
+  preferred_term: "Preferred term",
+  spelling: "Spelling",
+  terminology_consistency: "Consistent wording",
+  required_disclaimer: "Required disclaimer",
+  numeric_limit: "Number limit",
+  all_caps_run: "All capitals",
+  emoji_run: "Emoji runs",
+  vague_link_text: "Vague link text",
+  missing_alt_text: "Image alt text",
+  heading_structure: "Heading order",
+  missing_captions: "Media captions",
+  low_contrast: "Colour contrast",
+};
+export const ruleTypeLabel = (t: string | null | undefined) => (t ? (RULE_TYPE[t] ?? human(t)) : "Rule");
+
+/** Chip for any finding: rule findings get a "§ <category> rule" chip, never a claim verdict. */
+export function findingChip(f: FindingOut) {
+  if (isRule(f)) return { glyph: "§", label: `${ruleCategoryLabel(f.category)} rule`, tone: "rule" };
+  return verdict(f.verification_status);
+}
+
+/** Label for a suggestion, by where it comes from. */
+export const suggestionLabel = (f: FindingOut) =>
+  f.suggestion_basis === "brand_rule" ? "From brand rules" : f.suggestion_basis === "approved_document" ? "From approved document" : "We suggest";
+
+/** Rule checks status for the review. Only "complete" (or no rules at all on old reviews) may look rule-clean. */
+export const rulesUnfinished = (r: ReviewOut) => r.rules_status === "incomplete" || r.rules_status === "not_applied";
+
 /** Headline for the whole review. `completed` never means approved. */
 export function reviewHeadline(r: ReviewOut, stub: boolean) {
   if (stub) return "Placeholder result";
   switch (r.status) {
     case "completed":
+      if (rulesUnfinished(r)) return "Claims matched · rules not fully checked";
       return r.findings.length ? "Everything matched" : "Nothing to check";
     case "needs_human_review": {
       const n = r.findings.filter((f) => f.verification_status !== "supported").length;
@@ -54,4 +101,10 @@ export const isStubReview = (r: ReviewOut) => r.findings.some(isStub) || /^stub/
 export const stubReason = (f: FindingOut) => (f.explanation ?? "").replace(/^\[STUB OUTPUT\]\s*/, "");
 
 export const checkName = (f: FindingOut) =>
-  f.category ? human(f.category) : f.check_type === "retrieval" ? "Facts" : human(f.check_type);
+  isRule(f)
+    ? `${ruleCategoryLabel(f.category)} · ${ruleTypeLabel(f.rule_type)}`
+    : f.category
+      ? human(f.category)
+      : f.check_type === "retrieval"
+        ? "Facts"
+        : human(f.check_type);

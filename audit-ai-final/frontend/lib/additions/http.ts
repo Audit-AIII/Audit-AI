@@ -1,6 +1,6 @@
 "use client";
 
-import { API_URL, ApiError } from "@/lib/api/client";
+import { API_URL, ApiError, preflight, retryWhileInFlight } from "@/lib/api/client";
 import type { ErrorBody } from "@/lib/api/types";
 import { getSession, signOut } from "@/lib/session";
 
@@ -21,7 +21,13 @@ function isErrorBody(x: unknown): x is ErrorBody {
   return !!e && typeof e.code === "string" && typeof e.message === "string";
 }
 
-export async function request<T>(path: string, { method = "GET", body, form, headers = {} }: Options = {}): Promise<T> {
+export async function request<T>(path: string, options: Options = {}): Promise<T> {
+  const headers = options.headers ?? {};
+  preflight(options.body, options.form, headers);
+  return retryWhileInFlight("Idempotency-Key" in headers, () => send<T>(path, options));
+}
+
+async function send<T>(path: string, { method = "GET", body, form, headers = {} }: Options = {}): Promise<T> {
   const token = getSession()?.token;
   let res: Response;
   try {

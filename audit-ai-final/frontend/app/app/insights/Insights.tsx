@@ -16,6 +16,10 @@ const CATEGORY: Record<string, string> = {
   unsupported_claim: "Claims with no evidence yet",
   supported_claim: "Claims that match your documents",
   engine_error: "Could not be checked",
+  // Brand-rule findings (check_type "rule")
+  terminology: "Wording that breaks your brand rules",
+  brand_compliance: "Missing disclaimers or numbers out of range",
+  accessibility: "Hard-to-read or inaccessible text",
 };
 const categoryLabel = (key: string) => CATEGORY[key] ?? key.replace(/_/g, " ");
 

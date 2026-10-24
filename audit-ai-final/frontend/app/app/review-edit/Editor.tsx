@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SeverityBadge, StatusBadge, verdictOf } from "@/components/additions/Badges";
+import { FindingBadge, SeverityBadge, verdictOf } from "@/components/additions/Badges";
 import { EmptyState, ErrorState, LoadingState, NeedsBackend } from "@/components/additions/States";
-import { isStub, isStubReview } from "@/components/app/reviewLabels";
+import { findingChip, isRule, isStub, isStubReview, isWholeDraft, suggestionLabel } from "@/components/app/reviewLabels";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { Button } from "@/components/primitives/Button";
 import { history, itemIdOf, rerun, saveNewVersion, type NewVersionOut } from "@/lib/additions/content";
@@ -181,7 +181,7 @@ function EditorView({ review }: { review: ReviewOut }) {
         <Panel n="01" label="Your draft" title="Edit the text">
           <div className="add-editor">
             <p className="t-caption add-muted">Flagged in the checked version (click to see why)</p>
-            <MarkedText text={original} findings={findings} locks={locks} current={current} onPick={setCurrent} />
+            <MarkedText text={original} findings={findings.filter((f) => !isWholeDraft(f))} locks={locks} current={current} onPick={setCurrent} />
             <label className="add-field-row">
               <span className="field__label">Your new version</span>
               <textarea ref={area} className="add-editor__text" value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} />
@@ -226,10 +226,10 @@ function EditorView({ review }: { review: ReviewOut }) {
               <li key={f.finding_id}>
                 <button type="button" className={`add-finding${f.finding_id === current ? " is-current" : ""}`} aria-pressed={f.finding_id === current} onClick={() => setCurrent(f.finding_id)}>
                   <span className="add-row">
-                    <StatusBadge status={f.verification_status} />
+                    <FindingBadge f={f} />
                     <SeverityBadge severity={f.severity} />
                   </span>
-                  <span className="add-finding__text">“{f.original_text}”</span>
+                  <span className="add-finding__text">{isWholeDraft(f) ? "About the whole draft" : `“${f.original_text}”`}</span>
                 </button>
               </li>
             ))}
@@ -277,6 +277,8 @@ function FindingDetail({ f, locks, canApply, onApply }: { f: FindingOut; locks: 
             <p className="add-window__quote">“{e.quote}”</p>
           </div>
         ))
+      ) : isRule(f) ? (
+        <p className="add-note">§ A brand rule, not a fact check.</p>
       ) : (
         <p className="app-alert" role="note">
           ? No approved document covers this. It isn’t proven yet, which is not the same as wrong.
@@ -289,7 +291,7 @@ function FindingDetail({ f, locks, canApply, onApply }: { f: FindingOut; locks: 
       )}
       {f.suggested_correction ? (
         <div className="add-suggest">
-          <p className="t-caption add-muted">Suggestion (not applied)</p>
+          <p className="t-caption add-muted">{suggestionLabel(f)} (not applied)</p>
           <p>“{f.suggested_correction}”</p>
           {broken.length > 0 && <p className="add-note">🔒 Blocked: would change {broken.map((b) => `“${b}”`).join(", ")}.</p>}
           <button type="button" className="add-btn-small" onClick={onApply} disabled={!canApply || broken.length > 0}>
@@ -297,7 +299,7 @@ function FindingDetail({ f, locks, canApply, onApply }: { f: FindingOut; locks: 
           </button>
         </div>
       ) : (
-        <p className="add-note add-muted">No suggested wording for this one. {verdictOf(f.verification_status).label}.</p>
+        <p className="add-note add-muted">No suggested wording for this one. {findingChip(f).label}.</p>
       )}
     </div>
   );
@@ -330,7 +332,7 @@ function MarkedText({ text, findings, locks, current, onPick }: { text: string; 
             {p.text}
           </span>
         );
-        const tone = verdictOf(f.f.verification_status).tone;
+        const tone = isRule(f.f) ? "rule" : verdictOf(f.f.verification_status).tone;
         return (
           <mark
             key={i}
@@ -339,7 +341,7 @@ function MarkedText({ text, findings, locks, current, onPick }: { text: string; 
             className={`add-mark add-mark--${locked ? "lock" : tone === "none" ? "ok" : tone}${f.f.finding_id === current ? " is-current" : ""}`}
             onClick={() => onPick(f.f.finding_id)}
             onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onPick(f.f.finding_id))}
-            aria-label={`${p.text}: ${verdictOf(f.f.verification_status).label}`}
+            aria-label={`${p.text}: ${findingChip(f.f).label}`}
           >
             {p.text}
           </mark>
