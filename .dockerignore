@@ -10,6 +10,5 @@
 **/*.egg-info
 **/node_modules
 audit-ai-final
-saved-work
 services/api/var
 services/verification/eval/reports
