@@ -31,7 +31,7 @@
   background-color: var(--canvas);
   background-image: var(--grain);
   box-shadow: var(--shadow-raised);
-  color: var(--ink-2);
+  color: var(--surface);
   text-decoration: none;
   white-space: nowrap;
   transition: box-shadow var(--dur-base) var(--ease-ui), translate var(--dur-base) var(--ease-ui), color var(--dur-base);
@@ -103,7 +103,7 @@
 .app .spec__row dt { font: 600 17px / 1.35 var(--font-body); letter-spacing: 0; text-transform: none; }
 .app .spec__row dd { font-size: 17px; }
 .app .spec__row--head { border-top: 0; padding-top: 0; }
-.app .spec__row--head dt, .app .spec__row--head dd { font: 600 var(--fs-caption) / 1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.app .spec__row--head dt, .app .spec__row--head dd { font: 600 var(--fs-caption) / 1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--surface); }
 
 /* ---- Panel content ---- */
 /* File drop: pressed, dashed well; the "Choose a file" chip is raised like a button */
@@ -124,7 +124,7 @@
 .dropzone:has(input:focus-visible) { box-shadow: var(--shadow-well), 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent); }
 .dropzone__icon { width: 34px; height: 34px; fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .dropzone__title { font-size: 19px; font-weight: 600; }
-.dropzone__hint { color: var(--ink-2); font-size: 16px; }
+.dropzone__hint { color: var(--surface); font-size: 16px; }
 .dropzone__btn {
   margin-top: 6px;
   padding: 10px 16px;
@@ -243,7 +243,7 @@ textarea.draft__text {
 
 /* Decide */
 .diff { margin: 0; font-size: 20px; line-height: 1.8; }
-.diff del { color: var(--ink-2); text-decoration-thickness: 2px; }
+.diff del { color: var(--surface); text-decoration-thickness: 2px; }
 .diff ins { padding: 0 3px; border-radius: var(--r-tag); background: var(--ok-tint); text-decoration: underline 2px; text-underline-offset: 3px; }
 .lock { display: inline-flex; align-items: center; gap: 6px; padding: 0 6px; border-radius: var(--r-tag); background: var(--protect-tint); box-shadow: var(--shadow-well); }
 .lock__icon { width: 12px; height: 14px; fill: none; stroke: var(--ink); stroke-width: 1.6; }
@@ -316,10 +316,10 @@ textarea.draft__text {
 .app > main > .app-alert { margin-bottom: 20px; }
 .app-empty { display: grid; justify-items: start; gap: 16px; max-width: 560px; padding: 28px; }
 .app-empty p { margin: 0; }
-.panel__hint { margin: -6px 0 0; color: var(--ink-2); }
+.panel__hint { margin: -6px 0 0; color: var(--surface); }
 .brand-pill { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 14px; border-radius: var(--r-ui); box-shadow: var(--shadow-well); }
 .brand-pill__id { font: 600 16px / 1.2 var(--font-body); font-variant-numeric: tabular-nums; }
-.draft__count { margin: -8px 0 0; justify-self: end; color: var(--ink-2); }
+.draft__count { margin: -8px 0 0; justify-self: end; color: var(--surface); }
 .draft__count.is-over { color: var(--bad); }
 .draft__count.is-over::before { content: "≠ "; }
 
@@ -327,9 +327,9 @@ textarea.draft__text {
 button.rows__item { width: 100%; border: 0; border-bottom: 1px dashed color-mix(in srgb, var(--ink-2) 55%, transparent); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 button.rows__item > span { display: grid; gap: 4px; }
 button.rows__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.problem--stub .rows__title { color: var(--ink-2); font-style: italic; }
+.problem--stub .rows__title { color: var(--surface); font-style: italic; }
 .chip--neutral { outline: 1px solid var(--ink-2); outline-offset: -1px; }
-.chip--placeholder { outline: 1.5px dashed var(--ink-2); outline-offset: -1px; color: var(--ink-2); }
+.chip--placeholder { outline: 1.5px dashed var(--ink-2); outline-offset: -1px; color: var(--surface); }
 
 /* Highlighted spans in the draft are buttons too */
 .heat__mark { padding: 2px 3px; border-radius: var(--r-tag); color: var(--ink); cursor: pointer; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
@@ -340,15 +340,15 @@ button.rows__item:focus-visible { outline: 2px solid var(--accent); outline-offs
 
 .finding-detail { display: grid; gap: 14px; }
 .evidence--placeholder { background: none; box-shadow: var(--shadow-well); outline: 1.5px dashed var(--ink-2); outline-offset: -1px; color: var(--ink); }
-.evidence--placeholder .t-caption { color: var(--ink-2); }
-.engine-note { margin: auto 0 0; color: var(--ink-2); letter-spacing: .04em; text-transform: none; }
+.evidence--placeholder .t-caption { color: var(--surface); }
+.engine-note { margin: auto 0 0; color: var(--surface); letter-spacing: .04em; text-transform: none; }
 .request-id { font: 600 14px / 1 ui-monospace, monospace; letter-spacing: 0; text-transform: none; user-select: all; }
 
 /* Decide / Record */
 .app-alert--ok { margin-bottom: 20px; outline: 0; background: var(--ok-tint); box-shadow: var(--shadow-raised); }
 .app-alert--ok b::before { content: "✓ "; }
 .decide__note { min-height: 110px; }
-.decide__why { margin: -4px 0 4px; color: var(--ink-2); letter-spacing: .02em; text-transform: none; }
+.decide__why { margin: -4px 0 4px; color: var(--surface); letter-spacing: .02em; text-transform: none; }
 .fixes { display: grid; gap: 10px; padding-top: 14px; border-top: 1px dashed color-mix(in srgb, var(--ink-2) 55%, transparent); }
 .fixes p { margin: 0; }
 .fixes .diff { font-size: 17px; line-height: 1.6; }

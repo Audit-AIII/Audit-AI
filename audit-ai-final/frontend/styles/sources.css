@@ -53,7 +53,7 @@
 .src-page--back { position: absolute; z-index: 0; translate: 26px 6px; rotate: 6deg; }
 /* Key facts: a small table */
 .src-table { display: grid; grid-template-columns: auto auto; gap: 6px 18px; padding: 12px 16px; font-size: 13px; }
-.src-table span { color: var(--ink-2); }
+.src-table span { color: var(--surface); }
 .src-table b { font: 700 15px / 1.2 var(--font-display); text-align: right; }
 /* Approved claims: a claim card with a tick and an expiry tag */
 .src--claims { flex-direction: column; gap: 8px; }

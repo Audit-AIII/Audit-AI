@@ -148,7 +148,7 @@
   box-shadow: var(--shadow-well);
   appearance: none;
 }
-.field__input::placeholder { color: var(--ink-2); opacity: 1; }
+.field__input::placeholder { color: var(--surface); opacity: 1; }
 .field__input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 textarea.field__input { min-height: 150px; resize: vertical; }
 

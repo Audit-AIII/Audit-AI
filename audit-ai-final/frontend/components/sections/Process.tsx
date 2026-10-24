@@ -80,6 +80,8 @@ export function Process() {
     const mm = gsap.matchMedia();
     mm.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
       el.setAttribute("data-track", "");
+      // Pinned, scroll-driven version: the channel no longer scrolls itself, so it needs no tab stop.
+      ch.removeAttribute("tabindex");
       // The pinned section is split into one scroll band per step. Crossing into a band slides
       // that step in with a short eased tween, so exactly one step is ever shown at rest.
       const distance = () => Math.max(0, tr.scrollWidth - ch.clientWidth);
@@ -116,6 +118,7 @@ export function Process() {
         trigger.kill();
         gsap.set(tr, { clearProps: "transform" });
         el.removeAttribute("data-track");
+        ch.setAttribute("tabindex", "0");
         el.style.removeProperty("--process-scroll");
       };
     });
@@ -136,7 +139,8 @@ export function Process() {
           </Heading>
         </div>
         <div className="container process__frame">
-          <div ref={channel} className="process__channel ply">
+          {/* Phones / reduced motion: a sideways-scrolling strip, so it is focusable (arrow keys scroll it). */}
+          <div ref={channel} className="process__channel ply" tabIndex={0} role="region" aria-label="The four steps, scroll sideways">
             <ol ref={track} className="process__track">
               {STEPS.map((s, i) => (
                 <li key={s.title} className="process__step card" aria-label={`Step ${i + 1} of ${STEPS.length}`}>
