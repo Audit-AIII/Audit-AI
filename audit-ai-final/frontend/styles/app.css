@@ -392,3 +392,16 @@ select.field__input { cursor: pointer; }
 .app__more-link[aria-current="page"] { box-shadow: var(--shadow-well); text-decoration: none; }
 .app__more-link[aria-current="page"]::before { content: "● "; white-space: pre; font-size: 10px; }
 @media (prefers-reduced-motion: reduce) { .app__more-link { transition: none; } }
+
+/* ---- Phones: every stage visible (wrap, no hidden horizontal scroll); footer wraps cleanly ---- */
+@media (max-width: 767px) {
+  .stages { overflow: visible; }
+  .stages__list { flex-wrap: wrap; gap: 8px; padding: 4px 0 2px; }
+  .stage { min-height: 40px; gap: 8px; padding: 4px 10px 4px 4px; }
+  .stage__n { min-width: 28px; height: 26px; font-size: 13px; }
+  .stage__label { font-size: 14px; letter-spacing: .04em; }
+  .app__more-list { gap: 2px 6px; }
+  .app__status { flex-wrap: wrap; gap: 6px 10px; padding-block: 10px; }
+  .app__status p { flex: 1 1 calc(100% - 30px); min-width: 0; font-size: 15px; line-height: 1.35; }
+  .app__status-sample { flex: 0 1 auto; margin-left: 18px; max-width: calc(100% - 18px); white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+}
