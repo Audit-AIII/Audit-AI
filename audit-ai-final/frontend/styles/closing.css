@@ -76,6 +76,8 @@
 .footer__col h2 { margin: 0 0 14px; color: var(--gray-light); }
 .footer__col p { margin: 0; max-width: 28ch; color: var(--gray-light); }
 .footer__col ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.footer__col .footer__team { margin-top: 14px; gap: 4px; }
+.footer__team li { color: var(--gray-light); }
 
 .footer__disclosure {
   max-width: 72ch;

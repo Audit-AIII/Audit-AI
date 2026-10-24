@@ -8,9 +8,11 @@ const PRODUCT = [
 ];
 const TRUST = [
   { href: "#data-passport", label: "Data Passport" },
-  { href: "#ai-services", label: "AI & services" },
+  { href: "#faq-data", label: "AI & services" },
   { href: "#faq-legal", label: "Limitations" },
 ];
+
+const TEAM = ["Chahit Doshi", "Krish Dodiya", "Darsh Shah", "Daneeka Roy"];
 
 /** Footer tray: raised wordmark on a dark inset panel, link columns, AI & services disclosure. */
 export function Footer() {
@@ -48,7 +50,14 @@ export function Footer() {
           </nav>
           <div className="footer__col">
             <h2 className="t-caption">Team</h2>
-            <p className="t-body">Team CodeNinjas · Inkloom AI hackathon</p>
+            <p className="t-body">Team CodeNinjas · TechCircuit hackathon</p>
+            <ul className="footer__team" aria-label="Team members">
+              {TEAM.map((name) => (
+                <li key={name} className="t-body">
+                  {name}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 

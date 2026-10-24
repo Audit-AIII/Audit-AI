@@ -84,7 +84,13 @@ export function Process() {
       ch.removeAttribute("tabindex");
       // The pinned section is split into one scroll band per step. Crossing into a band slides
       // that step in with a short eased tween, so exactly one step is ever shown at rest.
-      const distance = () => Math.max(0, tr.scrollWidth - ch.clientWidth);
+      // Each step's own offset from the first: every step lands exactly where step 1 sits, with the
+      // same dark margin all round. (A shared "track width / steps" stride drifted a few px per
+      // step, because the last card's right margin isn't part of scrollWidth.)
+      const offset = (i: number) => {
+        const cards = tr.children as HTMLCollectionOf<HTMLElement>;
+        return cards[i] && cards[0] ? cards[i].offsetLeft - cards[0].offsetLeft : 0;
+      };
       const n = STEPS.length;
       // About two screens of scrolling per step.
       const setDistance = () => el.style.setProperty("--process-scroll", `${(n - 1) * 180}vh`);
@@ -95,7 +101,7 @@ export function Process() {
         current = i;
         setActive(i);
         gsap.to(tr, {
-          x: -(distance() / (n - 1)) * i,
+          x: -offset(i),
           duration: instant ? 0 : 1.8,
           ease: "power2.inOut",
           overwrite: true,
