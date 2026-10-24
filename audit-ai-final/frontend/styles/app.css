@@ -4,11 +4,10 @@
    ========================================================================== */
 .app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; min-height: 100svh; }
 /* Evidence-status tints, workspace only (the one place new hues are allowed, DESIGN.md §16).
-   Opaque and matte, lighter than the canvas so ink reads on them: rose = contradicted,
-   light gold = unverified, sage = supported. Contrast with --ink: rose 8.9:1, gold 10.3:1,
-   sage 9.4:1; each status ink (--bad / --warn / --ok) is over 6.5:1 on its own tint. The
-   translucent landing values blended into the tan board and read muddy. */
-.app { --bad-tint: #e6c3b8; --warn-tint: #f1d7a8; --ok-tint: #d3d3ac; }
+   Opaque and matte: red = contradicted, green = supported, ochre = unverified ("not proven yet"
+   is never shown as wrong, so never red). Contrast with --ink: red 7.1:1, green 8.1:1, ochre
+   8.4:1; each status ink (--bad / --ok / --warn) is over 5.5:1 on its own tint. */
+.app { --bad-tint: #e4a99a; --ok-tint: #b9c99a; --warn-tint: #e8c07e; }
 
 /* ---- Top bar ---- */
 .app__bar {
@@ -574,38 +573,48 @@ button.rows__item { transition: background-color var(--dur-base), translate var(
   .thinking__line, .thinking__dots span { animation: none; opacity: 1; }
 }
 
-/* Review: "what the checker found" tally - raised tiles, count in display type, chip words below */
-.tally { display: grid; gap: 8px; margin: -6px 0 22px; }
-.tally__list { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; padding: 0; list-style: none; }
-.tally__tile {
+/* Review: "what the checker found" - one card the width of the panels: total | five equal cells,
+   divided by dashed rules; cells press in on hover, the current one stays pressed; empty ones dim. */
+.tally { display: grid; grid-template-columns: minmax(150px, auto) minmax(0, 1fr); margin: 0 0 22px; overflow: hidden; animation: app-deal var(--dur-mid) var(--ease-enter) backwards; }
+.tally__total { display: grid; align-content: center; gap: 4px; padding: 16px 22px; border-right: 1px dashed color-mix(in srgb, var(--ink-2) 60%, transparent); }
+.tally__note { color: var(--ink-2); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.tally__list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
+.tally__list > li + li { border-left: 1px dashed color-mix(in srgb, var(--ink-2) 45%, transparent); }
+.tally__cell {
   display: grid;
   justify-items: start;
-  gap: 6px;
-  min-width: 132px;
-  padding: 10px 14px 12px;
+  align-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 16px 18px;
   border: 0;
-  border-radius: var(--r-ui);
-  background-color: var(--canvas);
-  background-image: var(--grain);
-  box-shadow: var(--shadow-raised);
+  background: transparent;
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  animation: app-deal var(--dur-mid) var(--ease-enter) backwards;
-  transition: box-shadow var(--dur-base) var(--ease-ui), translate var(--dur-base) var(--ease-ui);
+  transition: box-shadow var(--dur-base) var(--ease-ui), background-color var(--dur-base);
 }
-.tally__list > li:nth-child(2) .tally__tile { animation-delay: 50ms; }
-.tally__list > li:nth-child(3) .tally__tile { animation-delay: 100ms; }
-.tally__list > li:nth-child(4) .tally__tile { animation-delay: 150ms; }
-.tally__list > li:nth-child(5) .tally__tile { animation-delay: 200ms; }
-.tally__tile:hover { box-shadow: var(--shadow-press); translate: 1px 2px; }
-.tally__tile.is-on { box-shadow: var(--shadow-well); background-image: none; background-color: transparent; translate: none; }
-.tally__tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.tally__count { font: 700 30px / 1 var(--font-display); text-shadow: var(--text-etched); }
-.tally__note { margin: 0; color: var(--ink); }
-@media (max-width: 767px) { .tally__list > li { display: flex; flex: 1 1 140px; } .tally__tile { flex: 1; min-width: 0; } }
-@media (prefers-reduced-motion: reduce) { .tally__tile { animation: none; transition: none; } .tally__tile:hover { translate: none; } }
+.tally__cell:hover:not(:disabled) { box-shadow: var(--shadow-well); }
+.tally__cell.is-on { box-shadow: var(--shadow-well); background-color: color-mix(in srgb, var(--deep) 4%, transparent); }
+.tally__cell:disabled { cursor: default; opacity: .45; }
+.tally__cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+.tally__count { font: 700 34px / 1 var(--font-display); text-shadow: var(--text-etched); }
+.tally__cell .chip { white-space: nowrap; }
+@media (max-width: 1100px) { .tally__list { grid-template-columns: repeat(3, minmax(0, 1fr)); } .tally__list > li:nth-child(4) { border-left: 0; } .tally__list > li:nth-child(n + 4) { border-top: 1px dashed color-mix(in srgb, var(--ink-2) 45%, transparent); } }
+@media (max-width: 767px) {
+  .tally { grid-template-columns: minmax(0, 1fr); }
+  .tally__total { grid-auto-flow: column; justify-content: start; align-items: baseline; gap: 10px; padding: 12px 16px; border-right: 0; border-bottom: 1px dashed color-mix(in srgb, var(--ink-2) 60%, transparent); }
+  .tally__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tally__list > li { border-left: 0 !important; border-top: 0 !important; }
+  .tally__list > li:nth-child(even) { border-left: 1px dashed color-mix(in srgb, var(--ink-2) 45%, transparent) !important; }
+  .tally__list > li:nth-child(n + 3) { border-top: 1px dashed color-mix(in srgb, var(--ink-2) 45%, transparent) !important; }
+  .tally__cell { padding: 12px 14px; }
+  .tally__count { font-size: 28px; }
+  .tally__cell .chip { white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) { .tally, .tally__cell { animation: none; transition: none; } }
 
 /* Beach finds in the workspace backdrop (Shore, see AppAmbient): above the discs, under the panels.
    Below 1280px the title strip is too narrow (long titles, head buttons), so only the tide stays. */

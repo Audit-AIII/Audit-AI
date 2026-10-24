@@ -21,6 +21,7 @@ import {
   severity,
   stubReason,
   suggestionFor,
+  verdict,
 } from "@/components/app/reviewLabels";
 import { ApiError, api } from "@/lib/api/client";
 import type { FindingOut, ReviewOut, RuleCheck } from "@/lib/api/types";
@@ -269,43 +270,57 @@ function ReviewView({
   );
 }
 
+/** The summary row's fixed columns, worst first (same glyphs and words as the finding chips). */
+const TALLY: { key: string; glyph: string; label: string; tone: string }[] = [
+  { key: "contradicted", ...verdict("contradicted") },
+  { key: "conflicting_sources", glyph: "⇄", label: "Documents disagree", tone: "unverified" },
+  { key: "unverified", ...verdict("unverified") },
+  { key: "rule", glyph: "§", label: "Brand rule", tone: "rule" },
+  { key: "supported", ...verdict("supported") },
+];
+const tallyKey = (f: FindingOut) => (isRule(f) ? "rule" : f.verification_status);
+
 /**
- * What the checker found, at a glance: one raised tile per kind of result (same glyph and words as
- * the finding chips), worst first, with its count. A tile jumps to the first finding of that kind.
- * Dismissed findings stay counted in their kind; the dismissed total is shown on its own.
+ * What the checker found, at a glance: one card the width of the panels, the total on the left
+ * and a fixed row of five equal cells (zero cells stay, dimmed, so the layout never shifts). A
+ * cell jumps to the first finding of that kind. Dismissed findings stay counted in their kind.
  */
 function Tally({ findings, current, onSelect }: { findings: FindingOut[]; current?: string; onSelect: (id: string) => void }) {
-  const groups = new Map<string, { chip: ReturnType<typeof findingChip>; items: FindingOut[] }>();
-  for (const f of findings) {
-    if (isStub(f)) continue;
-    const chip = findingChip(f);
-    const g = groups.get(chip.label) ?? { chip, items: [] };
-    g.items.push(f);
-    groups.set(chip.label, g);
-  }
-  const dismissed = findings.filter(isDismissed).length;
+  const real = findings.filter((f) => !isStub(f));
+  const dismissed = real.filter(isDismissed).length;
   return (
-    <section className="tally" aria-label="What the checker found">
+    <section className="tally card" aria-label="What the checker found">
+      <div className="tally__total">
+        <span className="tally__count">{real.length}</span>
+        <span className="t-caption">{real.length === 1 ? "finding" : "findings"}</span>
+        {dismissed > 0 && (
+          <span className="tally__note">
+            <span aria-hidden="true">{DISMISSED.glyph}</span> {dismissed} dismissed
+          </span>
+        )}
+      </div>
       <ul className="tally__list">
-        {[...groups.values()].map(({ chip, items }) => {
+        {TALLY.map((k) => {
+          const items = real.filter((f) => tallyKey(f) === k.key);
           const on = items.some((f) => f.finding_id === current);
           return (
-            <li key={chip.label}>
-              <button type="button" className={`tally__tile${on ? " is-on" : ""}`} onClick={() => onSelect(items[0].finding_id)} aria-pressed={on}>
+            <li key={k.key}>
+              <button
+                type="button"
+                className={`tally__cell${on ? " is-on" : ""}`}
+                onClick={() => items[0] && onSelect(items[0].finding_id)}
+                disabled={items.length === 0}
+                aria-pressed={on}
+              >
                 <span className="tally__count">{items.length}</span>
-                <span className={`chip chip--${chip.tone}`}>
-                  {chip.glyph} {chip.label}
+                <span className={`chip chip--${k.tone}`}>
+                  {k.glyph} {k.label}
                 </span>
               </button>
             </li>
           );
         })}
       </ul>
-      {dismissed > 0 && (
-        <p className="t-caption tally__note">
-          <span aria-hidden="true">{DISMISSED.glyph}</span> {dismissed} dismissed by you (still counted above)
-        </p>
-      )}
     </section>
   );
 }
