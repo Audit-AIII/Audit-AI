@@ -5,7 +5,7 @@ import { isMissingRoute, request } from "./http";
 
 /**
  * Insights + Trust Scorecard adapters.
- *   GET /api/analytics/brand-risk   (not on the backend yet: 404 -> { available: false })
+ *   GET /api/analytics/brand-risk   (backend; a route-missing 404/405 -> { available: false })
  *   GET /api/evaluations/latest     (backend, any signed-in member): the latest evaluation report's
  *                                   summary, contract "evaluation-summary-v1", written by the engine's
  *                                   evaluation runner (services/verification/eval/run_eval.py).
@@ -31,24 +31,27 @@ async function optional<T>(path: string, init?: Parameters<typeof request>[1]): 
 }
 
 export const brandRisk = (brandId: string) => optional<BrandRisk>(`/api/analytics/brand-risk?brand_id=${encodeURIComponent(brandId)}`);
-export async function latestEvaluation(): Promise<Maybe<EvaluationResponse>> {
-  const r = await optional<unknown>("/api/evaluations/latest");
-  return r.available ? { available: true, data: parseEvaluation(r.data) } : r;
-}
+/**
+ * Two different 404s:
+ *   - {"error": {"code": "NOT_FOUND", "message": "no evaluation has been run yet"}}: the route
+ *     exists, nothing has been run -> an empty state (state "none"), not "needs backend";
+ *   - FastAPI's default {"detail": "Not Found"} (no error body, so code BAD_RESPONSE): the route
+ *     itself is missing -> { available: false }.
+ */
+export const isNoEvaluationYet = (err: unknown) =>
+  err instanceof ApiError && err.status === 404 && err.code === "NOT_FOUND" && /no evaluation/i.test(err.message);
 
-/** Illustration only; rendered under a "Sample data" notice and never mixed with real numbers. */
-export const SAMPLE_RISK: BrandRisk = {
-  top_categories: [
-    { category: "Product facts", count: 14 },
-    { category: "Green claims", count: 9 },
-    { category: "Tone", count: 6 },
-    { category: "Easy to read", count: 4 },
-  ],
-  median_turnaround_minutes: 95,
-  re_review_rate: 0.22,
-  queue_age_minutes: { median: 180, oldest: 2880 },
-  sample_size: 33,
-};
+export async function latestEvaluation(): Promise<Maybe<EvaluationResponse>> {
+  try {
+    return { available: true, data: parseEvaluation(await request<unknown>("/api/evaluations/latest")) };
+  } catch (err) {
+    if (isNoEvaluationYet(err)) {
+      return { available: true, data: { contract: "evaluation-summary-v1", state: "none", reason: "", how_to_run: "" } };
+    }
+    if (isMissingRoute(err)) return { available: false };
+    throw err;
+  }
+}
 
 // --- Evaluation summary contract "evaluation-summary-v1" (mirrors inkloom_verify/evaluation/summary.py) ---
 

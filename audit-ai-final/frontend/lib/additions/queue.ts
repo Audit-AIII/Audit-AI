@@ -1,14 +1,11 @@
 "use client";
 
 import type { ReviewOut } from "@/lib/api/types";
-import { isMissingRoute, request } from "./http";
+import { request } from "./http";
 
 /**
- * Review queue adapter. GET /api/reviews (list) does not exist yet: today it answers 405 because
- * only POST is defined on that path. Until it lands, the queue shows:
- *   - REAL reviews this browser knows about (ids the workspace stored when they were sent or opened:
- *     "audit-ai.review-text-index" and "audit-ai.last-review", read-only), each fetched live;
- *   - clearly labelled sample rows, with no counts drawn from them.
+ * Review queue adapter: GET /api/reviews (the caller's own reviews, newest first, full ReviewOut).
+ * Only real reviews are shown; there is no sample or placeholder data.
  */
 export type QueueRow = {
   id: string;
@@ -37,33 +34,10 @@ export function toRow(r: ReviewOut): QueueRow {
   };
 }
 
-function knownIds(): string[] {
-  try {
-    const ids: string[] = JSON.parse(window.localStorage.getItem("audit-ai.review-text-index") ?? "[]");
-    const last = window.localStorage.getItem("audit-ai.last-review");
-    return [...new Set([...(last ? [last] : []), ...ids])].slice(0, 20);
-  } catch {
-    return [];
-  }
-}
+export type QueueLoad = { rows: QueueRow[] };
 
-export type QueueLoad = { source: "api" | "browser"; rows: QueueRow[]; failed: number };
-
+/** Up to 100 of the caller's reviews (the backend's page limit), all statuses. */
 export async function loadQueue(): Promise<QueueLoad> {
-  try {
-    const list = await request<ReviewOut[]>("/api/reviews?status=needs_human_review");
-    return { source: "api", rows: list.map(toRow), failed: 0 };
-  } catch (err) {
-    if (!isMissingRoute(err)) throw err;
-  }
-  const results = await Promise.allSettled(knownIds().map((id) => request<ReviewOut>(`/api/reviews/${encodeURIComponent(id)}`)));
-  const rows = results.flatMap((r) => (r.status === "fulfilled" ? [toRow(r.value)] : []));
-  return { source: "browser", rows, failed: results.length - rows.length };
+  const list = await request<ReviewOut[]>("/api/reviews?limit=100");
+  return { rows: list.map(toRow) };
 }
-
-/** Illustration only. Never counted, never mixed into real rows. */
-export const SAMPLE_ROWS: QueueRow[] = [
-  { id: "sample-1", title: "Aero earbuds launch page", brandId: null, risk: "high", requiredRole: "legal_reviewer", createdAt: "", status: "needs_human_review", placeholder: false },
-  { id: "sample-2", title: "Spring newsletter", brandId: null, risk: "medium", requiredRole: "brand_manager", createdAt: "", status: "needs_human_review", placeholder: false },
-  { id: "sample-3", title: "Product page: steel bottle", brandId: null, risk: "low", requiredRole: "brand_manager", createdAt: "", status: "completed", placeholder: false },
-];

@@ -9,12 +9,12 @@
 .add-mono { font: 600 14px / 1.3 ui-monospace, monospace; overflow-wrap: anywhere; user-select: all; }
 .add-stack { display: grid; gap: 16px; }
 .add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
-.add-muted { color: var(--ink-2); }
+.add-muted { color: var(--surface); }
 .add-note { margin: 0; font-size: 16px; line-height: 1.5; }
 .add-field-row { display: grid; gap: 8px; }
 
 .add-details { margin-top: 4px; }
-.add-details > summary { cursor: pointer; color: var(--ink-2); font: 600 14px / 1.3 var(--font-body); letter-spacing: .04em; }
+.add-details > summary { cursor: pointer; color: var(--surface); font: 600 14px / 1.3 var(--font-body); letter-spacing: .04em; }
 .add-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r-tag); }
 .add-details[open] > summary { margin-bottom: 6px; }
 
@@ -33,7 +33,7 @@
 .add-badge--ok { background: var(--ok-tint); box-shadow: var(--shadow-raised); }
 .add-badge--warn { background: var(--warn-tint); outline: 1px dashed var(--warn); outline-offset: -1px; }
 .add-badge--bad { background: var(--bad-tint); box-shadow: var(--shadow-well); }
-.add-badge--none { outline: 1px solid var(--ink-2); outline-offset: -1px; color: var(--ink-2); }
+.add-badge--none { outline: 1px solid var(--ink-2); outline-offset: -1px; color: var(--surface); }
 .add-sev { font-size: 15px; letter-spacing: .04em; white-space: nowrap; }
 
 /* States */
@@ -105,7 +105,7 @@
 .add-drop.is-off { opacity: .7; }
 .add-drop__icon { width: 32px; height: 32px; fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .add-drop__title { margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
-.add-drop__hint { margin: 0; color: var(--ink-2); font-size: 15px; }
+.add-drop__hint { margin: 0; color: var(--surface); font-size: 15px; }
 .add-drop__btn {
   margin-top: 4px;
   padding: 11px 16px;
@@ -147,7 +147,7 @@
 .add-doc__title { margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
 .add-doc__meta { margin: 0; font-size: 15px; color: var(--ink); }
 .add-doc__actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.add-doc--off .add-doc__title { color: var(--ink-2); }
+.add-doc--off .add-doc__title { color: var(--surface); }
 .add-flipped { margin: 0; padding-left: 18px; font-size: 15px; }
 
 /* ---- Correction editor (B) ---- */
@@ -196,7 +196,7 @@
 .add-lock button { min-width: 28px; min-height: 28px; border: 0; background: none; color: var(--ink); font-size: 16px; cursor: pointer; border-radius: var(--r-tag); }
 .add-lock button:focus-visible { outline: 2px solid var(--accent); }
 .add-diff { margin: 0; padding: 14px 16px; border-radius: var(--r-ui); outline: 1.5px dashed var(--ink-2); outline-offset: -1px; font-size: 17px; line-height: 1.75; white-space: pre-wrap; }
-.add-diff del { color: var(--ink-2); text-decoration-thickness: 2px; }
+.add-diff del { color: var(--surface); text-decoration-thickness: 2px; }
 .add-diff ins { padding: 0 2px; border-radius: var(--r-tag); background: var(--ok-tint); text-decoration: underline 2px; text-underline-offset: 3px; }
 .add-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 22px; padding: 18px 22px; border-radius: var(--r-ui); box-shadow: var(--shadow-raised); background-color: var(--canvas); background-image: var(--grain); }
 
@@ -235,13 +235,13 @@
 
 /* ---- Queue / insights / scorecard (D, E) ---- */
 .add-table { width: 100%; border-collapse: collapse; font-size: 16px; }
-.add-table th { padding: 10px 8px; text-align: left; color: var(--ink-2); font: 600 var(--fs-caption) / 1.2 var(--font-body); letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px dashed var(--ink); }
+.add-table th { padding: 10px 8px; text-align: left; color: var(--surface); font: 600 var(--fs-caption) / 1.2 var(--font-body); letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px dashed var(--ink); }
 .add-table td { padding: 12px 8px; vertical-align: top; border-bottom: 1px dashed color-mix(in srgb, var(--ink-2) 55%, transparent); }
 .add-table__wrap { overflow-x: auto; }
 .add-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
 .add-metric { display: grid; gap: 6px; padding: 16px; border-radius: var(--r-ui); box-shadow: var(--shadow-well); }
 .add-metric__value { font: 700 34px / 1 var(--font-display); }
-.add-metric__label { font: 600 var(--fs-caption) / 1.2 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.add-metric__label { font: 600 var(--fs-caption) / 1.2 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--surface); }
 .add-metric__target { font-size: 14px; }
 .add-bars { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .add-bars li { display: grid; grid-template-columns: minmax(110px, 30%) minmax(0, 1fr) 48px; gap: 10px; align-items: center; font-size: 15px; }
@@ -260,3 +260,7 @@
   .add-btn-small, .add-btn-danger, .add-drop, .add-drop__btn { transition: none; }
   .add-btn-danger:hover:not(:disabled), .add-drop__btn:hover { translate: none; }
 }
+
+/* Dashboard (Insights): cards size to their content */
+.add-insights .panel { min-height: 0; }
+.add-insights__basis { margin: -10px 0 18px; }

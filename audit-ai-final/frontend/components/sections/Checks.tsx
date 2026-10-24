@@ -9,13 +9,14 @@ import { SandDrift, Shore, type ShellSpot } from "@/components/layout/Shore";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const CHECKS: { kind: CheckKind; title: string; line: string }[] = [
-  { kind: "tone", title: "Tone", line: "Does it sound like your brand?" },
-  { kind: "terminology", title: "Wording", line: "Product names and terms, spelled your way." },
+// `soon`: shown on the page as "Coming next" (only Facts and Claims are built today).
+const CHECKS: { kind: CheckKind; title: string; line: string; soon?: boolean }[] = [
+  { kind: "tone", title: "Tone", line: "Does it sound like your brand?", soon: true },
+  { kind: "terminology", title: "Wording", line: "Product names and terms, spelled your way.", soon: true },
   { kind: "facts", title: "Facts", line: "Numbers and dates match what you approved." },
   { kind: "claims", title: "Claims", line: "Big promises need proof." },
-  { kind: "visual", title: "Visuals", line: "Colours and logos match your brand." },
-  { kind: "accessibility", title: "Easy to read", line: "Clear for everyone, first time." },
+  { kind: "visual", title: "Visuals", line: "Colours and logos match your brand.", soon: true },
+  { kind: "accessibility", title: "Easy to read", line: "Clear for everyone, first time.", soon: true },
 ];
 
 // Resting tilt of each card while stacked (deg), so the pile looks hand-dealt.
@@ -78,10 +79,10 @@ export function Checks() {
       <div className="container">
         <div className="head-grid checks__head">
           <Heading id="checks-title" className="checks__title" data-r="up">
-            Six checks before anything ships
+            Six checks, two live today
           </Heading>
           <p className="t-lead checks__intro" data-r="up">
-            Every draft goes through six checks. Each problem we flag tells you which rule or document it came from.
+            Facts and Claims check every draft today; the other four are coming next. Each problem we flag tells you which document it came from.
           </p>
         </div>
         <ul ref={grid} className="checks__grid">
@@ -89,7 +90,10 @@ export function Checks() {
             <li key={c.kind} className="checks__item">
               <Swatch kind={c.kind} className="checks__swatch" />
               <SandDrift variant={i} className="checks__drift" />
-              <h3 className="t-title checks__name">{c.title}</h3>
+              <h3 className="t-title checks__name">
+                {c.title}
+                {c.soon && <span className="checks__soon">Coming next</span>}
+              </h3>
               <p className="t-body checks__line">{c.line}</p>
             </li>
           ))}

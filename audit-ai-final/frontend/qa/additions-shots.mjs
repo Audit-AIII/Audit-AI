@@ -1,4 +1,4 @@
-// Screenshots of an additive page at 1182x937 and 390x844, signed in for real.
+// Screenshots of an additive page at 1440x900 and 390x844, signed in for real.
 //   AUDIT_EMAIL=... AUDIT_PASSWORD=... node qa/additions-shots.mjs <route> [query]
 // e.g. node qa/additions-shots.mjs guidelines    or    node qa/additions-shots.mjs coverage "id=..."
 import { chromium } from "playwright";
@@ -9,7 +9,7 @@ if (!route || !email || !password) throw new Error("usage: AUDIT_EMAIL AUDIT_PAS
 const WEB = "http://localhost:3000";
 const b = await chromium.launch();
 const errors = [];
-for (const [w, h, tag] of [[1182, 937, "desktop"], [390, 844, "mobile"]]) {
+for (const [w, h, tag] of [[1440, 900, "desktop"], [390, 844, "mobile"]]) {
   const p = await b.newPage({ viewport: { width: w, height: h } });
   p.on("pageerror", (e) => errors.push(e.message));
   p.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(m.text()));

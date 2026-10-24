@@ -36,7 +36,7 @@
 [data-seal-anim] .roles__step--end:not(.is-sealed) .roles__dot { background-color: transparent; box-shadow: var(--shadow-well); }
 [data-seal-anim] .roles__step--end:not(.is-sealed) .roles__tick { opacity: 0; scale: .6; }
 @media (prefers-reduced-motion: reduce) { .roles__step--end .roles__dot, .roles__tick { transition: none; } }
-.roles__fork { margin: 0; color: var(--ink-2); line-height: 1.7; }
+.roles__fork { margin: 0; color: var(--surface); line-height: 1.7; }
 
 .roles__sheet { padding: 56px 40px 40px; }
 .roles__title { max-width: 10ch; margin: 0 0 36px; }

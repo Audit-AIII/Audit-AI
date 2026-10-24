@@ -10,14 +10,14 @@ gsap.registerPlugin(ScrollTrigger);
 
 // COPY TO REVIEW: step descriptions expand the §15 parentheticals into sentences.
 const STEPS = [
-  { title: "Add what's approved", copy: "Upload your brand guide, key facts, approved claims and logos. You only do this once.", visual: "import" },
-  { title: "Send in your draft", copy: "Paste the text, or upload a document or an image.", visual: "submit" },
+  { title: "Add what's approved", copy: "Upload your brand guide and key facts as PDF, Word or text files. You only do this once.", visual: "import" },
+  { title: "Send in your draft", copy: "Paste the text, or upload a PDF, Word or text file.", visual: "submit" },
   {
     title: "See what needs fixing",
     copy: "Each problem comes with the reason, the document it is based on and a suggested fix.",
     visual: "review",
   },
-  { title: "Approve and keep a record", copy: "The right person signs it off, and every decision is saved so you can show it later.", visual: "approve" },
+  { title: "Approve and keep a record", copy: "A person signs it off, and every decision is saved so you can show it later.", visual: "approve" },
 ] as const;
 
 function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {
@@ -25,7 +25,7 @@ function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {
     case "import":
       return (
         <div className="pv pv--import">
-          {["Brand guide", "Key facts", "Claims", "Logos"].map((t) => (
+          {["Brand guide", "Key facts", "Fact sheet"].map((t) => (
             <span key={t} className="pv__tag">
               {t}
             </span>
@@ -80,6 +80,8 @@ export function Process() {
     const mm = gsap.matchMedia();
     mm.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
       el.setAttribute("data-track", "");
+      // Pinned, scroll-driven version: the channel no longer scrolls itself, so it needs no tab stop.
+      ch.removeAttribute("tabindex");
       // The pinned section is split into one scroll band per step. Crossing into a band slides
       // that step in with a short eased tween, so exactly one step is ever shown at rest.
       const distance = () => Math.max(0, tr.scrollWidth - ch.clientWidth);
@@ -116,6 +118,7 @@ export function Process() {
         trigger.kill();
         gsap.set(tr, { clearProps: "transform" });
         el.removeAttribute("data-track");
+        ch.setAttribute("tabindex", "0");
         el.style.removeProperty("--process-scroll");
       };
     });
@@ -136,7 +139,8 @@ export function Process() {
           </Heading>
         </div>
         <div className="container process__frame">
-          <div ref={channel} className="process__channel ply">
+          {/* Phones / reduced motion: a sideways-scrolling strip, so it is focusable (arrow keys scroll it). */}
+          <div ref={channel} className="process__channel ply" tabIndex={0} role="region" aria-label="The four steps, scroll sideways">
             <ol ref={track} className="process__track">
               {STEPS.map((s, i) => (
                 <li key={s.title} className="process__step card" aria-label={`Step ${i + 1} of ${STEPS.length}`}>

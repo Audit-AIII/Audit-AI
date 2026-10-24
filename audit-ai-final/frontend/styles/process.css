@@ -12,6 +12,7 @@
   scrollbar-width: none;
 }
 .process__channel::-webkit-scrollbar { display: none; }
+.process__channel:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .process__track { display: flex; margin: 0; padding: 0; list-style: none; }
 
 /* Each step fills the window, inset by a margin of dark board */

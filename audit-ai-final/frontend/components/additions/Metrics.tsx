@@ -27,4 +27,4 @@ export function Bars({ items, format }: { items: { label: string; value: number;
 
 export const pct = (v: number | null) => (v === null ? "–" : `${Math.round(v * 100)}%`);
 export const duration = (mins: number | null) =>
-  mins === null ? "–" : mins < 60 ? `${Math.round(mins)} min` : mins < 2880 ? `${Math.round(mins / 60)} h` : `${Math.round(mins / 1440)} days`;
+  mins === null ? "–" : mins > 0 && mins < 1 ? "under 1 min" : mins < 60 ? `${Math.round(mins)} min` : mins < 2880 ? `${Math.round(mins / 60)} h` : `${Math.round(mins / 1440)} days`;

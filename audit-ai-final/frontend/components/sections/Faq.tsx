@@ -7,17 +7,17 @@ const FAQ = [
   {
     id: "faq-rewrite",
     q: "Does Audit AI rewrite my content?",
-    a: "No. It suggests changes and never touches the parts you lock, such as prices, dates and product names. Nothing changes until a person accepts it.",
+    a: "No. It suggests changes, and nothing changes until a person accepts it. In the editor you can mark prices, dates or product names as must-keep, and suggestions that would change them are blocked.",
   },
   {
     id: "faq-data",
     q: "Where does my data go?",
-    a: "Your drafts and documents stay in your workspace. Each review comes with a Data Passport: a simple list of every AI service that read your text, and whether personal details were hidden first.",
+    a: "Your drafts and documents stay in your workspace. Each review shows which AI service, if any, read your text.",
   },
   {
     id: "faq-evidence",
     q: "What if there is no proof?",
-    a: "The line is marked “not proven yet”, never “wrong”. A reviewer decides whether to add proof, soften the wording or remove it.",
+    a: "The line is marked “not proven yet”, never “wrong”. A person decides whether to add proof, soften the wording or remove it.",
   },
   {
     id: "faq-confidential",
@@ -27,7 +27,7 @@ const FAQ = [
   {
     id: "faq-legal",
     q: "Is this legal advice?",
-    a: "No. The built-in advertising rules help reviewers spot risks. Your legal team still makes the final call.",
+    a: "No. Audit AI compares your text with the documents you approved. Your legal team still makes the final call.",
   },
 ];
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { EmptyState, ErrorState, LoadingState, NeedsBackend, SampleNotice } from "@/components/additions/States";
+import { EmptyState, ErrorState, LoadingState } from "@/components/additions/States";
 import { canReview, roleName } from "@/components/app/roles";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { useBrands } from "@/lib/additions/brands";
-import { SAMPLE_ROWS, loadQueue, type QueueLoad, type QueueRow } from "@/lib/additions/queue";
+import { loadQueue, type QueueLoad, type QueueRow } from "@/lib/additions/queue";
 import { useSession } from "@/lib/session";
 
 type Load = { state: "loading" } | { state: "ok"; data: QueueLoad } | { state: "error"; error: unknown };
@@ -60,7 +60,7 @@ export function Queue() {
 
   return (
     <>
-      <StageHead title="Queue" status={load.state === "ok" && load.data.source === "api" ? `${waiting.length} waiting` : undefined} />
+      <StageHead title="Queue" status={load.state === "ok" ? `${waiting.length} waiting` : undefined} />
       {!canReview(role) && (
         <p className="app-alert" role="note">
           ⊘ Your role ({roleName(role)}) can see the queue but can’t decide on drafts. A reviewer or approver does that.
@@ -68,19 +68,11 @@ export function Queue() {
       )}
 
       <Panels cols="wide">
-        <Panel n="01" label="Waiting for review" title={load.state === "ok" && load.data.source === "browser" ? "Reviews from this browser" : "Waiting for review"}>
+        <Panel n="01" label="Waiting for review" title="Waiting for review">
           {load.state === "loading" && <LoadingState label="Loading reviews…" />}
           {load.state === "error" && <ErrorState error={load.error} onRetry={() => setTick((t) => t + 1)} />}
-          {load.state === "ok" && load.data.source === "browser" && (
-            <NeedsBackend>
-              a list of reviews (<code className="add-mono">GET /api/reviews</code>). Until then this shows only the real reviews this browser sent or
-              opened, each loaded live. Other people’s reviews aren’t listed.
-            </NeedsBackend>
-          )}
-          {load.state === "ok" && load.data.failed > 0 && (
-            <p className="add-note add-muted">{load.data.failed} older review link(s) couldn’t be loaded and are left out.</p>
-          )}
-          {load.state === "ok" && rows.length === 0 && <EmptyState title="Nothing here yet">Reviews you send or open will appear here.</EmptyState>}
+          {load.state === "ok" && rows.length === 0 && <EmptyState title="Nothing here yet">Reviews appear here after a draft is checked.</EmptyState>}
+          {load.state === "ok" && rows.length > 0 && waiting.length === 0 && <EmptyState title="Nothing waiting">Every review has been decided.</EmptyState>}
           {waiting.length > 0 && <QueueTable rows={waiting} brandName={brandName} />}
           {done.length > 0 && (
             <details className="add-details">
@@ -90,16 +82,12 @@ export function Queue() {
           )}
         </Panel>
 
-        <Panel n="02" label="Example" title="What a full queue looks like">
-          <SampleNotice>These rows are made up to show the layout. They are not reviews and are not counted anywhere.</SampleNotice>
-          <QueueTable rows={SAMPLE_ROWS} brandName={() => "Sample brand"} sample />
-        </Panel>
       </Panels>
     </>
   );
 }
 
-function QueueTable({ rows, brandName, sample = false }: { rows: QueueRow[]; brandName: (id: string | null) => string; sample?: boolean }) {
+function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: string | null) => string }) {
   return (
     <div className="add-table__wrap">
       <table className="add-table">
@@ -119,13 +107,9 @@ function QueueTable({ rows, brandName, sample = false }: { rows: QueueRow[]; bra
             return (
               <tr key={r.id}>
                 <td>
-                  {sample ? (
-                    r.title
-                  ) : (
-                    <a className="link" href={`/app/decide?id=${r.id}`}>
-                      {r.title}
-                    </a>
-                  )}
+                  <a className="link" href={`/app/decide?id=${r.id}`}>
+                    {r.title}
+                  </a>
                   {r.placeholder && <div className="add-note add-muted">◌ Placeholder check (no AI ran)</div>}
                 </td>
                 <td>{brandName(r.brandId)}</td>
@@ -135,7 +119,7 @@ function QueueTable({ rows, brandName, sample = false }: { rows: QueueRow[]; bra
                   </span>
                 </td>
                 <td>{r.requiredRole ? roleName(r.requiredRole) : "–"}</td>
-                <td>{sample ? "–" : age(r.createdAt)}</td>
+                <td>{age(r.createdAt)}</td>
                 <td>{STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " ")}</td>
               </tr>
             );
