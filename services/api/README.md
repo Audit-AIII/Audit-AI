@@ -36,7 +36,8 @@ cp .env.example .env    # fill in AUTH_SECRET_KEY; DATABASE_URL default matches 
 ## Environment variables
 
 Everything is documented inline in [`.env.example`](.env.example) — copy it to `.env` and fill
-in what you need. Summary:
+in what you need. Which AI keys each part needs, and the free-key findings:
+[`AI_PROVIDER_KEYS.md`](AI_PROVIDER_KEYS.md). Summary:
 
 | Variable | Required? | What it's for |
 |---|---|---|
@@ -73,12 +74,19 @@ reverse cleanly), not a bug, but it means demo data doesn't survive a full `pyte
 
 ## Test
 
+**Never run the suite against a database you care about:** `test_migrations.py` downgrades to
+`base`, which drops every table (it once wiped the dev seed data). Use a throwaway schema in the
+same database instead; it needs no extra privileges:
+
 ```sh
+set -a; source .env; set +a                                      # DATABASE_URL = your dev database
+python -c "import os; from sqlalchemy import create_engine, text; e = create_engine(os.environ['DATABASE_URL']); c = e.connect(); c.execute(text('CREATE SCHEMA IF NOT EXISTS inkloom_test')); c.commit()"
+export DATABASE_URL="${DATABASE_URL}?options=-csearch_path%3Dinkloom_test"   # tests only see this schema
+.venv/Scripts/python -m alembic upgrade head
 .venv/Scripts/python -m pytest -q
 ```
 
-Runs the whole suite against the real database at `DATABASE_URL` (DB-backed tests skip
-automatically if it isn't reachable - CI fails on any skip). 288 tests, ~85s.
+DB-backed tests skip automatically if the database isn't reachable (CI fails on any skip).
 `.venv/Scripts/python -m alembic check` confirms the models match the migrations.
 CI (`.github/workflows/repo-integrity.yml`, job 3) runs both on every push and pull request. Offline: every test that runs a review uses the
 stub or the scripted provider (`src/inkloom_api/engine/scripted_provider.py`), never a real model.
@@ -105,6 +113,91 @@ says it ran in stub mode.
 `GET http://localhost:8000/health` → `{"status": "ok"}`. Interactive docs at `/docs` and
 `/redoc`. Analysis is **synchronous**: `POST /api/reviews` blocks until the review reaches a
 final state (confirmed with the team) — no polling or background jobs in this phase.
+
+## Deploy
+
+**Not deployed yet**: the host and budget are not chosen. Everything a container host needs is
+in the repo and was rehearsed locally on 2026-10-24 (the production start below migrated, served
+`/health` 200, and refused to start with `CORS_ALLOW_ORIGINS=*`). The Docker image itself has
+not been built yet (Docker was not running on the dev machine).
+
+**What runs**
+- Image: `services/api/Dockerfile`, built from the **repository root** (it needs the engine too):
+  `docker build -f services/api/Dockerfile -t inkloom-api .`. The root `.dockerignore` keeps
+  every `.env`, venv and local upload out of the image.
+- Start: `scripts/start.sh` runs `alembic upgrade head`, then uvicorn with **exactly one worker**
+  (the review rate limiter is in memory). For a host without Docker, use the same start command
+  from `services/api` after `pip install -e . -e ../verification -c constraints.txt`.
+- Health check: `GET /health` (the image also has a Docker `HEALTHCHECK`).
+- Database: a managed PostgreSQL 16+ instance.
+
+**Environment (set in the host's settings; never in the repo or the image)**
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | the managed Postgres URL, as `postgresql+psycopg://...` |
+| `AUTH_SECRET_KEY` | 32+ random characters (`python -c "import secrets; print(secrets.token_urlsafe(32))"`) |
+| `ENVIRONMENT` | `production` (the image sets it): refuses to start on a missing/short key or `*` CORS |
+| `CORS_ALLOW_ORIGINS` | the exact public frontend URL, e.g. `https://inkloom.example.com`; never `*` |
+| `PORT` | set by most hosts; defaults to 8000 |
+| AI provider keys | see [`AI_PROVIDER_KEYS.md`](AI_PROVIDER_KEYS.md). Keep `INKLOOM_LLM_DATA_COLLECTION=deny`; set `GEMINI_PAID_TIER=true` only for a paid key. Without any key, reviews return the labelled stub. |
+
+**Things to know on a cloud host**
+- **Confidential documents fail closed.** A review whose brand has a `confidential` document only
+  ever uses local Ollama, which a cloud host doesn't have: no cloud provider is tried, the review
+  gets the labelled stub finding, and nothing leaves the server
+  (`tests/test_phase5_cache_idempotency_confidential.py`).
+- Uploaded files are kept on the container's disk (`var/brand_sources`), which most hosts wipe on
+  redeploy. Only the raw file is lost: the extracted text every review uses is in the database.
+- Behind the host's proxy every client may share one IP, so the registration rate limit
+  (`RATE_LIMIT_REGISTRATIONS_PER_IP`) applies to all sign-ups together. It never trusts
+  `X-Forwarded-For`.
+
+**After the first deploy**
+1. `python scripts/seed.py` once on the deployed database (never `--reset` on anything real; it
+   only adds the two `[SEEDED]` demo accounts and skips them if they exist).
+2. `BASE_URL=https://<public-api-url> python scripts/smoke_test.py`: register, upload a
+   document, review, list, fetch, analytics, decision and history over real HTTP.
+3. Check CI on `main` is green, then tag the release (`git tag known-good-<date>`).
+
+## Demo rehearsal
+
+Seed first (`scripts/seed.py`; works with no AI key). Every seeded name and title says
+`[SEEDED]` and every seeded model id is `scripted/demo-v1`, so nothing seeded is presented as
+real AI output.
+
+1. **Sign in** as `asha@seed.inkloom.demo`, password `SeedDemo!2026-not-a-real-secret`
+   (`POST /api/auth/login`).
+2. **Dashboard** (`GET /api/brands`): two brands, *Lumen Audio [SEEDED]* and *Kora Phones
+   [SEEDED]*, each with approved documents, review counts and open reviews.
+3. **Review queue** (`GET /api/reviews`): seven drafts covering every state: completed, needs
+   review, approved, changes requested, and one *source changed*.
+4. **Open "[SEEDED] Lumen Pods launch post"** (`GET /api/reviews/{id}`): "up to 24 hours of
+   playback" is contradicted, with the quote from the approved fact sheet and an evidence-backed
+   suggested rewrite to 12 hours.
+5. **Open "[SEEDED] Kora X2 launch ad":** "India's number one smartphone" is unverified (no
+   document mentions rankings: unverified, never "false"). "[SEEDED] Lumen Pods summer ad" shows
+   both kinds: "waterproof for any swim" contradicted, "best-selling earbuds in Europe" unverified.
+6. **Versions:** "[SEEDED] Kora X2 spec sheet copy": v1 ("6,000 mAh", contradicted) was sent back
+   with changes requested; v2 was approved.
+7. **Source Watch:** "[SEEDED] Lumen Pods colour announcement" was approved, then the colour-range
+   document it cited was superseded, so it is *source changed* and back for review
+   (`GET /api/content/{id}/history` shows the decisions).
+8. **Insights** (`GET /api/analytics/brand-risk?brand_id=...`): real turnaround and queue ages from
+   the seeded timestamps.
+9. **Live, without an AI key** (deterministic checks): add a brand rule
+   (`PUT /api/brands/{id}/rules` with a prohibited term, e.g. "guaranteed" -> "designed"), then
+   paste "Guaranteed comfort. BUY NOW TODAY." as a new draft: a terminology finding with its
+   suggestion and an accessibility (all-caps) finding appear. The claim check shows the labelled
+   stub until a provider key is set.
+10. **Live, with an AI key:** paste a draft with a wrong figure, open the contradicted claim and its
+   evidence, lock a must-keep phrase (`PUT /api/content-versions/{id}/locks`), re-check, and show
+   that no suggestion removes it.
+11. **Decide:** mark a draft ready to publish (`POST /api/content-versions/{id}/approve`) and show
+    the history.
+
+Left for people: record the fallback demo video (in case the live provider is down), and send
+Chahit and Krish their items (STATUS.md).
 
 ## Architecture
 
@@ -160,6 +253,43 @@ engine calls directly — see `CONTRACTS.md` in `services/verification` for the 
 questions this answers (tenant id from the authenticated context, not the request body; this
 service generates `request_id` and owns validation-error handling).
 
+### Why the backend runs its own claim pipeline (not `verify_request`)
+
+The engine has a single entry point, `inkloom_verify.pipeline.verify_request` (request in, report
+out). The backend deliberately does **not** call it: `engine/pipeline.py` drives the same engine
+components claim by claim, because several things the backend must do happen *between* the
+engine's steps or around a single claim, and `verify_request` only returns a finished report.
+Option (b) of the 2026-10-24 plan, taken as the recommended default; reopen it if the team prefers routing through `verify_request`.
+
+What the backend does that `verify_request` does not:
+- **Its own evidence check** (`engine/evidence_validator.py`): every citation is re-validated
+  against the backend's own copy of the approved source; a failure downgrades *that one claim*
+  to unverified and is audited. (`verify_request` instead discards a whole report that fails its
+  scope check.)
+- **Safer wording, corrections and Intent-lock re-checked here** (`softening_guard.py`,
+  `intent_lock_guard.py`) before anything is stored, whatever the engine returned.
+- **Stub mode** (no provider configured), the **result cache**, **per-call logging** to
+  `external_call_log`, **confidential routing** (Ollama only), and the backend's own **call
+  budget** settings (`REVIEW_MAX_*`).
+- **Brand rules** via `evaluate_rules` with the default accessibility checks
+  (`engine/brand_rules.py`); `verify_request` runs `check_rules` only when rules are given.
+- `completed` never means approved; a per-claim failure becomes one `engine_error` finding.
+
+Shared with `verify_request` (the engine's own code, not a copy): extraction, BM25 retrieval,
+the verifier and its **citation guard** (inside `verify_claim`), the corrector (re-check on), the
+softener, the call budget wrapper, and since 2026-10-24 the **decision policy**:
+`apply_policy(result, DecisionPolicy())` runs on every claim, so a SUPPORTED claim on less than
+strong evidence, or a compound claim on one quote, still goes to a person
+(`tests/test_decision_policy.py`).
+
+Still different (known, accepted):
+- `verify_request` reports sentences extraction could not turn into claims as request errors;
+  the backend only keeps extraction's own errors.
+- Retrieval: `verify_request` uses `BM25Retriever.for_request` and the config's `top_k`; the
+  backend uses `BM25Retriever(documents)` with the engine's default `top_k`.
+- The engine's `review_reasons` (why a SUPPORTED claim needs review) are not stored or returned
+  yet; the finding only has `requires_human_review`.
+
 ## Frontend integration (Member 1)
 
 Every route the frontend calls is live; full shapes and example JSON in `API.md`. A token is scoped
@@ -170,9 +300,8 @@ points**, not UTF-16 code units - a JS client highlighting that range must conve
 
 ## Known limitations
 
-- The idempotency-replay cache and rate limiter (`idempotency.py`, `rate_limit.py`) are both
-  in-process memory — correct for a single-process demo deployment, reset on restart, not
-  shared across multiple worker processes. Documented in each module's own docstring.
+- The rate limiter (`rate_limit.py`) is in-process memory: correct for the single-worker
+  deployment above, reset on restart. Idempotency keys are in the database.
 - No seed script output survives a full `pytest` run — see "Seed demo data" above.
 - The approval guard's "source superseded" check (Phase 6) looks at the *latest* version of
   each cited brand source and its current status — it does not distinguish a source superseded
@@ -182,4 +311,4 @@ points**, not UTF-16 code units - a JS client highlighting that range must conve
 - Source conflict detection (Phase 7 task 7, marked optional in the phase doc) is not built.
 - Free-tier model ids change; the ids in `.env.example` were verified against the providers' live
   lists and real calls on 2026-10-24. Re-check them there if calls start failing.
-- No deploy yet.
+- Not deployed yet (host not chosen); see "Deploy".

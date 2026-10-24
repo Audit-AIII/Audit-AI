@@ -145,6 +145,10 @@ class FindingOut(BaseModel):
     # Unverified claims only: a softened wording, NOT evidence-backed (UI: "Safer wording, not
     # evidence-backed"). Kept apart from suggested_correction, which is evidence-backed only.
     safer_wording: str | None = None
+    # Claim findings: why a person must decide (the engine's ClaimReviewReason values: contradicted,
+    # not_enough_evidence, error, weak_evidence, below_policy_strength, compound_under_cited);
+    # [] when no review is needed. Null on rule and stub findings and on older rows.
+    review_reasons: list[str] | None = None
     # Rule findings only (check_type "rule"; services/verification/RULES_HANDOFF.md section 7),
     # null on claim findings. Defaults keep older idempotency replays parsing.
     rule_id: str | None = None
@@ -180,6 +184,7 @@ class FindingOut(BaseModel):
             requires_human_review=finding.requires_human_review,
             evidence=[EvidenceLinkOut.from_model(e) for e in finding.evidence],
             safer_wording=safer,
+            review_reasons=finding.review_reasons,
             withheld_by_intent_lock=withheld,
             dismissal=(
                 DismissalOut(by_user_id=latest.actor_user_id, at=latest.created_at, note=latest.note)
@@ -300,11 +305,22 @@ class ReviewOut(BaseModel):
 # --- Phase 6: versioning, approval, audit --------------------------------------------------
 
 
+class LockWarningOut(BaseModel):
+    """A locked phrase the user's own edit dropped (inkloom_verify.intent_lock): a warning only."""
+
+    phrase: str
+    occurrences_before: int
+    occurrences_after: int
+
+
 class NewVersionResponse(BaseModel):
     content_version_id: uuid.UUID
     version_number: int
     is_current: bool
     review: ReviewOut
+    # Intent-lock, hand-written edits: WARN, never block (HANDOFF_STEPS_6_8.md step 4). Locked
+    # phrases this edit keeps fewer times than the previous version did; the version is saved.
+    lock_warnings: list[LockWarningOut] = []
 
 
 class ApprovalEventOut(BaseModel):
@@ -334,6 +350,18 @@ class ReviewSummaryOut(BaseModel):
         return cls(id=review.id, status=review.status, created_at=review.created_at)
 
 
+class FindingEventOut(BaseModel):
+    """Something the user did to one finding of this version's reviews (Dismiss, restore, a
+    comment). `note` is the user's own Dismiss/restore note; a comment's text is never here
+    (GET /api/findings/{id}/comments has it)."""
+
+    event_type: str  # "finding.dismissed" | "finding.restored" | "finding.commented"
+    finding_id: uuid.UUID
+    actor_user_id: uuid.UUID | None
+    created_at: datetime
+    note: str | None
+
+
 class ContentVersionHistoryOut(BaseModel):
     id: uuid.UUID
     version_number: int
@@ -342,6 +370,7 @@ class ContentVersionHistoryOut(BaseModel):
     created_at: datetime
     reviews: list[ReviewSummaryOut]
     decisions: list[ApprovalEventOut]
+    finding_events: list[FindingEventOut] = []  # additive; oldest first
 
 
 class ContentHistoryOut(BaseModel):

@@ -182,6 +182,23 @@
       "type": "integer",
       "minimum": 0,
       "description": "Comments on this finding (GET /api/findings/{id}/comments)."
+    },
+    "review_reasons": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "enum": [
+          "contradicted",
+          "not_enough_evidence",
+          "error",
+          "weak_evidence",
+          "below_policy_strength",
+          "compound_under_cited"
+        ]
+      },
+      "description": "Claim findings: why a person must decide (the engine's ClaimReviewReason values); [] when no review is needed; null on rule and stub findings."
     }
   },
   "definitions": {
