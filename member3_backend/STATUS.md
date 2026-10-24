@@ -1,7 +1,7 @@
 # Member 3 (Backend) — Project Status
 
 **Team:** CodeNinjas · **Product:** InkLoom AI · **Member:** Member 3 — Backend, Security & Governance
-**Last updated:** 2026-10-24 · **Tests:** 212 / 212 passing against a real PostgreSQL database ·
+**Last updated:** 2026-10-24 · **Tests:** 214 / 214 passing against a real PostgreSQL database ·
 **Smoke test:** passing over real HTTP with a real AI provider · not yet deployed
 
 > `00_CONTEXT.md` in this folder is the original governance contract. Where it mentions team roles,
@@ -179,7 +179,7 @@ of time on free-tier 503s; such runs (>20% claims without a verdict) are now ref
 ```sh
 cd services/api
 set -a; source .env; set +a
-.venv/Scripts/python -m pytest -q          # 212 passed, 0 skipped, ~72s, real PostgreSQL 18.6 (2026-10-24, main @ 0565ae0)
+.venv/Scripts/python -m pytest -q          # 214 passed, 0 skipped, ~66s, real PostgreSQL 18.6 (2026-10-24, after merging fix/main-green and chore/single-user-decision onto 3b319e6)
 ```
 
 Covers: cross-account isolation (every route), revoked memberships, approval guards and state
