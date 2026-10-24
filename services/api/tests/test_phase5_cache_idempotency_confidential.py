@@ -49,11 +49,20 @@ EXTRACTION_REPLY = {
 }
 # No citations needed: NOT_ENOUGH_EVIDENCE skips the citation guard entirely (verification.py),
 # so this reply alone is enough to complete one claim's verification in exactly one call.
-VERIFICATION_REPLY = {"verdict": "NOT_ENOUGH_EVIDENCE", "citations": [], "rationale": "insufficient context"}
+VERIFICATION_REPLY = {
+    "verdict": "NOT_ENOUGH_EVIDENCE",
+    "citations": [],
+    "rationale": "insufficient context",
+}
 # An unverified claim also gets one safer-wording call (inkloom_verify.softening); here the model
 # declines, so no suggestion is stored.
-SOFTENING_REPLY = {"status": "needs_human_review", "original_text": "", "replacement_text": "", "citations": [],
-                   "reason": "Nothing to soften."}
+SOFTENING_REPLY = {
+    "status": "needs_human_review",
+    "original_text": "",
+    "replacement_text": "",
+    "citations": [],
+    "reason": "Nothing to soften.",
+}
 
 
 def _login(client, email: str) -> str:
@@ -62,24 +71,34 @@ def _login(client, email: str) -> str:
     return response.json()["access_token"]
 
 
-def _make_org_with_approved_source(db_session, *, label: str, source_text: str, sensitivity: str | None = None):
+def _make_org_with_approved_source(
+    db_session, *, label: str, source_text: str, sensitivity: str | None = None
+):
     unique = uuid.uuid4().hex[:8]
     org = Organisation(name=f"{label} Org", slug=f"{label.lower()}-{unique}")
-    admin = User(email=f"{label.lower()}-{unique}@example.com", password_hash=hash_password(PASSWORD))
+    admin = User(
+        email=f"{label.lower()}-{unique}@example.com", password_hash=hash_password(PASSWORD)
+    )
     db_session.add_all([org, admin])
     db_session.flush()
-    db_session.add(Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True))
+    db_session.add(
+        Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True)
+    )
 
     brand = BrandProfile(organisation_id=org.id, name="Brand")
     db_session.add(brand)
     db_session.flush()
     kwargs = {"sensitivity": sensitivity} if sensitivity else {}
-    source = BrandSource(brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value, **kwargs)
+    source = BrandSource(
+        brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value, **kwargs
+    )
     db_session.add(source)
     db_session.flush()
     db_session.add(
         SourceVersion(
-            brand_source_id=source.id, version_number=1, text=source_text,
+            brand_source_id=source.id,
+            version_number=1,
+            text=source_text,
             text_sha256=hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
         )
     )
@@ -102,7 +121,9 @@ class IdemFixture:
 @pytest.fixture
 def idem_fixture(db_session):
     org, admin, brand = _make_org_with_approved_source(
-        db_session, label="Idem", source_text="The sky is blue on a clear day, according to the approved spec."
+        db_session,
+        label="Idem",
+        source_text="The sky is blue on a clear day, according to the approved spec.",
     )
     try:
         yield IdemFixture(org=org, admin=admin, brand=brand)
@@ -119,10 +140,15 @@ def test_duplicate_idempotency_key_creates_one_job_and_one_llm_call(
     from inkloom_api.engine import pipeline
     from inkloom_api.engine.providers.fallback import FallbackProvider
 
-    scripted = ScriptedProvider(dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY), dict(SOFTENING_REPLY))
+    scripted = ScriptedProvider(
+        dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY), dict(SOFTENING_REPLY)
+    )
     monkeypatch.setattr(
-        pipeline, "build_provider",
-        lambda confidential=False, on_attempt=None: FallbackProvider([("fake", lambda: scripted)], on_attempt=on_attempt),
+        pipeline,
+        "build_provider",
+        lambda confidential=False, on_attempt=None: FallbackProvider(
+            [("fake", lambda: scripted)], on_attempt=on_attempt
+        ),
     )
 
     token = _login(client, idem_fixture.admin.email)
@@ -131,7 +157,9 @@ def test_duplicate_idempotency_key_creates_one_job_and_one_llm_call(
 
     first = client.post("/api/reviews", json=body, headers=headers)
     assert first.status_code == 201, first.text
-    assert len(scripted.calls) == 3  # one extraction call, one verification call, one softening call
+    assert (
+        len(scripted.calls) == 3
+    )  # one extraction call, one verification call, one softening call
 
     second = client.post("/api/reviews", json=body, headers=headers)
     assert second.status_code == 201, second.text
@@ -164,10 +192,21 @@ class CrossOrgFixture:
 @pytest.fixture
 def cross_org_fixture(db_session):
     shared_source_text = "The sky is blue on a clear day, byte-identical across both organisations."
-    org_a, admin_a, brand_a = _make_org_with_approved_source(db_session, label="CacheA", source_text=shared_source_text)
-    org_b, admin_b, brand_b = _make_org_with_approved_source(db_session, label="CacheB", source_text=shared_source_text)
+    org_a, admin_a, brand_a = _make_org_with_approved_source(
+        db_session, label="CacheA", source_text=shared_source_text
+    )
+    org_b, admin_b, brand_b = _make_org_with_approved_source(
+        db_session, label="CacheB", source_text=shared_source_text
+    )
     try:
-        yield CrossOrgFixture(org_a=org_a, admin_a=admin_a, brand_a=brand_a, org_b=org_b, admin_b=admin_b, brand_b=brand_b)
+        yield CrossOrgFixture(
+            org_a=org_a,
+            admin_a=admin_a,
+            brand_a=brand_a,
+            org_b=org_b,
+            admin_b=admin_b,
+            brand_b=brand_b,
+        )
     finally:
         db_session.delete(org_a)
         db_session.delete(admin_a)
@@ -187,12 +226,19 @@ def test_same_content_in_two_organisations_never_shares_a_cache_entry(
     # analysis. If org B's request could be served from org A's cache, it would never consume
     # replies 4-6, and ScriptedProvider would still have them left over at the end of the test.
     scripted = ScriptedProvider(
-        dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY), dict(SOFTENING_REPLY),
-        dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY), dict(SOFTENING_REPLY),
+        dict(EXTRACTION_REPLY),
+        dict(VERIFICATION_REPLY),
+        dict(SOFTENING_REPLY),
+        dict(EXTRACTION_REPLY),
+        dict(VERIFICATION_REPLY),
+        dict(SOFTENING_REPLY),
     )
     monkeypatch.setattr(
-        pipeline, "build_provider",
-        lambda confidential=False, on_attempt=None: FallbackProvider([("fake", lambda: scripted)], on_attempt=on_attempt),
+        pipeline,
+        "build_provider",
+        lambda confidential=False, on_attempt=None: FallbackProvider(
+            [("fake", lambda: scripted)], on_attempt=on_attempt
+        ),
     )
 
     same_text = "The sky is blue."
@@ -246,7 +292,9 @@ class ConfidentialFixture:
 @pytest.fixture
 def confidential_fixture(db_session):
     org, admin, brand = _make_org_with_approved_source(
-        db_session, label="Confidential", source_text="Secret internal fact.",
+        db_session,
+        label="Confidential",
+        source_text="Secret internal fact.",
         sensitivity=BrandSourceSensitivity.CONFIDENTIAL.value,
     )
     try:
@@ -264,14 +312,21 @@ def test_confidential_source_produces_no_external_call_in_the_log(
     import inkloom_api.engine.provider as provider_module
 
     def _must_never_be_called():
-        raise AssertionError("a cloud provider builder must never even be constructed for confidential content")
+        raise AssertionError(
+            "a cloud provider builder must never even be constructed for confidential content"
+        )
 
     # Not merely "fails" - literally never in the list FallbackProvider is given, matching
     # provider.py's own docstring. force_stub_mode also leaves Ollama (the one builder still
     # offered) unconfigured, so this review takes the existing confidential-stub path.
     monkeypatch.setattr(
-        provider_module, "_CLOUD_BUILDERS",
-        [("gemini", _must_never_be_called), ("groq", _must_never_be_called), ("openrouter", _must_never_be_called)],
+        provider_module,
+        "_CLOUD_BUILDERS",
+        [
+            ("gemini", _must_never_be_called),
+            ("groq", _must_never_be_called),
+            ("openrouter", _must_never_be_called),
+        ],
     )
 
     token = _login(client, confidential_fixture.admin.email)
@@ -286,6 +341,8 @@ def test_confidential_source_produces_no_external_call_in_the_log(
     assert "confidential" in body["findings"][0]["explanation"]
 
     call_count = (
-        db_session.query(ExternalCallLog).filter(ExternalCallLog.organisation_id == confidential_fixture.org.id).count()
+        db_session.query(ExternalCallLog)
+        .filter(ExternalCallLog.organisation_id == confidential_fixture.org.id)
+        .count()
     )
     assert call_count == 0

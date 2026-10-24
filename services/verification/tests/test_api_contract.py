@@ -30,21 +30,44 @@ HASH = "a" * 64
 
 
 def evidence(**changes) -> dict:
-    return {"doc_id": "pods-fact-sheet", "location": {"start": 10, "end": 21}, "quote": "Price: €129"} | changes
+    return {
+        "doc_id": "pods-fact-sheet",
+        "location": {"start": 10, "end": 21},
+        "quote": "Price: €129",
+    } | changes
 
 
 def verdict(**changes) -> dict:
-    return {"status": "SUPPORTED", "confidence": 1.0, "evidence": [evidence()], "needs_human_review": False} | changes
+    return {
+        "status": "SUPPORTED",
+        "confidence": 1.0,
+        "evidence": [evidence()],
+        "needs_human_review": False,
+    } | changes
 
 
 def proposed() -> dict:
-    return {"status": "proposed", "span": {"start": 16, "end": 19}, "original_text": "€99", "replacement_text": "€129",
-            "evidence": [evidence()]}
+    return {
+        "status": "proposed",
+        "span": {"start": 16, "end": 19},
+        "original_text": "€99",
+        "replacement_text": "€129",
+        "evidence": [evidence()],
+    }
 
 
 def report(*verdicts: dict) -> dict:
-    claims = [{"claim": {"claim_id": f"clm_{i:04d}", "text": "Lumen Pods cost €99.", "span": {"start": 0, "end": 20}},
-               "verdict": v} for i, v in enumerate(verdicts, start=1)]
+    claims = [
+        {
+            "claim": {
+                "claim_id": f"clm_{i:04d}",
+                "text": "Lumen Pods cost €99.",
+                "span": {"start": 0, "end": 20},
+            },
+            "verdict": v,
+        }
+        for i, v in enumerate(verdicts, start=1)
+    ]
     return {"request_id": "req-1", "claims": claims, "metadata": {"content_hash": HASH}}
 
 
@@ -53,13 +76,19 @@ def report(*verdicts: dict) -> dict:
 
 def test_valid_models_and_their_schema_version():
     claim = Claim(claim_id="clm_0001", text="Lumen Pods cost €99.", span={"start": 0, "end": 20})
-    passage = Passage(doc_id="pods-fact-sheet", location={"start": 0, "end": 11}, text="Price: €129", score=2.5)
+    passage = Passage(
+        doc_id="pods-fact-sheet", location={"start": 0, "end": 11}, text="Price: €129", score=2.5
+    )
     item = Evidence.model_validate(evidence())
     result = VerdictResult.model_validate(verdict())
     full = Report.model_validate(report(verdict()))
     for model in (claim, passage, item, result, full):
         assert model.schema_version == PUBLIC_SCHEMA_VERSION
-    assert json.loads(full.model_dump_json())["metadata"] == {"content_hash": HASH, "errors": [], "prompt_versions": {}}
+    assert json.loads(full.model_dump_json())["metadata"] == {
+        "content_hash": HASH,
+        "errors": [],
+        "prompt_versions": {},
+    }
 
 
 def test_another_schema_version_is_refused():
@@ -81,7 +110,9 @@ def test_invalid_statuses(status):
         VerdictResult.model_validate(verdict(status=status))
 
 
-@pytest.mark.parametrize("confidence", [-0.01, 1.01, 2, math.nan, math.inf, -math.inf, "high", None])
+@pytest.mark.parametrize(
+    "confidence", [-0.01, 1.01, 2, math.nan, math.inf, -math.inf, "high", None]
+)
 def test_invalid_confidence(confidence):
     with pytest.raises(ValidationError):
         VerdictResult.model_validate(verdict(confidence=confidence))
@@ -90,19 +121,37 @@ def test_invalid_confidence(confidence):
 @pytest.mark.parametrize("confidence", [0, 0.0, 0.33, 0.67, 1, 1.0])
 def test_confidence_at_and_within_the_bounds(confidence):
     # needs_human_review=True isolates the bounds from the low-confidence review rule (tested below)
-    assert VerdictResult.model_validate(verdict(confidence=confidence, needs_human_review=True)).confidence == confidence
+    assert (
+        VerdictResult.model_validate(
+            verdict(confidence=confidence, needs_human_review=True)
+        ).confidence
+        == confidence
+    )
 
 
 def test_confidence_is_the_approved_fixed_map_of_evidence_strength():
-    assert CONFIDENCE == {EvidenceStrength.NONE: 0.0, EvidenceStrength.WEAK: 0.33,
-                          EvidenceStrength.MODERATE: 0.67, EvidenceStrength.STRONG: 1.0}
+    assert CONFIDENCE == {
+        EvidenceStrength.NONE: 0.0,
+        EvidenceStrength.WEAK: 0.33,
+        EvidenceStrength.MODERATE: 0.67,
+        EvidenceStrength.STRONG: 1.0,
+    }
 
 
 # --- Spans and locations --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("span", [{"start": -1, "end": 5}, {"start": 5, "end": 5}, {"start": 6, "end": 5},
-                                  {"start": "0", "end": 5}, {"start": 0.0, "end": 5}, {"start": 0}])
+@pytest.mark.parametrize(
+    "span",
+    [
+        {"start": -1, "end": 5},
+        {"start": 5, "end": 5},
+        {"start": 6, "end": 5},
+        {"start": "0", "end": 5},
+        {"start": 0.0, "end": 5},
+        {"start": 0},
+    ],
+)
 def test_invalid_spans(span):
     with pytest.raises(ValidationError):
         Claim(claim_id="clm_0001", text="Lumen", span=span)
@@ -129,25 +178,41 @@ def test_definite_verdicts_require_evidence(status):
 
 
 def test_not_enough_evidence_needs_no_evidence():
-    result = VerdictResult.model_validate(verdict(status="NOT_ENOUGH_EVIDENCE", confidence=0.0, evidence=[], needs_human_review=True))
+    result = VerdictResult.model_validate(
+        verdict(status="NOT_ENOUGH_EVIDENCE", confidence=0.0, evidence=[], needs_human_review=True)
+    )
     assert result.evidence == []
 
 
 def test_error_needs_an_error_code_and_nothing_else_has_one():
     with pytest.raises(ValidationError, match="error_code"):
-        VerdictResult.model_validate(verdict(status="ERROR", confidence=0.0, evidence=[], needs_human_review=True))
+        VerdictResult.model_validate(
+            verdict(status="ERROR", confidence=0.0, evidence=[], needs_human_review=True)
+        )
     with pytest.raises(ValidationError, match="error_code"):
         VerdictResult.model_validate(verdict(error_code="PROVIDER_TIMEOUT"))
     with pytest.raises(ValidationError):
-        VerdictResult.model_validate(verdict(status="ERROR", evidence=[], needs_human_review=True, error_code="MADE_UP"))
-    ok = VerdictResult.model_validate(verdict(status="ERROR", confidence=0.0, evidence=[], needs_human_review=True,
-                                              error_code="PROVIDER_TIMEOUT"))
+        VerdictResult.model_validate(
+            verdict(status="ERROR", evidence=[], needs_human_review=True, error_code="MADE_UP")
+        )
+    ok = VerdictResult.model_validate(
+        verdict(
+            status="ERROR",
+            confidence=0.0,
+            evidence=[],
+            needs_human_review=True,
+            error_code="PROVIDER_TIMEOUT",
+        )
+    )
     assert ok.error_code.value == "PROVIDER_TIMEOUT"
 
 
 def test_only_supported_may_skip_human_review():
-    for status, extra in (("CONTRADICTED", {}), ("NOT_ENOUGH_EVIDENCE", {"evidence": []}),
-                          ("ERROR", {"evidence": [], "error_code": "INTERNAL_ERROR"})):
+    for status, extra in (
+        ("CONTRADICTED", {}),
+        ("NOT_ENOUGH_EVIDENCE", {"evidence": []}),
+        ("ERROR", {"evidence": [], "error_code": "INTERNAL_ERROR"}),
+    ):
         with pytest.raises(ValidationError, match="needs human review"):
             VerdictResult.model_validate(verdict(status=status, needs_human_review=False, **extra))
 
@@ -179,7 +244,9 @@ def test_no_safe_correction_is_an_explicit_outcome_without_a_replacement(outcome
 
 def test_no_correction_may_be_returned_when_none_was_requested():
     with pytest.raises(ValidationError, match="no correction may be returned"):
-        Report.model_validate(report(contradicted(proposed())), context={"suggest_corrections": False})
+        Report.model_validate(
+            report(contradicted(proposed())), context={"suggest_corrections": False}
+        )
     Report.model_validate(report(contradicted()), context={"suggest_corrections": False})
 
 
@@ -195,12 +262,23 @@ def test_a_proposed_correction_must_be_complete_and_cite_evidence():
 
 @pytest.mark.parametrize("status", ["SUPPORTED", "NOT_ENOUGH_EVIDENCE"])
 def test_corrections_only_on_contradicted(status):
-    extra = {"evidence": [], "confidence": 0.0, "needs_human_review": True} if status == "NOT_ENOUGH_EVIDENCE" else {}
+    extra = (
+        {"evidence": [], "confidence": 0.0, "needs_human_review": True}
+        if status == "NOT_ENOUGH_EVIDENCE"
+        else {}
+    )
     with pytest.raises(ValidationError, match="only a CONTRADICTED verdict"):
         VerdictResult.model_validate(verdict(status=status, correction=proposed(), **extra))
     with pytest.raises(ValidationError, match="only a CONTRADICTED verdict"):
-        VerdictResult.model_validate(verdict(status="ERROR", evidence=[], needs_human_review=True,
-                                             error_code="INTERNAL_ERROR", correction={"status": "failed"}))
+        VerdictResult.model_validate(
+            verdict(
+                status="ERROR",
+                evidence=[],
+                needs_human_review=True,
+                error_code="INTERNAL_ERROR",
+                correction={"status": "failed"},
+            )
+        )
 
 
 def test_duplicate_claim_ids_are_refused():
@@ -220,22 +298,40 @@ def internal(name: str) -> VerificationReport:
 def test_partial_failure_keeps_every_other_claims_result():
     source = internal("end_to_end/report.scripted.json")  # PARTIAL: one claim timed out
     public = to_public_report(source)
-    assert [c.verdict.status.value for c in public.claims] == ["SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE", "ERROR"]
+    assert [c.verdict.status.value for c in public.claims] == [
+        "SUPPORTED",
+        "CONTRADICTED",
+        "NOT_ENOUGH_EVIDENCE",
+        "ERROR",
+    ]
     failed = public.claims[3].verdict
-    assert failed.error_code.value == "PROVIDER_TIMEOUT" and failed.confidence == 0.0 and failed.needs_human_review
-    assert public.metadata.content_hash == source.content_sha256 and public.request_id == source.request_id
+    assert (
+        failed.error_code.value == "PROVIDER_TIMEOUT"
+        and failed.confidence == 0.0
+        and failed.needs_human_review
+    )
+    assert (
+        public.metadata.content_hash == source.content_sha256
+        and public.request_id == source.request_id
+    )
 
 
 def test_mapping_carries_evidence_confidence_and_the_correction():
     source = internal("verification_report.json")
     public = to_public_report(source)
     for entry, result in zip(public.claims, source.results):
-        assert entry.claim.text == result.claim.text and entry.claim.span.start == result.claim.source_span.start
+        assert (
+            entry.claim.text == result.claim.text
+            and entry.claim.span.start == result.claim.source_span.start
+        )
         assert entry.verdict.confidence == CONFIDENCE[result.evidence_strength]
         assert [e.quote for e in entry.verdict.evidence] == [c.quote for c in result.citations]
         assert entry.verdict.needs_human_review == result.requires_human_review
     correction = public.claims[1].verdict.correction
-    assert correction.status.value == "proposed" and correction.replacement_text == source.results[1].correction.replacement_text
+    assert (
+        correction.status.value == "proposed"
+        and correction.replacement_text == source.results[1].correction.replacement_text
+    )
 
 
 def test_mapping_without_suggest_corrections_returns_none():
@@ -262,19 +358,38 @@ def test_a_failed_report_is_refused_not_emptied():
 def test_request_level_errors_with_results_go_to_metadata_errors():
     """Phase 2 decision: a report with results keeps them; its request-level errors are listed."""
     data = json.loads(internal("end_to_end/report.scripted.json").model_dump_json())
-    data["errors"] = [{"code": "MALFORMED_MODEL_OUTPUT", "stage": "extraction", "message": "1 sentence was not classified.",
-                       "retryable": True}]
+    data["errors"] = [
+        {
+            "code": "MALFORMED_MODEL_OUTPUT",
+            "stage": "extraction",
+            "message": "1 sentence was not classified.",
+            "retryable": True,
+        }
+    ]
     data.pop("score")
     public = to_public_report(VerificationReport.model_validate(data))
     assert len(public.claims) == 4
-    assert [(e.code.value, e.message) for e in public.metadata.errors] == [("MALFORMED_MODEL_OUTPUT", "1 sentence was not classified.")]
+    assert [(e.code.value, e.message) for e in public.metadata.errors] == [
+        ("MALFORMED_MODEL_OUTPUT", "1 sentence was not classified.")
+    ]
 
 
 def test_metadata_errors_use_the_engines_codes_and_bounded_messages():
     with pytest.raises(ValidationError):
-        Report.model_validate(report(verdict()) | {"metadata": {"content_hash": HASH, "errors": [{"code": "MADE_UP", "message": "x"}]}})
+        Report.model_validate(
+            report(verdict())
+            | {"metadata": {"content_hash": HASH, "errors": [{"code": "MADE_UP", "message": "x"}]}}
+        )
     with pytest.raises(ValidationError):
-        Report.model_validate(report(verdict()) | {"metadata": {"content_hash": HASH, "errors": [{"code": "INTERNAL_ERROR", "message": "x" * 501}]}})
+        Report.model_validate(
+            report(verdict())
+            | {
+                "metadata": {
+                    "content_hash": HASH,
+                    "errors": [{"code": "INTERNAL_ERROR", "message": "x" * 501}],
+                }
+            }
+        )
 
 
 def test_passage_mapping_keeps_location_text_and_score():
@@ -288,7 +403,9 @@ def test_passage_mapping_keeps_location_text_and_score():
 def test_low_confidence_needs_human_review(confidence):
     with pytest.raises(ValidationError, match="low confidence needs human review"):
         VerdictResult.model_validate(verdict(confidence=confidence, needs_human_review=False))
-    assert VerdictResult.model_validate(verdict(confidence=confidence, needs_human_review=True)).needs_human_review
+    assert VerdictResult.model_validate(
+        verdict(confidence=confidence, needs_human_review=True)
+    ).needs_human_review
 
 
 @pytest.mark.parametrize("confidence", [0.67, 1.0])
@@ -299,11 +416,16 @@ def test_moderate_or_strong_support_may_skip_review(confidence):
 def test_public_example_is_current_and_matches_the_json_schema():
     """examples/public/report.json is the public form of examples/end_to_end/report.scripted.json
     (a PARTIAL report: one claim failed, three kept). INKLOOM_REGENERATE_EXAMPLES=1 rewrites it."""
-    text = to_public_report(internal("end_to_end/report.scripted.json")).model_dump_json(indent=2) + "\n"
+    text = (
+        to_public_report(internal("end_to_end/report.scripted.json")).model_dump_json(indent=2)
+        + "\n"
+    )
     path = EXAMPLES / "public" / "report.json"
     if os.environ.get("INKLOOM_REGENERATE_EXAMPLES") == "1":
         path.parent.mkdir(exist_ok=True)
         path.write_text(text, encoding="utf-8", newline="\n")
     assert path.read_text(encoding="utf-8") == text, "public/report.json is stale; regenerate it"
-    schema = json.loads((EXAMPLES.parent / "schemas" / "public_report.schema.json").read_text(encoding="utf-8"))
+    schema = json.loads(
+        (EXAMPLES.parent / "schemas" / "public_report.schema.json").read_text(encoding="utf-8")
+    )
     jsonschema.Draft202012Validator(schema).validate(json.loads(text))

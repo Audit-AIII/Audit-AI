@@ -38,7 +38,12 @@ from inkloom_verify.chunking import sentence_spans
 from inkloom_verify.schemas import MAX_PASSAGE_CHARS, EvalCategory, EvalRecord, Verdict
 from inkloom_verify.security import instruction_like
 
-TARGET_SHARES = {"SUPPORTED": 0.30, "CONTRADICTED": 0.35, "NOT_ENOUGH_EVIDENCE": 0.25, "adversarial": 0.10}
+TARGET_SHARES = {
+    "SUPPORTED": 0.30,
+    "CONTRADICTED": 0.35,
+    "NOT_ENOUGH_EVIDENCE": 0.25,
+    "adversarial": 0.10,
+}
 SHARE_TOLERANCE = 0.05  # "approximately": each group within 5 points of its target
 SIZE_RANGE = (50, 100)
 INJECTION_TAGS = {"injection_in_content", "injection_in_reference"}
@@ -47,7 +52,8 @@ INJECTION_TAGS = {"injection_in_content", "injection_in_reference"}
 REQUIRED_COVERAGE = {
     "near-miss numbers": lambda r: EvalCategory.NEAR_MISS in r.categories,
     "negation": lambda r: EvalCategory.NEGATION in r.categories,
-    "dates": lambda r: EvalCategory.DATE in r.categories and r.expected_verdict is Verdict.CONTRADICTED,
+    "dates": lambda r: EvalCategory.DATE in r.categories
+    and r.expected_verdict is Verdict.CONTRADICTED,
     "outdated facts": lambda r: EvalCategory.OUTDATED_FACT in r.categories,
     "unit mismatches": lambda r: EvalCategory.UNIT_MISMATCH in r.categories,
     "unsupported claims (missing evidence)": lambda r: EvalCategory.ABSENT_FACT in r.categories
@@ -85,7 +91,11 @@ def injection_location(record: EvalRecord) -> str | None:
     """Where a record's injection is: in the claim itself, or in one of its references."""
     if instruction_like(record.claim_text):
         return "injection_in_content"
-    if any(instruction_like(d.text[s.start:s.end]) for d in record.references for s in sentence_spans(d.text, MAX_PASSAGE_CHARS)):
+    if any(
+        instruction_like(d.text[s.start : s.end])
+        for d in record.references
+        for s in sentence_spans(d.text, MAX_PASSAGE_CHARS)
+    ):
         return "injection_in_reference"
     return None
 
@@ -121,7 +131,9 @@ def validate_dataset(path: Path, *, check_mix: bool = True) -> DatasetReport:
             problems.append(f"line {number}: {_first_error(error)}")
             continue
         if record.record_id in ids:
-            problems.append(f"line {number}: duplicate record_id {record.record_id} (first on line {ids[record.record_id]})")
+            problems.append(
+                f"line {number}: duplicate record_id {record.record_id} (first on line {ids[record.record_id]})"
+            )
             continue
         ids[record.record_id] = number
         records.append(record)
@@ -133,66 +145,103 @@ def validate_dataset(path: Path, *, check_mix: bool = True) -> DatasetReport:
         for doc in record.references:
             seen = documents.setdefault(doc.doc_id, (doc.text, doc.version, record.record_id))
             if (seen[0], seen[1]) != (doc.text, doc.version):
-                problems.append(f"{record.record_id}: document {doc.doc_id} differs from its copy in {seen[2]}")
+                problems.append(
+                    f"{record.record_id}: document {doc.doc_id} differs from its copy in {seen[2]}"
+                )
         by_id = {d.doc_id: d for d in record.references}
         for gold in record.gold_evidence:
             text = by_id[gold.doc_id].text
-            sentences = [text[s.start:s.end] for s in sentence_spans(text, MAX_PASSAGE_CHARS)
-                         if s.start < gold.span.end and gold.span.start < s.end]
+            sentences = [
+                text[s.start : s.end]
+                for s in sentence_spans(text, MAX_PASSAGE_CHARS)
+                if s.start < gold.span.end and gold.span.start < s.end
+            ]
             if any(instruction_like(s) for s in sentences):
-                problems.append(f"{record.record_id}: gold quote in {gold.doc_id} comes from an instruction, not a fact")
+                problems.append(
+                    f"{record.record_id}: gold quote in {gold.doc_id} comes from an instruction, not a fact"
+                )
         location = injection_location(record)
         tagged = INJECTION_TAGS & set(record.tags)
         if EvalCategory.PROMPT_INJECTION in record.categories:
             if location is None:
-                problems.append(f"{record.record_id}: categorised prompt_injection but contains no recognisable injection")
+                problems.append(
+                    f"{record.record_id}: categorised prompt_injection but contains no recognisable injection"
+                )
             elif tagged and tagged != {location}:
-                problems.append(f"{record.record_id}: tagged {sorted(tagged)} but the injection is {location}")
+                problems.append(
+                    f"{record.record_id}: tagged {sorted(tagged)} but the injection is {location}"
+                )
         elif location is not None or tagged:
-            problems.append(f"{record.record_id}: contains an injection but is not categorised prompt_injection")
+            problems.append(
+                f"{record.record_id}: contains an injection but is not categorised prompt_injection"
+            )
 
     labels = Counter(r.expected_verdict.value for r in records)
     adversarial = [r for r in records if EvalCategory.PROMPT_INJECTION in r.categories]
     groups = Counter(r.expected_verdict.value for r in records if r not in adversarial)
-    groups_out = {k: groups.get(k, 0) for k in ("SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE")} | {"adversarial": len(adversarial)}
+    groups_out = {
+        k: groups.get(k, 0) for k in ("SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE")
+    } | {"adversarial": len(adversarial)}
     total = len(records)
     shares = {k: (v / total if total else 0.0) for k, v in groups_out.items()}
-    coverage = {name: sum(1 for r in records if test(r)) for name, test in REQUIRED_COVERAGE.items()}
+    coverage = {
+        name: sum(1 for r in records if test(r)) for name, test in REQUIRED_COVERAGE.items()
+    }
     if check_mix and records:
         if not SIZE_RANGE[0] <= total <= SIZE_RANGE[1]:
             problems.append(f"{total} records; EVAL.md asks for {SIZE_RANGE[0]}-{SIZE_RANGE[1]}")
         for group, target in TARGET_SHARES.items():
             if abs(shares[group] - target) > SHARE_TOLERANCE:
-                problems.append(f"{group}: {shares[group]:.1%} of records, target {target:.0%} ± {SHARE_TOLERANCE:.0%}")
+                problems.append(
+                    f"{group}: {shares[group]:.1%} of records, target {target:.0%} ± {SHARE_TOLERANCE:.0%}"
+                )
         problems += [f"no record covers: {name}" for name, n in coverage.items() if n == 0]
     return DatasetReport(
-        path=str(path), records=total, problems=problems,
+        path=str(path),
+        records=total,
+        problems=problems,
         labels={k: labels.get(k, 0) for k in ("SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE")},
-        adversarial=len(adversarial), groups=groups_out, shares=shares,
+        adversarial=len(adversarial),
+        groups=groups_out,
+        shares=shares,
         splits=dict(sorted(Counter(r.split.value for r in records).items())),
         categories=dict(sorted(Counter(c.value for r in records for c in r.categories).items())),
         coverage=coverage,
-        injection_locations=dict(Counter(injection_location(r) for r in adversarial if injection_location(r))),
+        injection_locations=dict(
+            Counter(injection_location(r) for r in adversarial if injection_location(r))
+        ),
         human_reviewed=sum(1 for r in records if r.reviewed_by),
     )
 
 
 def summary(report: DatasetReport) -> str:
-    lines = [f"{report.path}: {report.records} records, {'VALID' if report.ok else f'{len(report.problems)} problem(s)'}", ""]
+    lines = [
+        f"{report.path}: {report.records} records, {'VALID' if report.ok else f'{len(report.problems)} problem(s)'}",
+        "",
+    ]
     lines += ["| Group | Records | Share | Target |", "|---|---|---|---|"]
     for group, n in report.groups.items():
         lines.append(f"| {group} | {n} | {report.shares[group]:.1%} | {TARGET_SHARES[group]:.0%} |")
-    lines += ["", "Labels including adversarial records: " + ", ".join(f"{k} {v}" for k, v in report.labels.items()),
-              "Splits: " + ", ".join(f"{k} {v}" for k, v in report.splits.items()),
-              "Injection locations: " + ", ".join(f"{k} {v}" for k, v in report.injection_locations.items()),
-              f"Human-reviewed labels: {report.human_reviewed}/{report.records}", "", "Coverage:"]
+    lines += [
+        "",
+        "Labels including adversarial records: "
+        + ", ".join(f"{k} {v}" for k, v in report.labels.items()),
+        "Splits: " + ", ".join(f"{k} {v}" for k, v in report.splits.items()),
+        "Injection locations: "
+        + ", ".join(f"{k} {v}" for k, v in report.injection_locations.items()),
+        f"Human-reviewed labels: {report.human_reviewed}/{report.records}",
+        "",
+        "Coverage:",
+    ]
     lines += [f"  {name}: {n}" for name, n in report.coverage.items()]
     lines += ["", "Problems:"] + [f"  - {p}" for p in report.problems] if report.problems else []
     return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m inkloom_verify.evaluation.dataset", description=__doc__.split("\n")[0])
+    parser = argparse.ArgumentParser(
+        prog="python -m inkloom_verify.evaluation.dataset", description=__doc__.split("\n")[0]
+    )
     parser.add_argument("path", type=Path)
     parser.add_argument("--json", action="store_true", help="print the full report as JSON")
     args = parser.parse_args(argv)

@@ -22,11 +22,19 @@ class ProviderError(Exception):
     code = ErrorCode.PROVIDER_ERROR
     retryable = False
 
-    def to_processing_error(self, stage: PipelineStage, claim_id: str | None = None) -> ProcessingError:
+    def to_processing_error(
+        self, stage: PipelineStage, claim_id: str | None = None
+    ) -> ProcessingError:
         retry_after = getattr(self, "retry_after", None)
         return ProcessingError(
-            code=self.code, stage=stage, message=str(self)[:500], retryable=self.retryable, claim_id=claim_id,
-            retry_after_seconds=min(math.ceil(retry_after), 3_600) if retry_after is not None and retry_after >= 0 else None,
+            code=self.code,
+            stage=stage,
+            message=str(self)[:500],
+            retryable=self.retryable,
+            claim_id=claim_id,
+            retry_after_seconds=min(math.ceil(retry_after), 3_600)
+            if retry_after is not None and retry_after >= 0
+            else None,
         )
 
 
@@ -138,8 +146,11 @@ def parse_json_object(text: str) -> dict[str, Any]:
     """
     fenced = _FENCE.match(text)
     try:
-        data = json.loads(fenced.group(1) if fenced else text, object_pairs_hook=_no_duplicate_keys,
-                          parse_constant=_no_constant)
+        data = json.loads(
+            fenced.group(1) if fenced else text,
+            object_pairs_hook=_no_duplicate_keys,
+            parse_constant=_no_constant,
+        )
     except (ValueError, RecursionError):  # RecursionError: pathologically nested JSON
         raise MalformedOutputError("reply is not valid JSON") from None
     if not isinstance(data, dict):

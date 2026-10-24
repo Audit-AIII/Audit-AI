@@ -27,7 +27,14 @@ import pytest
 
 from conftest import requires_db
 from inkloom_api.auth.security import hash_password
-from inkloom_api.models import BrandProfile, BrandSource, Membership, Organisation, SourceVersion, User
+from inkloom_api.models import (
+    BrandProfile,
+    BrandSource,
+    Membership,
+    Organisation,
+    SourceVersion,
+    User,
+)
 from inkloom_api.statuses import BrandSourceStatus
 
 PASSWORD = "correct-horse-battery-staple"
@@ -49,19 +56,27 @@ def fixture(db_session):
     reviewer = User(email=f"reviewer-{unique}@example.com", password_hash=hash_password(PASSWORD))
     db_session.add_all([org, admin, reviewer])
     db_session.flush()
-    db_session.add(Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True))
-    db_session.add(Membership(organisation_id=org.id, user_id=reviewer.id, role="reviewer", is_active=True))
+    db_session.add(
+        Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True)
+    )
+    db_session.add(
+        Membership(organisation_id=org.id, user_id=reviewer.id, role="reviewer", is_active=True)
+    )
 
     brand = BrandProfile(organisation_id=org.id, name="Brand")
     db_session.add(brand)
     db_session.flush()
-    source = BrandSource(brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value)
+    source = BrandSource(
+        brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value
+    )
     db_session.add(source)
     db_session.flush()
     text = "Approved fact."
     db_session.add(
         SourceVersion(
-            brand_source_id=source.id, version_number=1, text=text,
+            brand_source_id=source.id,
+            version_number=1,
+            text=text,
             text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
     )
@@ -87,13 +102,17 @@ def _auth(token: str) -> dict:
 
 
 def _submit(client, token: str, brand_id, text: str = "Some content.") -> dict:
-    response = client.post("/api/reviews", json={"brand_id": str(brand_id), "text": text}, headers=_auth(token))
+    response = client.post(
+        "/api/reviews", json={"brand_id": str(brand_id), "text": text}, headers=_auth(token)
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
 
 @requires_db
-def test_legacy_reviewer_role_decides_as_account_owner(client, force_stub_mode, fixture: Fixture) -> None:
+def test_legacy_reviewer_role_decides_as_account_owner(
+    client, force_stub_mode, fixture: Fixture
+) -> None:
     admin_token = _login(client, fixture.admin.email)
     reviewer_token = _login(client, fixture.reviewer.email)
     first = _submit(client, admin_token, fixture.brand.id)
@@ -109,7 +128,8 @@ def test_legacy_reviewer_role_decides_as_account_owner(client, force_stub_mode, 
 
     second = _submit(client, admin_token, fixture.brand.id, text="Other content.")
     approved = client.post(
-        f"/api/content-versions/{second['content_version_id']}/approve", headers=_auth(reviewer_token)
+        f"/api/content-versions/{second['content_version_id']}/approve",
+        headers=_auth(reviewer_token),
     )
     assert approved.status_code == 201, approved.text  # was 403 FORBIDDEN under team roles
 
@@ -122,7 +142,11 @@ def test_legacy_reviewer_role_decides_as_account_owner(client, force_stub_mode, 
             (first["content_version_id"], "content_version.changes_requested"),
             (second["content_version_id"], "content_version.approved"),
         ):
-            events = db.query(AuditEvent).filter_by(entity_type="content_version", entity_id=content_version_id).all()
+            events = (
+                db.query(AuditEvent)
+                .filter_by(entity_type="content_version", entity_id=content_version_id)
+                .all()
+            )
             assert [e.event_type for e in events] == [event_type]  # exactly one per decision
     finally:
         db.close()
@@ -168,7 +192,9 @@ def test_approval_rejected_when_stale(client, force_stub_mode, fixture: Fixture)
     db.close()
 
     new_version = client.post(
-        f"/api/content/{content_item_id}/versions", json={"text": "Edited content."}, headers=_auth(admin_token)
+        f"/api/content/{content_item_id}/versions",
+        json={"text": "Edited content."},
+        headers=_auth(admin_token),
     )
     assert new_version.status_code == 201, new_version.text
 
@@ -180,12 +206,16 @@ def test_approval_rejected_when_stale(client, force_stub_mode, fixture: Fixture)
 
 
 @requires_db
-def test_edit_after_approval_creates_unapproved_version(client, force_stub_mode, fixture: Fixture) -> None:
+def test_edit_after_approval_creates_unapproved_version(
+    client, force_stub_mode, fixture: Fixture
+) -> None:
     admin_token = _login(client, fixture.admin.email)
     review = _submit(client, admin_token, fixture.brand.id)
     content_version_id = review["content_version_id"]
 
-    approved = client.post(f"/api/content-versions/{content_version_id}/approve", headers=_auth(admin_token))
+    approved = client.post(
+        f"/api/content-versions/{content_version_id}/approve", headers=_auth(admin_token)
+    )
     assert approved.status_code == 201, approved.text
 
     from inkloom_api.db import get_session_factory
@@ -196,7 +226,9 @@ def test_edit_after_approval_creates_unapproved_version(client, force_stub_mode,
     db.close()
 
     edited = client.post(
-        f"/api/content/{content_item_id}/versions", json={"text": "Edited after approval."}, headers=_auth(admin_token)
+        f"/api/content/{content_item_id}/versions",
+        json={"text": "Edited after approval."},
+        headers=_auth(admin_token),
     )
     assert edited.status_code == 201
     assert edited.json()["is_current"] is True
@@ -206,7 +238,11 @@ def test_edit_after_approval_creates_unapproved_version(client, force_stub_mode,
     versions = history.json()["versions"]
     assert len(versions) == 2
     v1, v2 = versions[0], versions[1]
-    assert v1["is_current"] is False and len(v1["decisions"]) == 1 and v1["decisions"][0]["action"] == "approved"
+    assert (
+        v1["is_current"] is False
+        and len(v1["decisions"]) == 1
+        and v1["decisions"][0]["action"] == "approved"
+    )
     assert v2["is_current"] is True and v2["decisions"] == []  # the new version is not approved
 
 
@@ -220,7 +256,9 @@ def test_concurrent_decisions_second_one_is_rejected_not_corrupting_state(
     review = _submit(client, admin_token, fixture.brand.id)
     content_version_id = review["content_version_id"]
 
-    first = client.post(f"/api/content-versions/{content_version_id}/approve", headers=_auth(admin_token))
+    first = client.post(
+        f"/api/content-versions/{content_version_id}/approve", headers=_auth(admin_token)
+    )
     assert first.status_code == 201
 
     second = client.post(
@@ -235,7 +273,9 @@ def test_concurrent_decisions_second_one_is_rejected_not_corrupting_state(
     from inkloom_api.models import ApprovalEvent
 
     db = get_session_factory()()
-    events = db.query(ApprovalEvent).filter_by(content_version_id=uuid.UUID(content_version_id)).all()
+    events = (
+        db.query(ApprovalEvent).filter_by(content_version_id=uuid.UUID(content_version_id)).all()
+    )
     db.close()
     assert len(events) == 1  # only the first decision was recorded
     assert events[0].action == "approved"
@@ -297,7 +337,13 @@ def test_truly_concurrent_decisions_the_db_lock_serializes_them(
                 else:
                     ensure_decidable(locked_review.status)
                 event = record_decision(
-                    db, locked_review, content_version, fixture.org.id, fixture.admin.id, action, None
+                    db,
+                    locked_review,
+                    content_version,
+                    fixture.org.id,
+                    fixture.admin.id,
+                    action,
+                    None,
                 )
                 db.commit()
                 results[name] = ("ok", event.action)
@@ -312,7 +358,9 @@ def test_truly_concurrent_decisions_the_db_lock_serializes_them(
     t1.start()
     t2.start()
     assert b_about_to_select.wait(timeout=5)  # B is now calling _latest_review_or_404
-    time.sleep(0.3)  # give an unlocked SELECT plenty of time to return (it would, in well under this)
+    time.sleep(
+        0.3
+    )  # give an unlocked SELECT plenty of time to return (it would, in well under this)
     a_may_commit.set()  # only now let A proceed to commit - too late to rescue a buggy unlocked read
     t1.join(timeout=10)
     t2.join(timeout=10)
@@ -340,7 +388,9 @@ def test_truly_concurrent_decisions_the_db_lock_serializes_them(
 
 
 @requires_db
-def test_rerun_creates_a_new_review_leaving_the_old_one_untouched(client, force_stub_mode, fixture: Fixture) -> None:
+def test_rerun_creates_a_new_review_leaving_the_old_one_untouched(
+    client, force_stub_mode, fixture: Fixture
+) -> None:
     admin_token = _login(client, fixture.admin.email)
     original = _submit(client, admin_token, fixture.brand.id)
 

@@ -39,7 +39,9 @@ class TokenError(Exception):
 
 def create_access_token(settings: Settings, user_id: uuid.UUID, organisation_id: uuid.UUID) -> str:
     if len(settings.auth_secret_key) < MIN_AUTH_SECRET_CHARS:
-        raise RuntimeError(f"AUTH_SECRET_KEY is missing or shorter than {MIN_AUTH_SECRET_CHARS} characters")
+        raise RuntimeError(
+            f"AUTH_SECRET_KEY is missing or shorter than {MIN_AUTH_SECRET_CHARS} characters"
+        )
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),

@@ -26,8 +26,12 @@ from conftest import requires_db, use_scripted_provider
 from inkloom_api.engine.scripted_provider import SCRIPTED_MODEL_ID, ScriptedRule, make_responder
 
 RULES = [
-    ScriptedRule("24 hours of playback per charge", "CONTRADICTED", "up to 12 hours of playback per charge",
-                 "The fact sheet gives 12 hours."),
+    ScriptedRule(
+        "24 hours of playback per charge",
+        "CONTRADICTED",
+        "up to 12 hours of playback per charge",
+        "The fact sheet gives 12 hours.",
+    ),
     ScriptedRule("warranty", "SUPPORTED", "Warranty: 2 years.", "The fact sheet states 2 years."),
     ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No document mentions rankings."),
 ]
@@ -49,14 +53,18 @@ def test_real_run_sets_category_for_every_verdict(client, monkeypatch, account_f
     scripted = make_responder(RULES)
 
     def respond(request):
-        if request.schema_name == "claim_verification" and "purple" in request.user:  # in the claim only, never in the fact sheet
+        if (
+            request.schema_name == "claim_verification" and "purple" in request.user
+        ):  # in the claim only, never in the fact sheet
             return ProviderUnavailableError("simulated provider outage for one claim")
         return scripted(request)
 
     monkeypatch.setattr(
-        pipeline, "build_provider",
+        pipeline,
+        "build_provider",
         lambda confidential=False, on_attempt=None: FallbackProvider(
-            [("scripted", lambda: ResponderProvider(respond, model=SCRIPTED_MODEL_ID))], on_attempt=on_attempt
+            [("scripted", lambda: ResponderProvider(respond, model=SCRIPTED_MODEL_ID))],
+            on_attempt=on_attempt,
         ),
     )
     owner = account_factory("owner")
@@ -83,7 +91,9 @@ def test_cached_replay_keeps_categories(client, monkeypatch, account_factory) ->
     first = owner.submit(MIXED_TEXT)
     second = owner.submit(MIXED_TEXT)
     assert second["served_from_cache"] is True
-    assert sorted(f["category"] for f in second["findings"]) == sorted(f["category"] for f in first["findings"])
+    assert sorted(f["category"] for f in second["findings"]) == sorted(
+        f["category"] for f in first["findings"]
+    )
 
 
 @requires_db
@@ -104,7 +114,13 @@ def test_review_brand_name_and_evidence_source_fields(client, monkeypatch, accou
     # A new version of the source: the old review still names the version it actually cited.
     new_version = client.post(
         f"/api/brands/{owner.brand_id}/sources/{owner.source_id}/versions",
-        files={"file": ("facts.txt", io.BytesIO(b"Battery life: up to 10 hours.\nWarranty: 2 years.\n"), "text/plain")},
+        files={
+            "file": (
+                "facts.txt",
+                io.BytesIO(b"Battery life: up to 10 hours.\nWarranty: 2 years.\n"),
+                "text/plain",
+            )
+        },
         headers=owner.headers,
     )
     assert new_version.status_code == 201, new_version.text
@@ -118,7 +134,11 @@ def test_review_brand_name_and_evidence_source_fields(client, monkeypatch, accou
 def test_brand_stats_empty_brand_is_zero_and_null(client, force_stub_mode, account_factory) -> None:
     owner = account_factory("owner", with_source=False)
     [brand] = client.get("/api/brands", headers=owner.headers).json()
-    assert (brand["review_count"], brand["open_review_count"], brand["last_review_at"]) == (0, 0, None)
+    assert (brand["review_count"], brand["open_review_count"], brand["last_review_at"]) == (
+        0,
+        0,
+        None,
+    )
 
 
 @requires_db
@@ -128,12 +148,19 @@ def test_brand_stats_counts_and_open_definition(client, force_stub_mode, account
     second_brand = owner.create_brand("Second brand")
 
     approved = owner.submit("First draft.")
-    assert client.post(f"/api/content-versions/{approved['content_version_id']}/approve",
-                       headers=owner.headers).status_code == 201
+    assert (
+        client.post(
+            f"/api/content-versions/{approved['content_version_id']}/approve", headers=owner.headers
+        ).status_code
+        == 201
+    )
     waiting = owner.submit("Second draft.")  # needs_human_review -> open
     edited = owner.submit("Third draft.")
-    new_version = client.post(f"/api/content/{edited['content_item_id']}/versions",
-                              json={"text": "Third draft, edited."}, headers=owner.headers)
+    new_version = client.post(
+        f"/api/content/{edited['content_item_id']}/versions",
+        json={"text": "Third draft, edited."},
+        headers=owner.headers,
+    )
     assert new_version.status_code == 201  # old v1 review is now stale -> not open; v2's is open
     rerun = client.post(f"/api/reviews/{waiting['id']}/rerun", headers=owner.headers)
     assert rerun.status_code == 201  # the rerun supersedes `waiting` -> only the rerun is open
@@ -142,12 +169,19 @@ def test_brand_stats_counts_and_open_definition(client, force_stub_mode, account
     main = brands[owner.brand_id]
     assert main["review_count"] == 5  # approved, waiting, edited v1, edited v2, rerun
     assert main["open_review_count"] == 2  # edited v2 + rerun
-    assert datetime.fromisoformat(main["last_review_at"]) == datetime.fromisoformat(rerun.json()["created_at"])
-    assert (brands[second_brand["id"]]["review_count"], brands[second_brand["id"]]["last_review_at"]) == (0, None)
+    assert datetime.fromisoformat(main["last_review_at"]) == datetime.fromisoformat(
+        rerun.json()["created_at"]
+    )
+    assert (
+        brands[second_brand["id"]]["review_count"],
+        brands[second_brand["id"]]["last_review_at"],
+    ) == (0, None)
 
 
 @requires_db
-def test_contract_schemas_declare_every_field_a_real_review_returns(client, monkeypatch, account_factory) -> None:
+def test_contract_schemas_declare_every_field_a_real_review_returns(
+    client, monkeypatch, account_factory
+) -> None:
     """contract/schemas/*.json use additionalProperties: false - a real response must not carry a
     key they don't declare, and must carry every key they require (keeps the contract honest)."""
     import json
@@ -161,6 +195,10 @@ def test_contract_schemas_declare_every_field_a_real_review_returns(client, monk
     use_scripted_provider(monkeypatch, RULES)
     review = account_factory("owner").submit(MIXED_TEXT)
     finding = next(f for f in review["findings"] if f["evidence"])
-    for body, schema in ((review, review_schema), (finding, finding_schema), (finding["evidence"][0], evidence_schema)):
+    for body, schema in (
+        (review, review_schema),
+        (finding, finding_schema),
+        (finding["evidence"][0], evidence_schema),
+    ):
         assert set(body) <= set(schema["properties"]), set(body) - set(schema["properties"])
         assert set(schema["required"]) <= set(body)

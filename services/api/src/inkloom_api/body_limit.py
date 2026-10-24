@@ -80,6 +80,14 @@ class BodySizeLimitMiddleware:
 
 async def _reject(send: Send) -> None:
     payload = json.dumps(_body(ErrorCode.VALIDATION_ERROR, _MESSAGE)).encode("utf-8")
-    await send({"type": "http.response.start", "status": 413,
-                "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(payload)).encode())]})
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(payload)).encode()),
+            ],
+        }
+    )
     await send({"type": "http.response.body", "body": payload})

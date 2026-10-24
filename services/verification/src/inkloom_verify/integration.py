@@ -31,12 +31,18 @@ CONFLICTING_SOURCES_STATUS = "conflicting_sources"
 EVIDENCE_RELATION = {Verdict.SUPPORTED: "supports", Verdict.CONTRADICTED: "contradicts"}
 
 
-def _apply(result: ClaimResult, content_text: str, edit: Correction | SaferWording | None) -> str | None:
+def _apply(
+    result: ClaimResult, content_text: str, edit: Correction | SaferWording | None
+) -> str | None:
     if edit is None:
         return None
     span, target = result.claim.source_span, edit.target_span
     original = span.slice(content_text)
-    return original[: target.start - span.start] + edit.replacement_text + original[target.end - span.start :]
+    return (
+        original[: target.start - span.start]
+        + edit.replacement_text
+        + original[target.end - span.start :]
+    )
 
 
 def corrected_text(result: ClaimResult, content_text: str) -> str | None:
@@ -79,7 +85,11 @@ def finding_fields(result: ClaimResult, content_text: str) -> dict[str, Any]:
 
 def _evidence(result: ClaimResult) -> list[dict[str, Any]]:
     relation = EVIDENCE_RELATION.get(result.verdict)
-    return [{"doc_id": c.doc_id, "quote": c.quote, "relation": relation} for c in result.citations if relation]
+    return [
+        {"doc_id": c.doc_id, "quote": c.quote, "relation": relation}
+        for c in result.citations
+        if relation
+    ]
 
 
 # Finding fields the engine supplies that the shared contract (contract/schemas/finding.schema.json)
@@ -117,7 +127,10 @@ def rule_finding_fields(finding: RuleFinding) -> dict[str, Any]:
         "verification_status": "not_applicable",
         "suggested_correction": finding.suggested_correction,
         "requires_human_review": True,
-        "evidence": [{"doc_id": e.source_id, "quote": e.quote, "relation": e.relation} for e in finding.evidence],
+        "evidence": [
+            {"doc_id": e.source_id, "quote": e.quote, "relation": e.relation}
+            for e in finding.evidence
+        ],
     }
 
 

@@ -7,13 +7,23 @@ from pydantic import ValidationError
 from e2e_support import CONTRADICTED_CLAIM, SUPPORTED_CLAIM, RoutedProvider, careful_model, request
 from inkloom_verify.pipeline import PipelineConfig, verify_request
 from inkloom_verify.providers.base import JsonCompletion, JsonCompletionRequest
-from inkloom_verify.providers.budget import BudgetedProvider, BudgetExceededError, CallBudget, estimate_tokens
+from inkloom_verify.providers.budget import (
+    BudgetedProvider,
+    BudgetExceededError,
+    CallBudget,
+    estimate_tokens,
+)
 from inkloom_verify.schemas import CorrectionStatus, ErrorCode, ReportStatus, Verdict
 
 
 def call(user: str = "x" * 400, max_output_tokens: int = 500) -> JsonCompletionRequest:
-    return JsonCompletionRequest(system="s" * 400, user=user, schema_name="claim_verification",
-                                 json_schema={"type": "object"}, max_output_tokens=max_output_tokens)
+    return JsonCompletionRequest(
+        system="s" * 400,
+        user=user,
+        schema_name="claim_verification",
+        json_schema={"type": "object"},
+        max_output_tokens=max_output_tokens,
+    )
 
 
 class Clock:
@@ -73,8 +83,17 @@ def test_provider_side_retries_count_against_the_budget():
         budgeted.complete_json(call())
 
 
-@pytest.mark.parametrize("bad", [{"max_calls": 0}, {"max_calls": 10_000}, {"max_estimated_tokens": 10},
-                                 {"deadline_seconds": 0}, {"deadline_seconds": 86_400}, {"unknown": 1}])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"max_calls": 0},
+        {"max_calls": 10_000},
+        {"max_estimated_tokens": 10},
+        {"deadline_seconds": 0},
+        {"deadline_seconds": 86_400},
+        {"unknown": 1},
+    ],
+)
 def test_budget_settings_are_bounded(bad):
     with pytest.raises(ValidationError):
         CallBudget(**bad)
@@ -94,7 +113,9 @@ def test_exhausted_budget_turns_remaining_claims_into_errors_not_verdicts():
 
 def test_token_limit_during_extraction_fails_the_report():
     provider = RoutedProvider(careful_model)
-    report = verify_request(request(), provider, PipelineConfig(budget=CallBudget(max_estimated_tokens=1_000)))
+    report = verify_request(
+        request(), provider, PipelineConfig(budget=CallBudget(max_estimated_tokens=1_000))
+    )
     assert provider.calls == []  # extraction's 4000-token output allowance alone exceeds the limit
     assert report.status is ReportStatus.FAILED and report.results == []
     assert [e.code for e in report.errors] == [ErrorCode.LIMIT_EXCEEDED]
@@ -102,7 +123,9 @@ def test_token_limit_during_extraction_fails_the_report():
 
 def test_budget_stop_during_correction_keeps_the_verdict_and_requests_review():
     provider = RoutedProvider(careful_model)
-    report = verify_request(request(CONTRADICTED_CLAIM), provider, PipelineConfig(budget=CallBudget(max_calls=2)))
+    report = verify_request(
+        request(CONTRADICTED_CLAIM), provider, PipelineConfig(budget=CallBudget(max_calls=2))
+    )
     [result] = report.results
     assert result.verdict is Verdict.CONTRADICTED and result.correction is None
     assert result.correction_attempt.status is CorrectionStatus.FAILED
@@ -111,7 +134,10 @@ def test_budget_stop_during_correction_keeps_the_verdict_and_requests_review():
 
 @pytest.mark.parametrize("limit", range(1, 9))
 def test_no_call_limit_ever_creates_or_changes_a_verdict(limit):
-    unlimited = {r.claim.text: r.verdict for r in verify_request(request(), RoutedProvider(careful_model)).results}
+    unlimited = {
+        r.claim.text: r.verdict
+        for r in verify_request(request(), RoutedProvider(careful_model)).results
+    }
     provider = RoutedProvider(careful_model)
     report = verify_request(request(), provider, PipelineConfig(budget=CallBudget(max_calls=limit)))
     assert len(provider.calls) <= limit

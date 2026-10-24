@@ -15,13 +15,25 @@ from inkloom_verify.evaluation.runner import _eval_claim, load_records
 from inkloom_verify.pipeline import verify_request
 from inkloom_verify.providers.fake import ResponderProvider
 from inkloom_verify.retrieval import BM25Retriever
-from inkloom_verify.schemas import Claim, GuardRejectionReason, ReviewReason, Verdict, VerificationRequest
+from inkloom_verify.schemas import (
+    Claim,
+    GuardRejectionReason,
+    ReviewReason,
+    Verdict,
+    VerificationRequest,
+)
 from inkloom_verify.verification import ClaimVerifier, verify_claim
 
 ROOT = Path(__file__).resolve().parents[1]
 RECORDS = {r.record_id: r for r in load_records(ROOT / "eval" / "dataset.jsonl")}
 # The words in each claim that a one-sided model would quote as its evidence.
-KEY = {"v2-c01": "12 hours", "v2-c02": "€129", "v2-c03": "2 April 2026", "v2-c04": "Ana Ribeiro", "v2-c05": "750 ml"}
+KEY = {
+    "v2-c01": "12 hours",
+    "v2-c02": "€129",
+    "v2-c03": "2 April 2026",
+    "v2-c04": "Ana Ribeiro",
+    "v2-c05": "750 ml",
+}
 
 
 def one_sided(verdict: str, key: str):
@@ -32,8 +44,11 @@ def one_sided(verdict: str, key: str):
         for passage in block["passages"]:
             for sentence in re.findall(r"[^.!?\n]+[.!?]?", passage["text"]):
                 if key in sentence:
-                    return {"verdict": verdict, "citations": [{"passage": passage["label"], "quote": sentence.strip()}],
-                            "rationale": "One-sided reading."}
+                    return {
+                        "verdict": verdict,
+                        "citations": [{"passage": passage["label"], "quote": sentence.strip()}],
+                        "rationale": "One-sided reading.",
+                    }
         return {"verdict": "NOT_ENOUGH_EVIDENCE", "citations": [], "rationale": "Not found."}
 
     return respond
@@ -41,7 +56,9 @@ def one_sided(verdict: str, key: str):
 
 def run(record_id: str, verdict: str = "SUPPORTED"):
     record = RECORDS[record_id]
-    verifier = ClaimVerifier(ResponderProvider(one_sided(verdict, KEY[record_id])), record.references)
+    verifier = ClaimVerifier(
+        ResponderProvider(one_sided(verdict, KEY[record_id])), record.references
+    )
     return verify_claim(_eval_claim(record), BM25Retriever(record.references), verifier)
 
 
@@ -49,9 +66,17 @@ def run(record_id: str, verdict: str = "SUPPORTED"):
 def test_figure_conflicts_in_the_dataset_are_downgraded_and_sent_to_review(record_id):
     assert RECORDS[record_id].expected_verdict is Verdict.NOT_ENOUGH_EVIDENCE
     result = run(record_id)
-    assert result.citation_guard.model_verdict is Verdict.SUPPORTED  # the model did answer SUPPORTED
-    assert result.verdict is Verdict.NOT_ENOUGH_EVIDENCE and result.citations == [] and result.requires_human_review
-    assert [r.reason for r in result.citation_guard.rejected] == [GuardRejectionReason.CONFLICTING_EVIDENCE]
+    assert (
+        result.citation_guard.model_verdict is Verdict.SUPPORTED
+    )  # the model did answer SUPPORTED
+    assert (
+        result.verdict is Verdict.NOT_ENOUGH_EVIDENCE
+        and result.citations == []
+        and result.requires_human_review
+    )
+    assert [r.reason for r in result.citation_guard.rejected] == [
+        GuardRejectionReason.CONFLICTING_EVIDENCE
+    ]
 
 
 def test_a_conflict_about_something_else_leaves_a_supported_claim_alone():
@@ -72,11 +97,15 @@ def test_a_contradicted_answer_is_downgraded_when_another_document_backs_the_cla
     """'Must not automatically produce CONTRADICTED': the model quotes the firmware note (14 hours)
     against the claim (12 hours), but the fact sheet says 12 hours."""
     record = RECORDS["v2-c01"]
-    verifier = ClaimVerifier(ResponderProvider(one_sided("CONTRADICTED", "14 hours")), record.references)
+    verifier = ClaimVerifier(
+        ResponderProvider(one_sided("CONTRADICTED", "14 hours")), record.references
+    )
     result = verify_claim(_eval_claim(record), BM25Retriever(record.references), verifier)
     assert result.citation_guard.model_verdict is Verdict.CONTRADICTED
     assert result.verdict is Verdict.NOT_ENOUGH_EVIDENCE
-    assert [r.reason for r in result.citation_guard.rejected] == [GuardRejectionReason.CONFLICTING_EVIDENCE]
+    assert [r.reason for r in result.citation_guard.rejected] == [
+        GuardRejectionReason.CONFLICTING_EVIDENCE
+    ]
 
 
 def test_a_plain_contradiction_still_stands():
@@ -92,18 +121,33 @@ def test_a_plain_contradiction_still_stands():
 
 def test_the_report_names_conflicting_evidence_as_a_review_reason():
     record = RECORDS["v2-c01"]
-    request = VerificationRequest(request_id="req-conflict", tenant_id="tenant-eval",
-                                  content={"text": record.claim_text}, references=record.references)
+    request = VerificationRequest(
+        request_id="req-conflict",
+        tenant_id="tenant-eval",
+        content={"text": record.claim_text},
+        references=record.references,
+    )
 
     def respond(call):
         if call.schema_name == "claim_extraction":
             sentences = data_block(call, "content_json")["sentences"]
-            return {"statements": [{"sentence_id": s["id"], "kind": "factual",
-                                    "claims": [{"text": s["text"], "source_quote": s["text"]}]} for s in sentences]}
+            return {
+                "statements": [
+                    {
+                        "sentence_id": s["id"],
+                        "kind": "factual",
+                        "claims": [{"text": s["text"], "source_quote": s["text"]}],
+                    }
+                    for s in sentences
+                ]
+            }
         return one_sided("SUPPORTED", "12 hours")(call)
 
     report = verify_request(request, ResponderProvider(respond))
     [result] = report.results
     assert result.verdict is Verdict.NOT_ENOUGH_EVIDENCE
-    assert ReviewReason.CONFLICTING_EVIDENCE in report.score.review_reasons and report.score.requires_human_review
+    assert (
+        ReviewReason.CONFLICTING_EVIDENCE in report.score.review_reasons
+        and report.score.requires_human_review
+    )
     json.loads(report.model_dump_json())  # serialises with the new enum values

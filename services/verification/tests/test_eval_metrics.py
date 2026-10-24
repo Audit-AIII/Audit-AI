@@ -48,7 +48,12 @@ def test_hand_computed_accuracy_and_rates(confusion):
 
 def test_hand_computed_per_class(confusion):
     s = metrics.class_metrics(confusion, S)
-    assert (s.support, s.predicted, s.precision, s.recall) == (4, 4, metrics.ratio(3, 4), metrics.ratio(3, 4))
+    assert (s.support, s.predicted, s.precision, s.recall) == (
+        4,
+        4,
+        metrics.ratio(3, 4),
+        metrics.ratio(3, 4),
+    )
     assert s.f1 == pytest.approx(0.75)
     c = metrics.class_metrics(confusion, C)
     assert (c.precision, c.recall) == (metrics.ratio(2, 3), metrics.ratio(2, 3))
@@ -106,9 +111,14 @@ def record() -> EvalRecord:
     return EvalRecord(
         record_id="r1",
         claim_text="Each earbud weighs 5.2 g.",
-        references=[{"doc_id": "sheet", "text": DOC_TEXT}, {"doc_id": "other", "text": "Unrelated."}],
+        references=[
+            {"doc_id": "sheet", "text": DOC_TEXT},
+            {"doc_id": "other", "text": "Unrelated."},
+        ],
         expected_verdict="SUPPORTED",
-        gold_evidence=[{"doc_id": "sheet", "span": {"start": 0, "end": 24}, "quote": DOC_TEXT[:24]}],
+        gold_evidence=[
+            {"doc_id": "sheet", "span": {"start": 0, "end": 24}, "quote": DOC_TEXT[:24]}
+        ],
         label_rationale="Stated in the sheet.",
     )
 

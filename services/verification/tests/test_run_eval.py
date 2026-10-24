@@ -18,7 +18,11 @@ spec.loader.exec_module(run_eval)
 def default_run(tmp_path_factory):
     out = tmp_path_factory.mktemp("run")
     code = run_eval.main(["--out", str(out), "--check-baseline"])
-    return code, json.loads((out / "report.json").read_text(encoding="utf-8")), (out / "report.md").read_text(encoding="utf-8")
+    return (
+        code,
+        json.loads((out / "report.json").read_text(encoding="utf-8")),
+        (out / "report.md").read_text(encoding="utf-8"),
+    )
 
 
 def write_baseline(tmp_path, gates) -> Path:
@@ -39,14 +43,40 @@ def test_default_run_passes_its_gates_and_writes_both_reports(default_run):
     assert code == 0
     # Every "always" gate passes; model-run and oracle gates do not apply to the abstain floor.
     assert all(g["status"] == "PASS" for g in report["gates"] if g["applies_to"] == "always")
-    assert {g["status"] for g in report["gates"] if g["applies_to"] != "always"} == {"NOT APPLICABLE"}
-    for section in ("## 1. Run summary", "## 2. Execution", "## 3. Outcome", "## 4. Dataset", "## 5. Size and class distribution", "## 6. Model", "## 7. Provider", "## 8. Prompt versions", "## 9. Retrieval configuration", "## 10. Decision thresholds and policy", "## 11. Required metrics", "## 12. Confusion matrix", "## 13. Failed evaluation cases", "## 14. Citation-validation failures", "## 15. Retrieval misses", "## 16. Human-review routing", "## 17. Correction traceability", "## 18. Comparison with the agreed baseline", "## 19. Known limitations", "## 20. Errors, unavailable metrics and skipped checks"):
+    assert {g["status"] for g in report["gates"] if g["applies_to"] != "always"} == {
+        "NOT APPLICABLE"
+    }
+    for section in (
+        "## 1. Run summary",
+        "## 2. Execution",
+        "## 3. Outcome",
+        "## 4. Dataset",
+        "## 5. Size and class distribution",
+        "## 6. Model",
+        "## 7. Provider",
+        "## 8. Prompt versions",
+        "## 9. Retrieval configuration",
+        "## 10. Decision thresholds and policy",
+        "## 11. Required metrics",
+        "## 12. Confusion matrix",
+        "## 13. Failed evaluation cases",
+        "## 14. Citation-validation failures",
+        "## 15. Retrieval misses",
+        "## 16. Human-review routing",
+        "## 17. Correction traceability",
+        "## 18. Comparison with the agreed baseline",
+        "## 19. Known limitations",
+        "## 20. Errors, unavailable metrics and skipped checks",
+    ):
         assert section in text
 
 
 def test_the_abstain_floor_is_never_presented_as_model_accuracy(default_run):
     _, report, text = default_run
-    assert report["verdicts"]["source"] == "abstain" and report["verdicts"]["is_model_quality"] is False
+    assert (
+        report["verdicts"]["source"] == "abstain"
+        and report["verdicts"]["is_model_quality"] is False
+    )
     assert "not model quality" in text and "Human-reviewed labels: 0/80" in text
 
 
@@ -55,10 +85,17 @@ def test_report_has_every_required_metric(default_run):
     v = report["verdicts"]
     assert v["examples"] == 80
     assert set(v["per_class"]) == {"SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE"}
-    assert set(v["confusion"]["CONTRADICTED"]) == {"SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE", "ERROR"}
+    assert set(v["confusion"]["CONTRADICTED"]) == {
+        "SUPPORTED",
+        "CONTRADICTED",
+        "NOT_ENOUGH_EVIDENCE",
+        "ERROR",
+    }
     for key in ("accuracy", "abstention_rate", "citation_validity", "false_supported_rate"):
         assert {"numerator", "denominator", "value"} <= set(v[key])
-    assert report["retrieval"]["dataset.jsonl"]["recall_at_5"]["denominator"] == 57  # records with gold evidence: 25 SUPPORTED + 32 CONTRADICTED
+    assert (
+        report["retrieval"]["dataset.jsonl"]["recall_at_5"]["denominator"] == 57
+    )  # records with gold evidence: 25 SUPPORTED + 32 CONTRADICTED
     assert report["faults"]["pass_rate"] == {"numerator": 18, "denominator": 18, "value": 1.0}
 
 
@@ -66,7 +103,9 @@ def test_report_has_every_required_metric(default_run):
 
 
 def test_a_regression_below_a_deterministic_baseline_fails(tmp_path):
-    baseline = write_baseline(tmp_path, [gate("corrections/checker/correctly_accepted", ">=", 1.0)])  # measured 17/18
+    baseline = write_baseline(
+        tmp_path, [gate("corrections/checker/correctly_accepted", ">=", 1.0)]
+    )  # measured 17/18
     assert run_eval.main(["--out", str(tmp_path / "out"), "--check-baseline", str(baseline)]) == 1
     report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
     assert report["gates"][0]["status"] == "FAIL"
@@ -82,9 +121,19 @@ def predictions(tmp_path, name, change=None) -> Path:
     """Replayable predictions for eval/dataset.jsonl: the labels and gold quotes, optionally altered."""
     lines = []
     for record in load_records(ROOT / "eval" / "dataset.jsonl"):
-        p = {"record_id": record.record_id, "verdict": record.expected_verdict.value, "model_id": "replay/test",
-             "citations": [{"doc_id": g.doc_id, "quote": g.quote, "quote_span": {"start": g.span.start, "end": g.span.end}}
-                           for g in record.gold_evidence]}
+        p = {
+            "record_id": record.record_id,
+            "verdict": record.expected_verdict.value,
+            "model_id": "replay/test",
+            "citations": [
+                {
+                    "doc_id": g.doc_id,
+                    "quote": g.quote,
+                    "quote_span": {"start": g.span.start, "end": g.span.end},
+                }
+                for g in record.gold_evidence
+            ],
+        }
         if change:
             change(record, p)
         lines.append(json.dumps(p))
@@ -102,7 +151,19 @@ MODEL_GATES = [
 def test_model_run_gates_pass_for_a_good_replay(tmp_path):
     baseline = write_baseline(tmp_path, MODEL_GATES)
     good = predictions(tmp_path, "good.jsonl")
-    assert run_eval.main(["--predictions", str(good), "--out", str(tmp_path / "o"), "--check-baseline", str(baseline)]) == 0
+    assert (
+        run_eval.main(
+            [
+                "--predictions",
+                str(good),
+                "--out",
+                str(tmp_path / "o"),
+                "--check-baseline",
+                str(baseline),
+            ]
+        )
+        == 0
+    )
 
 
 def test_contradicted_recall_below_threshold_fails_ci(tmp_path):
@@ -112,7 +173,19 @@ def test_contradicted_recall_below_threshold_fails_ci(tmp_path):
 
     baseline = write_baseline(tmp_path, MODEL_GATES)
     bad = predictions(tmp_path, "bad.jsonl", miss_contradictions)
-    assert run_eval.main(["--predictions", str(bad), "--out", str(tmp_path / "o"), "--check-baseline", str(baseline)]) == 1
+    assert (
+        run_eval.main(
+            [
+                "--predictions",
+                str(bad),
+                "--out",
+                str(tmp_path / "o"),
+                "--check-baseline",
+                str(baseline),
+            ]
+        )
+        == 1
+    )
 
 
 def test_citation_validity_below_baseline_fails_ci(tmp_path):
@@ -122,13 +195,39 @@ def test_citation_validity_below_baseline_fails_ci(tmp_path):
 
     baseline = write_baseline(tmp_path, MODEL_GATES)
     bad = predictions(tmp_path, "fabricated.jsonl", fabricate)
-    assert run_eval.main(["--predictions", str(bad), "--out", str(tmp_path / "o"), "--check-baseline", str(baseline)]) == 1
+    assert (
+        run_eval.main(
+            [
+                "--predictions",
+                str(bad),
+                "--out",
+                str(tmp_path / "o"),
+                "--check-baseline",
+                str(baseline),
+            ]
+        )
+        == 1
+    )
 
 
 def test_unset_model_thresholds_are_reported_not_enforced(tmp_path):
-    baseline = write_baseline(tmp_path, [gate("verdicts/citation_validity", ">=", None, "model_run")])
+    baseline = write_baseline(
+        tmp_path, [gate("verdicts/citation_validity", ">=", None, "model_run")]
+    )
     good = predictions(tmp_path, "good.jsonl")
-    assert run_eval.main(["--predictions", str(good), "--out", str(tmp_path / "o"), "--check-baseline", str(baseline)]) == 0
+    assert (
+        run_eval.main(
+            [
+                "--predictions",
+                str(good),
+                "--out",
+                str(tmp_path / "o"),
+                "--check-baseline",
+                str(baseline),
+            ]
+        )
+        == 0
+    )
     report = json.loads((tmp_path / "o" / "report.json").read_text(encoding="utf-8"))
     assert report["gates"][0]["status"] == "NOT ENFORCED"
 
@@ -171,26 +270,56 @@ def test_live_run_without_credentials_fails_clearly(tmp_path, monkeypatch, capsy
 
 
 def test_dataset_keeps_every_v1_record_unchanged():
-    v1 = [line for line in (ROOT / "eval/data/verification_v1.jsonl").read_text(encoding="utf-8").splitlines() if line]
-    dataset = [line for line in (ROOT / "eval/dataset.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    v1 = [
+        line
+        for line in (ROOT / "eval/data/verification_v1.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line
+    ]
+    dataset = [
+        line
+        for line in (ROOT / "eval/dataset.jsonl").read_text(encoding="utf-8").splitlines()
+        if line
+    ]
     assert dataset[: len(v1)] == v1
 
 
 def test_dataset_covers_the_required_cases():
     records = load_records(ROOT / "eval" / "dataset.jsonl")
     categories = {c.value for r in records for c in r.categories}
-    assert {"numeric", "date", "named_entity", "ambiguous", "conflicting_evidence", "prompt_injection", "compound"} <= categories
+    assert {
+        "numeric",
+        "date",
+        "named_entity",
+        "ambiguous",
+        "conflicting_evidence",
+        "prompt_injection",
+        "compound",
+    } <= categories
     conflicts = [r for r in records if "conflicting_evidence" in {c.value for c in r.categories}]
-    assert [r.expected_verdict.value for r in conflicts].count("NOT_ENOUGH_EVIDENCE") == 5  # v2-c01..c04, v3-021
+    assert [r.expected_verdict.value for r in conflicts].count(
+        "NOT_ENOUGH_EVIDENCE"
+    ) == 5  # v2-c01..c04, v3-021
     assert all(r.label_rationale for r in records)
-    assert all(r.gold_evidence for r in records if r.expected_verdict.value != "NOT_ENOUGH_EVIDENCE")
+    assert all(
+        r.gold_evidence for r in records if r.expected_verdict.value != "NOT_ENOUGH_EVIDENCE"
+    )
 
 
 def test_fault_cases_cover_every_stage_and_fault():
     cases = json.loads((ROOT / "eval" / "fault_cases.json").read_text(encoding="utf-8"))
     assert {(c["stage"], c["fault"]) for c in cases} == {
-        (s, f) for s in ("extraction", "verification", "correction")
-        for f in ("timeout", "rate_limit", "unavailable", "malformed_json", "schema_invalid", "not_configured")
+        (s, f)
+        for s in ("extraction", "verification", "correction")
+        for f in (
+            "timeout",
+            "rate_limit",
+            "unavailable",
+            "malformed_json",
+            "schema_invalid",
+            "not_configured",
+        )
     }
 
 
@@ -212,10 +341,26 @@ def test_report_includes_the_extraction_evaluation_and_its_gates(default_run):
 def test_a_dry_run_pins_and_records_the_prompt_set(tmp_path, prompt_set):
     """Offline: --dry-run answers every call minimally. The report says which prompts were sent
     and never presents the run as model quality."""
-    assert run_eval.main(["--verdicts", "openrouter", "--dry-run", "--prompts", prompt_set, "--out", str(tmp_path)]) == 0
+    assert (
+        run_eval.main(
+            [
+                "--verdicts",
+                "openrouter",
+                "--dry-run",
+                "--prompts",
+                prompt_set,
+                "--out",
+                str(tmp_path),
+            ]
+        )
+        == 0
+    )
     report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
     expected = run_eval.PROMPT_SETS[prompt_set]
-    assert report["run"]["prompt_versions"] == expected and report["run"]["verdict_source"] == "dry-run"
+    assert (
+        report["run"]["prompt_versions"] == expected
+        and report["run"]["verdict_source"] == "dry-run"
+    )
     assert report["verdicts"]["prompt_versions_sent"] == [expected["verify_claim"]]
     assert report["verdicts"]["is_model_quality"] is False
     calls = report["calls"]
@@ -240,8 +385,12 @@ def test_the_model_configuration_is_recorded_without_the_key():
     from inkloom_verify.providers.openrouter import OpenRouterProvider, OpenRouterSettings
 
     key = "sk-or-v1-PHASE7-TEST-ONLY-NOT-A-REAL-KEY-0000"
-    config = run_eval.model_configuration(OpenRouterProvider(OpenRouterSettings(api_key=key, models=["a/b", "c/d"])))
-    assert config["models"] == ["a/b", "c/d"] and config["temperature"] == 0.0 and config["seed"] == 0
+    config = run_eval.model_configuration(
+        OpenRouterProvider(OpenRouterSettings(api_key=key, models=["a/b", "c/d"]))
+    )
+    assert (
+        config["models"] == ["a/b", "c/d"] and config["temperature"] == 0.0 and config["seed"] == 0
+    )
     assert key not in json.dumps(config) and "api_key" not in config
 
 
@@ -263,12 +412,20 @@ def test_repair_calls_and_provider_errors_are_counted_per_stage():
             return run_eval.JsonCompletion(data=reply, model="m", attempts=1)
 
     counting = run_eval.CountingProvider(Inner())
-    first = JsonCompletionRequest(system="s", user="u", schema_name="claim_verification", json_schema={})
+    first = JsonCompletionRequest(
+        system="s", user="u", schema_name="claim_verification", json_schema={}
+    )
     counting.complete_json(first)
     with pytest.raises(MalformedOutputError):
-        counting.complete_json(first.model_copy(update={"user": "u\n\n" + run_eval.REPAIR_MARKER + " x"}))
-    assert counting.stats["claim_verification"] == {"calls": 2, "repair_calls": 1, "input_chars": 2 + (1 + 3 + len(run_eval.REPAIR_MARKER) + 2),
-                                                    "errors": {"MALFORMED_MODEL_OUTPUT": 1}}
+        counting.complete_json(
+            first.model_copy(update={"user": "u\n\n" + run_eval.REPAIR_MARKER + " x"})
+        )
+    assert counting.stats["claim_verification"] == {
+        "calls": 2,
+        "repair_calls": 1,
+        "input_chars": 2 + (1 + 3 + len(run_eval.REPAIR_MARKER) + 2),
+        "errors": {"MALFORMED_MODEL_OUTPUT": 1},
+    }
 
 
 # --- Provider failure rate gate (added 2026-10-24: a 78/80-ERROR live run reported PASSED) ---------
@@ -282,13 +439,28 @@ def errors_for_first(n):
     def change(record, p):
         if record.record_id in ids:
             p.update(verdict="ERROR", citations=[])
+
     return change
 
 
 def test_a_live_run_where_almost_every_record_failed_does_not_pass(tmp_path):
     baseline = write_baseline(tmp_path, [FAILURE_GATE])
-    outage = predictions(tmp_path, "outage.jsonl", errors_for_first(78))  # what the live run of 2026-10-24 produced
-    assert run_eval.main(["--predictions", str(outage), "--out", str(tmp_path / "o"), "--check-baseline", str(baseline)]) == 1
+    outage = predictions(
+        tmp_path, "outage.jsonl", errors_for_first(78)
+    )  # what the live run of 2026-10-24 produced
+    assert (
+        run_eval.main(
+            [
+                "--predictions",
+                str(outage),
+                "--out",
+                str(tmp_path / "o"),
+                "--check-baseline",
+                str(baseline),
+            ]
+        )
+        == 1
+    )
     report = json.loads((tmp_path / "o" / "report.json").read_text(encoding="utf-8"))
     [entry] = [g for g in report["gates"] if g["name"] == FAILURE_GATE["name"]]
     assert entry["status"] == "FAIL" and entry["measured"] == pytest.approx(78 / 80)
@@ -298,7 +470,19 @@ def test_a_live_run_where_almost_every_record_failed_does_not_pass(tmp_path):
 def test_the_failure_gate_boundary(tmp_path, failed, code):
     baseline = write_baseline(tmp_path, [FAILURE_GATE])
     run = predictions(tmp_path, f"f{failed}.jsonl", errors_for_first(failed))
-    assert run_eval.main(["--predictions", str(run), "--out", str(tmp_path / "o"), "--check-baseline", str(baseline)]) == code
+    assert (
+        run_eval.main(
+            [
+                "--predictions",
+                str(run),
+                "--out",
+                str(tmp_path / "o"),
+                "--check-baseline",
+                str(baseline),
+            ]
+        )
+        == code
+    )
 
 
 def test_the_committed_baseline_enforces_the_failure_gate_on_live_runs_only():

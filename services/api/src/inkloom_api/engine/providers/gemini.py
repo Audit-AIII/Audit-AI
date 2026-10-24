@@ -42,7 +42,9 @@ MODEL_VAR = "GEMINI_MODEL"
 # would otherwise compound with this adapter's own `with_retry` - two independent retry loops
 # multiplying delay instead of adding it, which in testing hung well past a minute on a single
 # transient 503. `attempts=1` disables the SDK's layer so retry.py is the only one.
-_HTTP_OPTIONS = genai_types.HttpOptions(timeout=30_000, retry_options=genai_types.HttpRetryOptions(attempts=1))
+_HTTP_OPTIONS = genai_types.HttpOptions(
+    timeout=30_000, retry_options=genai_types.HttpRetryOptions(attempts=1)
+)
 
 
 class GeminiProvider:
@@ -57,7 +59,9 @@ class GeminiProvider:
         env = os.environ if env is None else env
         api_key = env.get(API_KEY_VAR, "").strip()
         model = env.get(MODEL_VAR, "").strip()
-        missing = [name for name, value in ((API_KEY_VAR, api_key), (MODEL_VAR, model)) if not value]
+        missing = [
+            name for name, value in ((API_KEY_VAR, api_key), (MODEL_VAR, model)) if not value
+        ]
         if missing:
             raise ProviderNotConfiguredError(f"Gemini not configured: set {' and '.join(missing)}.")
         # Gemini API terms (Unpaid Services): Google uses submitted content and responses to

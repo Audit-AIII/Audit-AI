@@ -48,15 +48,32 @@ def test_engine_softener_is_loaded() -> None:
     assert load_softener_class() is ClaimSoftener
 
 
-@pytest.mark.parametrize("correction, expected", [
-    (("India's number one smartphone", "a smartphone sold in India"), "The Kora X2 is a smartphone sold in India."),
-    (("number one", "leading"), None),  # one unproven ranking for another: the engine refuses it
-    (("India's number one smartphone", "a 5G smartphone sold in India"), None),  # invented fact
-])
+@pytest.mark.parametrize(
+    "correction, expected",
+    [
+        (
+            ("India's number one smartphone", "a smartphone sold in India"),
+            "The Kora X2 is a smartphone sold in India.",
+        ),
+        (
+            ("number one", "leading"),
+            None,
+        ),  # one unproven ranking for another: the engine refuses it
+        (("India's number one smartphone", "a 5G smartphone sold in India"), None),  # invented fact
+    ],
+)
 @requires_db
-def test_real_engine_softener_end_to_end(client, monkeypatch, db_session, account_factory, correction, expected) -> None:
+def test_real_engine_softener_end_to_end(
+    client, monkeypatch, db_session, account_factory, correction, expected
+) -> None:
     """No stand-in: the engine's own ClaimSoftener, prompt and checks, then the backend guard."""
-    rule = ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No document mentions rankings.", correction=correction)
+    rule = ScriptedRule(
+        "number one",
+        "NOT_ENOUGH_EVIDENCE",
+        None,
+        "No document mentions rankings.",
+        correction=correction,
+    )
     use_scripted_provider(monkeypatch, [rule])
     owner = account_factory("owner", with_source=False)
     owner.upload_source(KORA_FACTS)
@@ -73,19 +90,36 @@ def test_real_engine_softener_end_to_end(client, monkeypatch, db_session, accoun
 
 def test_guard_accepts_a_real_softening() -> None:
     assert softening_issues(CLAIM, "The Kora X2 is a smartphone sold in India.") == []
-    assert softening_issues("Launching 15 August at ₹24,999, the best Kora X2 deal.",
-                            "Launching 15 August at ₹24,999, a Kora X2 deal.") == []
+    assert (
+        softening_issues(
+            "Launching 15 August at ₹24,999, the best Kora X2 deal.",
+            "Launching 15 August at ₹24,999, a Kora X2 deal.",
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize(
     "original,rewritten,expected_prefix",
     [
-        (CLAIM, "The Kora X2 is India's leading smartphone.", "unproven_ranking"),  # one ranking -> another
+        (
+            CLAIM,
+            "The Kora X2 is India's leading smartphone.",
+            "unproven_ranking",
+        ),  # one ranking -> another
         (CLAIM, "The Kora X2 is India's #1 smartphone.", "unproven_ranking"),
         (CLAIM, "The Kora X2 is the fastest smartphone in India.", "unproven_ranking"),
         (CLAIM, "The Kora X2 is the only smartphone made in India.", "unproven_ranking"),
-        (CLAIM, "The Kora X2 is used by 10 million people in India.", "adds_numbers"),  # invented fact
-        ("The Kora X2 costs ₹24,999 and is the best phone.", "The Kora X2 is a phone.", "drops_number"),
+        (
+            CLAIM,
+            "The Kora X2 is used by 10 million people in India.",
+            "adds_numbers",
+        ),  # invented fact
+        (
+            "The Kora X2 costs ₹24,999 and is the best phone.",
+            "The Kora X2 is a phone.",
+            "drops_number",
+        ),
         ("Kora X2 ships 15 August, the best launch.", "Kora X2 ships soon.", "drops_number"),
         ("Out in August, the best Kora X2 yet.", "Out soon, a new Kora X2.", "drops_date"),
         (CLAIM, "It is a smartphone sold in India.", "drops_name"),  # product name lost
@@ -116,16 +150,25 @@ class _FakeSoftener:
     def soften(self, result, content):
         claim = result.claim
         sentence = claim.source_span.slice(content.text)
-        reply = self.provider.complete_json(JsonCompletionRequest(
-            system="soften (test double)",
-            user="<softening_input_json>\n" + json.dumps({"sentence": sentence, "claim": claim.statement}) + "\n</softening_input_json>",
-            schema_name="claim_softening", json_schema={"type": "object"}, max_output_tokens=256,
-        )).data
+        reply = self.provider.complete_json(
+            JsonCompletionRequest(
+                system="soften (test double)",
+                user="<softening_input_json>\n"
+                + json.dumps({"sentence": sentence, "claim": claim.statement})
+                + "\n</softening_input_json>",
+                schema_name="claim_softening",
+                json_schema={"type": "object"},
+                max_output_tokens=256,
+            )
+        ).data
         if reply["status"] not in ("corrected", "softened"):
             return None
         start = sentence.index(reply["original_text"]) + claim.source_span.start
-        return _Softened(SourceSpan(start=start, end=start + len(reply["original_text"])),
-                         reply["original_text"], reply["replacement_text"])
+        return _Softened(
+            SourceSpan(start=start, end=start + len(reply["original_text"])),
+            reply["original_text"],
+            reply["replacement_text"],
+        )
 
 
 def _with_softener(monkeypatch, softener_class) -> None:
@@ -135,9 +178,16 @@ def _with_softener(monkeypatch, softener_class) -> None:
 
 
 @requires_db
-def test_softener_suggestion_is_stored_and_finding_stays_unverified(client, monkeypatch, db_session, account_factory) -> None:
-    rule = ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No document mentions rankings.",
-                        correction=("India's number one smartphone", "a smartphone sold in India"))
+def test_softener_suggestion_is_stored_and_finding_stays_unverified(
+    client, monkeypatch, db_session, account_factory
+) -> None:
+    rule = ScriptedRule(
+        "number one",
+        "NOT_ENOUGH_EVIDENCE",
+        None,
+        "No document mentions rankings.",
+        correction=("India's number one smartphone", "a smartphone sold in India"),
+    )
     use_scripted_provider(monkeypatch, [rule])
     _with_softener(monkeypatch, _FakeSoftener)
     owner = account_factory("owner", with_source=False)
@@ -157,8 +207,13 @@ def test_softener_suggestion_is_stored_and_finding_stays_unverified(client, monk
 
 @requires_db
 def test_rule_breaking_softener_suggestion_is_dropped(client, monkeypatch, account_factory) -> None:
-    rule = ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No document mentions rankings.",
-                        correction=("number one", "leading"))  # one unproven ranking for another
+    rule = ScriptedRule(
+        "number one",
+        "NOT_ENOUGH_EVIDENCE",
+        None,
+        "No document mentions rankings.",
+        correction=("number one", "leading"),
+    )  # one unproven ranking for another
     use_scripted_provider(monkeypatch, [rule])
     _with_softener(monkeypatch, _FakeSoftener)
     owner = account_factory("owner", with_source=False)
@@ -177,11 +232,17 @@ def test_softener_crash_keeps_review_intact(client, monkeypatch, account_factory
         def soften(self, result, content):
             raise RuntimeError("simulated softener bug")
 
-    use_scripted_provider(monkeypatch, [ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No rankings.")])
+    use_scripted_provider(
+        monkeypatch, [ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No rankings.")]
+    )
     _with_softener(monkeypatch, _Crashing)
     owner = account_factory("owner", with_source=False)
     owner.upload_source(KORA_FACTS)
     review = owner.submit(CLAIM)
     assert review["status"] == "needs_human_review"
     [finding] = review["findings"]
-    assert (finding["verification_status"], finding["suggested_correction"], finding["safer_wording"]) == ("unverified", None, None)
+    assert (
+        finding["verification_status"],
+        finding["suggested_correction"],
+        finding["safer_wording"],
+    ) == ("unverified", None, None)

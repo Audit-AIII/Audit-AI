@@ -146,7 +146,9 @@ class Correction(_Public):
         proposed = self.status is CorrectionOutcome.PROPOSED
         parts = (self.span, self.original_text, self.replacement_text)
         if proposed and (any(p is None for p in parts) or not self.evidence):
-            raise ValueError("a proposed correction needs span, original_text, replacement_text and evidence")
+            raise ValueError(
+                "a proposed correction needs span, original_text, replacement_text and evidence"
+            )
         if not proposed and (any(p is not None for p in parts) or self.evidence):
             raise ValueError("only a proposed correction carries a replacement or evidence")
         if proposed and len(self.original_text) != self.span.length:  # type: ignore[arg-type,union-attr]
@@ -188,7 +190,11 @@ class VerdictResult(_Public):
         if self.confidence < CONFIDENCE[EvidenceStrength.MODERATE] and not self.needs_human_review:
             # Approved review policy: SUPPORTED on weak evidence (0.33) or less goes to a person.
             raise ValueError("low confidence needs human review")
-        if self.correction is not None and self.correction.status is not CorrectionOutcome.PROPOSED and not self.needs_human_review:
+        if (
+            self.correction is not None
+            and self.correction.status is not CorrectionOutcome.PROPOSED
+            and not self.needs_human_review
+        ):
             raise ValueError("a contradicted claim without a safe correction needs human review")
         return self
 
@@ -234,10 +240,18 @@ class Report(_Public):
         suggest = True if not info.context else info.context.get("suggest_corrections", True)
         for entry in self.claims:
             verdict = entry.verdict
-            if suggest and verdict.status is VerdictStatus.CONTRADICTED and verdict.correction is None:
-                raise ValueError(f"{entry.claim.claim_id}: suggest_corrections is true, so a CONTRADICTED verdict needs a correction outcome")
+            if (
+                suggest
+                and verdict.status is VerdictStatus.CONTRADICTED
+                and verdict.correction is None
+            ):
+                raise ValueError(
+                    f"{entry.claim.claim_id}: suggest_corrections is true, so a CONTRADICTED verdict needs a correction outcome"
+                )
             if not suggest and verdict.correction is not None:
-                raise ValueError(f"{entry.claim.claim_id}: suggest_corrections is false, so no correction may be returned")
+                raise ValueError(
+                    f"{entry.claim.claim_id}: suggest_corrections is false, so no correction may be returned"
+                )
         return self
 
 
@@ -277,12 +291,20 @@ def _span(start: int, end: int) -> dict[str, int]:
 
 
 def _evidence(citation: InternalCitation) -> dict[str, Any]:
-    return {"doc_id": citation.doc_id, "location": _span(citation.quote_span.start, citation.quote_span.end), "quote": citation.quote}
+    return {
+        "doc_id": citation.doc_id,
+        "location": _span(citation.quote_span.start, citation.quote_span.end),
+        "quote": citation.quote,
+    }
 
 
 def to_public_passage(passage: EvidencePassage) -> Passage:
-    return Passage(doc_id=passage.doc_id, location=Span(start=passage.span.start, end=passage.span.end),
-                   text=passage.text, score=passage.retrieval.score)
+    return Passage(
+        doc_id=passage.doc_id,
+        location=Span(start=passage.span.start, end=passage.span.end),
+        text=passage.text,
+        score=passage.retrieval.score,
+    )
 
 
 def _verdict(result: InternalResult, suggest_corrections: bool) -> dict[str, Any]:
@@ -297,12 +319,18 @@ def _verdict(result: InternalResult, suggest_corrections: bool) -> dict[str, Any
     if suggest_corrections and result.verdict is Verdict.CONTRADICTED:
         attempt = result.correction_attempt
         if attempt is None:
-            raise NotRepresentable(f"{result.claim.claim_id}: suggest_corrections is true but no correction was attempted")
+            raise NotRepresentable(
+                f"{result.claim.claim_id}: suggest_corrections is true but no correction was attempted"
+            )
         correction: dict[str, Any] = {"status": attempt.status.value}
         if result.correction is not None:
             c = result.correction
-            correction.update(span=_span(c.target_span.start, c.target_span.end), original_text=c.original_text,
-                              replacement_text=c.replacement_text, evidence=[_evidence(x) for x in c.citations])
+            correction.update(
+                span=_span(c.target_span.start, c.target_span.end),
+                original_text=c.original_text,
+                replacement_text=c.replacement_text,
+                evidence=[_evidence(x) for x in c.citations],
+            )
         data["correction"] = correction
     return data
 
@@ -319,21 +347,44 @@ def to_public_report(report: VerificationReport, suggest_corrections: bool = Tru
         codes = ", ".join(sorted({e.code.value for e in report.errors})) or "none"
         raise NotRepresentable(f"report FAILED ({codes}): there are no results to return")
     claims = [
-        {"claim": {"claim_id": r.claim.claim_id, "text": r.claim.text,
-                   "span": _span(r.claim.source_span.start, r.claim.source_span.end)},
-         "verdict": _verdict(r, suggest_corrections)}
+        {
+            "claim": {
+                "claim_id": r.claim.claim_id,
+                "text": r.claim.text,
+                "span": _span(r.claim.source_span.start, r.claim.source_span.end),
+            },
+            "verdict": _verdict(r, suggest_corrections),
+        }
         for r in report.results
     ]
-    metadata = {"content_hash": report.content_sha256,
-                "errors": [{"code": e.code.value, "message": e.message} for e in report.errors],
-                "prompt_versions": dict(report.provenance.prompt_versions)}
+    metadata = {
+        "content_hash": report.content_sha256,
+        "errors": [{"code": e.code.value, "message": e.message} for e in report.errors],
+        "prompt_versions": dict(report.provenance.prompt_versions),
+    }
     data = {"request_id": report.request_id, "claims": claims, "metadata": metadata}
     return Report.model_validate(data, context={"suggest_corrections": suggest_corrections})
 
 
 __all__ = [
-    "CONFIDENCE", "PUBLIC_SCHEMA_VERSION", "Claim", "Correction", "CorrectionOutcome", "Evidence", "NotRepresentable",
-    "Passage", "Report", "ReportClaim", "ReportError", "ReportMetadata", "Span", "VerdictResult", "VerdictStatus",
-    "VerifyContent", "VerifyOptions", "VerifyRequest",
-    "to_public_passage", "to_public_report",
+    "CONFIDENCE",
+    "PUBLIC_SCHEMA_VERSION",
+    "Claim",
+    "Correction",
+    "CorrectionOutcome",
+    "Evidence",
+    "NotRepresentable",
+    "Passage",
+    "Report",
+    "ReportClaim",
+    "ReportError",
+    "ReportMetadata",
+    "Span",
+    "VerdictResult",
+    "VerdictStatus",
+    "VerifyContent",
+    "VerifyOptions",
+    "VerifyRequest",
+    "to_public_passage",
+    "to_public_report",
 ]

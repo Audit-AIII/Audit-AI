@@ -51,6 +51,8 @@ def ensure_decidable(review_status: str) -> None:
         raise InvalidReviewTransitionError(review_status)
 
 
-def ensure_not_stale(reviewed_content_version_id: object, current_content_version_id: object) -> None:
+def ensure_not_stale(
+    reviewed_content_version_id: object, current_content_version_id: object
+) -> None:
     if reviewed_content_version_id != current_content_version_id:
         raise StaleApprovalError()

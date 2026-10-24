@@ -28,7 +28,9 @@ class Organisation(Base):
     # parent is deleted is to try to null out each child's FK itself (it doesn't delete, since
     # no cascade="delete" is set) - which fails the NOT NULL constraint instead of letting
     # Postgres's own CASCADE handle it.
-    memberships: Mapped[list["Membership"]] = relationship(back_populates="organisation", passive_deletes=True)
+    memberships: Mapped[list["Membership"]] = relationship(
+        back_populates="organisation", passive_deletes=True
+    )
 
 
 class User(Base):
@@ -43,7 +45,9 @@ class User(Base):
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()
 
-    memberships: Mapped[list["Membership"]] = relationship(back_populates="user", passive_deletes=True)
+    memberships: Mapped[list["Membership"]] = relationship(
+        back_populates="user", passive_deletes=True
+    )
 
 
 class Membership(Base):
@@ -55,7 +59,10 @@ class Membership(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     organisation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organisations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True

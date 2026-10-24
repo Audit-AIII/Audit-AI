@@ -24,7 +24,9 @@ LOCK_FILE = PROMPT_DIR / "prompts.lock.json"
 
 # Component -> the version-id prefix its prompt files use.
 COMPONENTS = {
-    "extraction": "extract-claims", "verification": "verify-claim", "correction": "correct-claim",
+    "extraction": "extract-claims",
+    "verification": "verify-claim",
+    "correction": "correct-claim",
     "softening": "soften-claim",
 }
 
@@ -67,7 +69,9 @@ def available_versions(component: str) -> list[str]:
 
 def _prefix(component: str) -> str:
     if component not in COMPONENTS:
-        raise PromptNotFoundError(f"unknown prompt component {component!r}; expected one of {sorted(COMPONENTS)}")
+        raise PromptNotFoundError(
+            f"unknown prompt component {component!r}; expected one of {sorted(COMPONENTS)}"
+        )
     return COMPONENTS[component]
 
 
@@ -91,10 +95,14 @@ def load_prompt(component: str, version: str) -> LoadedPrompt:
     entry = released_versions().get(version)
     if entry is not None:
         if entry["component"] != component:
-            raise PromptIntegrityError(f"prompts.lock.json lists {version!r} under {entry['component']!r}, not {component!r}")
+            raise PromptIntegrityError(
+                f"prompts.lock.json lists {version!r} under {entry['component']!r}, not {component!r}"
+            )
         if entry["sha256"] != digest:
             raise PromptIntegrityError(
                 f"released prompt {version!r} was edited in place (its text no longer matches prompts.lock.json); "
                 "restore it and put the new wording in a new version"
             )
-    return LoadedPrompt(component=component, version=version, text=text, sha256=digest, released=entry is not None)
+    return LoadedPrompt(
+        component=component, version=version, text=text, sha256=digest, released=entry is not None
+    )

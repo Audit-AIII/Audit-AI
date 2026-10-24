@@ -24,10 +24,25 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from inkloom_verify import __version__
 from inkloom_verify.chunking import ChunkingConfig
 from inkloom_verify.evaluation import metrics
-from inkloom_verify.evaluation.metrics import DEFINITE, GOLD_CLASSES, CitationProblem, ClassMetrics, MacroF1, Ratio
+from inkloom_verify.evaluation.metrics import (
+    DEFINITE,
+    GOLD_CLASSES,
+    CitationProblem,
+    ClassMetrics,
+    MacroF1,
+    Ratio,
+)
 from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.retrieval import BM25Retriever, RetrievalConfig
-from inkloom_verify.schemas import CONTRACT_VERSION, Claim, EvalCategory, EvalRecord, EvalSplit, SourceSpan, Verdict
+from inkloom_verify.schemas import (
+    CONTRACT_VERSION,
+    Claim,
+    EvalCategory,
+    EvalRecord,
+    EvalSplit,
+    SourceSpan,
+    Verdict,
+)
 
 
 class EvaluationInputError(ValueError):
@@ -100,7 +115,11 @@ BASELINES: dict[str, type[AbstainBaseline]] = {"abstain": AbstainBaseline}
 
 
 def _eval_claim(record: EvalRecord) -> Claim:
-    return Claim(claim_id="clm_eval", text=record.claim_text, source_span=SourceSpan(start=0, end=len(record.claim_text)))
+    return Claim(
+        claim_id="clm_eval",
+        text=record.claim_text,
+        source_span=SourceSpan(start=0, end=len(record.claim_text)),
+    )
 
 
 class EngineVerifierPredictor:
@@ -126,7 +145,9 @@ class EngineVerifierPredictor:
         # harness does not need.
         from inkloom_verify.verification import ClaimVerifier, VerificationConfig, verify_claim
 
-        config = VerificationConfig(prompt_version=self.prompt_version) if self.prompt_version else None
+        config = (
+            VerificationConfig(prompt_version=self.prompt_version) if self.prompt_version else None
+        )
         verifier = ClaimVerifier(self.provider, record.references, config)
         retriever = BM25Retriever(record.references, chunking=self.chunking, config=self.retrieval)
         result = verify_claim(_eval_claim(record), retriever, verifier)
@@ -145,7 +166,9 @@ class EngineVerifierPredictor:
                 for c in result.citations
             ],
             model_id=",".join(sorted(verifier.models_used)) or None,
-            prompt_version=verifier.prompt.version if verifier.prompt_sent else None,  # the version actually sent
+            prompt_version=verifier.prompt.version
+            if verifier.prompt_sent
+            else None,  # the version actually sent
             error_code=result.error.code.value if result.error else None,
             error_message=result.error.message if result.error else None,
         )
@@ -202,7 +225,9 @@ def load_predictions(path: Path) -> dict[str, EvalPrediction]:
         except ValidationError as error:
             raise EvaluationInputError(f"{path}:{number}: {_validation_summary(error)}") from error
         if prediction.record_id in predictions:
-            raise EvaluationInputError(f"{path}:{number}: duplicate prediction for {prediction.record_id}")
+            raise EvaluationInputError(
+                f"{path}:{number}: duplicate prediction for {prediction.record_id}"
+            )
         predictions[prediction.record_id] = prediction
     return predictions
 
@@ -220,9 +245,15 @@ def select_split(records: Sequence[EvalRecord], split: str) -> list[EvalRecord]:
 class FailureKind(str, Enum):
     MISSING_PREDICTION = "missing_prediction"  # no prediction for the record; scored as ERROR
     ERROR_VERDICT = "error_verdict"  # the system returned ERROR
-    FALSE_SUPPORTED = "false_supported"  # SUPPORTED, but the label is CONTRADICTED or NOT_ENOUGH_EVIDENCE
-    FALSE_CONTRADICTION = "false_contradiction"  # CONTRADICTED, but the label is SUPPORTED or NOT_ENOUGH_EVIDENCE
-    MISSED_CONTRADICTION = "missed_contradiction"  # NOT_ENOUGH_EVIDENCE, but the label is CONTRADICTED
+    FALSE_SUPPORTED = (
+        "false_supported"  # SUPPORTED, but the label is CONTRADICTED or NOT_ENOUGH_EVIDENCE
+    )
+    FALSE_CONTRADICTION = (
+        "false_contradiction"  # CONTRADICTED, but the label is SUPPORTED or NOT_ENOUGH_EVIDENCE
+    )
+    MISSED_CONTRADICTION = (
+        "missed_contradiction"  # NOT_ENOUGH_EVIDENCE, but the label is CONTRADICTED
+    )
     OVER_ABSTENTION = "over_abstention"  # NOT_ENOUGH_EVIDENCE, but the label is SUPPORTED
     UNCITED_DEFINITE_VERDICT = "uncited_definite_verdict"  # SUPPORTED/CONTRADICTED with no citation
     INVALID_CITATION = "invalid_citation"  # a citation does not quote the references verbatim
@@ -347,7 +378,9 @@ SCORECARD_DEFINITIONS = (
 # --- Evaluation --------------------------------------------------------------------------------
 
 
-def _citation_checks(record: EvalRecord, prediction: EvalPrediction) -> list[tuple[PredictedCitation, CitationProblem | None]]:
+def _citation_checks(
+    record: EvalRecord, prediction: EvalPrediction
+) -> list[tuple[PredictedCitation, CitationProblem | None]]:
     return [
         (
             c,
@@ -375,7 +408,9 @@ def _failure_kinds(
             Verdict.SUPPORTED: FailureKind.FALSE_SUPPORTED,
             Verdict.CONTRADICTED: FailureKind.FALSE_CONTRADICTION,
             Verdict.NOT_ENOUGH_EVIDENCE: (
-                FailureKind.MISSED_CONTRADICTION if gold is Verdict.CONTRADICTED else FailureKind.OVER_ABSTENTION
+                FailureKind.MISSED_CONTRADICTION
+                if gold is Verdict.CONTRADICTED
+                else FailureKind.OVER_ABSTENTION
             ),
         }[predicted]
         found.append((kind, f"expected {gold.value}, got {predicted.value}"))
@@ -385,17 +420,32 @@ def _failure_kinds(
     if predicted in DEFINITE and not prediction.citations:
         found.append((FailureKind.UNCITED_DEFINITE_VERDICT, f"{predicted.value} with no citation"))
     if predicted not in DEFINITE and prediction.citations:
-        found.append((FailureKind.CITATION_ON_ABSTENTION, f"{predicted.value} with {len(prediction.citations)} citation(s)"))
+        found.append(
+            (
+                FailureKind.CITATION_ON_ABSTENTION,
+                f"{predicted.value} with {len(prediction.citations)} citation(s)",
+            )
+        )
     if invalid:
         reasons = ", ".join(sorted({p.value for _, p in invalid if p is not None}))
-        found.append((FailureKind.INVALID_CITATION, f"{len(invalid)} of {len(checks)} citation(s) invalid: {reasons}"))
+        found.append(
+            (
+                FailureKind.INVALID_CITATION,
+                f"{len(invalid)} of {len(checks)} citation(s) invalid: {reasons}",
+            )
+        )
     if (
         gold in DEFINITE
         and predicted in DEFINITE
         and valid
-        and not any(metrics.overlaps_gold(record, c.doc_id, c.quote_span.start, c.quote_span.end) for c in valid)
+        and not any(
+            metrics.overlaps_gold(record, c.doc_id, c.quote_span.start, c.quote_span.end)
+            for c in valid
+        )
     ):
-        found.append((FailureKind.UNGROUNDED_CITATION, "valid quotes, none overlapping the gold evidence"))
+        found.append(
+            (FailureKind.UNGROUNDED_CITATION, "valid quotes, none overlapping the gold evidence")
+        )
     return found
 
 
@@ -438,7 +488,9 @@ def evaluate(
     """
     if not records:
         raise EvaluationInputError("no records to evaluate")
-    known = set(known_record_ids) if known_record_ids is not None else {r.record_id for r in records}
+    known = (
+        set(known_record_ids) if known_record_ids is not None else {r.record_id for r in records}
+    )
     unexpected = len(set(predictions) - known)
 
     pairs: list[tuple[Verdict, Verdict]] = []
@@ -467,7 +519,10 @@ def evaluate(
         citations_valid += len(valid)
         problems.update(problem for _, problem in checks if problem is not None)
 
-        is_grounded = any(metrics.overlaps_gold(record, c.doc_id, c.quote_span.start, c.quote_span.end) for c in valid)
+        is_grounded = any(
+            metrics.overlaps_gold(record, c.doc_id, c.quote_span.start, c.quote_span.end)
+            for c in valid
+        )
         if predicted in DEFINITE:
             definite += 1
             definite_cited += bool(valid)
@@ -500,7 +555,9 @@ def evaluate(
         counts=Counts(
             examples=len(records),
             gold={cls: sum(confusion[cls].values()) for cls in GOLD_CLASSES},
-            predicted={p: sum(confusion[g][p] for g in GOLD_CLASSES) for p in metrics.PREDICTED_CLASSES},
+            predicted={
+                p: sum(confusion[g][p] for g in GOLD_CLASSES) for p in metrics.PREDICTED_CLASSES
+            },
             missing_predictions=missing,
             unexpected_predictions=unexpected,
         ),
@@ -528,7 +585,11 @@ def evaluate(
         ),
         retrieval=_retrieval_metrics(records, *retrieval) if retrieval is not None else None,
         by_split={split: metrics.ratio(sum(v), len(v)) for split, v in sorted(by_split.items())},
-        by_category={c: metrics.ratio(sum(by_category[c]), len(by_category[c])) for c in EvalCategory if c in by_category},
+        by_category={
+            c: metrics.ratio(sum(by_category[c]), len(by_category[c]))
+            for c in EvalCategory
+            if c in by_category
+        },
         failures=Failures(
             counts={k: failure_counts.get(k, 0) for k in FailureKind},
             examples=failure_examples,
@@ -545,7 +606,9 @@ def file_sha256(path: Path) -> str:
 
 def _git(args: list[str], cwd: Path) -> str | None:
     try:
-        result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=True)
+        result = subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=5, check=True
+        )
     except (OSError, subprocess.SubprocessError):
         return None
     return result.stdout.strip()
@@ -577,7 +640,10 @@ def run(
     predictions_path: Path | None = None,
     baseline: str | None = None,
     engine_provider: LLMProvider | None = None,
-    retrieval: tuple[ChunkingConfig, RetrievalConfig] | None = (ChunkingConfig(), RetrievalConfig()),
+    retrieval: tuple[ChunkingConfig, RetrievalConfig] | None = (
+        ChunkingConfig(),
+        RetrievalConfig(),
+    ),
     max_examples: int = 5,
     save_predictions: Path | None = None,
     verifier_prompt: str | None = None,
@@ -588,9 +654,15 @@ def run(
     The source is a predictions file, a baseline, or the engine run live with ``engine_provider``.
     ``save_predictions`` writes the predictions as JSONL, separate from the labels.
     """
-    sources = [predictions_path is not None, baseline is not None, engine_provider is not None or engine_predictor is not None]
+    sources = [
+        predictions_path is not None,
+        baseline is not None,
+        engine_provider is not None or engine_predictor is not None,
+    ]
     if sum(sources) != 1:
-        raise EvaluationInputError("give exactly one of a predictions file, a baseline or an engine provider")
+        raise EvaluationInputError(
+            "give exactly one of a predictions file, a baseline or an engine provider"
+        )
     all_records = load_records(dataset_path)
     records = select_split(all_records, split)
     if not records:
@@ -606,29 +678,40 @@ def run(
             path=str(predictions_path),
             sha256=file_sha256(predictions_path),
             model_ids=sorted({p.model_id for p in predictions.values() if p.model_id}),
-            prompt_versions=sorted({p.prompt_version for p in predictions.values() if p.prompt_version}),
+            prompt_versions=sorted(
+                {p.prompt_version for p in predictions.values() if p.prompt_version}
+            ),
         )
     if baseline is not None:
         if baseline not in BASELINES:
-            raise EvaluationInputError(f"unknown baseline {baseline!r}; choose from {', '.join(BASELINES)}")
+            raise EvaluationInputError(
+                f"unknown baseline {baseline!r}; choose from {', '.join(BASELINES)}"
+            )
         model = BASELINES[baseline]()
         predictions = {r.record_id: model.predict(r) for r in records}
         predictor = PredictorInfo(kind="baseline", name=model.name)
     if engine_provider is not None or engine_predictor is not None:
-        chunking, retrieval_config = retrieval if retrieval is not None else (ChunkingConfig(), RetrievalConfig())
+        chunking, retrieval_config = (
+            retrieval if retrieval is not None else (ChunkingConfig(), RetrievalConfig())
+        )
         # A ready predictor (e.g. the full pipeline) is scored exactly like the verifier-only one.
-        engine = engine_predictor or EngineVerifierPredictor(engine_provider, chunking, retrieval_config, verifier_prompt)
+        engine = engine_predictor or EngineVerifierPredictor(
+            engine_provider, chunking, retrieval_config, verifier_prompt
+        )
         predictions = {r.record_id: engine.predict(r) for r in records}
         predictor = PredictorInfo(
             kind="engine",
             name=engine.name,
             model_ids=sorted(engine.models),
-            prompt_versions=sorted({p.prompt_version for p in predictions.values() if p.prompt_version}),
+            prompt_versions=sorted(
+                {p.prompt_version for p in predictions.values() if p.prompt_version}
+            ),
         )
     if save_predictions is not None:
         save_predictions.parent.mkdir(parents=True, exist_ok=True)
         save_predictions.write_text(
-            "".join(p.model_dump_json(exclude_none=True) + "\n" for p in predictions.values()), encoding="utf-8"
+            "".join(p.model_dump_json(exclude_none=True) + "\n" for p in predictions.values()),
+            encoding="utf-8",
         )
 
     results = evaluate(

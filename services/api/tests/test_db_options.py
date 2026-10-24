@@ -24,7 +24,9 @@ def test_url_options_are_kept_with_the_statement_timeout() -> None:
     engine = build_engine(url.render_as_string(hide_password=False), statement_timeout_ms=4321)
     try:
         with engine.connect() as connection:
-            assert connection.execute(text("SHOW application_name")).scalar() == "inkloom-options-test"
+            assert (
+                connection.execute(text("SHOW application_name")).scalar() == "inkloom-options-test"
+            )
             assert connection.execute(text("SHOW statement_timeout")).scalar() == "4321ms"
     finally:
         engine.dispose()

@@ -45,7 +45,12 @@ from inkloom_verify.scope import check_report_scope
 FAKE_NOTICE = "FAKE ENGINE: canned development result; no AI verification was performed."
 FAKE_MODEL_ID = "fake/canned-v1"
 # Verdicts are handed out in this order, by claim position, so every shape can be rendered.
-CANNED_VERDICTS = (Verdict.SUPPORTED, Verdict.CONTRADICTED, Verdict.NOT_ENOUGH_EVIDENCE, Verdict.ERROR)
+CANNED_VERDICTS = (
+    Verdict.SUPPORTED,
+    Verdict.CONTRADICTED,
+    Verdict.NOT_ENOUGH_EVIDENCE,
+    Verdict.ERROR,
+)
 QUOTE_WORDS = 8
 
 
@@ -102,18 +107,28 @@ class FakeEngine:
     mode = "fake"
 
     def verify(
-        self, request: VerificationRequest, *, suggest_corrections: bool = True, max_claims: int | None = None
+        self,
+        request: VerificationRequest,
+        *,
+        suggest_corrections: bool = True,
+        max_claims: int | None = None,
     ) -> VerificationReport:
         """Canned results; ``suggest_corrections`` is ignored (the fake engine never corrects)."""
         text = request.content.text
-        spans = [s for s in sentence_spans(text, MAX_CLAIM_CHARS) if any(c.isalnum() for c in s.slice(text))]
+        spans = [
+            s
+            for s in sentence_spans(text, MAX_CLAIM_CHARS)
+            if any(c.isalnum() for c in s.slice(text))
+        ]
         claims = [
             Claim(claim_id=f"clm_{i:04d}", text=span.slice(text), source_span=span)
             for i, span in enumerate(spans[: max_claims or MAX_CLAIMS], start=1)
         ]
         retriever = BM25Retriever.for_request(request)
         verifier = CannedVerifier()
-        results = [verifier.verify(claim, retriever.retrieve(claim), i) for i, claim in enumerate(claims)]
+        results = [
+            verifier.verify(claim, retriever.retrieve(claim), i) for i, claim in enumerate(claims)
+        ]
         notice = ProcessingError(
             code=ErrorCode.PROVIDER_NOT_CONFIGURED,
             stage=PipelineStage.REQUEST,

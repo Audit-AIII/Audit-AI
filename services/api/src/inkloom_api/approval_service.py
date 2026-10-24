@@ -25,7 +25,9 @@ from .statuses import ApprovalAction, BrandSourceStatus, ReviewState
 
 
 def current_version_id(db: Session, content_item_id: uuid.UUID) -> uuid.UUID:
-    version = db.query(ContentVersion).filter_by(content_item_id=content_item_id, is_current=True).one()
+    version = (
+        db.query(ContentVersion).filter_by(content_item_id=content_item_id, is_current=True).one()
+    )
     return version.id
 
 
@@ -97,7 +99,9 @@ def record_decision(
             event_type=f"content_version.{action.value}",
             entity_type="content_version",
             entity_id=str(content_version.id),
-            details={"review_id": str(review.id), "note": note} if note else {"review_id": str(review.id)},
+            details={"review_id": str(review.id), "note": note}
+            if note
+            else {"review_id": str(review.id)},
             request_id=review.request_id,
         )
     )

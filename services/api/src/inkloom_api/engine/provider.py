@@ -33,6 +33,8 @@ _LOCAL_BUILDERS: list[tuple[str, Callable[[], LLMProvider]]] = [
 ]
 
 
-def build_provider(confidential: bool = False, on_attempt: AttemptObserver = noop_observer) -> FallbackProvider:
+def build_provider(
+    confidential: bool = False, on_attempt: AttemptObserver = noop_observer
+) -> FallbackProvider:
     builders = _LOCAL_BUILDERS if confidential else _CLOUD_BUILDERS + _LOCAL_BUILDERS
     return FallbackProvider(builders, on_attempt=on_attempt)

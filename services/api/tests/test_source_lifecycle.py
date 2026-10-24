@@ -25,7 +25,14 @@ import pytest
 
 from conftest import requires_db
 from inkloom_api.auth.security import hash_password
-from inkloom_api.models import BrandProfile, BrandSource, Membership, Organisation, SourceVersion, User
+from inkloom_api.models import (
+    BrandProfile,
+    BrandSource,
+    Membership,
+    Organisation,
+    SourceVersion,
+    User,
+)
 from inkloom_api.statuses import BrandSourceStatus
 
 PASSWORD = "correct-horse-battery-staple"
@@ -46,18 +53,24 @@ def fixture(db_session):
     admin = User(email=f"admin-{unique}@example.com", password_hash=hash_password(PASSWORD))
     db_session.add_all([org, admin])
     db_session.flush()
-    db_session.add(Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True))
+    db_session.add(
+        Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True)
+    )
 
     brand = BrandProfile(organisation_id=org.id, name="Brand")
     db_session.add(brand)
     db_session.flush()
-    source = BrandSource(brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value)
+    source = BrandSource(
+        brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value
+    )
     db_session.add(source)
     db_session.flush()
     text = "Approved fact: the sky is blue."
     db_session.add(
         SourceVersion(
-            brand_source_id=source.id, version_number=1, text=text,
+            brand_source_id=source.id,
+            version_number=1,
+            text=text,
             text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
     )
@@ -96,7 +109,9 @@ def _submit_and_approve(client, token: str, brand_id, text: str) -> dict:
     return review
 
 
-def _withdraw(client, token: str, brand_id, source_id, status: str = "superseded", reason: str = "drift"):
+def _withdraw(
+    client, token: str, brand_id, source_id, status: str = "superseded", reason: str = "drift"
+):
     return client.post(
         f"/api/brands/{brand_id}/sources/{source_id}/withdraw",
         json={"status": status, "reason": reason},
@@ -144,7 +159,9 @@ def test_withdraw_does_not_touch_unrelated_items(client, force_stub_mode, fixtur
 
 
 @requires_db
-def test_approval_blocked_for_source_changed_item(client, force_stub_mode, fixture: Fixture) -> None:
+def test_approval_blocked_for_source_changed_item(
+    client, force_stub_mode, fixture: Fixture
+) -> None:
     """Phase 6 task 6: "verify [the approval guard] covers source_changed." It does, via the
     same ensure_decidable check every other non-decidable state uses - no new code needed,
     just verifying it here."""
@@ -153,13 +170,17 @@ def test_approval_blocked_for_source_changed_item(client, force_stub_mode, fixtu
     _attach_evidence(fixture.source.id, [review["id"]])
     _withdraw(client, token, fixture.brand.id, fixture.source.id)
 
-    retry = client.post(f"/api/content-versions/{review['content_version_id']}/approve", headers=_auth(token))
+    retry = client.post(
+        f"/api/content-versions/{review['content_version_id']}/approve", headers=_auth(token)
+    )
     assert retry.status_code == 409
     assert "source_changed" in retry.json()["error"]["message"]
 
 
 @requires_db
-def test_withdraw_never_touches_another_organisations_items(client, force_stub_mode, fixture: Fixture) -> None:
+def test_withdraw_never_touches_another_organisations_items(
+    client, force_stub_mode, fixture: Fixture
+) -> None:
     token = _login(client, fixture.admin.email)
     review = _submit_and_approve(client, token, fixture.brand.id, "Cites the source.")
     _attach_evidence(fixture.source.id, [review["id"]])
@@ -172,7 +193,11 @@ def test_withdraw_never_touches_another_organisations_items(client, force_stub_m
     other_admin = User(email=f"other-{unique}@example.com", password_hash=hash_password(PASSWORD))
     db.add_all([other_org, other_admin])
     db.flush()
-    db.add(Membership(organisation_id=other_org.id, user_id=other_admin.id, role="admin", is_active=True))
+    db.add(
+        Membership(
+            organisation_id=other_org.id, user_id=other_admin.id, role="admin", is_active=True
+        )
+    )
     db.commit()
     other_token = _login(client, other_admin.email)
 
@@ -191,7 +216,9 @@ def test_withdraw_never_touches_another_organisations_items(client, force_stub_m
 
 
 @requires_db
-def test_audit_events_exist_for_withdraw_and_each_flip(client, force_stub_mode, fixture: Fixture) -> None:
+def test_audit_events_exist_for_withdraw_and_each_flip(
+    client, force_stub_mode, fixture: Fixture
+) -> None:
     token = _login(client, fixture.admin.email)
     review = _submit_and_approve(client, token, fixture.brand.id, "Cites the source.")
     _attach_evidence(fixture.source.id, [review["id"]])
@@ -203,9 +230,10 @@ def test_audit_events_exist_for_withdraw_and_each_flip(client, force_stub_mode, 
     db = get_session_factory()()
     events = (
         db.query(AuditEvent)
-        .filter(AuditEvent.organisation_id == fixture.org.id, AuditEvent.event_type.in_(
-            ["brand_source.withdrawn", "content_version.source_changed"]
-        ))
+        .filter(
+            AuditEvent.organisation_id == fixture.org.id,
+            AuditEvent.event_type.in_(["brand_source.withdrawn", "content_version.source_changed"]),
+        )
         .all()
     )
     db.close()
@@ -228,8 +256,11 @@ def _attach_evidence(source_id: uuid.UUID, review_ids: list[str]) -> None:
         finding = db.query(Finding).filter_by(review_id=uuid.UUID(review_id)).one()
         db.add(
             EvidenceLink(
-                finding_id=finding.finding_id, source_id=source_id, source_version_id=None,
-                quote="the sky is blue", relation="supports",
+                finding_id=finding.finding_id,
+                source_id=source_id,
+                source_version_id=None,
+                quote="the sky is blue",
+                relation="supports",
             )
         )
     db.commit()

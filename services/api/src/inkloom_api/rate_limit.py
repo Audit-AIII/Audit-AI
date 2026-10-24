@@ -30,8 +30,11 @@ def _retry_after(hits: list[float], window_seconds: float, now: float) -> int:
 
 
 def _too_many(message: str, hits: list[float], window_seconds: float, now: float) -> HTTPException:
-    return HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, message,
-                         headers={"Retry-After": str(_retry_after(hits, window_seconds, now))})
+    return HTTPException(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        message,
+        headers={"Retry-After": str(_retry_after(hits, window_seconds, now))},
+    )
 
 
 def _prune_and_count(hits: list[float], window_seconds: float, now: float) -> int:
@@ -53,20 +56,33 @@ def enforce_submission_rate_limit(auth: AuthContext, settings: Settings) -> None
     now = time.monotonic()
     user_key, org_key = str(auth.user_id), str(auth.organisation_id)
     with _lock:
-        if _prune_and_count(_user_hits[user_key], settings.rate_limit_window_seconds, now) >= settings.rate_limit_submissions_per_user:
-            raise _too_many("too many submissions from this user; slow down", _user_hits[user_key],
-                            settings.rate_limit_window_seconds, now)
+        if (
+            _prune_and_count(_user_hits[user_key], settings.rate_limit_window_seconds, now)
+            >= settings.rate_limit_submissions_per_user
+        ):
+            raise _too_many(
+                "too many submissions from this user; slow down",
+                _user_hits[user_key],
+                settings.rate_limit_window_seconds,
+                now,
+            )
         if (
             _prune_and_count(_org_hits[org_key], settings.rate_limit_window_seconds, now)
             >= settings.rate_limit_submissions_per_organisation
         ):
-            raise _too_many("this organisation has submitted too many reviews recently", _org_hits[org_key],
-                            settings.rate_limit_window_seconds, now)
+            raise _too_many(
+                "this organisation has submitted too many reviews recently",
+                _org_hits[org_key],
+                settings.rate_limit_window_seconds,
+                now,
+            )
         _user_hits[user_key].append(now)
         _org_hits[org_key].append(now)
 
 
-def enforce_registration_rate_limit(request: Request, settings: Settings = Depends(get_settings)) -> None:
+def enforce_registration_rate_limit(
+    request: Request, settings: Settings = Depends(get_settings)
+) -> None:
     """`Depends(enforce_registration_rate_limit)` on `POST /api/auth/register`. Unauthenticated -
     there is no user or organisation yet - so this keys on the caller's IP alone, read only from
     `request.client.host` (never the `X-Forwarded-For` header, which an untrusted caller can set
@@ -78,8 +94,12 @@ def enforce_registration_rate_limit(request: Request, settings: Settings = Depen
             _prune_and_count(_ip_hits[ip_key], settings.rate_limit_registration_window_seconds, now)
             >= settings.rate_limit_registrations_per_ip
         ):
-            raise _too_many("too many registration attempts from this address; slow down", _ip_hits[ip_key],
-                            settings.rate_limit_registration_window_seconds, now)
+            raise _too_many(
+                "too many registration attempts from this address; slow down",
+                _ip_hits[ip_key],
+                settings.rate_limit_registration_window_seconds,
+                now,
+            )
         _ip_hits[ip_key].append(now)
 
 

@@ -27,7 +27,13 @@ from inkloom_verify.providers.base import (
 
 class AttemptObserver(Protocol):
     def __call__(
-        self, *, provider: str, model: str | None, status: str, latency_ms: int, error_code: str | None
+        self,
+        *,
+        provider: str,
+        model: str | None,
+        status: str,
+        latency_ms: int,
+        error_code: str | None,
     ) -> None: ...
 
 
@@ -72,14 +78,20 @@ class FallbackProvider:
                 latency_ms = int((time.monotonic() - started) * 1000)
                 failures.append(f"{provider_name}={error.code.value}")
                 self._on_attempt(
-                    provider=provider_name, model=None, status="error",
-                    latency_ms=latency_ms, error_code=error.code.value,
+                    provider=provider_name,
+                    model=None,
+                    status="error",
+                    latency_ms=latency_ms,
+                    error_code=error.code.value,
                 )
                 continue
             latency_ms = int((time.monotonic() - started) * 1000)
             self._on_attempt(
-                provider=provider_name, model=result.model, status="success",
-                latency_ms=latency_ms, error_code=None,
+                provider=provider_name,
+                model=result.model,
+                status="success",
+                latency_ms=latency_ms,
+                error_code=None,
             )
             return result
 

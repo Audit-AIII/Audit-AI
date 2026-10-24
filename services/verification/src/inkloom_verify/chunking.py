@@ -38,7 +38,23 @@ _LINE_BREAK = re.compile(r"\n")
 _SENTENCE_END = re.compile(r"[.!?…]+[\"'”’)\]]*(?=\s)")
 _WORD_TOKEN = re.compile(r"\S+")
 _ABBREVIATIONS = frozenset(
-    {"e.g.", "i.e.", "etc.", "vs.", "inc.", "ltd.", "co.", "corp.", "mr.", "mrs.", "ms.", "dr.", "st.", "no.", "approx."}
+    {
+        "e.g.",
+        "i.e.",
+        "etc.",
+        "vs.",
+        "inc.",
+        "ltd.",
+        "co.",
+        "corp.",
+        "mr.",
+        "mrs.",
+        "ms.",
+        "dr.",
+        "st.",
+        "no.",
+        "approx.",
+    }
 )
 
 
@@ -63,11 +79,17 @@ class ChunkingConfig(BaseModel):
     @model_validator(mode="after")
     def _check(self) -> ChunkingConfig:
         # Settings for the other strategy would be silently ignored, so they are refused.
-        foreign = (_SENTENCE_FIELDS if self.strategy == "tokens" else _TOKEN_FIELDS) & self.model_fields_set
+        foreign = (
+            _SENTENCE_FIELDS if self.strategy == "tokens" else _TOKEN_FIELDS
+        ) & self.model_fields_set
         if foreign:
-            raise ValueError(f"{', '.join(sorted(foreign))} do not apply to the {self.strategy!r} strategy")
+            raise ValueError(
+                f"{', '.join(sorted(foreign))} do not apply to the {self.strategy!r} strategy"
+            )
         if self.stride > self.sentences_per_passage:
-            raise ValueError("stride must not exceed sentences_per_passage, or text would be skipped")
+            raise ValueError(
+                "stride must not exceed sentences_per_passage, or text would be skipped"
+            )
         if not self.min_tokens <= self.target_tokens <= self.max_tokens:
             raise ValueError("token sizes must satisfy min_tokens <= target_tokens <= max_tokens")
         if self.overlap_tokens >= self.min_tokens:
@@ -159,7 +181,10 @@ def _segments(text: str, start: int, end: int, limit: int) -> list[tuple[int, in
 def _token_windows(text: str, start: int, end: int, max_tokens: int) -> list[tuple[int, int]]:
     """[start, end) cut into consecutive windows of at most ``max_tokens`` whitespace tokens."""
     words = [m.span() for m in _WORD_TOKEN.finditer(text, start, end)]
-    return [(words[i][0], words[min(i + max_tokens, len(words)) - 1][1]) for i in range(0, len(words), max_tokens)]
+    return [
+        (words[i][0], words[min(i + max_tokens, len(words)) - 1][1])
+        for i in range(0, len(words), max_tokens)
+    ]
 
 
 def _token_spans(text: str, config: ChunkingConfig) -> list[tuple[int, int]]:
@@ -179,7 +204,12 @@ def _token_spans(text: str, config: ChunkingConfig) -> list[tuple[int, int]]:
     first = 0
     while True:
         last, total = first, tokens[first]
-        while total < config.target_tokens and last + 1 < len(segments) and total + tokens[last + 1] <= config.max_tokens and fits(first, last + 1):
+        while (
+            total < config.target_tokens
+            and last + 1 < len(segments)
+            and total + tokens[last + 1] <= config.max_tokens
+            and fits(first, last + 1)
+        ):
             last += 1
             total += tokens[last]
         windows.append((first, last))
@@ -194,7 +224,12 @@ def _token_spans(text: str, config: ChunkingConfig) -> list[tuple[int, int]]:
     # Extend a short final chunk backwards, so a document's tail is not a fragment.
     first, last = windows[-1]
     total = sum(tokens[first : last + 1])
-    while first > 0 and total < config.min_tokens and total + tokens[first - 1] <= config.max_tokens and fits(first - 1, last):
+    while (
+        first > 0
+        and total < config.min_tokens
+        and total + tokens[first - 1] <= config.max_tokens
+        and fits(first - 1, last)
+    ):
         first -= 1
         total += tokens[first]
     windows[-1] = (first, last)
@@ -222,11 +257,15 @@ def _window_starts(count: int, size: int, stride: int) -> list[int]:
     return starts
 
 
-def chunk_document(document: ReferenceDocument, config: ChunkingConfig, doc_order: int = 0) -> list[DocumentPassage]:
+def chunk_document(
+    document: ReferenceDocument, config: ChunkingConfig, doc_order: int = 0
+) -> list[DocumentPassage]:
     """All passages of one document, in document order, without duplicate spans."""
     text = document.text
     spans: list[tuple[int, int]] = _token_spans(text, config) if config.strategy == "tokens" else []
-    for para_start, para_end in _split_at(_PARAGRAPH_BREAK, text, 0, len(text)) if config.strategy == "sentences" else []:
+    for para_start, para_end in (
+        _split_at(_PARAGRAPH_BREAK, text, 0, len(text)) if config.strategy == "sentences" else []
+    ):
         segments = _segments(text, para_start, para_end, config.max_passage_chars)
         for first in _window_starts(len(segments), config.sentences_per_passage, config.stride):
             last = min(first + config.sentences_per_passage, len(segments)) - 1

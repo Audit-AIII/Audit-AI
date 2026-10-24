@@ -49,7 +49,12 @@ from inkloom_verify.schemas import (
 )
 
 POLICY_VERSION = "decision-policy-v1"
-_STRENGTH_ORDER = {EvidenceStrength.NONE: 0, EvidenceStrength.WEAK: 1, EvidenceStrength.MODERATE: 2, EvidenceStrength.STRONG: 3}
+_STRENGTH_ORDER = {
+    EvidenceStrength.NONE: 0,
+    EvidenceStrength.WEAK: 1,
+    EvidenceStrength.MODERATE: 2,
+    EvidenceStrength.STRONG: 3,
+}
 _COMPOUND = re.compile(r"\b(?:and|but|while|whereas|plus|as well as)\b|;", re.IGNORECASE)
 
 
@@ -77,8 +82,13 @@ def looks_compound(statement: str) -> bool:
     return _COMPOUND.search(statement) is not None
 
 
-def review_reasons(verdict: Verdict, strength: EvidenceStrength, statement: str, accepted_citations: int,
-                   policy: DecisionPolicy) -> list[ClaimReviewReason]:
+def review_reasons(
+    verdict: Verdict,
+    strength: EvidenceStrength,
+    statement: str,
+    accepted_citations: int,
+    policy: DecisionPolicy,
+) -> list[ClaimReviewReason]:
     """Every reason one claim must go to a person: the fixed floor, then the policy's additions."""
     reasons = floor_review_reasons(verdict, strength)
     if verdict is not Verdict.SUPPORTED:
@@ -95,7 +105,13 @@ def review_reasons(verdict: Verdict, strength: EvidenceStrength, statement: str,
 
 def apply_policy(result: ClaimResult, policy: DecisionPolicy) -> ClaimResult:
     """``result`` with the policy's review reasons; the floor reasons are always kept."""
-    reasons = review_reasons(result.verdict, result.evidence_strength, result.claim.statement, len(result.citations), policy)
+    reasons = review_reasons(
+        result.verdict,
+        result.evidence_strength,
+        result.claim.statement,
+        len(result.citations),
+        policy,
+    )
     if reasons == list(result.review_reasons):
         return result
     data = result.model_dump()
@@ -105,5 +121,9 @@ def apply_policy(result: ClaimResult, policy: DecisionPolicy) -> ClaimResult:
 
 def describe(policy: DecisionPolicy) -> dict[str, object]:
     """The policy as recorded in evaluation reports."""
-    return {"version": policy.version, "thresholds": policy.model_dump(mode="json", exclude={"version"}),
-            "fixed_rules": FIXED_RULES, "uses_model_confidence": False}
+    return {
+        "version": policy.version,
+        "thresholds": policy.model_dump(mode="json", exclude={"version"}),
+        "fixed_rules": FIXED_RULES,
+        "uses_model_confidence": False,
+    }

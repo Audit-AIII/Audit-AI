@@ -73,7 +73,9 @@ class OllamaProvider:
         except httpx.HTTPError as error:
             # Includes connection-refused (server not running) - never a config problem by
             # itself, since OLLAMA_MODEL was set; the server just isn't reachable right now.
-            raise ProviderUnavailableError(f"Ollama unreachable: {type(error).__name__}"[:500]) from None
+            raise ProviderUnavailableError(
+                f"Ollama unreachable: {type(error).__name__}"[:500]
+            ) from None
 
         if response.status_code >= 400:
             if response.status_code == 404:
@@ -87,7 +89,9 @@ class OllamaProvider:
             content = payload["message"]["content"]
             data = parse_json_object(content)  # strict: no duplicate keys, no NaN, one object
         except (KeyError, ValueError, TypeError, RecursionError, MalformedOutputError) as error:
-            raise MalformedOutputError(f"Ollama reply was not usable JSON: {type(error).__name__}"[:500]) from None
+            raise MalformedOutputError(
+                f"Ollama reply was not usable JSON: {type(error).__name__}"[:500]
+            ) from None
         if not isinstance(data, dict):
             raise MalformedOutputError("Ollama reply was valid JSON but not an object.")
 

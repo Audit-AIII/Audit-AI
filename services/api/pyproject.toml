@@ -33,3 +33,27 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+# Released migrations are never edited.
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "SIM"]
+# UP038 is deprecated in ruff: `isinstance(x, (A, B))` stays.
+ignore = ["UP038"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares dependencies and request parameters as default values by design; the two
+# inkloom_api factories return a `Depends(...)`.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Query",
+    "inkloom_api.auth.dependencies.require_permission",
+    "inkloom_api.rate_limit.rate_limited_submit_permission",
+]

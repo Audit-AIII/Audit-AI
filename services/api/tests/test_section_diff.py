@@ -23,7 +23,14 @@ from inkloom_verify.schemas import ReferenceDocument
 
 from conftest import requires_db
 from inkloom_api.auth.security import hash_password
-from inkloom_api.models import BrandProfile, BrandSource, Membership, Organisation, SourceVersion, User
+from inkloom_api.models import (
+    BrandProfile,
+    BrandSource,
+    Membership,
+    Organisation,
+    SourceVersion,
+    User,
+)
 from inkloom_api.statuses import BrandSourceStatus
 
 PASSWORD = "correct-horse-battery-staple"
@@ -58,17 +65,24 @@ def fixture(db_session):
     admin = User(email=f"admin-{unique}@example.com", password_hash=hash_password(PASSWORD))
     db_session.add_all([org, admin])
     db_session.flush()
-    db_session.add(Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True))
+    db_session.add(
+        Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True)
+    )
 
     brand = BrandProfile(organisation_id=org.id, name="Brand")
     db_session.add(brand)
     db_session.flush()
-    source = BrandSource(brand_profile_id=brand.id, title="Guide", status=BrandSourceStatus.APPROVED.value)
+    source = BrandSource(
+        brand_profile_id=brand.id, title="Guide", status=BrandSourceStatus.APPROVED.value
+    )
     db_session.add(source)
     db_session.flush()
     db_session.add(
         SourceVersion(
-            brand_source_id=source.id, version_number=1, text=V1_TEXT, text_sha256=_sha256(V1_TEXT),
+            brand_source_id=source.id,
+            version_number=1,
+            text=V1_TEXT,
+            text_sha256=_sha256(V1_TEXT),
         )
     )
     db_session.commit()
@@ -92,10 +106,14 @@ def _auth(token: str) -> dict:
 
 
 def _submit_and_approve(client, token: str, brand_id, text: str) -> dict:
-    submitted = client.post("/api/reviews", json={"brand_id": str(brand_id), "text": text}, headers=_auth(token))
+    submitted = client.post(
+        "/api/reviews", json={"brand_id": str(brand_id), "text": text}, headers=_auth(token)
+    )
     assert submitted.status_code == 201, submitted.text
     review = submitted.json()
-    approved = client.post(f"/api/content-versions/{review['content_version_id']}/approve", headers=_auth(token))
+    approved = client.post(
+        f"/api/content-versions/{review['content_version_id']}/approve", headers=_auth(token)
+    )
     assert approved.status_code == 201, approved.text
     return review
 
@@ -110,8 +128,12 @@ def _attach_evidence(source_id: uuid.UUID, review_id: str, span, quote: str) -> 
     doc = ReferenceDocument(doc_id=str(source_id), text=V1_TEXT, text_sha256=_sha256(V1_TEXT))
     db.add(
         EvidenceLink(
-            finding_id=finding.finding_id, source_id=source_id, source_version_id=None,
-            quote=quote, relation="supports", cited_section_hash=section_hash_for_span(doc, span),
+            finding_id=finding.finding_id,
+            source_id=source_id,
+            source_version_id=None,
+            quote=quote,
+            relation="supports",
+            cited_section_hash=section_hash_for_span(doc, span),
         )
     )
     db.commit()
@@ -119,9 +141,13 @@ def _attach_evidence(source_id: uuid.UUID, review_id: str, span, quote: str) -> 
 
 
 @requires_db
-def test_new_version_only_flips_dependents_whose_section_changed(client, force_stub_mode, fixture: Fixture) -> None:
+def test_new_version_only_flips_dependents_whose_section_changed(
+    client, force_stub_mode, fixture: Fixture
+) -> None:
     v1_passages = chunk_document(
-        ReferenceDocument(doc_id=str(fixture.source.id), text=V1_TEXT, text_sha256=_sha256(V1_TEXT)),
+        ReferenceDocument(
+            doc_id=str(fixture.source.id), text=V1_TEXT, text_sha256=_sha256(V1_TEXT)
+        ),
         ChunkingConfig(),
     )
     assert len(v1_passages) == 3  # matches the empirical check this test's design relies on
@@ -150,6 +176,10 @@ def test_new_version_only_flips_dependents_whose_section_changed(client, force_s
     flipped_ids = {f["review_id"] for f in body["flipped"]}
     assert flipped_ids == {review_a1["id"], review_a2["id"]}
 
-    for review_id, expected in ((review_a1["id"], "source_changed"), (review_a2["id"], "source_changed"), (review_b["id"], "approved")):
+    for review_id, expected in (
+        (review_a1["id"], "source_changed"),
+        (review_a2["id"], "source_changed"),
+        (review_b["id"], "approved"),
+    ):
         fetched = client.get(f"/api/reviews/{review_id}", headers=_auth(token))
         assert fetched.json()["status"] == expected

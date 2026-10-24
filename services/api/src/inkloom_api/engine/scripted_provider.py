@@ -64,7 +64,11 @@ def make_responder(rules: list[ScriptedRule]):
         if request.schema_name == "claim_extraction":
             return {
                 "statements": [
-                    {"sentence_id": s["id"], "kind": "factual", "claims": [{"text": s["text"], "source_quote": s["text"]}]}
+                    {
+                        "sentence_id": s["id"],
+                        "kind": "factual",
+                        "claims": [{"text": s["text"], "source_quote": s["text"]}],
+                    }
                     for s in data["sentences"]
                 ]
             }
@@ -84,8 +88,13 @@ def make_responder(rules: list[ScriptedRule]):
         # softener both reply with {status, original_text, replacement_text, citations, reason}.
         rule = _rule_for(rules, data.get("claim", "")) or _rule_for(rules, data.get("sentence", ""))
         if rule is None or rule.correction is None:
-            return {"status": "needs_human_review", "original_text": "", "replacement_text": "", "citations": [],
-                    "reason": "No scripted correction for this claim."}
+            return {
+                "status": "needs_human_review",
+                "original_text": "",
+                "replacement_text": "",
+                "citations": [],
+                "reason": "No scripted correction for this claim.",
+            }
         labels = [e["label"] for e in data.get("evidence", [])]
         return {
             # The engine's softener (inkloom_verify.softening) names its status "softened" and

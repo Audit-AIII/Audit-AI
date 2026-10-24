@@ -62,7 +62,12 @@ from inkloom_verify.chunking import ChunkingConfig
 from inkloom_verify.evaluation import metrics
 from inkloom_verify.evaluation.metrics import Ratio
 from inkloom_verify.evaluation.pipeline_predictor import CaseOutcome
-from inkloom_verify.evaluation.runner import EvalPrediction, _eval_claim, load_predictions, load_records
+from inkloom_verify.evaluation.runner import (
+    EvalPrediction,
+    _eval_claim,
+    load_predictions,
+    load_records,
+)
 from inkloom_verify.retrieval import BM25Retriever, RetrievalConfig
 from inkloom_verify.schemas import EvalRecord, Verdict
 
@@ -113,7 +118,9 @@ class RequiredMetrics(_Model):
     errors: dict[str, Any] = {}
 
 
-def _rate(numerator: int, denominator: int, name: str, unavailable: dict[str, str], why: str) -> Ratio | None:
+def _rate(
+    numerator: int, denominator: int, name: str, unavailable: dict[str, str], why: str
+) -> Ratio | None:
     if denominator == 0:
         unavailable[name] = why
         return None
@@ -124,8 +131,12 @@ def _tokens(text: str) -> list[str]:
     return [t.casefold() for t in _TOKEN.findall(text)]
 
 
-def traceability_problems(record: EvalRecord, claim_citations: Iterable[Mapping[str, Any]], correction: Mapping[str, Any],
-                          original: str) -> list[str]:
+def traceability_problems(
+    record: EvalRecord,
+    claim_citations: Iterable[Mapping[str, Any]],
+    correction: Mapping[str, Any],
+    original: str,
+) -> list[str]:
     """Why a proposed correction is not traceable to its permitted evidence; empty if it is."""
     problems = []
     cited = list(correction.get("citations") or [])
@@ -134,14 +145,21 @@ def traceability_problems(record: EvalRecord, claim_citations: Iterable[Mapping[
     permitted = {(c["doc_id"], c["start"], c["end"]) for c in claim_citations}
     usable = []  # only quotes that resolve and are permitted count as evidence for the added words
     for c in cited:
-        if metrics.citation_problem(record, c["doc_id"], c["quote"], c["start"], c["end"]) is not None:
+        if (
+            metrics.citation_problem(record, c["doc_id"], c["quote"], c["start"], c["end"])
+            is not None
+        ):
             problems.append("citation_not_in_references")
         elif (c["doc_id"], c["start"], c["end"]) not in permitted:
             problems.append("citation_not_among_claim_evidence")
         else:
             usable.append(c)
     evidence = Counter(t for c in usable for t in _tokens(c["quote"]))
-    added = [t for t in _tokens(correction.get("replacement_text") or "") if t not in set(_tokens(original))]
+    added = [
+        t
+        for t in _tokens(correction.get("replacement_text") or "")
+        if t not in set(_tokens(original))
+    ]
     problems += [f"unsupported:{t}" for t in dict.fromkeys(added) if t not in evidence]
     if not (correction.get("replacement_text") or "").strip():
         problems.append("empty_replacement")
@@ -157,8 +175,18 @@ def compute(
 ) -> RequiredMetrics:
     """The eight metrics for one run (see the module docstring for every definition)."""
     unavailable: dict[str, str] = {}
-    counts = Counter({"evaluated": 0, "tp": 0, "fp": 0, "fn": 0, "tn": 0, "missing_predictions": 0,
-                      "error_predictions": 0, "invalid_labels": 0})
+    counts = Counter(
+        {
+            "evaluated": 0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 0,
+            "missing_predictions": 0,
+            "error_predictions": 0,
+            "invalid_labels": 0,
+        }
+    )
     citation_fail = Counter()
     error_codes: Counter[str] = Counter()
     error_examples: dict[str, str] = {}
@@ -166,7 +194,9 @@ def compute(
     valid = resolved = total_citations = 0
     evaluated: list[EvalRecord] = []
     for record in records:
-        if record.expected_verdict not in LABELS:  # the contract already forbids this; never scored if it happens
+        if (
+            record.expected_verdict not in LABELS
+        ):  # the contract already forbids this; never scored if it happens
             counts["invalid_labels"] += 1
             continue
         evaluated.append(record)
@@ -177,21 +207,37 @@ def compute(
         predicted = prediction.verdict if prediction else Verdict.ERROR
         counts["error_predictions"] += predicted is Verdict.ERROR
         if predicted is Verdict.ERROR:
-            code = "MISSING_PREDICTION" if prediction is None else (prediction.error_code or "UNSPECIFIED")
+            code = (
+                "MISSING_PREDICTION"
+                if prediction is None
+                else (prediction.error_code or "UNSPECIFIED")
+            )
             error_codes[code] += 1
             if prediction is not None and prediction.error_message and code not in error_examples:
                 error_examples[code] = prediction.error_message[:200]
             errors_in["fn" if record.expected_verdict is POSITIVE else "tn"] += 1
-        positive_label, positive_prediction = record.expected_verdict is POSITIVE, predicted is POSITIVE
-        counts["tp" if positive_label and positive_prediction else "fn" if positive_label else
-               "fp" if positive_prediction else "tn"] += 1
+        positive_label, positive_prediction = (
+            record.expected_verdict is POSITIVE,
+            predicted is POSITIVE,
+        )
+        counts[
+            "tp"
+            if positive_label and positive_prediction
+            else "fn"
+            if positive_label
+            else "fp"
+            if positive_prediction
+            else "tn"
+        ] += 1
         if prediction is None:
             continue
         if predicted in (Verdict.SUPPORTED, Verdict.CONTRADICTED) and not prediction.citations:
             citation_fail["definite_verdict_without_citation"] += 1
         for c in prediction.citations:
             total_citations += 1
-            problem = metrics.citation_problem(record, c.doc_id, c.quote, c.quote_span.start, c.quote_span.end, c.doc_text_sha256)
+            problem = metrics.citation_problem(
+                record, c.doc_id, c.quote, c.quote_span.start, c.quote_span.end, c.doc_text_sha256
+            )
             if problem is not None:
                 citation_fail[f"does_not_resolve:{problem.value}"] += 1
                 continue
@@ -209,12 +255,28 @@ def compute(
     counts["unexpected_predictions"] = len(set(predictions) - {r.record_id for r in records})
 
     tp, fp, fn, tn = counts["tp"], counts["fp"], counts["fn"], counts["tn"]
-    precision = _rate(tp, tp + fp, "contradicted_precision", unavailable, "CONTRADICTED was never predicted")
-    recall = _rate(tp, tp + fn, "contradicted_recall", unavailable, "no record is labelled CONTRADICTED")
-    fpr = _rate(fp, fp + tn, "false_positive_rate", unavailable, "no record is labelled SUPPORTED or NOT_ENOUGH_EVIDENCE")
-    fnr = _rate(fn, tp + fn, "false_negative_rate", unavailable, "no record is labelled CONTRADICTED")
-    validity = _rate(valid, total_citations, "citation_validity", unavailable, "no citation was given")
-    resolution = _rate(resolved, total_citations, "citation_resolution", unavailable, "no citation was given")
+    precision = _rate(
+        tp, tp + fp, "contradicted_precision", unavailable, "CONTRADICTED was never predicted"
+    )
+    recall = _rate(
+        tp, tp + fn, "contradicted_recall", unavailable, "no record is labelled CONTRADICTED"
+    )
+    fpr = _rate(
+        fp,
+        fp + tn,
+        "false_positive_rate",
+        unavailable,
+        "no record is labelled SUPPORTED or NOT_ENOUGH_EVIDENCE",
+    )
+    fnr = _rate(
+        fn, tp + fn, "false_negative_rate", unavailable, "no record is labelled CONTRADICTED"
+    )
+    validity = _rate(
+        valid, total_citations, "citation_validity", unavailable, "no citation was given"
+    )
+    resolution = _rate(
+        resolved, total_citations, "citation_resolution", unavailable, "no citation was given"
+    )
 
     # 6. Retrieval recall@5: the engine's retriever, run on each record with the run's settings.
     chunking = chunking or ChunkingConfig()
@@ -225,30 +287,53 @@ def compute(
         if not record.gold_evidence:
             continue
         with_gold += 1
-        passages = BM25Retriever(record.references, chunking=chunking, config=config).retrieve(_eval_claim(record))
+        passages = BM25Retriever(record.references, chunking=chunking, config=config).retrieve(
+            _eval_claim(record)
+        )
         empty += not passages
         if metrics.gold_spans_covered(record, ((p.doc_id, p.span) for p in passages[:RECALL_K])):
             hits += 1
         else:
             misses.append(record.record_id)
-    recall_at_5 = _rate(hits, with_gold, "retrieval_recall_at_5", unavailable, "no record has gold evidence")
-    retrieval_info = {"k": RECALL_K, "with_gold_evidence": with_gold, "excluded_without_gold_evidence": len(evaluated) - with_gold,
-                      "empty_results": empty, "misses": misses, "chunking": chunking.model_dump(mode="json"),
-                      "retrieval": config.model_dump(mode="json")}
+    recall_at_5 = _rate(
+        hits, with_gold, "retrieval_recall_at_5", unavailable, "no record has gold evidence"
+    )
+    retrieval_info = {
+        "k": RECALL_K,
+        "with_gold_evidence": with_gold,
+        "excluded_without_gold_evidence": len(evaluated) - with_gold,
+        "empty_results": empty,
+        "misses": misses,
+        "chunking": chunking.model_dump(mode="json"),
+        "retrieval": config.model_dump(mode="json"),
+    }
 
     # 7 and 8 need the full pipeline's per-case outcomes.
-    outcomes = {k: (v if isinstance(v, CaseOutcome) else CaseOutcome.model_validate(v)) for k, v in (cases or {}).items()}
+    outcomes = {
+        k: (v if isinstance(v, CaseOutcome) else CaseOutcome.model_validate(v))
+        for k, v in (cases or {}).items()
+    }
     by_id = {r.record_id: r for r in evaluated}
     review: dict[str, Any] = {}
     corrections: dict[str, Any] = {}
     share = traceability = None
     if not outcomes:
-        unavailable["human_review_share"] = "no per-case pipeline outcomes in this run (needs --pipeline full with a provider)"
-        unavailable["correction_traceability"] = "no per-case pipeline outcomes in this run (needs --pipeline full with a provider)"
+        unavailable["human_review_share"] = (
+            "no per-case pipeline outcomes in this run (needs --pipeline full with a provider)"
+        )
+        unavailable["correction_traceability"] = (
+            "no per-case pipeline outcomes in this run (needs --pipeline full with a provider)"
+        )
     else:
         considered = [by_id[k] for k in by_id if k in outcomes]
         routed = [r for r in considered if outcomes[r.record_id].requires_human_review]
-        share = _rate(len(routed), len(considered), "human_review_share", unavailable, "no evaluated record has an outcome")
+        share = _rate(
+            len(routed),
+            len(considered),
+            "human_review_share",
+            unavailable,
+            "no evaluated record has an outcome",
+        )
         auto = [r for r in considered if not outcomes[r.record_id].requires_human_review]
         review = {
             "records_with_outcome": len(considered),
@@ -256,8 +341,12 @@ def compute(
             "routed_by_label": dict(Counter(r.expected_verdict.value for r in routed)),
             "auto_cleared": len(auto),
             # The safety number: cleared without a person although the label is not SUPPORTED.
-            "auto_cleared_but_not_supported": [r.record_id for r in auto if r.expected_verdict is not Verdict.SUPPORTED],
-            "auto_cleared_not_supported_count": sum(1 for r in auto if r.expected_verdict is not Verdict.SUPPORTED),
+            "auto_cleared_but_not_supported": [
+                r.record_id for r in auto if r.expected_verdict is not Verdict.SUPPORTED
+            ],
+            "auto_cleared_not_supported_count": sum(
+                1 for r in auto if r.expected_verdict is not Verdict.SUPPORTED
+            ),
         }
         proposed, traceable, untraceable = 0, 0, []
         statuses = Counter()
@@ -274,37 +363,92 @@ def compute(
                 if claim.correction.status != "proposed":
                     continue
                 proposed += 1
-                problems = traceability_problems(record, [c.model_dump() for c in claim.citations], claim.correction.model_dump(),
-                                                 claim.correction.original_text or "")
+                problems = traceability_problems(
+                    record,
+                    [c.model_dump() for c in claim.citations],
+                    claim.correction.model_dump(),
+                    claim.correction.original_text or "",
+                )
                 if problems:
-                    untraceable.append(Untraceable(record_id=record_id, claim_id=claim.claim_id, reasons=problems).model_dump())
+                    untraceable.append(
+                        Untraceable(
+                            record_id=record_id, claim_id=claim.claim_id, reasons=problems
+                        ).model_dump()
+                    )
                 else:
                     traceable += 1
-        traceability = _rate(traceable, proposed, "correction_traceability", unavailable, "no correction was proposed")
-        corrections = {"proposed": proposed, "traceable": traceable, "untraceable": untraceable,
-                       "attempts_by_status": dict(statuses), "claims_not_applicable": not_applicable}
+        traceability = _rate(
+            traceable,
+            proposed,
+            "correction_traceability",
+            unavailable,
+            "no correction was proposed",
+        )
+        corrections = {
+            "proposed": proposed,
+            "traceable": traceable,
+            "untraceable": untraceable,
+            "attempts_by_status": dict(statuses),
+            "claims_not_applicable": not_applicable,
+        }
 
-    failure_rate = _rate(counts["error_predictions"], counts["evaluated"], "provider_failure_rate", unavailable,
-                         "no record was evaluated")
+    failure_rate = _rate(
+        counts["error_predictions"],
+        counts["evaluated"],
+        "provider_failure_rate",
+        unavailable,
+        "no record was evaluated",
+    )
     timings = sorted(o.seconds for o in outcomes.values())
     if timings:
-        latency = {"n": len(timings), "mean_seconds": round(sum(timings) / len(timings), 4),
-                   "p50_seconds": _percentile(timings, 50), "p95_seconds": _percentile(timings, 95),
-                   "max_seconds": timings[-1]}
+        latency = {
+            "n": len(timings),
+            "mean_seconds": round(sum(timings) / len(timings), 4),
+            "p50_seconds": _percentile(timings, 50),
+            "p95_seconds": _percentile(timings, 95),
+            "max_seconds": timings[-1],
+        }
     else:
         latency = {}
-        unavailable["latency"] = "no per-case timings (only full-pipeline runs record them, in cases.jsonl)"
+        unavailable["latency"] = (
+            "no per-case timings (only full-pipeline runs record them, in cases.jsonl)"
+        )
 
-    errors_info = {"by_code": dict(error_codes.most_common()), "example_messages": error_examples,
-                   "counted_as_fn": errors_in["fn"], "counted_as_tn": errors_in["tn"]} if error_codes else {}
+    errors_info = (
+        {
+            "by_code": dict(error_codes.most_common()),
+            "example_messages": error_examples,
+            "counted_as_fn": errors_in["fn"],
+            "counted_as_tn": errors_in["tn"],
+        }
+        if error_codes
+        else {}
+    )
 
     return RequiredMetrics(
-        provider_failure_rate=failure_rate, latency=latency, errors=errors_info,
-        counts=dict(counts), contradicted_precision=precision, contradicted_recall=recall, false_positive_rate=fpr,
-        false_negative_rate=fnr, citation_validity=validity, citation_resolution=resolution,
-        citation_failures={"citations": total_citations, "valid": valid, "resolved": resolved, **dict(citation_fail)},
-        retrieval_recall_at_5=recall_at_5, retrieval=retrieval_info, human_review_share=share, review=review,
-        correction_traceability=traceability, corrections=corrections, unavailable=unavailable,
+        provider_failure_rate=failure_rate,
+        latency=latency,
+        errors=errors_info,
+        counts=dict(counts),
+        contradicted_precision=precision,
+        contradicted_recall=recall,
+        false_positive_rate=fpr,
+        false_negative_rate=fnr,
+        citation_validity=validity,
+        citation_resolution=resolution,
+        citation_failures={
+            "citations": total_citations,
+            "valid": valid,
+            "resolved": resolved,
+            **dict(citation_fail),
+        },
+        retrieval_recall_at_5=recall_at_5,
+        retrieval=retrieval_info,
+        human_review_share=share,
+        review=review,
+        correction_traceability=traceability,
+        corrections=corrections,
+        unavailable=unavailable,
     )
 
 
@@ -323,48 +467,110 @@ def _fmt(r: Ratio | None, name: str, m: RequiredMetrics) -> str:
 def markdown(m: RequiredMetrics) -> str:
     c = m.counts
     rows = [
-        ("1. Precision (CONTRADICTED)", "TP / (TP + FP)", m.contradicted_precision, "contradicted_precision"),
-        ("2. Recall (CONTRADICTED)", "TP / (TP + FN)", m.contradicted_recall, "contradicted_recall"),
+        (
+            "1. Precision (CONTRADICTED)",
+            "TP / (TP + FP)",
+            m.contradicted_precision,
+            "contradicted_precision",
+        ),
+        (
+            "2. Recall (CONTRADICTED)",
+            "TP / (TP + FN)",
+            m.contradicted_recall,
+            "contradicted_recall",
+        ),
         ("3. False-positive rate", "FP / (FP + TN)", m.false_positive_rate, "false_positive_rate"),
         ("4. False-negative rate", "FN / (TP + FN)", m.false_negative_rate, "false_negative_rate"),
-        ("5. Citation validity", "resolving and supporting citations / all citations", m.citation_validity, "citation_validity"),
-        ("   Citation resolution", "resolving citations / all citations", m.citation_resolution, "citation_resolution"),
-        ("6. Retrieval recall@5", "records with gold evidence in the top 5 / records with gold evidence",
-         m.retrieval_recall_at_5, "retrieval_recall_at_5"),
-        ("7. Human-review share", "records routed to review / records with a pipeline outcome", m.human_review_share,
-         "human_review_share"),
-        ("8. Correction traceability", "traceable proposals / proposed corrections", m.correction_traceability,
-         "correction_traceability"),
-        ("   Provider failure rate", "ERROR predictions / evaluated records", m.provider_failure_rate,
-         "provider_failure_rate"),
+        (
+            "5. Citation validity",
+            "resolving and supporting citations / all citations",
+            m.citation_validity,
+            "citation_validity",
+        ),
+        (
+            "   Citation resolution",
+            "resolving citations / all citations",
+            m.citation_resolution,
+            "citation_resolution",
+        ),
+        (
+            "6. Retrieval recall@5",
+            "records with gold evidence in the top 5 / records with gold evidence",
+            m.retrieval_recall_at_5,
+            "retrieval_recall_at_5",
+        ),
+        (
+            "7. Human-review share",
+            "records routed to review / records with a pipeline outcome",
+            m.human_review_share,
+            "human_review_share",
+        ),
+        (
+            "8. Correction traceability",
+            "traceable proposals / proposed corrections",
+            m.correction_traceability,
+            "correction_traceability",
+        ),
+        (
+            "   Provider failure rate",
+            "ERROR predictions / evaluated records",
+            m.provider_failure_rate,
+            "provider_failure_rate",
+        ),
     ]
-    lines = ["## Required metrics (positive class: CONTRADICTED)", "",
-             f"Evaluated {c['evaluated']} records · TP {c['tp']} · FP {c['fp']} · FN {c['fn']} · TN {c['tn']} · "
-             f"missing predictions {c['missing_predictions']} · ERROR predictions {c['error_predictions']} · "
-             f"invalid labels {c['invalid_labels']} · unexpected predictions {c['unexpected_predictions']}", "",
-             "| Metric | Formula | Value |", "|---|---|---|"]
+    lines = [
+        "## Required metrics (positive class: CONTRADICTED)",
+        "",
+        f"Evaluated {c['evaluated']} records · TP {c['tp']} · FP {c['fp']} · FN {c['fn']} · TN {c['tn']} · "
+        f"missing predictions {c['missing_predictions']} · ERROR predictions {c['error_predictions']} · "
+        f"invalid labels {c['invalid_labels']} · unexpected predictions {c['unexpected_predictions']}",
+        "",
+        "| Metric | Formula | Value |",
+        "|---|---|---|",
+    ]
     lines += [f"| {name} | {formula} | {_fmt(r, key, m)} |" for name, formula, r, key in rows]
     if m.errors:
-        lines += ["", f"No verdict (ERROR) by cause: {m.errors['by_code']}. Of these, {m.errors['counted_as_fn']} are inside FN "
-                  f"and {m.errors['counted_as_tn']} inside TN: failures, not model decisions."]
+        lines += [
+            "",
+            f"No verdict (ERROR) by cause: {m.errors['by_code']}. Of these, {m.errors['counted_as_fn']} are inside FN "
+            f"and {m.errors['counted_as_tn']} inside TN: failures, not model decisions.",
+        ]
     lat = m.latency
-    lines += ["", ("Latency per case (wall clock, seconds; includes provider time only for live runs): "
-                   f"n {lat['n']} · mean {lat['mean_seconds']} · p50 {lat['p50_seconds']} · p95 {lat['p95_seconds']} · "
-                   f"max {lat['max_seconds']}") if lat else
-              f"Latency: unavailable ({m.unavailable.get('latency', 'not measured')})"]
-    cf = {k: v for k, v in m.citation_failures.items() if k not in ("citations", "valid", "resolved")}
-    lines += ["", f"Citation failures: {cf or 'none'}",
-              f"Retrieval: {m.retrieval['with_gold_evidence']} records with gold evidence, "
-              f"{m.retrieval['excluded_without_gold_evidence']} excluded (no gold evidence), "
-              f"{m.retrieval['empty_results']} empty retrievals, misses {m.retrieval['misses'] or 'none'}"]
+    lines += [
+        "",
+        (
+            "Latency per case (wall clock, seconds; includes provider time only for live runs): "
+            f"n {lat['n']} · mean {lat['mean_seconds']} · p50 {lat['p50_seconds']} · p95 {lat['p95_seconds']} · "
+            f"max {lat['max_seconds']}"
+        )
+        if lat
+        else f"Latency: unavailable ({m.unavailable.get('latency', 'not measured')})",
+    ]
+    cf = {
+        k: v for k, v in m.citation_failures.items() if k not in ("citations", "valid", "resolved")
+    }
+    lines += [
+        "",
+        f"Citation failures: {cf or 'none'}",
+        f"Retrieval: {m.retrieval['with_gold_evidence']} records with gold evidence, "
+        f"{m.retrieval['excluded_without_gold_evidence']} excluded (no gold evidence), "
+        f"{m.retrieval['empty_results']} empty retrievals, misses {m.retrieval['misses'] or 'none'}",
+    ]
     if m.review:
-        lines.append(f"Review: {m.review['records_with_outcome']} records with an outcome, "
-                     f"{m.review['excluded_without_outcome']} excluded (no outcome); auto-cleared {m.review['auto_cleared']}; "
-                     f"auto-cleared although not SUPPORTED: {m.review['auto_cleared_but_not_supported'] or 'none'}")
+        lines.append(
+            f"Review: {m.review['records_with_outcome']} records with an outcome, "
+            f"{m.review['excluded_without_outcome']} excluded (no outcome); auto-cleared {m.review['auto_cleared']}; "
+            f"auto-cleared although not SUPPORTED: {m.review['auto_cleared_but_not_supported'] or 'none'}"
+        )
     if m.corrections:
-        lines.append(f"Corrections: {m.corrections['attempts_by_status'] or 'no attempts'}; "
-                     f"{m.corrections['claims_not_applicable']} claims not applicable; untraceable: "
-                     + (", ".join(f"{u['record_id']} {u['reasons']}" for u in m.corrections["untraceable"]) or "none"))
+        lines.append(
+            f"Corrections: {m.corrections['attempts_by_status'] or 'no attempts'}; "
+            f"{m.corrections['claims_not_applicable']} claims not applicable; untraceable: "
+            + (
+                ", ".join(f"{u['record_id']} {u['reasons']}" for u in m.corrections["untraceable"])
+                or "none"
+            )
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -375,7 +581,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--predictions", type=Path, required=True)
     parser.add_argument("--cases", type=Path)
     parser.add_argument("--title", default="Required metrics")
-    parser.add_argument("--note", default="", help="a line printed under the title, e.g. what the inputs are")
+    parser.add_argument(
+        "--note", default="", help="a line printed under the title, e.g. what the inputs are"
+    )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     cases = None
@@ -389,7 +597,9 @@ def main(argv: list[str] | None = None) -> int:
     text = f"# {args.title}\n\n" + (f"{args.note}\n\n" if args.note else "") + markdown(result)
     if args.out:
         args.out.write_text(text, encoding="utf-8", newline="\n")
-        (args.out.with_suffix(".json")).write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8", newline="\n")
+        (args.out.with_suffix(".json")).write_text(
+            result.model_dump_json(indent=2) + "\n", encoding="utf-8", newline="\n"
+        )
     print(text)
     return 0
 

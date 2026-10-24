@@ -60,7 +60,9 @@ class GroqProvider:
         env = os.environ if env is None else env
         api_key = env.get(API_KEY_VAR, "").strip()
         model = env.get(MODEL_VAR, "").strip()
-        missing = [name for name, value in ((API_KEY_VAR, api_key), (MODEL_VAR, model)) if not value]
+        missing = [
+            name for name, value in ((API_KEY_VAR, api_key), (MODEL_VAR, model)) if not value
+        ]
         if missing:
             raise ProviderNotConfiguredError(f"Groq not configured: set {' and '.join(missing)}.")
         register_secret(api_key)  # redacted from every log record (security.RedactingFilter)
@@ -91,7 +93,9 @@ class GroqProvider:
         except httpx.TimeoutException:
             raise ProviderTimeoutError("Groq request timed out") from None
         except httpx.HTTPError as error:
-            raise ProviderUnavailableError(f"Groq request failed: {type(error).__name__}"[:500]) from None
+            raise ProviderUnavailableError(
+                f"Groq request failed: {type(error).__name__}"[:500]
+            ) from None
 
         if response.status_code >= 400:
             raise self._map_status_error(response)
@@ -102,8 +106,17 @@ class GroqProvider:
             payload = response.json()
             content = payload["choices"][0]["message"]["content"]
             data = parse_json_object(content)  # strict: no duplicate keys, no NaN, one object
-        except (KeyError, IndexError, ValueError, TypeError, RecursionError, MalformedOutputError) as error:
-            raise MalformedOutputError(f"Groq reply was not usable JSON: {type(error).__name__}"[:500]) from None
+        except (
+            KeyError,
+            IndexError,
+            ValueError,
+            TypeError,
+            RecursionError,
+            MalformedOutputError,
+        ) as error:
+            raise MalformedOutputError(
+                f"Groq reply was not usable JSON: {type(error).__name__}"[:500]
+            ) from None
         if not isinstance(data, dict):
             raise MalformedOutputError("Groq reply was valid JSON but not an object.")
 

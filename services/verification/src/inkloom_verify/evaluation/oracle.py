@@ -38,11 +38,19 @@ def _extract(sentence: dict[str, str]) -> dict[str, Any]:
     reviewer: ..." keeps "X is dishwasher safe"), and a sentence with none is "other"."""
     text = sentence["text"]
     if not instruction_like(text):
-        return {"sentence_id": sentence["id"], "kind": "factual", "claims": [{"text": text, "source_quote": text}]}
+        return {
+            "sentence_id": sentence["id"],
+            "kind": "factual",
+            "claims": [{"text": text, "source_quote": text}],
+        }
     clauses = [c.strip() for c in text.split(";") if c.strip() and not instruction_like(c)]
     if not clauses:
         return {"sentence_id": sentence["id"], "kind": "other", "claims": []}
-    return {"sentence_id": sentence["id"], "kind": "factual", "claims": [{"text": c, "source_quote": c} for c in clauses]}
+    return {
+        "sentence_id": sentence["id"],
+        "kind": "factual",
+        "claims": [{"text": c, "source_quote": c} for c in clauses],
+    }
 
 
 class OracleProvider:
@@ -56,18 +64,32 @@ class OracleProvider:
 
     def complete_json(self, request: JsonCompletionRequest) -> JsonCompletion:
         if request.schema_name == "claim_extraction":
-            data: dict[str, Any] = {"statements": [_extract(s) for s in _block(request, "content_json")["sentences"]]}
+            data: dict[str, Any] = {
+                "statements": [_extract(s) for s in _block(request, "content_json")["sentences"]]
+            }
         elif request.schema_name == "claim_verification":
             data = self._verify(_block(request, "verification_input_json"))
         else:
-            data = {"status": "needs_human_review", "original_text": "", "replacement_text": "", "citations": [],
-                    "reason": "The oracle does not propose corrections."}
+            data = {
+                "status": "needs_human_review",
+                "original_text": "",
+                "replacement_text": "",
+                "citations": [],
+                "reason": "The oracle does not propose corrections.",
+            }
         return JsonCompletion(data=data, model="oracle/gold-labels", attempts=1)
 
     def _verify(self, block: dict[str, Any]) -> dict[str, Any]:
         record = self.record
-        abstain = {"verdict": "NOT_ENOUGH_EVIDENCE", "citations": [], "rationale": "Not settled by the passages."}
-        if record is None or record.expected_verdict not in (Verdict.SUPPORTED, Verdict.CONTRADICTED):
+        abstain = {
+            "verdict": "NOT_ENOUGH_EVIDENCE",
+            "citations": [],
+            "rationale": "Not settled by the passages.",
+        }
+        if record is None or record.expected_verdict not in (
+            Verdict.SUPPORTED,
+            Verdict.CONTRADICTED,
+        ):
             return abstain
         citations = []
         for gold in record.gold_evidence:
@@ -75,7 +97,11 @@ class OracleProvider:
             if label is None:
                 return abstain  # a gold quote it was not shown cannot be cited
             citations.append({"passage": label, "quote": gold.quote})
-        return {"verdict": record.expected_verdict.value, "citations": citations, "rationale": "Gold evidence."}
+        return {
+            "verdict": record.expected_verdict.value,
+            "citations": citations,
+            "rationale": "Gold evidence.",
+        }
 
 
 class OraclePredictor(PipelinePredictor):

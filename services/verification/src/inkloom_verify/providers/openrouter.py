@@ -56,8 +56,12 @@ logger = logging.getLogger(__name__)
 #   "No endpoints found matching your data policy (...)"            -> data_collection=deny (or the
 #      account's privacy settings) excludes every endpoint, e.g. a free model whose only provider
 #      may train on prompts. Switching structured-output mode cannot help that.
-_NO_ENDPOINTS_FOR_PARAMETERS = re.compile(r"no endpoints found that can handle the requested parameters", re.IGNORECASE)
-_NO_ENDPOINTS_FOR_DATA_POLICY = re.compile(r"no endpoints found matching your data policy", re.IGNORECASE)
+_NO_ENDPOINTS_FOR_PARAMETERS = re.compile(
+    r"no endpoints found that can handle the requested parameters", re.IGNORECASE
+)
+_NO_ENDPOINTS_FOR_DATA_POLICY = re.compile(
+    r"no endpoints found matching your data policy", re.IGNORECASE
+)
 
 
 class UnsupportedParametersError(ProviderRequestError):
@@ -78,6 +82,7 @@ class FreeModelQuotaError(ProviderQuotaError):
 class DataPolicyError(ProviderRequestError):
     """404: every endpoint of this model is excluded by the data policy (data_collection=deny or the
     account's OpenRouter privacy settings). Not retried and no fallback: the next model is tried."""
+
 
 API_KEY_VAR = "OPENROUTER_API_KEY"
 MODELS_VAR = "INKLOOM_LLM_MODELS"
@@ -131,7 +136,9 @@ class OpenRouterSettings(BaseModel):
     def _model_ids(cls, value: list[str]) -> list[str]:
         for model in value:
             if len(model) > 128 or not MODEL_ID.fullmatch(model):
-                raise ValueError("each model must be an OpenRouter model id such as provider/model-name")
+                raise ValueError(
+                    "each model must be an OpenRouter model id such as provider/model-name"
+                )
         return value
 
     @field_validator("base_url")
@@ -180,10 +187,16 @@ def models_hint(raw: str) -> str:
     value = raw.strip()
     found = []
     if any(q in value for q in "\"'`"):
-        found.append("it contains quote characters (cmd's set VAR=\"...\" keeps the quotes; write set VAR=value)")
+        found.append(
+            'it contains quote characters (cmd\'s set VAR="..." keeps the quotes; write set VAR=value)'
+        )
     if any(b in value for b in "[]{}"):
-        found.append("it contains brackets (JSON is not accepted; use a plain comma-separated list)")
-    if ";" in value or any(" " in part.strip() or "\t" in part.strip() for part in value.split(",")):
+        found.append(
+            "it contains brackets (JSON is not accepted; use a plain comma-separated list)"
+        )
+    if ";" in value or any(
+        " " in part.strip() or "\t" in part.strip() for part in value.split(",")
+    ):
         found.append("models are separated by something other than commas")
     if "=" in value:
         found.append("it contains '=' (a name=model mapping is not accepted)")
@@ -208,7 +221,9 @@ class OpenRouterProvider:
         self.settings = settings
         self._jitter = jitter
         # Redirects are never followed, so the Authorization header cannot be sent to another host.
-        self._client = client or httpx.Client(timeout=settings.timeout_seconds, follow_redirects=False)
+        self._client = client or httpx.Client(
+            timeout=settings.timeout_seconds, follow_redirects=False
+        )
         self._sleep = sleep
         self._secret = settings.api_key.get_secret_value()
         register_secret(self._secret)
@@ -249,20 +264,28 @@ class OpenRouterProvider:
                     return JsonCompletion(data=data, model=answered_by, attempts=attempts)
                 except FreeModelQuotaError as error:
                     last = self._free_quota_error = error
-                    logger.warning("openrouter model=%s: daily free-model quota exhausted; skipping :free models", model)
+                    logger.warning(
+                        "openrouter model=%s: daily free-model quota exhausted; skipping :free models",
+                        model,
+                    )
                     break
                 except ACCOUNT_ERRORS:
                     raise
                 except DataPolicyError as error:
                     last = self._refused_models[model] = error
-                    logger.warning("openrouter model=%s rejected by the data policy; skipped for this run", model)
+                    logger.warning(
+                        "openrouter model=%s rejected by the data policy; skipped for this run",
+                        model,
+                    )
                     break
                 except UnsupportedParametersError as error:
                     last = error
                     if mode == "json_schema":
                         # Same model, schema-less JSON mode; does not use up a retry or wait.
-                        logger.warning("openrouter model=%s has no endpoint for json_schema; retrying with json_object",
-                                       model)
+                        logger.warning(
+                            "openrouter model=%s has no endpoint for json_schema; retrying with json_object",
+                            model,
+                        )
                         mode = "json_object"
                         continue
                     logger.warning("openrouter model=%s rejected the request: %s", model, error)
@@ -273,7 +296,9 @@ class OpenRouterProvider:
                     break  # retrying the same request on the same model will not help
                 except ProviderError as error:
                     last = error
-                    logger.warning("openrouter model=%s attempt=%d failed: %s", model, retry + 1, error)
+                    logger.warning(
+                        "openrouter model=%s attempt=%d failed: %s", model, retry + 1, error
+                    )
                     if retry < self.settings.max_retries:
                         self._sleep(self._delay(error, retry))
                 retry += 1
@@ -288,11 +313,17 @@ class OpenRouterProvider:
         step = self.settings.backoff_seconds * (2**retry)
         return min(step * (0.5 + self._jitter() / 2), _MAX_RETRY_AFTER_SECONDS)
 
-    def _body(self, model: str, request: JsonCompletionRequest, mode: str | None = None) -> dict[str, Any]:
+    def _body(
+        self, model: str, request: JsonCompletionRequest, mode: str | None = None
+    ) -> dict[str, Any]:
         if (mode or self.settings.structured_output) == "json_schema":
             response_format: dict[str, Any] = {
                 "type": "json_schema",
-                "json_schema": {"name": request.schema_name, "strict": True, "schema": request.json_schema},
+                "json_schema": {
+                    "name": request.schema_name,
+                    "strict": True,
+                    "schema": request.json_schema,
+                },
             }
         else:
             response_format = {"type": "json_object"}
@@ -305,13 +336,18 @@ class OpenRouterProvider:
             "temperature": self.settings.temperature,
             "max_tokens": request.max_output_tokens,
             "response_format": response_format,
-            "provider": {"data_collection": self.settings.data_collection, "require_parameters": True},
+            "provider": {
+                "data_collection": self.settings.data_collection,
+                "require_parameters": True,
+            },
         }
         if self.settings.seed is not None:
             body["seed"] = self.settings.seed
         return body
 
-    def _call(self, model: str, request: JsonCompletionRequest, mode: str | None = None) -> tuple[dict[str, Any], str]:
+    def _call(
+        self, model: str, request: JsonCompletionRequest, mode: str | None = None
+    ) -> tuple[dict[str, Any], str]:
         started = time.monotonic()
         try:
             response = self._client.post(
@@ -322,11 +358,18 @@ class OpenRouterProvider:
                 follow_redirects=False,
             )
         except httpx.TimeoutException:
-            raise ProviderTimeoutError(f"{model} did not answer within {self.settings.timeout_seconds:g}s") from None
+            raise ProviderTimeoutError(
+                f"{model} did not answer within {self.settings.timeout_seconds:g}s"
+            ) from None
         except httpx.HTTPError as error:
-            raise ProviderUnavailableError(f"could not reach OpenRouter ({type(error).__name__})") from None
+            raise ProviderUnavailableError(
+                f"could not reach OpenRouter ({type(error).__name__})"
+            ) from None
         logger.info(
-            "openrouter model=%s status=%d seconds=%.2f", model, response.status_code, time.monotonic() - started
+            "openrouter model=%s status=%d seconds=%.2f",
+            model,
+            response.status_code,
+            time.monotonic() - started,
         )
 
         payload = self._json_body(response, model)
@@ -336,7 +379,9 @@ class OpenRouterProvider:
 
     def _json_body(self, response: httpx.Response, model: str) -> dict[str, Any]:
         if len(response.content) > MAX_RESPONSE_BYTES:
-            raise ProviderUnavailableError(f"{model}: OpenRouter response exceeded {MAX_RESPONSE_BYTES} bytes")
+            raise ProviderUnavailableError(
+                f"{model}: OpenRouter response exceeded {MAX_RESPONSE_BYTES} bytes"
+            )
         try:
             payload = response.json()
         except (ValueError, RecursionError):
@@ -344,10 +389,14 @@ class OpenRouterProvider:
         if isinstance(payload, dict):
             return payload
         if response.status_code == 200:
-            raise ProviderUnavailableError(f"{model}: OpenRouter returned a response that is not a JSON object")
+            raise ProviderUnavailableError(
+                f"{model}: OpenRouter returned a response that is not a JSON object"
+            )
         return {}
 
-    def _error(self, response: httpx.Response, payload: dict[str, Any], model: str) -> ProviderError:
+    def _error(
+        self, response: httpx.Response, payload: dict[str, Any], model: str
+    ) -> ProviderError:
         """A ProviderError with a fixed, safe message.
 
         The provider's own error text is deliberately dropped, not just redacted: it can echo
@@ -381,7 +430,9 @@ class OpenRouterProvider:
                 "whose providers may train on or log prompts cannot be used (see https://openrouter.ai/settings/privacy)"
             )
         if status == 404 and _NO_ENDPOINTS_FOR_PARAMETERS.search(provider_message):
-            return UnsupportedParametersError(f"{model}: no endpoint supports the requested parameters (404)")
+            return UnsupportedParametersError(
+                f"{model}: no endpoint supports the requested parameters (404)"
+            )
         if status in (400, 404, 413, 422):
             return ProviderRequestError(message)
         return ProviderUnavailableError(message)

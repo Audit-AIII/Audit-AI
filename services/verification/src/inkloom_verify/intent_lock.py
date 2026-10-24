@@ -58,18 +58,26 @@ def validate_locks(locks: Iterable[str] | None) -> list[str]:
     return clean
 
 
-def intent_lock_violations(original: str, revised: str, locks: Sequence[str] | None) -> list[IntentLockViolation]:
+def intent_lock_violations(
+    original: str, revised: str, locks: Sequence[str] | None
+) -> list[IntentLockViolation]:
     """Locked phrases that ``revised`` keeps fewer times than ``original`` (empty: allowed)."""
     found = []
     for phrase in validate_locks(locks):
         before = original.count(phrase)
         after = revised.count(phrase)
         if before and after < before:
-            found.append(IntentLockViolation(phrase=phrase, occurrences_before=before, occurrences_after=after))
+            found.append(
+                IntentLockViolation(
+                    phrase=phrase, occurrences_before=before, occurrences_after=after
+                )
+            )
     return found
 
 
-def check_replacement(text: str, start: int, end: int, replacement: str, locks: Sequence[str] | None) -> list[IntentLockViolation]:
+def check_replacement(
+    text: str, start: int, end: int, replacement: str, locks: Sequence[str] | None
+) -> list[IntentLockViolation]:
     """Violations if ``text[start:end]`` were replaced by ``replacement`` (the whole text is
     compared, so a lock that straddles the edit boundary is caught too)."""
     if not 0 <= start <= end <= len(text):

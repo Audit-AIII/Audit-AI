@@ -25,7 +25,9 @@ def _database_reachable() -> bool:
         return False
 
 
-requires_db = pytest.mark.skipif(not _database_reachable(), reason="DATABASE_URL not set or not reachable")
+requires_db = pytest.mark.skipif(
+    not _database_reachable(), reason="DATABASE_URL not set or not reachable"
+)
 
 
 @pytest.fixture
@@ -61,10 +63,14 @@ def client():
 # pair leaves Gemini/Groq/Ollama able to pick up real credentials from the developer's own
 # .env and make a real network call during what's supposed to be an isolated test.
 _PROVIDER_ENV_VARS = (
-    "GEMINI_API_KEY", "GEMINI_MODEL",
-    "GROQ_API_KEY", "GROQ_MODEL",
-    "OPENROUTER_API_KEY", "INKLOOM_LLM_MODELS",
-    "OLLAMA_BASE_URL", "OLLAMA_MODEL",
+    "GEMINI_API_KEY",
+    "GEMINI_MODEL",
+    "GROQ_API_KEY",
+    "GROQ_MODEL",
+    "OPENROUTER_API_KEY",
+    "INKLOOM_LLM_MODELS",
+    "OLLAMA_BASE_URL",
+    "OLLAMA_MODEL",
 )
 
 
@@ -115,7 +121,9 @@ class Account:
     def headers(self) -> dict:
         return {"Authorization": f"Bearer {self.token}"}
 
-    def upload_source(self, text: str = DEFAULT_FACT_SHEET, brand_id: str | None = None, title: str = "Fact Sheet") -> dict:
+    def upload_source(
+        self, text: str = DEFAULT_FACT_SHEET, brand_id: str | None = None, title: str = "Fact Sheet"
+    ) -> dict:
         import io
 
         response = self.client.post(
@@ -129,8 +137,12 @@ class Account:
             self.source_id = response.json()["id"]
         return response.json()
 
-    def submit(self, text: str = "Lumen Pods offer up to 12 hours of playback per charge.", brand_id: str | None = None,
-               title: str | None = None) -> dict:
+    def submit(
+        self,
+        text: str = "Lumen Pods offer up to 12 hours of playback per charge.",
+        brand_id: str | None = None,
+        title: str | None = None,
+    ) -> dict:
         body = {"brand_id": brand_id or self.brand_id, "text": text}
         if title is not None:
             body["title"] = title
@@ -157,7 +169,9 @@ def account_factory(client, db_session):
 
     def make(label: str = "user", with_source: bool = True) -> Account:
         email = f"{label}-{_uuid.uuid4().hex[:10]}@example.com"
-        response = client.post("/api/auth/register", json={"email": email, "password": ACCOUNT_PASSWORD})
+        response = client.post(
+            "/api/auth/register", json={"email": email, "password": ACCOUNT_PASSWORD}
+        )
         assert response.status_code == 201, response.text
         account = Account(client, response.json())
         created.append(account)
@@ -173,7 +187,10 @@ def account_factory(client, db_session):
     for account in created:
         # Content first: deleting the organisation in one go makes Postgres run brand_sources'
         # ON DELETE SET NULL on evidence_links rows the same cascade already removed via findings.
-        db_session.execute(_text("DELETE FROM content_items WHERE organisation_id = :id"), {"id": account.organisation_id})
+        db_session.execute(
+            _text("DELETE FROM content_items WHERE organisation_id = :id"),
+            {"id": account.organisation_id},
+        )
         org = db_session.get(Organisation, _uuid.UUID(account.organisation_id))
         if org is not None:
             db_session.delete(org)
@@ -192,6 +209,9 @@ def use_scripted_provider(monkeypatch, rules) -> None:
     from inkloom_api.engine.scripted_provider import scripted_provider
 
     def build(confidential=False, on_attempt=None):
-        return FallbackProvider([("scripted", lambda: scripted_provider(rules))], on_attempt=on_attempt or (lambda **_: None))
+        return FallbackProvider(
+            [("scripted", lambda: scripted_provider(rules))],
+            on_attempt=on_attempt or (lambda **_: None),
+        )
 
     monkeypatch.setattr(pipeline, "build_provider", build)

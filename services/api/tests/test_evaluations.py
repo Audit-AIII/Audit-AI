@@ -37,7 +37,9 @@ from inkloom_api.evaluation_runner import provider_mode
 from inkloom_api.models import EvaluationRun, ExternalCallLog
 
 DATASET = Path(inkloom_verify.__file__).resolve().parents[2] / "eval" / "dataset.jsonl"
-RECORDS = [json.loads(line) for line in DATASET.read_text(encoding="utf-8").splitlines() if line.strip()]
+RECORDS = [
+    json.loads(line) for line in DATASET.read_text(encoding="utf-8").splitlines() if line.strip()
+]
 LABELS = [r["expected_verdict"] for r in RECORDS]
 N = len(LABELS)
 N_SUPPORTED = LABELS.count("SUPPORTED")
@@ -53,14 +55,21 @@ def scripted_eval(monkeypatch):
     from inkloom_api.routers import evaluations
 
     monkeypatch.setattr(
-        evaluations, "build_provider",
-        lambda confidential=False, on_attempt=None: FallbackProvider([("scripted", lambda: scripted_provider([]))], on_attempt=on_attempt),
+        evaluations,
+        "build_provider",
+        lambda confidential=False, on_attempt=None: FallbackProvider(
+            [("scripted", lambda: scripted_provider([]))], on_attempt=on_attempt
+        ),
     )
 
 
 def _runs(db_session, account) -> int:
     db_session.expire_all()
-    return db_session.query(EvaluationRun).filter_by(organisation_id=uuid.UUID(account.organisation_id)).count()
+    return (
+        db_session.query(EvaluationRun)
+        .filter_by(organisation_id=uuid.UUID(account.organisation_id))
+        .count()
+    )
 
 
 @requires_db
@@ -69,12 +78,16 @@ def test_latest_is_404_before_any_run(client, account_factory) -> None:
     response = client.get("/api/evaluations/latest", headers=owner.headers)
     assert response.status_code == 404
     assert response.json()["error"] == {
-        "code": "NOT_FOUND", "message": "no evaluation has been run yet", "request_id": response.json()["error"]["request_id"]
+        "code": "NOT_FOUND",
+        "message": "no evaluation has been run yet",
+        "request_id": response.json()["error"]["request_id"],
     }
 
 
 @requires_db
-def test_no_provider_is_409_and_stores_nothing(client, force_stub_mode, db_session, account_factory) -> None:
+def test_no_provider_is_409_and_stores_nothing(
+    client, force_stub_mode, db_session, account_factory
+) -> None:
     owner = account_factory("owner", with_source=False)
     for _ in range(2):  # the second attempt is 409 again, not 429: nothing was stored
         response = client.post("/api/evaluations", headers=owner.headers)
@@ -86,7 +99,9 @@ def test_no_provider_is_409_and_stores_nothing(client, force_stub_mode, db_sessi
 
 
 @requires_db
-def test_run_returns_evaluation_shape_and_is_stored(client, scripted_eval, db_session, account_factory) -> None:
+def test_run_returns_evaluation_shape_and_is_stored(
+    client, scripted_eval, db_session, account_factory
+) -> None:
     owner = account_factory("owner", with_source=False)
     response = client.post("/api/evaluations", headers=owner.headers)
     assert response.status_code == 201, response.text
@@ -97,14 +112,22 @@ def test_run_returns_evaluation_shape_and_is_stored(client, scripted_eval, db_se
     assert body["catch_rate"] == 1.0  # every CONTRADICTED / NOT_ENOUGH_EVIDENCE claim flagged
     assert body["false_positive_rate"] == 1.0  # ...and every SUPPORTED claim flagged too
     overall = body["per_check"][0]
-    assert overall == {"check": "verification", "catch_rate": 1.0, "false_positive_rate": 1.0, "n": N}
+    assert overall == {
+        "check": "verification",
+        "catch_rate": 1.0,
+        "false_positive_rate": 1.0,
+        "n": N,
+    }
     assert {"check", "catch_rate", "false_positive_rate", "n"} == set(body["per_check"][1])
     assert all(entry["n"] > 0 for entry in body["per_check"])
     assert body["status"] == "completed"
     assert body["provider_failure_rate"] == 0.0
     assert body["dataset_version"].startswith("dataset.jsonl@")
     assert body["engine_prompt_version"] == "verify-claim-v1"
-    assert "small test set" in body["limits_note"] and "not a universal accuracy" in body["limits_note"]
+    assert (
+        "small test set" in body["limits_note"]
+        and "not a universal accuracy" in body["limits_note"]
+    )
     assert body["run_at"]
 
     assert body["coverage"] == "verifier_only"
@@ -116,7 +139,11 @@ def test_run_returns_evaluation_shape_and_is_stored(client, scripted_eval, db_se
         supported = subset.count("SUPPORTED")
         assert entry == {
             "n": len(subset),
-            "catch_rate": {"numerator": len(subset) - supported, "denominator": len(subset) - supported, "value": 1.0},
+            "catch_rate": {
+                "numerator": len(subset) - supported,
+                "denominator": len(subset) - supported,
+                "value": 1.0,
+            },
             "false_positive_rate": {"numerator": supported, "denominator": supported, "value": 1.0},
         }
 
@@ -128,15 +155,27 @@ def test_run_returns_evaluation_shape_and_is_stored(client, scripted_eval, db_se
     # are none); every one of them is logged.
     assert 0 < len(calls) == run.metrics["calls_used"] <= N
     assert {c.review_id for c in calls} == {None}
-    assert run.metrics["catch_rate"] == {"numerator": N_FLAGGABLE, "denominator": N_FLAGGABLE, "value": 1.0}
-    assert run.metrics["false_positive_rate"] == {"numerator": N_SUPPORTED, "denominator": N_SUPPORTED, "value": 1.0}
+    assert run.metrics["catch_rate"] == {
+        "numerator": N_FLAGGABLE,
+        "denominator": N_FLAGGABLE,
+        "value": 1.0,
+    }
+    assert run.metrics["false_positive_rate"] == {
+        "numerator": N_SUPPORTED,
+        "denominator": N_SUPPORTED,
+        "value": 1.0,
+    }
     assert {str(c.organisation_id) for c in calls} == {owner.organisation_id}
 
 
 @requires_db
-def test_call_budget_bounds_the_run(client, scripted_eval, monkeypatch, db_session, account_factory) -> None:
+def test_call_budget_bounds_the_run(
+    client, scripted_eval, monkeypatch, db_session, account_factory
+) -> None:
     monkeypatch.setattr(get_settings(), "eval_max_calls", 10)
-    monkeypatch.setattr(get_settings(), "eval_max_provider_failure_rate", 1.0)  # keep the partial run
+    monkeypatch.setattr(
+        get_settings(), "eval_max_provider_failure_rate", 1.0
+    )  # keep the partial run
     owner = account_factory("owner", with_source=False)
     body = client.post("/api/evaluations", headers=owner.headers).json()
     db_session.expire_all()
@@ -145,12 +184,21 @@ def test_call_budget_bounds_the_run(client, scripted_eval, monkeypatch, db_sessi
     assert run.metrics["calls_used"] == 10  # the budget held
     errors = round(body["provider_failure_rate"] * N)
     assert body["status"] == "partial"
-    assert 0 < errors <= N - 10  # claims after the budget ran out got no verdict (a few need no call)
+    assert (
+        0 < errors <= N - 10
+    )  # claims after the budget ran out got no verdict (a few need no call)
     # ERROR is neither flagged nor cleared: same denominators, fewer flagged.
-    assert run.metrics["catch_rate"]["denominator"] == N_FLAGGABLE and run.metrics["false_positive_rate"]["denominator"] == N_SUPPORTED
-    flagged = run.metrics["catch_rate"]["numerator"] + run.metrics["false_positive_rate"]["numerator"]
+    assert (
+        run.metrics["catch_rate"]["denominator"] == N_FLAGGABLE
+        and run.metrics["false_positive_rate"]["denominator"] == N_SUPPORTED
+    )
+    flagged = (
+        run.metrics["catch_rate"]["numerator"] + run.metrics["false_positive_rate"]["numerator"]
+    )
     assert flagged == N - errors  # every answered claim was flagged (always-abstaining checker)
-    assert body["catch_rate"] == round(run.metrics["catch_rate"]["numerator"] / N_FLAGGABLE, 4) < 1.0
+    assert (
+        body["catch_rate"] == round(run.metrics["catch_rate"]["numerator"] / N_FLAGGABLE, 4) < 1.0
+    )
     # The per-split numbers partition the pooled ones: nothing counted twice or dropped.
     for rate in ("catch_rate", "false_positive_rate"):
         for part in ("numerator", "denominator"):
@@ -159,7 +207,9 @@ def test_call_budget_bounds_the_run(client, scripted_eval, monkeypatch, db_sessi
 
 
 @requires_db
-def test_failure_dominated_run_is_discarded(client, scripted_eval, monkeypatch, db_session, account_factory) -> None:
+def test_failure_dominated_run_is_discarded(
+    client, scripted_eval, monkeypatch, db_session, account_factory
+) -> None:
     monkeypatch.setattr(get_settings(), "eval_max_calls", 10)  # ~80% of claims get no verdict
     owner = account_factory("owner", with_source=False)
     response = client.post("/api/evaluations", headers=owner.headers)
@@ -168,16 +218,24 @@ def test_failure_dominated_run_is_discarded(client, scripted_eval, monkeypatch, 
     assert _runs(db_session, owner) == 0
     assert client.get("/api/evaluations/latest", headers=owner.headers).status_code == 404
     db_session.expire_all()
-    assert db_session.query(ExternalCallLog).filter(
-        ExternalCallLog.organisation_id == uuid.UUID(owner.organisation_id),
-        ExternalCallLog.request_id.like("eval-%"),
-    ).count() == 10  # the real calls stay on record
+    assert (
+        db_session.query(ExternalCallLog)
+        .filter(
+            ExternalCallLog.organisation_id == uuid.UUID(owner.organisation_id),
+            ExternalCallLog.request_id.like("eval-%"),
+        )
+        .count()
+        == 10
+    )  # the real calls stay on record
     assert client.post("/api/evaluations", headers=owner.headers).status_code == 429
 
 
 @requires_db
 def test_rate_limited_and_account_scoped(client, scripted_eval, account_factory) -> None:
-    owner, other = account_factory("owner", with_source=False), account_factory("other", with_source=False)
+    owner, other = (
+        account_factory("owner", with_source=False),
+        account_factory("other", with_source=False),
+    )
     assert client.post("/api/evaluations", headers=owner.headers).status_code == 201
 
     again = client.post("/api/evaluations", headers=owner.headers)
@@ -194,12 +252,23 @@ def test_rate_limited_and_account_scoped(client, scripted_eval, account_factory)
 def test_run_stored_before_new_fields_still_renders(client, db_session, account_factory) -> None:
     owner = account_factory("owner", with_source=False)
     ratio = {"numerator": 1, "denominator": 1, "value": 1.0}
-    db_session.add(EvaluationRun(
-        organisation_id=uuid.UUID(owner.organisation_id), status="completed", ran_at=datetime.now(timezone.utc),
-        engine_prompt_version="verify-claim-v1", dataset_version="dataset.jsonl@000000000000", sample_size=55,
-        metrics={"catch_rate": ratio, "false_positive_rate": ratio, "per_check": [], "model_ids": ["gemini-3.5-flash-lite"]},
-        limits_note="older run",
-    ))
+    db_session.add(
+        EvaluationRun(
+            organisation_id=uuid.UUID(owner.organisation_id),
+            status="completed",
+            ran_at=datetime.now(timezone.utc),
+            engine_prompt_version="verify-claim-v1",
+            dataset_version="dataset.jsonl@000000000000",
+            sample_size=55,
+            metrics={
+                "catch_rate": ratio,
+                "false_positive_rate": ratio,
+                "per_check": [],
+                "model_ids": ["gemini-3.5-flash-lite"],
+            },
+            limits_note="older run",
+        )
+    )
     db_session.commit()
     body = client.get("/api/evaluations/latest", headers=owner.headers).json()
     assert body["coverage"] == "verifier_only"  # the only thing the runner has ever measured

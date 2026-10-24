@@ -10,7 +10,15 @@ from pathlib import Path
 
 import pytest
 
-from e2e_support import CONTRADICTED_CLAIM, DOCS, SUPPORTED_CLAIM, RoutedProvider, careful_model, data_block, request
+from e2e_support import (
+    CONTRADICTED_CLAIM,
+    DOCS,
+    SUPPORTED_CLAIM,
+    RoutedProvider,
+    careful_model,
+    data_block,
+    request,
+)
 from inkloom_verify.api_contract import to_public_report
 from inkloom_verify.correction import ClaimCorrector, CorrectionConfig
 from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig
@@ -55,14 +63,20 @@ V1_HASHES = {  # taken from the inline text before Phase 1 moved it into files; 
 
 
 # The softening prompt (Member 3's handoff, unverified-claim suggestions), released 2026-10-24.
-SOFTENING_HASHES = {"soften-claim-v1": "89437617260bf8c51242a81d4848c1e1b3e3c232bc171c8272428dce488f61ab"}
+SOFTENING_HASHES = {
+    "soften-claim-v1": "89437617260bf8c51242a81d4848c1e1b3e3c232bc171c8272428dce488f61ab"
+}
 
 
 def test_the_wording_is_exactly_the_released_text():
     """Phase 1 moved the prompts into files without changing a character; Phase 6 added v2 files
     beside them without touching v1; the softening step added soften-claim-v1."""
     lock = json.loads((loader.LOCK_FILE).read_text(encoding="utf-8"))["released"]
-    assert set(lock) == set(V1_HASHES) | {"extract-claims-v2", "verify-claim-v2", "correct-claim-v2"} | set(SOFTENING_HASHES)
+    assert set(lock) == set(V1_HASHES) | {
+        "extract-claims-v2",
+        "verify-claim-v2",
+        "correct-claim-v2",
+    } | set(SOFTENING_HASHES)
     for version, digest in (V1_HASHES | SOFTENING_HASHES).items():
         assert lock[version]["sha256"] == digest
     for version, entry in lock.items():
@@ -76,7 +90,10 @@ def test_every_shipped_prompt_file_is_a_released_version():
 
 def test_prompt_files_are_package_data():
     config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert set(config["tool"]["setuptools"]["package-data"]["inkloom_verify"]) == {"prompts/*.txt", "prompts/prompts.lock.json"}
+    assert set(config["tool"]["setuptools"]["package-data"]["inkloom_verify"]) == {
+        "prompts/*.txt",
+        "prompts/prompts.lock.json",
+    }
 
 
 # --- Missing, wrong or unexpected versions fail clearly; nothing falls back ----------------------
@@ -84,11 +101,17 @@ def test_prompt_files_are_package_data():
 
 @pytest.mark.parametrize("version", ["verify-claim-v3", "verify-claim-v99"])
 def test_a_missing_version_is_a_clear_error_not_a_fallback(version):
-    with pytest.raises(PromptNotFoundError, match=rf"{version}.*not found.*available verification versions: verify-claim-v1, verify-claim-v2"):
+    with pytest.raises(
+        PromptNotFoundError,
+        match=rf"{version}.*not found.*available verification versions: verify-claim-v1, verify-claim-v2",
+    ):
         load_prompt("verification", version)
 
 
-@pytest.mark.parametrize("version", ["verify-claim-latest", "verify-claim", "verify-claim-v1.txt", "../verify-claim-v1", ""])
+@pytest.mark.parametrize(
+    "version",
+    ["verify-claim-latest", "verify-claim", "verify-claim-v1.txt", "../verify-claim-v1", ""],
+)
 def test_malformed_versions_are_refused(version):
     with pytest.raises(PromptNotFoundError, match="is not a verification prompt version"):
         load_prompt("verification", version)
@@ -106,7 +129,9 @@ def test_an_unknown_component_is_refused():
 
 def test_a_deleted_prompt_file_is_a_clear_error(prompt_dir):
     (prompt_dir / "correct-claim-v1.txt").unlink()
-    with pytest.raises(PromptNotFoundError, match="correct-claim-v1.*not found.*versions: correct-claim-v2$"):
+    with pytest.raises(
+        PromptNotFoundError, match="correct-claim-v1.*not found.*versions: correct-claim-v2$"
+    ):
         load_prompt("correction", "correct-claim-v1")
 
 
@@ -121,7 +146,10 @@ def test_an_empty_prompt_file_is_refused(prompt_dir):
 
 def test_an_edited_released_prompt_is_refused(prompt_dir):
     path = prompt_dir / "verify-claim-v1.txt"
-    path.write_text(path.read_text(encoding="utf-8").replace("Decide using only the passages.", "Decide."), encoding="utf-8")
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("Decide using only the passages.", "Decide."),
+        encoding="utf-8",
+    )
     with pytest.raises(PromptIntegrityError, match="edited in place"):
         load_prompt("verification", "verify-claim-v1")
 
@@ -156,20 +184,49 @@ def test_each_component_sends_its_own_prompt():
     provider = RoutedProvider(careful_model)
     report = verify_request(request(), provider)
     systems = {call.schema_name: call.system for call in provider.calls}
-    assert systems == {"claim_extraction": extraction.SYSTEM_PROMPT, "claim_verification": verification.SYSTEM_PROMPT,
-                       "claim_correction": correction.SYSTEM_PROMPT}
-    assert report.provenance.prompt_versions == {"extract_claims": "extract-claims-v1", "verify_claim": "verify-claim-v1",
-                                                 "correct_claim": "correct-claim-v1"}
+    assert systems == {
+        "claim_extraction": extraction.SYSTEM_PROMPT,
+        "claim_verification": verification.SYSTEM_PROMPT,
+        "claim_correction": correction.SYSTEM_PROMPT,
+    }
+    assert report.provenance.prompt_versions == {
+        "extract_claims": "extract-claims-v1",
+        "verify_claim": "verify-claim-v1",
+        "correct_claim": "correct-claim-v1",
+    }
 
 
 @pytest.mark.parametrize(
     ("build", "component"),
-    [(lambda v: ClaimExtractor(RoutedProvider(careful_model), ExtractionConfig(prompt_version=v)), "extraction"),
-     (lambda v: ClaimVerifier(RoutedProvider(careful_model), [DOCS["pods-fact-sheet"]], VerificationConfig(prompt_version=v)), "verification"),
-     (lambda v: ClaimCorrector(RoutedProvider(careful_model), None, CorrectionConfig(prompt_version=v, recheck=False)), "correction")],
+    [
+        (
+            lambda v: ClaimExtractor(
+                RoutedProvider(careful_model), ExtractionConfig(prompt_version=v)
+            ),
+            "extraction",
+        ),
+        (
+            lambda v: ClaimVerifier(
+                RoutedProvider(careful_model),
+                [DOCS["pods-fact-sheet"]],
+                VerificationConfig(prompt_version=v),
+            ),
+            "verification",
+        ),
+        (
+            lambda v: ClaimCorrector(
+                RoutedProvider(careful_model),
+                None,
+                CorrectionConfig(prompt_version=v, recheck=False),
+            ),
+            "correction",
+        ),
+    ],
     ids=["extractor", "verifier", "corrector"],
 )
-def test_a_component_configured_with_a_missing_or_foreign_version_fails_at_construction(build, component):
+def test_a_component_configured_with_a_missing_or_foreign_version_fails_at_construction(
+    build, component
+):
     with pytest.raises(PromptNotFoundError):
         build(f"{loader.COMPONENTS[component]}-v404")
     foreign = "verify-claim-v1" if component != "verification" else "extract-claims-v1"
@@ -178,7 +235,9 @@ def test_a_component_configured_with_a_missing_or_foreign_version_fails_at_const
 
 
 def test_a_configured_version_is_the_one_sent_and_recorded(prompt_dir):
-    (prompt_dir / "verify-claim-v3.txt").write_text(verification.SYSTEM_PROMPT + "\n\nA draft sentence.\n", encoding="utf-8")
+    (prompt_dir / "verify-claim-v3.txt").write_text(
+        verification.SYSTEM_PROMPT + "\n\nA draft sentence.\n", encoding="utf-8"
+    )
     provider = RoutedProvider(careful_model)
     config = PipelineConfig(verification=VerificationConfig(prompt_version="verify-claim-v3"))
     report = verify_request(request(SUPPORTED_CLAIM), provider, config)
@@ -191,24 +250,45 @@ def test_a_configured_version_is_the_one_sent_and_recorded(prompt_dir):
 
 
 def test_only_stages_that_sent_their_prompt_are_recorded():
-    no_corrections = verify_request(request(CONTRADICTED_CLAIM), RoutedProvider(careful_model),
-                                    PipelineConfig(correct_contradicted=False))
-    assert no_corrections.provenance.prompt_versions == {"extract_claims": "extract-claims-v1", "verify_claim": "verify-claim-v1"}
+    no_corrections = verify_request(
+        request(CONTRADICTED_CLAIM),
+        RoutedProvider(careful_model),
+        PipelineConfig(correct_contradicted=False),
+    )
+    assert no_corrections.provenance.prompt_versions == {
+        "extract_claims": "extract-claims-v1",
+        "verify_claim": "verify-claim-v1",
+    }
 
     def opinions_only(call):
-        return {"statements": [{"sentence_id": s["id"], "kind": "opinion", "claims": []}
-                               for s in data_block(call, "content_json")["sentences"]]}
+        return {
+            "statements": [
+                {"sentence_id": s["id"], "kind": "opinion", "claims": []}
+                for s in data_block(call, "content_json")["sentences"]
+            ]
+        }
 
-    nothing_to_check = verify_request(request("We think they sound amazing."), RoutedProvider(opinions_only))
+    nothing_to_check = verify_request(
+        request("We think they sound amazing."), RoutedProvider(opinions_only)
+    )
     assert nothing_to_check.provenance.prompt_versions == {"extract_claims": "extract-claims-v1"}
 
 
 def test_the_public_report_records_the_versions_actually_used():
     public = to_public_report(verify_request(request(), RoutedProvider(careful_model)))
-    assert public.metadata.prompt_versions == {"extract_claims": "extract-claims-v1", "verify_claim": "verify-claim-v1",
-                                               "correct_claim": "correct-claim-v1"}
-    without = to_public_report(verify_request(request(CONTRADICTED_CLAIM), RoutedProvider(careful_model),
-                                              PipelineConfig(correct_contradicted=False)), suggest_corrections=False)
+    assert public.metadata.prompt_versions == {
+        "extract_claims": "extract-claims-v1",
+        "verify_claim": "verify-claim-v1",
+        "correct_claim": "correct-claim-v1",
+    }
+    without = to_public_report(
+        verify_request(
+            request(CONTRADICTED_CLAIM),
+            RoutedProvider(careful_model),
+            PipelineConfig(correct_contradicted=False),
+        ),
+        suggest_corrections=False,
+    )
     assert "correct_claim" not in without.metadata.prompt_versions
 
 

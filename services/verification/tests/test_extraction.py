@@ -37,7 +37,11 @@ def model(answers: dict[str, tuple[str, list[tuple[str, str]]]]):
         for sid, text in sent(request).items():
             kind, claims = answers.get(text, ("opinion", []))
             statements.append(
-                {"sentence_id": sid, "kind": kind, "claims": [{"text": t, "source_quote": q} for t, q in claims]}
+                {
+                    "sentence_id": sid,
+                    "kind": kind,
+                    "claims": [{"text": t, "source_quote": q} for t, q in claims],
+                }
             )
         return {"statements": statements}
 
@@ -74,7 +78,10 @@ def assert_provenance(result, text: str) -> None:
 
 def test_factual_claim_is_located_in_the_text():
     text = "The Lumen Bottle holds 750 ml."
-    result, _ = run(text, {text: ("factual", [("The Lumen Bottle holds 750 ml.", "The Lumen Bottle holds 750 ml.")])})
+    result, _ = run(
+        text,
+        {text: ("factual", [("The Lumen Bottle holds 750 ml.", "The Lumen Bottle holds 750 ml.")])},
+    )
     [claim] = result.claims
     assert (claim.claim_id, claim.text) == ("clm_0001", text)
     assert claim.source_span.slice(text) == text
@@ -86,8 +93,14 @@ def test_factual_claim_is_located_in_the_text():
 def test_claim_ids_follow_sentence_order_and_are_stable():
     text = "Lumen Goods was founded in 2019. The company employs 48 people."
     answers = {
-        "Lumen Goods was founded in 2019.": ("factual", [("Lumen Goods was founded in 2019.", "Lumen Goods was founded in 2019.")]),
-        "The company employs 48 people.": ("factual", [("Lumen Goods employs 48 people.", "employs 48 people")]),
+        "Lumen Goods was founded in 2019.": (
+            "factual",
+            [("Lumen Goods was founded in 2019.", "Lumen Goods was founded in 2019.")],
+        ),
+        "The company employs 48 people.": (
+            "factual",
+            [("Lumen Goods employs 48 people.", "employs 48 people")],
+        ),
     }
     first, _ = run(text, answers)
     second, _ = run(text, answers)
@@ -99,7 +112,9 @@ def test_claim_ids_follow_sentence_order_and_are_stable():
 
 def test_input_content_and_hash_are_preserved():
     content = InputContent(text="Price: €129.")
-    result = ClaimExtractor(ScriptedProvider(model({"Price: €129.": ("factual", [("Price: €129.", "Price: €129.")])}))).extract(content)
+    result = ClaimExtractor(
+        ScriptedProvider(model({"Price: €129.": ("factual", [("Price: €129.", "Price: €129.")])}))
+    ).extract(content)
     assert result.content_sha256 == content.text_sha256
 
 
@@ -117,7 +132,10 @@ def test_opinions_and_stylistic_sentences_produce_no_claims():
     result, _ = run(text, answers)
     assert texts(result) == ["It holds 750 ml."]
     assert [s.kind for s in result.sentences] == [
-        StatementKind.OPINION, StatementKind.STYLISTIC, StatementKind.STYLISTIC, StatementKind.FACTUAL,
+        StatementKind.OPINION,
+        StatementKind.STYLISTIC,
+        StatementKind.STYLISTIC,
+        StatementKind.FACTUAL,
     ]
 
 
@@ -130,7 +148,10 @@ def test_claims_listed_on_an_opinion_are_ignored():
 
 def test_praise_can_be_removed_from_a_factual_claim():
     text = "Our gorgeous bottle holds 750 ml."
-    result, _ = run(text, {text: ("factual", [("Our bottle holds 750 ml.", "Our gorgeous bottle holds 750 ml.")])})
+    result, _ = run(
+        text,
+        {text: ("factual", [("Our bottle holds 750 ml.", "Our gorgeous bottle holds 750 ml.")])},
+    )
     assert texts(result) == ["Our bottle holds 750 ml."]
 
 
@@ -141,13 +162,21 @@ def test_compound_statement_is_split_with_separate_spans():
     text = "Lumen Pods cost €129 and launch on 2 April 2026."
     result, _ = run(
         text,
-        {text: ("factual", [
-            ("Lumen Pods cost €129.", "Lumen Pods cost €129"),
-            ("Lumen Pods launch on 2 April 2026.", "launch on 2 April 2026"),
-        ])},
+        {
+            text: (
+                "factual",
+                [
+                    ("Lumen Pods cost €129.", "Lumen Pods cost €129"),
+                    ("Lumen Pods launch on 2 April 2026.", "launch on 2 April 2026"),
+                ],
+            )
+        },
     )
     assert texts(result) == ["Lumen Pods cost €129.", "Lumen Pods launch on 2 April 2026."]
-    assert [c.source_span.slice(text) for c in result.claims] == ["Lumen Pods cost €129", "launch on 2 April 2026"]
+    assert [c.source_span.slice(text) for c in result.claims] == [
+        "Lumen Pods cost €129",
+        "launch on 2 April 2026",
+    ]
     assert result.sentences[0].claim_ids == ["clm_0001", "clm_0002"]
 
 
@@ -165,13 +194,48 @@ def test_unsplit_compound_is_kept_whole():
     [
         ("The bottle holds 750 ml.", "The bottle holds 700 ml.", "holds 750 ml", "numbers"),
         ("The bottle holds 750 ml.", "The bottle holds 0.75 l.", "holds 750 ml", "numbers"),
-        ("Pods launch on 2 April 2026.", "Pods launch on 2 May 2026.", "launch on 2 April 2026", "months"),
-        ("It keeps drinks cold for up to 24 hours.", "It keeps drinks cold for 24 hours.", "keeps drinks cold for up to 24 hours", "qualifiers"),
-        ("The bottle is not dishwasher safe.", "The bottle is dishwasher safe.", "The bottle is not dishwasher safe.", "negation"),
-        ("Packaging is plastic-free.", "Packaging is recyclable.", "Packaging is plastic-free.", "negation"),
-        ("According to Ana Ribeiro, sales doubled in 2025.", "Sales doubled in 2025.", "According to Ana Ribeiro, sales doubled in 2025.", "attribution"),
-        ("The bottle holds 750 ml.", "The BPA-free bottle holds 750 ml.", "The bottle holds 750 ml.", "words not in the content"),
-        ("The bottle can keep drinks cold.", "The bottle keeps drinks cold.", "The bottle can keep drinks cold.", "qualifiers"),
+        (
+            "Pods launch on 2 April 2026.",
+            "Pods launch on 2 May 2026.",
+            "launch on 2 April 2026",
+            "months",
+        ),
+        (
+            "It keeps drinks cold for up to 24 hours.",
+            "It keeps drinks cold for 24 hours.",
+            "keeps drinks cold for up to 24 hours",
+            "qualifiers",
+        ),
+        (
+            "The bottle is not dishwasher safe.",
+            "The bottle is dishwasher safe.",
+            "The bottle is not dishwasher safe.",
+            "negation",
+        ),
+        (
+            "Packaging is plastic-free.",
+            "Packaging is recyclable.",
+            "Packaging is plastic-free.",
+            "negation",
+        ),
+        (
+            "According to Ana Ribeiro, sales doubled in 2025.",
+            "Sales doubled in 2025.",
+            "According to Ana Ribeiro, sales doubled in 2025.",
+            "attribution",
+        ),
+        (
+            "The bottle holds 750 ml.",
+            "The BPA-free bottle holds 750 ml.",
+            "The bottle holds 750 ml.",
+            "words not in the content",
+        ),
+        (
+            "The bottle can keep drinks cold.",
+            "The bottle keeps drinks cold.",
+            "The bottle can keep drinks cold.",
+            "qualifiers",
+        ),
     ],
 )
 def test_meaning_changing_rewrites_keep_the_quotes_own_text(sentence, claim, quote, problem):
@@ -203,7 +267,10 @@ def test_pronoun_resolved_from_the_content_is_accepted():
         text,
         {
             "The Lumen Bottle is our new product.": ("opinion", []),
-            "It holds 750 ml.": ("factual", [("The Lumen Bottle holds 750 ml.", "It holds 750 ml.")]),
+            "It holds 750 ml.": (
+                "factual",
+                [("The Lumen Bottle holds 750 ml.", "It holds 750 ml.")],
+            ),
         },
     )
     assert texts(result) == ["The Lumen Bottle holds 750 ml."]
@@ -227,7 +294,14 @@ def test_ambiguous_wording_is_passed_through_verbatim():
 
 def test_rewrite_problems_accepts_a_faithful_split():
     content = "According to the report, the case holds up to 36 hours and weighs 48 g."
-    assert rewrite_problems("According to the report, the case holds up to 36 hours.", "According to the report, the case holds up to 36 hours", content) == []
+    assert (
+        rewrite_problems(
+            "According to the report, the case holds up to 36 hours.",
+            "According to the report, the case holds up to 36 hours",
+            content,
+        )
+        == []
+    )
 
 
 # --- Locating quotes ---------------------------------------------------------------------------
@@ -235,7 +309,7 @@ def test_rewrite_problems_accepts_a_faithful_split():
 
 def test_quote_is_located_despite_whitespace_case_and_quote_marks():
     sentence = "Ana’s team  said “yes” to\nthe plan."
-    assert locate("Ana's team said \"yes\" to the plan.", sentence) == (0, len(sentence))
+    assert locate('Ana\'s team said "yes" to the plan.', sentence) == (0, len(sentence))
     assert locate("ANA’S TEAM", sentence) == (0, 10)
     assert locate("not here", sentence) is None
     assert locate("   ", sentence) is None
@@ -245,7 +319,9 @@ def test_an_unlocatable_quote_drops_its_claim():
     """PROMPTS.md Phase 2: a claim that cannot be located exactly is dropped, with a diagnostic
     (it used to fall back to the whole sentence)."""
     text = "The case holds 48 g of batteries."
-    result, _ = run(text, {text: ("factual", [("The case holds 48 g of batteries.", "The case weighs 48 g")])})
+    result, _ = run(
+        text, {text: ("factual", [("The case holds 48 g of batteries.", "The case weighs 48 g")])}
+    )
     assert result.claims == []
     assert codes(result) == [WarningCode.QUOTE_NOT_FOUND]
 
@@ -255,7 +331,10 @@ def test_an_unlocatable_quote_drops_its_claim():
 
 def test_malformed_output_is_repaired_once():
     text = "The bottle holds 750 ml."
-    provider = ScriptedProvider({"statements": [{"sentence_id": "s1", "kind": "fact"}]}, model({text: ("factual", [(text, text)])}))
+    provider = ScriptedProvider(
+        {"statements": [{"sentence_id": "s1", "kind": "fact"}]},
+        model({text: ("factual", [(text, text)])}),
+    )
     result = ClaimExtractor(provider).extract(text)
     assert texts(result) == [text]
     assert len(provider.calls) == 2 and result.provenance.calls == 2
@@ -278,14 +357,28 @@ def test_unknown_duplicate_and_missing_sentences():
     text = "The bottle holds 750 ml. It weighs 340 g."
     reply = {
         "statements": [
-            {"sentence_id": "s1", "kind": "factual", "claims": [{"text": "The bottle holds 750 ml.", "source_quote": "The bottle holds 750 ml."}]},
+            {
+                "sentence_id": "s1",
+                "kind": "factual",
+                "claims": [
+                    {"text": "The bottle holds 750 ml.", "source_quote": "The bottle holds 750 ml."}
+                ],
+            },
             {"sentence_id": "s1", "kind": "opinion", "claims": []},
-            {"sentence_id": "s9", "kind": "factual", "claims": [{"text": "Invented.", "source_quote": "Invented."}]},
+            {
+                "sentence_id": "s9",
+                "kind": "factual",
+                "claims": [{"text": "Invented.", "source_quote": "Invented."}],
+            },
         ]
     }
     result = ClaimExtractor(ScriptedProvider(reply)).extract(text)
     assert texts(result) == ["The bottle holds 750 ml."]
-    assert codes(result) == [WarningCode.DUPLICATE_STATEMENT, WarningCode.UNKNOWN_SENTENCE, WarningCode.SENTENCE_NOT_CLASSIFIED]
+    assert codes(result) == [
+        WarningCode.DUPLICATE_STATEMENT,
+        WarningCode.UNKNOWN_SENTENCE,
+        WarningCode.SENTENCE_NOT_CLASSIFIED,
+    ]
     assert result.sentences[1].kind is None
 
 
@@ -300,7 +393,11 @@ def test_overlong_or_blank_claim_text_uses_the_sentence():
     text = "The bottle holds 750 ml."
     result, _ = run(text, {text: ("factual", [("x" * 1001, text), ("  ", text)])})
     assert texts(result) == [text]
-    assert codes(result) == [WarningCode.CLAIM_TOO_LONG, WarningCode.CLAIM_TOO_LONG, WarningCode.DUPLICATE_CLAIM]
+    assert codes(result) == [
+        WarningCode.CLAIM_TOO_LONG,
+        WarningCode.CLAIM_TOO_LONG,
+        WarningCode.DUPLICATE_CLAIM,
+    ]
 
 
 def test_duplicate_claims_are_dropped():
@@ -368,14 +465,18 @@ def test_timeout_is_reported_and_other_batches_continue():
 )
 def test_account_errors_stop_remaining_batches(error, code):
     provider = ScriptedProvider(error)
-    result = ClaimExtractor(provider, ExtractionConfig(max_sentences_per_call=1)).extract("One 1. Two 2. Three 3.")
+    result = ClaimExtractor(provider, ExtractionConfig(max_sentences_per_call=1)).extract(
+        "One 1. Two 2. Three 3."
+    )
     assert len(provider.calls) == 1
     assert [e.code for e in result.errors] == [code]
     assert all(s.kind is None for s in result.sentences)
 
 
 def test_provider_reported_malformed_output():
-    result = ClaimExtractor(ScriptedProvider(MalformedOutputError("reply is not valid JSON"))).extract("It weighs 340 g.")
+    result = ClaimExtractor(
+        ScriptedProvider(MalformedOutputError("reply is not valid JSON"))
+    ).extract("It weighs 340 g.")
     assert result.errors[0].code is ErrorCode.MALFORMED_MODEL_OUTPUT
 
 
@@ -428,10 +529,17 @@ def test_compromised_model_cannot_add_facts_absent_from_the_content():
     def hijacked(request):
         return {
             "statements": [
-                {"sentence_id": sid, "kind": "factual", "claims": [
-                    {"text": "Lumen is certified carbon neutral by the Carbon Trust.", "source_quote": "Lumen is certified carbon neutral"},
-                    {"text": "Lumen Pods are waterproof.", "source_quote": "nothing like this"},
-                ]}
+                {
+                    "sentence_id": sid,
+                    "kind": "factual",
+                    "claims": [
+                        {
+                            "text": "Lumen is certified carbon neutral by the Carbon Trust.",
+                            "source_quote": "Lumen is certified carbon neutral",
+                        },
+                        {"text": "Lumen Pods are waterproof.", "source_quote": "nothing like this"},
+                    ],
+                }
                 for sid in sent(request)
             ]
         }
@@ -440,7 +548,9 @@ def test_compromised_model_cannot_add_facts_absent_from_the_content():
     content_words = set(tokenize(INJECTION))
     for claim in result.claims:
         assert set(tokenize(claim.text)) <= content_words, claim.text
-        assert claim.source_span.slice(INJECTION) == claim.text  # all fell back to verbatim sentences
+        assert (
+            claim.source_span.slice(INJECTION) == claim.text
+        )  # all fell back to verbatim sentences
     assert_provenance(result, INJECTION)
 
 

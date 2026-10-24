@@ -52,8 +52,13 @@ def latest_review_for(db: Session, content_version_id: uuid.UUID) -> Review | No
 
 
 def _flip_to_source_changed(
-    db: Session, review: Review, content_version_id: uuid.UUID, organisation_id: uuid.UUID,
-    actor_user_id: uuid.UUID, reason: str, source_id: uuid.UUID,
+    db: Session,
+    review: Review,
+    content_version_id: uuid.UUID,
+    organisation_id: uuid.UUID,
+    actor_user_id: uuid.UUID,
+    reason: str,
+    source_id: uuid.UUID,
 ) -> None:
     review.status = ReviewState.SOURCE_CHANGED.value
     log_audit_event(
@@ -85,7 +90,9 @@ def withdraw_source(
         review = latest_review_for(db, content_version_id)
         if review is None or review.status != ReviewState.APPROVED.value:
             continue  # never approved, or already in some other state - nothing to re-flag
-        _flip_to_source_changed(db, review, content_version_id, organisation_id, actor_user_id, reason, source.id)
+        _flip_to_source_changed(
+            db, review, content_version_id, organisation_id, actor_user_id, reason, source.id
+        )
         flipped.append({"content_version_id": content_version_id, "review_id": review.id})
     return flipped
 
@@ -118,8 +125,13 @@ def apply_new_version_diff(
             continue  # every section this review actually cited is still present, unchanged
 
         _flip_to_source_changed(
-            db, review, content_version_id, organisation_id, actor_user_id,
-            reason=f"a cited section of source {source.id} changed in a new version", source_id=source.id,
+            db,
+            review,
+            content_version_id,
+            organisation_id,
+            actor_user_id,
+            reason=f"a cited section of source {source.id} changed in a new version",
+            source_id=source.id,
         )
         flipped.append({"content_version_id": content_version_id, "review_id": review.id})
     return flipped

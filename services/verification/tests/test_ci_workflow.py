@@ -6,12 +6,16 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = (ROOT.parents[1] / ".github" / "workflows" / "verification-engine.yml").read_text(encoding="utf-8")
+WORKFLOW = (ROOT.parents[1] / ".github" / "workflows" / "verification-engine.yml").read_text(
+    encoding="utf-8"
+)
 
 
 def job(name: str) -> str:
     """The text of one job, up to the next top-level job."""
-    match = re.search(rf"^  {re.escape(name)}:\n(.*?)(?=^  [a-z-]+:\n|\Z)", WORKFLOW, re.MULTILINE | re.DOTALL)
+    match = re.search(
+        rf"^  {re.escape(name)}:\n(.*?)(?=^  [a-z-]+:\n|\Z)", WORKFLOW, re.MULTILINE | re.DOTALL
+    )
     assert match, name
     return match.group(1)
 
@@ -22,7 +26,9 @@ def test_the_four_stages_exist():
 
 
 def test_mandatory_checks_run_on_every_push_and_pull_request():
-    assert re.search(r"^  push:", WORKFLOW, re.MULTILINE) and re.search(r"^  pull_request:", WORKFLOW, re.MULTILINE)
+    assert re.search(r"^  push:", WORKFLOW, re.MULTILINE) and re.search(
+        r"^  pull_request:", WORKFLOW, re.MULTILINE
+    )
     assert "python -m pytest -q\n" in job("tests")
     assert "python -m inkloom_verify.evaluation.dataset eval/dataset.jsonl" in job("dataset")
     evaluation = job("evaluation")
@@ -43,11 +49,17 @@ def test_the_live_model_never_runs_in_mandatory_ci():
 def test_no_credential_is_written_in_the_workflow():
     # The only value OPENROUTER_API_KEY may have is the secret reference; nothing else on that line.
     stripped = WORKFLOW.replace("${{ secrets.OPENROUTER_API_KEY }}", "")
-    assert not re.search(r"sk-or-|sk-[A-Za-z0-9]{16,}|OPENROUTER_API_KEY:[ \t]*['\"]?[A-Za-z0-9]", stripped)
+    assert not re.search(
+        r"sk-or-|sk-[A-Za-z0-9]{16,}|OPENROUTER_API_KEY:[ \t]*['\"]?[A-Za-z0-9]", stripped
+    )
 
 
 def test_every_file_the_workflow_runs_exists():
-    for path in re.findall(r"(tests/test_[a-z0-9_]+\.py)", WORKFLOW) + ["eval/run_eval.py", "eval/dataset.jsonl", "constraints.txt"]:
+    for path in re.findall(r"(tests/test_[a-z0-9_]+\.py)", WORKFLOW) + [
+        "eval/run_eval.py",
+        "eval/dataset.jsonl",
+        "constraints.txt",
+    ]:
         assert (ROOT / path).is_file(), path
 
 
@@ -58,14 +70,20 @@ INTEGRITY = (REPO / ".github" / "workflows" / "repo-integrity.yml").read_text(en
 
 
 def integrity_job(name: str) -> str:
-    match = re.search(rf"^  {re.escape(name)}:\n(.*?)(?=^  [a-z-]+:\n|\Z)", INTEGRITY, re.MULTILINE | re.DOTALL)
+    match = re.search(
+        rf"^  {re.escape(name)}:\n(.*?)(?=^  [a-z-]+:\n|\Z)", INTEGRITY, re.MULTILINE | re.DOTALL
+    )
     assert match, name
     return match.group(1)
 
 
 def test_integrity_checks_run_on_every_push_and_pull_request_for_any_path():
-    assert re.search(r"^  push:\n", INTEGRITY, re.MULTILINE) and re.search(r"^  pull_request:\n", INTEGRITY, re.MULTILINE)
-    assert "paths:" not in INTEGRITY  # a conflict marker or broken import can come from any directory
+    assert re.search(r"^  push:\n", INTEGRITY, re.MULTILINE) and re.search(
+        r"^  pull_request:\n", INTEGRITY, re.MULTILINE
+    )
+    assert (
+        "paths:" not in INTEGRITY
+    )  # a conflict marker or broken import can come from any directory
     assert "continue-on-error" not in INTEGRITY
 
 
@@ -81,7 +99,9 @@ def test_backend_is_installed_compiled_and_imported_without_secrets():
     assert "python -m compileall -q src tests migrations scripts" in step
     assert "import inkloom_api.main" in step
     assert "secrets." not in INTEGRITY and "AUTH_SECRET_KEY" not in step.split("run:")[-1]
-    assert "DATABASE_URL: postgresql+psycopg://ci:ci@localhost:5432/ci-import-check-only" in step  # placeholder only
+    assert (
+        "DATABASE_URL: postgresql+psycopg://ci:ci@localhost:5432/ci-import-check-only" in step
+    )  # placeholder only
     assert (REPO / "services" / "api" / "constraints.txt").is_file()
 
 
@@ -89,6 +109,10 @@ def test_the_repository_has_no_conflict_markers_now():
     """The same check, locally: any tracked file starting a line with <<<<<<< or >>>>>>>."""
     import subprocess
 
-    found = subprocess.run(["git", "-C", str(REPO), "grep", "-nE", "^(<<<<<<<|>>>>>>>)"],
-                           capture_output=True, text=True, timeout=30)
+    found = subprocess.run(
+        ["git", "-C", str(REPO), "grep", "-nE", "^(<<<<<<<|>>>>>>>)"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
     assert found.returncode == 1 and found.stdout == "", found.stdout[:500]

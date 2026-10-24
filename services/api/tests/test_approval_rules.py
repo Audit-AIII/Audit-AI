@@ -20,7 +20,17 @@ def test_decidable_states_do_not_raise(status: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "status", ["draft", "queued", "analysing", "failed", "approved", "rejected", "changes_requested", "source_changed"]
+    "status",
+    [
+        "draft",
+        "queued",
+        "analysing",
+        "failed",
+        "approved",
+        "rejected",
+        "changes_requested",
+        "source_changed",
+    ],
 )
 def test_non_decidable_states_raise(status: str) -> None:
     with pytest.raises(InvalidReviewTransitionError) as exc_info:

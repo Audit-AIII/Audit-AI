@@ -17,7 +17,14 @@ import pytest
 
 from conftest import requires_db
 from inkloom_api.auth.security import hash_password
-from inkloom_api.models import BrandProfile, BrandSource, Membership, Organisation, SourceVersion, User
+from inkloom_api.models import (
+    BrandProfile,
+    BrandSource,
+    Membership,
+    Organisation,
+    SourceVersion,
+    User,
+)
 from inkloom_api.statuses import BrandSourceStatus
 
 PASSWORD = "correct-horse-battery-staple"
@@ -41,19 +48,27 @@ def fixture(db_session):
     admin_b = User(email=f"admin-b-{unique}@example.com", password_hash=hash_password(PASSWORD))
     db_session.add_all([org_a, org_b, admin_a, admin_b])
     db_session.flush()
-    db_session.add(Membership(organisation_id=org_a.id, user_id=admin_a.id, role="admin", is_active=True))
-    db_session.add(Membership(organisation_id=org_b.id, user_id=admin_b.id, role="admin", is_active=True))
+    db_session.add(
+        Membership(organisation_id=org_a.id, user_id=admin_a.id, role="admin", is_active=True)
+    )
+    db_session.add(
+        Membership(organisation_id=org_b.id, user_id=admin_b.id, role="admin", is_active=True)
+    )
 
     brand_a = BrandProfile(organisation_id=org_a.id, name="Brand A")
     db_session.add(brand_a)
     db_session.flush()
-    source = BrandSource(brand_profile_id=brand_a.id, title="Spec", status=BrandSourceStatus.APPROVED.value)
+    source = BrandSource(
+        brand_profile_id=brand_a.id, title="Spec", status=BrandSourceStatus.APPROVED.value
+    )
     db_session.add(source)
     db_session.flush()
     text = "Approved fact."
     db_session.add(
         SourceVersion(
-            brand_source_id=source.id, version_number=1, text=text,
+            brand_source_id=source.id,
+            version_number=1,
+            text=text,
             text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
     )
@@ -96,7 +111,9 @@ def test_org_b_cannot_read_org_as_content_history_or_audit_trail(
 
     # Approve it, so there's an audit-worthy decision (an ApprovalEvent, surfaced in
     # `decisions`) for org B to try - and fail - to see.
-    approved = client.post(f"/api/content-versions/{content_version_id}/approve", headers=_auth(token_a))
+    approved = client.post(
+        f"/api/content-versions/{content_version_id}/approve", headers=_auth(token_a)
+    )
     assert approved.status_code == 201
 
     from inkloom_api.db import get_session_factory
@@ -118,7 +135,9 @@ def test_org_b_cannot_read_org_as_content_history_or_audit_trail(
 
     # Org B also cannot mutate it: creating a new version, approving, or requesting changes.
     cannot_edit = client.post(
-        f"/api/content/{content_item_id}/versions", json={"text": "Hijacked."}, headers=_auth(token_b)
+        f"/api/content/{content_item_id}/versions",
+        json={"text": "Hijacked."},
+        headers=_auth(token_b),
     )
     assert cannot_edit.status_code == 404
 

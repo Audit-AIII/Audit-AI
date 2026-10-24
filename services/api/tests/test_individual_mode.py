@@ -37,13 +37,19 @@ from inkloom_api.engine.scripted_provider import ScriptedRule
 from inkloom_api.models import AuditEvent, Membership, Review
 
 CONTRADICTION_RULES = [
-    ScriptedRule("24 hours of playback per charge", "CONTRADICTED", "up to 12 hours of playback per charge",
-                 "The fact sheet gives 12 hours."),
+    ScriptedRule(
+        "24 hours of playback per charge",
+        "CONTRADICTED",
+        "up to 12 hours of playback per charge",
+        "The fact sheet gives 12 hours.",
+    ),
 ]
 
 
 def _approve(client, account, content_version_id: str):
-    return client.post(f"/api/content-versions/{content_version_id}/approve", headers=account.headers)
+    return client.post(
+        f"/api/content-versions/{content_version_id}/approve", headers=account.headers
+    )
 
 
 @requires_db
@@ -64,7 +70,12 @@ def test_high_severity_review_is_not_routed(client, monkeypatch, account_factory
     assert finding["verification_status"] == "contradicted"
     assert finding["severity"] == "high"
     assert review["required_reviewer_role"] is None
-    assert client.get(f"/api/reviews/{review['id']}", headers=owner.headers).json()["required_reviewer_role"] is None
+    assert (
+        client.get(f"/api/reviews/{review['id']}", headers=owner.headers).json()[
+            "required_reviewer_role"
+        ]
+        is None
+    )
 
 
 @requires_db
@@ -78,7 +89,10 @@ def test_registered_owner_approves_own_content(client, monkeypatch, account_fact
     assert approved.status_code == 201, approved.text
     assert approved.json()["action"] == "approved"
     assert approved.json()["actor_user_id"] == owner.user_id
-    assert client.get(f"/api/reviews/{review['id']}", headers=owner.headers).json()["status"] == "approved"
+    assert (
+        client.get(f"/api/reviews/{review['id']}", headers=owner.headers).json()["status"]
+        == "approved"
+    )
 
 
 @requires_db
@@ -95,7 +109,9 @@ def test_owner_can_request_changes_on_own_content(client, force_stub_mode, accou
 
 
 @requires_db
-def test_legacy_routed_review_is_approvable_by_owner(client, force_stub_mode, db_session, account_factory) -> None:
+def test_legacy_routed_review_is_approvable_by_owner(
+    client, force_stub_mode, db_session, account_factory
+) -> None:
     """A review written before routing was turned off may still say "legal_reviewer"; that value
     is kept for history and no longer restricts who may approve."""
     owner = account_factory("owner")
@@ -109,15 +125,26 @@ def test_legacy_routed_review_is_approvable_by_owner(client, force_stub_mode, db
 
 
 @requires_db
-def test_legacy_role_names_act_as_account_owner(client, force_stub_mode, db_session, account_factory) -> None:
+def test_legacy_role_names_act_as_account_owner(
+    client, force_stub_mode, db_session, account_factory
+) -> None:
     """Old rows may hold submitter/reviewer/... - each now holds every permission (no 403s)."""
     owner = account_factory("owner")
-    for legacy_role in ("submitter", "reviewer", "source_manager", "approver", "brand_manager", "legal_reviewer"):
+    for legacy_role in (
+        "submitter",
+        "reviewer",
+        "source_manager",
+        "approver",
+        "brand_manager",
+        "legal_reviewer",
+    ):
         membership = db_session.query(Membership).filter_by(user_id=uuid.UUID(owner.user_id)).one()
         membership.role = legacy_role
         db_session.commit()
 
-        review = owner.submit(f"Lumen Pods offer up to 12 hours of playback per charge ({legacy_role}).")
+        review = owner.submit(
+            f"Lumen Pods offer up to 12 hours of playback per charge ({legacy_role})."
+        )
         assert _approve(client, owner, review["content_version_id"]).status_code == 201, legacy_role
         upload = client.post(
             f"/api/brands/{owner.brand_id}/sources",
@@ -163,28 +190,40 @@ def test_every_decision_is_audited_and_an_approval_never_carries_over(
     v1 = owner.submit()
     assert _approve(client, owner, v1["content_version_id"]).status_code == 201
 
-    edited = client.post(f"/api/content/{v1['content_item_id']}/versions",
-                         json={"text": "Lumen Pods offer up to 12 hours of playback."}, headers=owner.headers)
+    edited = client.post(
+        f"/api/content/{v1['content_item_id']}/versions",
+        json={"text": "Lumen Pods offer up to 12 hours of playback."},
+        headers=owner.headers,
+    )
     assert edited.status_code == 201, edited.text
     v2 = edited.json()
     assert v2["review"]["status"] != "approved"  # v1's approval does not carry over
-    rejected = client.post(f"/api/content-versions/{v2['content_version_id']}/request-changes",
-                           json={"decision": "rejected", "note": "not ready"}, headers=owner.headers)
+    rejected = client.post(
+        f"/api/content-versions/{v2['content_version_id']}/request-changes",
+        json={"decision": "rejected", "note": "not ready"},
+        headers=owner.headers,
+    )
     assert rejected.status_code == 201, rejected.text
 
     db_session.expire_all()
     events = (
         db_session.query(AuditEvent)
-        .filter(AuditEvent.organisation_id == uuid.UUID(owner.organisation_id),
-                AuditEvent.event_type.like("content_version.%"))
+        .filter(
+            AuditEvent.organisation_id == uuid.UUID(owner.organisation_id),
+            AuditEvent.event_type.like("content_version.%"),
+        )
         .order_by(AuditEvent.created_at)
         .all()
     )
-    decisions = [(e.event_type, e.entity_id, str(e.actor_user_id), e.details.get("note")) for e in events]
+    decisions = [
+        (e.event_type, e.entity_id, str(e.actor_user_id), e.details.get("note")) for e in events
+    ]
     assert decisions == [
         ("content_version.approved", v1["content_version_id"], owner.user_id, None),
         ("content_version.created", str(v2["content_version_id"]), owner.user_id, None),  # the edit
         ("content_version.rejected", str(v2["content_version_id"]), owner.user_id, "not ready"),
     ]
     assert all(e.created_at is not None for e in events)
-    assert client.get(f"/api/reviews/{v1['id']}", headers=owner.headers).json()["status"] == "approved"
+    assert (
+        client.get(f"/api/reviews/{v1['id']}", headers=owner.headers).json()["status"] == "approved"
+    )

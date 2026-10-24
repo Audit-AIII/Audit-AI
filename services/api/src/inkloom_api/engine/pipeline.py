@@ -28,13 +28,26 @@ from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig
 from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
 from inkloom_verify.retrieval import BM25Retriever
-from inkloom_verify.schemas import Claim, ClaimResult, ClaimReviewReason, Correction, InputContent, Verdict
+from inkloom_verify.schemas import (
+    Claim,
+    ClaimResult,
+    ClaimReviewReason,
+    Correction,
+    InputContent,
+    Verdict,
+)
 from inkloom_verify.verification import ClaimVerifier, verify_claim
 from sqlalchemy.orm import Session
 
 from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, Finding, Review
 from ..config import get_settings
-from ..result_cache import compute_cache_key, get_cached_report, materialize_cached_report, serialize_review_outcome, store_report
+from ..result_cache import (
+    compute_cache_key,
+    get_cached_report,
+    materialize_cached_report,
+    serialize_review_outcome,
+    store_report,
+)
 from ..section_diff import section_hash_for_span
 from ..intent_lock_guard import breaks_locks
 from ..softening_guard import softening_issues
@@ -103,7 +116,10 @@ _RELATION_FOR_VERDICT = {
 
 
 def run_review(
-    db: Session, review: Review, content_version: ContentVersion, corpus: list[CorpusEntry],
+    db: Session,
+    review: Review,
+    content_version: ContentVersion,
+    corpus: list[CorpusEntry],
     confidential: bool = False,
     provider_builders: list[tuple[str, Callable[[], LLMProvider]]] | None = None,
     brand_rules: dict | None = None,
@@ -119,7 +135,9 @@ def run_review(
     external_call_log exactly like a real provider's."""
     review.status = ReviewState.ANALYSING.value
     review.started_at = datetime.now(timezone.utc)
-    locks = list(content_version.locked_phrases or [])  # Intent-lock: passed to the engine, re-checked here
+    locks = list(
+        content_version.locked_phrases or []
+    )  # Intent-lock: passed to the engine, re-checked here
     rules = apply_brand_rules(db, review, content_version, brand_rules, corpus, locks)
 
     def finish(state: ReviewState, summary: str | None = None) -> None:
@@ -172,17 +190,23 @@ def run_review(
     # estimated tokens, deadline; provider retries count), and at most review_max_claims claims
     # are kept. A refused call is LIMIT_EXCEEDED: the claim becomes ERROR (unverified, human review).
     settings = get_settings()
-    provider = BudgetedProvider(provider, CallBudget(
-        max_calls=settings.review_max_llm_calls, max_estimated_tokens=settings.review_max_estimated_tokens,
-        deadline_seconds=settings.review_deadline_seconds,
-    ))
+    provider = BudgetedProvider(
+        provider,
+        CallBudget(
+            max_calls=settings.review_max_llm_calls,
+            max_estimated_tokens=settings.review_max_estimated_tokens,
+            deadline_seconds=settings.review_deadline_seconds,
+        ),
+    )
     extractor = ClaimExtractor(provider, ExtractionConfig(max_claims=settings.review_max_claims))
     extraction = extractor.extract(content_version.text)
     review.prompt_version = extraction.provenance.prompt_version
     review.engine_model_id = ",".join(sorted(extraction.provenance.models)) or None
 
     if not extraction.claims and not extraction.complete:
-        message = "; ".join(e.message for e in extraction.errors)[:500] or "Claim extraction failed."
+        message = (
+            "; ".join(e.message for e in extraction.errors)[:500] or "Claim extraction failed."
+        )
         finish(ReviewState.FAILED, message)
         return
 
@@ -197,7 +221,10 @@ def run_review(
         softener = softener_class(provider) if softener_class is not None else None
         content = InputContent(text=content_version.text)
     except Exception as error:  # e.g. RetrievalError/RetrievalLimitError on a malformed corpus
-        finish(ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
+        finish(
+            ReviewState.FAILED,
+            f"Could not prepare the reference corpus: {type(error).__name__}"[:500],
+        )
         return
 
     needs_human_review = bool(extraction.errors)  # a partial extraction still needs a human look
@@ -238,17 +265,29 @@ def run_review(
 
 
 def _propose_correction(
-    corrector: ClaimCorrector, result: ClaimResult, content: InputContent, review: Review, locks: list[str]
+    corrector: ClaimCorrector,
+    result: ClaimResult,
+    content: InputContent,
+    review: Review,
+    locks: list[str],
 ) -> ClaimResult:
     """The engine's corrector on one CONTRADICTED result. It already turns provider failures and
     every rejected proposal into a correction attempt with no correction; anything unexpected is
     caught here too, so a correction problem can never change or drop the verdict itself. Locks
     are passed only when there are some, so an engine without Intent-lock support still works."""
     try:
-        return corrector.correct(result, content, locks) if locks else corrector.correct(result, content)
+        return (
+            corrector.correct(result, content, locks)
+            if locks
+            else corrector.correct(result, content)
+        )
     except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
-        logger.error("review=%s claim=%s correction failed unexpectedly: %s",
-                     review.id, result.claim.claim_id, type(error).__name__)
+        logger.error(
+            "review=%s claim=%s correction failed unexpectedly: %s",
+            review.id,
+            result.claim.claim_id,
+            type(error).__name__,
+        )
         return result
 
 
@@ -276,20 +315,32 @@ def _with_decision_policy(result: ClaimResult, review: Review) -> ClaimResult:
     try:
         return apply_policy(result, _DECISION_POLICY)
     except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
-        logger.error("review=%s claim=%s decision policy failed unexpectedly: %s",
-                     review.id, result.claim.claim_id, type(error).__name__)
+        logger.error(
+            "review=%s claim=%s decision policy failed unexpectedly: %s",
+            review.id,
+            result.claim.claim_id,
+            type(error).__name__,
+        )
         return result.model_copy(update={"requires_human_review": True})
 
 
 _DECISION_POLICY = DecisionPolicy()  # engine defaults (decision-policy-v1)
 
 
-def _propose_softening(softener, result: ClaimResult, content: InputContent, review: Review, locks: list[str]):
+def _propose_softening(
+    softener, result: ClaimResult, content: InputContent, review: Review, locks: list[str]
+):
     try:
-        return softener.soften(result, content, locks) if locks else softener.soften(result, content)
+        return (
+            softener.soften(result, content, locks) if locks else softener.soften(result, content)
+        )
     except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
-        logger.error("review=%s claim=%s softening failed unexpectedly: %s",
-                     review.id, result.claim.claim_id, type(error).__name__)
+        logger.error(
+            "review=%s claim=%s softening failed unexpectedly: %s",
+            review.id,
+            result.claim.claim_id,
+            type(error).__name__,
+        )
         return None
 
 
@@ -304,23 +355,31 @@ def claim_level_correction(text: str, claim: Claim, correction: Correction | Non
     span, target = claim.source_span, correction.target_span
     if not (span.start <= target.start <= target.end <= span.end):
         return None
-    return text[span.start : target.start] + correction.replacement_text + text[target.end : span.end]
+    return (
+        text[span.start : target.start] + correction.replacement_text + text[target.end : span.end]
+    )
 
 
 def _make_external_call_logger(db: Session, review: Review, organisation_id: uuid.UUID):
     return external_call_logger(db, organisation_id, review.request_id or "", review_id=review.id)
 
 
-def external_call_logger(db: Session, organisation_id: uuid.UUID, request_id: str, review_id: uuid.UUID | None = None):
+def external_call_logger(
+    db: Session, organisation_id: uuid.UUID, request_id: str, review_id: uuid.UUID | None = None
+):
     """Phase 5 task 9: every external call, logged with provider/model/latency/error code
     only — never prompt or reply content, never credentials, never a raw provider error. Also
     used by the Trust Scorecard's evaluation runs (review_id None, request_id "eval-<run id>")."""
 
-    def on_attempt(*, provider: str, model: str | None, status: str, latency_ms: int, error_code: str | None) -> None:
+    def on_attempt(
+        *, provider: str, model: str | None, status: str, latency_ms: int, error_code: str | None
+    ) -> None:
         call_status = (
             ExternalCallStatus.SUCCESS
             if status == "success"
-            else _EXTERNAL_CALL_STATUS_FOR_ERROR_CODE.get(error_code or "", ExternalCallStatus.ERROR)
+            else _EXTERNAL_CALL_STATUS_FOR_ERROR_CODE.get(
+                error_code or "", ExternalCallStatus.ERROR
+            )
         )
         db.add(
             ExternalCallLog(
@@ -338,7 +397,9 @@ def external_call_logger(db: Session, organisation_id: uuid.UUID, request_id: st
     return on_attempt
 
 
-def _finish(db: Session, review: Review, state: ReviewState, error_summary: str | None = None) -> None:
+def _finish(
+    db: Session, review: Review, state: ReviewState, error_summary: str | None = None
+) -> None:
     review.status = state.value
     review.error_summary = error_summary
     review.completed_at = datetime.now(timezone.utc)
@@ -348,7 +409,9 @@ def _finish(db: Session, review: Review, state: ReviewState, error_summary: str 
     review.required_reviewer_role = None
 
 
-def _write_stub_finding(db: Session, review: Review, content_version: ContentVersion, reason: str | None) -> None:
+def _write_stub_finding(
+    db: Session, review: Review, content_version: ContentVersion, reason: str | None
+) -> None:
     db.add(
         Finding(
             review_id=review.id,
@@ -414,7 +477,11 @@ def _write_finding(
         proposal = softening if softening is not None else result.correction
         rewritten = claim_level_correction(content_version.text, claim, proposal)
         original = claim.source_span.slice(content_version.text)
-        safer_wording = rewritten if rewritten is not None and not softening_issues(original, rewritten) else None
+        safer_wording = (
+            rewritten
+            if rewritten is not None and not softening_issues(original, rewritten)
+            else None
+        )
         suggested_correction = None
     elif verdict is Verdict.ERROR:
         suggested_correction = None
@@ -505,7 +572,11 @@ def _review_reasons(result: ClaimResult, verdict: Verdict, requires_review: bool
 
 
 def _log_integrity_rejection(
-    db: Session, review: Review, organisation_id: uuid.UUID, claim: Claim, error: EvidenceIntegrityError
+    db: Session,
+    review: Review,
+    organisation_id: uuid.UUID,
+    claim: Claim,
+    error: EvidenceIntegrityError,
 ) -> None:
     db.add(
         AuditEvent(

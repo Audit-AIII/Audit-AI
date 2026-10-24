@@ -44,7 +44,12 @@ def awaiting_decision_condition():
     latest = _latest_review_per_version()
     is_latest = (
         select(latest.c.content_version_id)
-        .where(and_(latest.c.content_version_id == Review.content_version_id, latest.c.latest_at == Review.created_at))
+        .where(
+            and_(
+                latest.c.content_version_id == Review.content_version_id,
+                latest.c.latest_at == Review.created_at,
+            )
+        )
         .exists()
     )
     return and_(ContentVersion.is_current.is_(True), Review.status.in_(DECIDABLE_STATES), is_latest)
@@ -55,7 +60,9 @@ def brand_review_stats(db: Session, organisation_id: uuid.UUID) -> dict[uuid.UUI
     account that has at least one review - two GROUP BY queries, not one query per brand."""
     totals = db.execute(
         reviews_in_organisation(organisation_id)
-        .with_only_columns(ContentItem.brand_profile_id, func.count(Review.id), func.max(Review.created_at))
+        .with_only_columns(
+            ContentItem.brand_profile_id, func.count(Review.id), func.max(Review.created_at)
+        )
         .group_by(ContentItem.brand_profile_id)
     ).all()
     open_counts = dict(
@@ -67,7 +74,11 @@ def brand_review_stats(db: Session, organisation_id: uuid.UUID) -> dict[uuid.UUI
         ).all()
     )
     return {
-        brand_id: {"review_count": count, "open_review_count": open_counts.get(brand_id, 0), "last_review_at": last}
+        brand_id: {
+            "review_count": count,
+            "open_review_count": open_counts.get(brand_id, 0),
+            "last_review_at": last,
+        }
         for brand_id, count, last in totals
         if brand_id is not None
     }

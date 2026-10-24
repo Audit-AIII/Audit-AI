@@ -1,7 +1,13 @@
 import pytest
 from pydantic import ValidationError
 
-from inkloom_verify.schemas import ProcessingError, ReportScore, ReviewReason, Verdict, VerificationReport
+from inkloom_verify.schemas import (
+    ProcessingError,
+    ReportScore,
+    ReviewReason,
+    Verdict,
+    VerificationReport,
+)
 
 REQUEST_ERROR = {
     "code": "LIMIT_EXCEEDED",
@@ -142,7 +148,10 @@ def test_example_score_matches_its_results():
     report = VerificationReport.model_validate(data)
     assert report.score == ReportScore.compute(report.results, report.errors)
     assert report.score.evidence_coverage.value == pytest.approx(1 / 3)
-    assert report.score.review_reasons == [ReviewReason.CONTRADICTED_CLAIMS, ReviewReason.UNVERIFIED_CLAIMS]
+    assert report.score.review_reasons == [
+        ReviewReason.CONTRADICTED_CLAIMS,
+        ReviewReason.UNVERIFIED_CLAIMS,
+    ]
 
 
 def test_tampered_score_is_rejected():

@@ -90,17 +90,29 @@ def test_backoff_is_exponential_jittered_and_capped() -> None:
     """SECURITY.md (whole system): bounded retries with jittered exponential backoff."""
     from inkloom_verify.providers.base import ProviderUnavailableError
 
-    for jitter, expected in ((lambda: 0.0, [0.5, 1.0, 2.0, 4.0]), (lambda: 0.999999, [1.0, 2.0, 4.0, 8.0])):
+    for jitter, expected in (
+        (lambda: 0.0, [0.5, 1.0, 2.0, 4.0]),
+        (lambda: 0.999999, [1.0, 2.0, 4.0, 8.0]),
+    ):
         sleeps: list[float] = []
 
         def failing():
             raise ProviderUnavailableError("down")
 
         with pytest.raises(ProviderUnavailableError):
-            with_retry(failing, max_retries=4, backoff_seconds=1.0, sleep=sleeps.append, jitter=jitter)
-        assert sleeps == pytest.approx(expected, rel=1e-5)  # 4 waits for 4 retries, then it gives up
+            with_retry(
+                failing, max_retries=4, backoff_seconds=1.0, sleep=sleeps.append, jitter=jitter
+            )
+        assert sleeps == pytest.approx(
+            expected, rel=1e-5
+        )  # 4 waits for 4 retries, then it gives up
     sleeps = []
     with pytest.raises(ProviderUnavailableError):
-        with_retry(lambda: (_ for _ in ()).throw(ProviderUnavailableError("down")), max_retries=3, backoff_seconds=30.0,
-                   sleep=sleeps.append, jitter=lambda: 0.999999)
+        with_retry(
+            lambda: (_ for _ in ()).throw(ProviderUnavailableError("down")),
+            max_retries=3,
+            backoff_seconds=30.0,
+            sleep=sleeps.append,
+            jitter=lambda: 0.999999,
+        )
     assert max(sleeps) <= 20.0  # never above the cap, whatever the step

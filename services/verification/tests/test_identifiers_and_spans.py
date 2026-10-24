@@ -11,14 +11,27 @@ def test_valid_external_ids(doc_id):
 
 @pytest.mark.parametrize(
     "doc_id",
-    ["", " ", "-leading", ".hidden", "../etc/passwd", "a/b", "has space", "new\nline", "x" * 129, "naïve"],
+    [
+        "",
+        " ",
+        "-leading",
+        ".hidden",
+        "../etc/passwd",
+        "a/b",
+        "has space",
+        "new\nline",
+        "x" * 129,
+        "naïve",
+    ],
 )
 def test_invalid_external_ids(doc_id):
     with pytest.raises(ValidationError):
         ReferenceDocument(doc_id=doc_id, text="t")
 
 
-@pytest.mark.parametrize("claim_id", ["clm_", "psg_0001", "0001", "clm_a b", "CLM_1", "clm_" + "a" * 65])
+@pytest.mark.parametrize(
+    "claim_id", ["clm_", "psg_0001", "0001", "clm_a b", "CLM_1", "clm_" + "a" * 65]
+)
 def test_invalid_claim_ids(claim_id):
     with pytest.raises(ValidationError):
         Claim(claim_id=claim_id, text="A claim.", source_span={"start": 0, "end": 1})
@@ -64,8 +77,8 @@ def test_span_helpers():
 
 
 def test_offsets_are_code_points():
-    text = "Rated 5\u2605 by \U0001F600 users"
+    text = "Rated 5\u2605 by \U0001f600 users"
     star = text.index("\u2605")
     assert SourceSpan(start=star, end=star + 1).slice(text) == "\u2605"
-    emoji = text.index("\U0001F600")
-    assert SourceSpan(start=emoji, end=emoji + 1).slice(text) == "\U0001F600"
+    emoji = text.index("\U0001f600")
+    assert SourceSpan(start=emoji, end=emoji + 1).slice(text) == "\U0001f600"

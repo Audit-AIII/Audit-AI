@@ -22,7 +22,11 @@ from .config import Settings
 from .request_text import NUL
 from .statuses import SourceFileType
 
-_EXTENSION_TO_TYPE = {".txt": SourceFileType.TXT, ".pdf": SourceFileType.PDF, ".docx": SourceFileType.DOCX}
+_EXTENSION_TO_TYPE = {
+    ".txt": SourceFileType.TXT,
+    ".pdf": SourceFileType.PDF,
+    ".docx": SourceFileType.DOCX,
+}
 
 
 def _bad_request(message: str) -> HTTPException:
@@ -97,7 +101,9 @@ def _extract_docx_text(content: bytes) -> str:
     return "\n".join(p.text for p in document.paragraphs if p.text)
 
 
-def store_upload(settings: Settings, organisation_id: uuid.UUID, file_type: SourceFileType, content: bytes) -> str:
+def store_upload(
+    settings: Settings, organisation_id: uuid.UUID, file_type: SourceFileType, content: bytes
+) -> str:
     """Saves the raw uploaded bytes under `brand_source_storage_dir`, named by a generated id -
     never the original filename (avoids path traversal and collisions, and the name itself
     could be sensitive). Returns the path, relative to that directory, stored in

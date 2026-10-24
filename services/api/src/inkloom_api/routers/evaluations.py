@@ -30,7 +30,12 @@ from ..config import Settings, get_settings
 from ..db import get_db
 from ..engine.pipeline import external_call_logger
 from ..engine.provider import build_provider
-from ..evaluation_runner import COVERAGE_VERIFIER_ONLY, EvaluationUnavailableError, provider_mode, run_evaluation
+from ..evaluation_runner import (
+    COVERAGE_VERIFIER_ONLY,
+    EvaluationUnavailableError,
+    provider_mode,
+    run_evaluation,
+)
 from ..models import AuditEvent, EvaluationRun
 
 router = APIRouter(prefix="/api/evaluations", tags=["evaluations"])
@@ -145,9 +150,15 @@ def _enforce_interval(db: Session, auth: AuthContext, settings: Settings) -> Non
         minutes = max(1, round(settings.eval_min_interval_seconds / 60))
         # Seconds until the newest counted attempt leaves the window. Errors.py copies the
         # Retry-After header into the body as error.retry_after (same as the review rate limit).
-        wait = max(1, math.ceil(settings.eval_min_interval_seconds - (now - latest.created_at).total_seconds()))
+        wait = max(
+            1,
+            math.ceil(
+                settings.eval_min_interval_seconds - (now - latest.created_at).total_seconds()
+            ),
+        )
         raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, f"an evaluation can be run once every {minutes} minutes; try again later",
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"an evaluation can be run once every {minutes} minutes; try again later",
             headers={"Retry-After": str(wait)},
         )
 
@@ -163,14 +174,18 @@ def create_evaluation(
         if auth.user_id in _in_flight:
             # How long the running one can take at most (its time limit), so a retry after it
             # meets a finished run.
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "an evaluation is already running for this account",
-                                headers={"Retry-After": str(max(1, math.ceil(settings.eval_deadline_seconds)))})
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                "an evaluation is already running for this account",
+                headers={"Retry-After": str(max(1, math.ceil(settings.eval_deadline_seconds)))},
+            )
         _in_flight.add(auth.user_id)
     try:
         run_id = uuid.uuid4()
         # The labelled set is synthetic, so the normal (non-confidential) chain is used.
         provider = build_provider(
-            confidential=False, on_attempt=external_call_logger(db, auth.organisation_id, f"eval-{run_id}")
+            confidential=False,
+            on_attempt=external_call_logger(db, auth.organisation_id, f"eval-{run_id}"),
         )
         if not provider.configured_providers:
             raise HTTPException(status.HTTP_409_CONFLICT, _NO_PROVIDER)
@@ -186,8 +201,12 @@ def create_evaluation(
             # misleading numbers are not.
             failed = round(failure_rate * result.sample_size)
             log_audit_event(
-                db, organisation_id=auth.organisation_id, actor_user_id=auth.user_id,
-                event_type="evaluation.discarded", entity_type="evaluation_run", entity_id=run_id,
+                db,
+                organisation_id=auth.organisation_id,
+                actor_user_id=auth.user_id,
+                event_type="evaluation.discarded",
+                entity_type="evaluation_run",
+                entity_id=run_id,
                 details={"sample_size": result.sample_size, "claims_without_verdict": failed},
                 request_id=f"eval-{run_id}",
             )
@@ -219,7 +238,11 @@ def create_evaluation(
             event_type="evaluation.run",
             entity_type="evaluation_run",
             entity_id=run_id,
-            details={"status": result.status, "sample_size": result.sample_size, "dataset_version": result.dataset_version},
+            details={
+                "status": result.status,
+                "sample_size": result.sample_size,
+                "dataset_version": result.dataset_version,
+            },
             request_id=f"eval-{run_id}",
         )
         db.commit()

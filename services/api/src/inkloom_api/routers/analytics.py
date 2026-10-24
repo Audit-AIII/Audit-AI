@@ -93,7 +93,9 @@ def brand_risk(
         get_brand_profile_or_404(db, auth.organisation_id, brand_id)
     now = datetime.now(timezone.utc)
 
-    period = reviews_in_organisation(auth.organisation_id).where(Review.created_at >= now - timedelta(days=days))
+    period = reviews_in_organisation(auth.organisation_id).where(
+        Review.created_at >= now - timedelta(days=days)
+    )
     if brand_id is not None:
         period = period.where(ContentItem.brand_profile_id == brand_id)
     period_ids = period.with_only_columns(Review.id).scalar_subquery()
@@ -120,8 +122,10 @@ def brand_risk(
     ).all()
     turnaround = [_minutes(decided - created) for created, decided in first_decisions]
 
-    item_ids = select(ContentVersion.content_item_id).join(Review, Review.content_version_id == ContentVersion.id).where(
-        Review.id.in_(period_ids)
+    item_ids = (
+        select(ContentVersion.content_item_id)
+        .join(Review, Review.content_version_id == ContentVersion.id)
+        .where(Review.id.in_(period_ids))
     )
     version_counts = db.execute(
         select(ContentVersion.content_item_id, func.count(ContentVersion.id))
@@ -129,7 +133,9 @@ def brand_risk(
         .group_by(ContentVersion.content_item_id)
     ).all()
     re_review_rate = (
-        round(sum(1 for _, n in version_counts if n >= 2) / len(version_counts), 4) if version_counts else None
+        round(sum(1 for _, n in version_counts if n >= 2) / len(version_counts), 4)
+        if version_counts
+        else None
     )
 
     flagged = select(Finding.finding_id).where(
@@ -138,19 +144,28 @@ def brand_risk(
         Finding.category.notin_(_EXCLUDED_CATEGORIES),
     )
     flagged_count = db.scalar(select(func.count()).select_from(flagged.subquery())) or 0
-    latest_decision = select(
-        FindingDecision.finding_id,
-        FindingDecision.action,
-        func.row_number().over(
-            partition_by=FindingDecision.finding_id,
-            order_by=(FindingDecision.created_at.desc(), FindingDecision.id.desc()),
-        ).label("rank"),
-    ).where(FindingDecision.finding_id.in_(flagged)).subquery()
-    dismissed_count = db.scalar(
-        select(func.count()).select_from(latest_decision).where(
-            latest_decision.c.rank == 1, latest_decision.c.action == "dismissed"
+    latest_decision = (
+        select(
+            FindingDecision.finding_id,
+            FindingDecision.action,
+            func.row_number()
+            .over(
+                partition_by=FindingDecision.finding_id,
+                order_by=(FindingDecision.created_at.desc(), FindingDecision.id.desc()),
+            )
+            .label("rank"),
         )
-    ) or 0
+        .where(FindingDecision.finding_id.in_(flagged))
+        .subquery()
+    )
+    dismissed_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(latest_decision)
+            .where(latest_decision.c.rank == 1, latest_decision.c.action == "dismissed")
+        )
+        or 0
+    )
 
     waiting_since = db.scalars(
         period.where(awaiting_decision_condition()).with_only_columns(Review.created_at)
@@ -161,7 +176,9 @@ def brand_risk(
         top_categories=[CategoryCount(category=c, count=n) for c, n in category_rows],
         median_turnaround_minutes=_median(turnaround),
         re_review_rate=re_review_rate,
-        queue_age_minutes=QueueAge(median=_median(ages), oldest=round(max(ages), 1) if ages else None),
+        queue_age_minutes=QueueAge(
+            median=_median(ages), oldest=round(max(ages), 1) if ages else None
+        ),
         sample_size=sample_size,
         dismissed_finding_rate=Ratio(
             numerator=dismissed_count,

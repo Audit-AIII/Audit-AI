@@ -27,8 +27,14 @@ from inkloom_verify.schemas import EvalRecord
 
 CONTRACT = "evaluation-summary-v1"
 PASSAGE_EXCERPT_CHARS = 700
-_KIND = {"oracle": "benchmark (scripted gold answers)", "abstain": "benchmark floor (always abstains)",
-         "dry-run": "call count only", "openrouter": "live model", "replay": "replayed recording", "predictions": "saved predictions"}
+_KIND = {
+    "oracle": "benchmark (scripted gold answers)",
+    "abstain": "benchmark floor (always abstains)",
+    "dry-run": "call count only",
+    "openrouter": "live model",
+    "replay": "replayed recording",
+    "predictions": "saved predictions",
+}
 
 
 class _M(BaseModel):
@@ -39,7 +45,9 @@ class MetricOut(_M):
     key: str
     label: str
     explanation: str
-    display: str  # exactly as the Markdown report prints it, so the page and the report never differ
+    display: (
+        str  # exactly as the Markdown report prints it, so the page and the report never differ
+    )
     value: float | None
     numerator: int | None
     denominator: int | None
@@ -131,7 +139,9 @@ class NoEvaluation(_M):
     contract: Literal["evaluation-summary-v1"] = CONTRACT
     state: Literal["none"] = "none"
     reason: str
-    how_to_run: str = "cd services/verification && python eval/run_eval.py --verdicts oracle --check-baseline"
+    how_to_run: str = (
+        "cd services/verification && python eval/run_eval.py --verdicts oracle --check-baseline"
+    )
 
 
 class IncompleteEvaluation(_M):
@@ -155,7 +165,7 @@ def _excerpt(text: str, start: int, end: int) -> tuple[str, bool]:
         return text, False
     middle = (start + end) // 2
     lo = max(0, min(middle - PASSAGE_EXCERPT_CHARS // 2, len(text) - PASSAGE_EXCERPT_CHARS))
-    return text[lo:lo + PASSAGE_EXCERPT_CHARS], True
+    return text[lo : lo + PASSAGE_EXCERPT_CHARS], True
 
 
 def case_out(record: EvalRecord, case: CaseOutcome) -> CaseOut:
@@ -166,22 +176,50 @@ def case_out(record: EvalRecord, case: CaseOutcome) -> CaseOut:
             if (p.doc_id, p.start, p.end) in seen or p.doc_id not in docs:
                 continue
             seen.add((p.doc_id, p.start, p.end))
-            text, cut = _excerpt(docs[p.doc_id].text[p.start:p.end], 0, p.end - p.start)
-            passages.append(PassageOut(doc_id=p.doc_id, title=docs[p.doc_id].title, text=text, truncated=cut))
+            text, cut = _excerpt(docs[p.doc_id].text[p.start : p.end], 0, p.end - p.start)
+            passages.append(
+                PassageOut(doc_id=p.doc_id, title=docs[p.doc_id].title, text=text, truncated=cut)
+            )
     citations = [
-        CitationOut(doc_id=c.doc_id, quote=c.quote,
-                    resolves=metrics.citation_problem(record, c.doc_id, c.quote, c.start, c.end) is None,
-                    supports=claim.verdict == record.expected_verdict.value and metrics.overlaps_gold(record, c.doc_id, c.start, c.end))
-        for claim in case.claims for c in claim.citations
+        CitationOut(
+            doc_id=c.doc_id,
+            quote=c.quote,
+            resolves=metrics.citation_problem(record, c.doc_id, c.quote, c.start, c.end) is None,
+            supports=claim.verdict == record.expected_verdict.value
+            and metrics.overlaps_gold(record, c.doc_id, c.start, c.end),
+        )
+        for claim in case.claims
+        for c in claim.citations
     ]
     return CaseOut(
-        record_id=record.record_id, split=record.split.value, content=record.claim_text,
-        claims=[ClaimOut(text=c.statement or c.text, verdict=c.verdict, requires_human_review=c.requires_human_review,
-                         review_reasons=c.review_reasons) for c in case.claims],
-        expected=case.expected, predicted=case.predicted, agrees=case.expected == case.predicted,
-        outcome=case.outcome, reason=case.reason, passages=passages[:4], citations=citations,
-        corrections=[CorrectionOut(status=c.correction.status, replacement_text=c.correction.replacement_text,
-                                   issues=c.correction.issues) for c in case.claims if c.correction],
+        record_id=record.record_id,
+        split=record.split.value,
+        content=record.claim_text,
+        claims=[
+            ClaimOut(
+                text=c.statement or c.text,
+                verdict=c.verdict,
+                requires_human_review=c.requires_human_review,
+                review_reasons=c.review_reasons,
+            )
+            for c in case.claims
+        ],
+        expected=case.expected,
+        predicted=case.predicted,
+        agrees=case.expected == case.predicted,
+        outcome=case.outcome,
+        reason=case.reason,
+        passages=passages[:4],
+        citations=citations,
+        corrections=[
+            CorrectionOut(
+                status=c.correction.status,
+                replacement_text=c.correction.replacement_text,
+                issues=c.correction.issues,
+            )
+            for c in case.claims
+            if c.correction
+        ],
         requires_human_review=case.requires_human_review,
     )
 
@@ -191,34 +229,62 @@ def representative(cases: dict[str, CaseOutcome], records: dict[str, EvalRecord]
     first when that label has one, otherwise the first record by id. Never invented."""
     chosen = []
     for label in ("SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE"):
-        pool = sorted((c for rid, c in cases.items() if c.expected == label and rid in records and c.claims),
-                      key=lambda c: (c.outcome == "correct", c.record_id))
+        pool = sorted(
+            (c for rid, c in cases.items() if c.expected == label and rid in records and c.claims),
+            key=lambda c: (c.outcome == "correct", c.record_id),
+        )
         if pool:
             chosen.append(case_out(records[pool[0].record_id], pool[0]))
     return chosen
 
 
-def build_summary(report: dict[str, Any], cases: dict[str, CaseOutcome] | None, records: dict[str, EvalRecord]) -> EvaluationSummary:
+def build_summary(
+    report: dict[str, Any], cases: dict[str, CaseOutcome] | None, records: dict[str, EvalRecord]
+) -> EvaluationSummary:
     run, v, m = report["run"], report["verdicts"], report["required_metrics"]
     config = run.get("model_configuration") or {}
-    policy = (run.get("decision_policy") or {})
+    policy = run.get("decision_policy") or {}
     return EvaluationSummary(
         generated_at=run["created_at"],
         outcome=outcome(report),
-        source={"verdict_source": run["verdict_source"], "kind": _KIND.get(run["verdict_source"], run["verdict_source"]),
-                "is_model_quality": bool(v["is_model_quality"]), "benchmark": True,
-                "production_statistics": False, "git_commit": run.get("git_commit"), "engine_version": run.get("engine_version")},
-        dataset={k: run["dataset"].get(k) for k in ("path", "sha256", "records", "locked", "labels", "groups")}
+        source={
+            "verdict_source": run["verdict_source"],
+            "kind": _KIND.get(run["verdict_source"], run["verdict_source"]),
+            "is_model_quality": bool(v["is_model_quality"]),
+            "benchmark": True,
+            "production_statistics": False,
+            "git_commit": run.get("git_commit"),
+            "engine_version": run.get("engine_version"),
+        },
+        dataset={
+            k: run["dataset"].get(k)
+            for k in ("path", "sha256", "records", "locked", "labels", "groups")
+        }
         | {"human_reviewed": report.get("datasets", {}).get("human_reviewed")},
-        model={"provider": config.get("provider"), "models": config.get("models"), "model_ids": v.get("model_ids") or []},
+        model={
+            "provider": config.get("provider"),
+            "models": config.get("models"),
+            "model_ids": v.get("model_ids") or [],
+        },
         prompt_versions=run.get("prompt_versions"),
         retrieval=run.get("retrieval_parameters"),
-        decision_policy={"policy": policy.get("policy"), "calibration": policy.get("calibration")} if policy else None,
+        decision_policy={"policy": policy.get("policy"), "calibration": policy.get("calibration")}
+        if policy
+        else None,
         counts={k: int(n) for k, n in m["counts"].items()},
-        metrics=[MetricOut(key=key, label=label, explanation=what, display=_ratio(m.get(key), m["unavailable"].get(key)),
-                           value=(m.get(key) or {}).get("value"), numerator=(m.get(key) or {}).get("numerator"),
-                           denominator=(m.get(key) or {}).get("denominator"), unavailable_reason=m["unavailable"].get(key))
-                 for key, label, what in METRICS],
+        metrics=[
+            MetricOut(
+                key=key,
+                label=label,
+                explanation=what,
+                display=_ratio(m.get(key), m["unavailable"].get(key)),
+                value=(m.get(key) or {}).get("value"),
+                numerator=(m.get(key) or {}).get("numerator"),
+                denominator=(m.get(key) or {}).get("denominator"),
+                unavailable_reason=m["unavailable"].get(key),
+            )
+            for key, label, what in METRICS
+        ],
         confusion=v["confusion"],
         review=m.get("review") or {},
         corrections=m.get("corrections") or {},
@@ -231,11 +297,17 @@ def build_summary(report: dict[str, Any], cases: dict[str, CaseOutcome] | None, 
 
 def incomplete_summary(report: dict[str, Any]) -> IncompleteEvaluation:
     run = report["run"]
-    return IncompleteEvaluation(generated_at=run["created_at"], verdict_source=run.get("verdict_source"),
-                                error=run["error"], limitations=LIMITATIONS)
+    return IncompleteEvaluation(
+        generated_at=run["created_at"],
+        verdict_source=run.get("verdict_source"),
+        error=run["error"],
+        limitations=LIMITATIONS,
+    )
 
 
-def latest_summary(reports_dir: Path, lock_file: Path | None = None) -> EvaluationSummary | IncompleteEvaluation | NoEvaluation:
+def latest_summary(
+    reports_dir: Path, lock_file: Path | None = None
+) -> EvaluationSummary | IncompleteEvaluation | NoEvaluation:
     """The newest ``*.summary.json`` in ``reports_dir``, re-validated; marked stale when the locked
     dataset has changed since. Raises SummaryInvalid if the newest file breaks the contract."""
     files = sorted(reports_dir.glob("*.summary.json")) if reports_dir.is_dir() else []
@@ -249,7 +321,13 @@ def latest_summary(reports_dir: Path, lock_file: Path | None = None) -> Evaluati
     except (OSError, ValueError, ValidationError):
         raise SummaryInvalid(f"{files[-1].name} does not match {CONTRACT}") from None
     if lock_file is not None and lock_file.is_file() and summary.dataset.get("locked"):
-        current = json.loads(lock_file.read_text(encoding="utf-8"))["files"].get("eval/dataset.jsonl", {}).get("sha256")
+        current = (
+            json.loads(lock_file.read_text(encoding="utf-8"))["files"]
+            .get("eval/dataset.jsonl", {})
+            .get("sha256")
+        )
         if current and current != summary.dataset.get("sha256"):
-            summary = summary.model_copy(update={"stale": True, "stale_reason": "eval/dataset.jsonl changed after this run"})
+            summary = summary.model_copy(
+                update={"stale": True, "stale_reason": "eval/dataset.jsonl changed after this run"}
+            )
     return summary

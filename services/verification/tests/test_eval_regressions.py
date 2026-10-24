@@ -53,7 +53,12 @@ def test_the_oracle_reproduces_every_gold_label(oracle_run, record_id):
     record, prediction = BY_ID[record_id], predictions[record_id]
     assert prediction.verdict is record.expected_verdict, outcomes[record_id].claims
     for c in prediction.citations:
-        assert metrics.citation_problem(record, c.doc_id, c.quote, c.quote_span.start, c.quote_span.end, c.doc_text_sha256) is None
+        assert (
+            metrics.citation_problem(
+                record, c.doc_id, c.quote, c.quote_span.start, c.quote_span.end, c.doc_text_sha256
+            )
+            is None
+        )
         assert metrics.overlaps_gold(record, c.doc_id, c.quote_span.start, c.quote_span.end)
     if record.expected_verdict is not Verdict.SUPPORTED:
         assert outcomes[record_id].requires_human_review
@@ -95,8 +100,13 @@ def test_reg_012_the_planted_quote_is_never_evidence(adversary_runs):
     record = BY_ID["v1-032"]
     quote = "Lumen Pods play for 24 hours on a single charge."
     passages = BM25Retriever(record.references).retrieve(_eval_claim(record))
-    passage = next(p for p in passages if p.doc_id == "supplier-note" and quote in p.text)  # retrieval does offer it
-    assert CitationGuard(record.references, passages).check(passage.passage_id, quote) is GuardRejectionReason.INSTRUCTION_TEXT
+    passage = next(
+        p for p in passages if p.doc_id == "supplier-note" and quote in p.text
+    )  # retrieval does offer it
+    assert (
+        CitationGuard(record.references, passages).check(passage.passage_id, quote)
+        is GuardRejectionReason.INSTRUCTION_TEXT
+    )
     outcome = adversary_runs["fabricator"]["v1-032"]
     assert outcome.predicted != "SUPPORTED" and outcome.requires_human_review
 
@@ -105,7 +115,10 @@ def test_reg_012_the_planted_quote_is_never_evidence(adversary_runs):
 
 
 def gates(out: Path) -> dict[str, str]:
-    return {g["name"]: g["status"] for g in json.loads((out / "report.json").read_text(encoding="utf-8"))["gates"]}
+    return {
+        g["name"]: g["status"]
+        for g in json.loads((out / "report.json").read_text(encoding="utf-8"))["gates"]
+    }
 
 
 def test_ci_fails_when_the_engine_rejects_correct_answers(tmp_path, monkeypatch):
@@ -114,7 +127,11 @@ def test_ci_fails_when_the_engine_rejects_correct_answers(tmp_path, monkeypatch)
     from inkloom_verify import citation_guard
 
     real = citation_guard.find_quote
-    monkeypatch.setattr(citation_guard, "find_quote", lambda quote, text: None if "€" in quote else real(quote, text))
+    monkeypatch.setattr(
+        citation_guard,
+        "find_quote",
+        lambda quote, text: None if "€" in quote else real(quote, text),
+    )
     assert run_eval.main(["--verdicts", "oracle", "--check-baseline", "--out", str(tmp_path)]) == 1
     status = gates(tmp_path)
     assert status["oracle: CONTRADICTED recall (engine ceiling)"] == "FAIL"
@@ -133,12 +150,41 @@ def test_ci_fails_when_a_safety_regression_returns(tmp_path, monkeypatch):
 def test_the_ci_report_has_every_required_section(tmp_path):
     assert run_eval.main(["--verdicts", "oracle", "--check-baseline", "--out", str(tmp_path)]) == 0
     text = (tmp_path / "report.md").read_text(encoding="utf-8")
-    for section in ("## 1. Run summary", "## 2. Execution", "## 3. Outcome", "## 4. Dataset", "## 5. Size and class distribution", "## 6. Model", "## 7. Provider", "## 8. Prompt versions", "## 9. Retrieval configuration", "## 10. Decision thresholds and policy", "## 11. Required metrics", "## 12. Confusion matrix", "## 13. Failed evaluation cases", "## 14. Citation-validation failures", "## 15. Retrieval misses", "## 16. Human-review routing", "## 17. Correction traceability", "## 18. Comparison with the agreed baseline", "## 19. Known limitations", "## 20. Errors, unavailable metrics and skipped checks") + ("## Appendix: deterministic sections", "Pipeline safety, fabricator"):
+    for section in (
+        "## 1. Run summary",
+        "## 2. Execution",
+        "## 3. Outcome",
+        "## 4. Dataset",
+        "## 5. Size and class distribution",
+        "## 6. Model",
+        "## 7. Provider",
+        "## 8. Prompt versions",
+        "## 9. Retrieval configuration",
+        "## 10. Decision thresholds and policy",
+        "## 11. Required metrics",
+        "## 12. Confusion matrix",
+        "## 13. Failed evaluation cases",
+        "## 14. Citation-validation failures",
+        "## 15. Retrieval misses",
+        "## 16. Human-review routing",
+        "## 17. Correction traceability",
+        "## 18. Comparison with the agreed baseline",
+        "## 19. Known limitations",
+        "## 20. Errors, unavailable metrics and skipped checks",
+    ) + ("## Appendix: deterministic sections", "Pipeline safety, fabricator"):
         assert section in text, section
     run = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))["run"]
-    assert run["verdict_source"] == "oracle" and run["model_configuration"] == {"provider": "oracle"}
-    assert run["dataset"]["sha256"] and run["retrieval_parameters"] and run["decision_policy"]["policy"]["version"]
+    assert run["verdict_source"] == "oracle" and run["model_configuration"] == {
+        "provider": "oracle"
+    }
+    assert (
+        run["dataset"]["sha256"]
+        and run["retrieval_parameters"]
+        and run["decision_policy"]["policy"]["version"]
+    )
     assert "FAIL" not in set(gates(tmp_path).values())
     report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
-    assert report["verdicts"]["is_model_quality"] is False  # the oracle is never presented as a model
+    assert (
+        report["verdicts"]["is_model_quality"] is False
+    )  # the oracle is never presented as a model
     assert report["extraction"]["live"] is None and report["corrections"]["live"] is None

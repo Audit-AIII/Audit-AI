@@ -48,7 +48,11 @@ def test_segments_are_sentences_and_lines():
 
 
 def test_windows_slide_within_a_paragraph_but_never_cross_it():
-    passages = texts(chunk_document(SPEC, ChunkingConfig(strategy="sentences", sentences_per_passage=2, stride=1)))
+    passages = texts(
+        chunk_document(
+            SPEC, ChunkingConfig(strategy="sentences", sentences_per_passage=2, stride=1)
+        )
+    )
     assert passages[0] == "Lumen Bottle Product Specification."
     assert "Capacity: 750 ml\nWeight: 340 g" in passages
     assert "Weight: 340 g\nInsulation: keeps drinks cold for up to 24 hours." in passages
@@ -57,7 +61,11 @@ def test_windows_slide_within_a_paragraph_but_never_cross_it():
 
 
 def test_no_source_text_is_lost():
-    for config in [ChunkingConfig(), single_sentences(), ChunkingConfig(strategy="sentences", sentences_per_passage=3, stride=3)]:
+    for config in [
+        ChunkingConfig(),
+        single_sentences(),
+        ChunkingConfig(strategy="sentences", sentences_per_passage=3, stride=3),
+    ]:
         covered = set()
         for passage in chunk_document(SPEC, config):
             covered.update(range(passage.span.start, passage.span.end))
@@ -68,7 +76,12 @@ def test_no_source_text_is_lost():
 def test_long_sentence_is_split_at_whitespace_within_the_limit():
     words = " ".join(f"word{i}" for i in range(200))
     document = ReferenceDocument(doc_id="long", text=words)
-    passages = chunk_document(document, ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1, max_passage_chars=100))
+    passages = chunk_document(
+        document,
+        ChunkingConfig(
+            strategy="sentences", sentences_per_passage=1, stride=1, max_passage_chars=100
+        ),
+    )
     assert len(passages) > 1
     assert all(len(p.text) <= 100 for p in passages)
     assert all(not p.text.startswith(" ") and not p.text.endswith(" ") for p in passages)
@@ -77,21 +90,31 @@ def test_long_sentence_is_split_at_whitespace_within_the_limit():
 
 def test_unbroken_text_is_cut_at_the_limit():
     document = ReferenceDocument(doc_id="blob", text="x" * 250)
-    passages = chunk_document(document, ChunkingConfig(strategy="sentences", sentences_per_passage=1, stride=1, max_passage_chars=100))
+    passages = chunk_document(
+        document,
+        ChunkingConfig(
+            strategy="sentences", sentences_per_passage=1, stride=1, max_passage_chars=100
+        ),
+    )
     assert [len(p.text) for p in passages] == [100, 100, 50]
 
 
 def test_windows_shrink_to_fit_the_limit():
     sentence = "This sentence has exactly sixty characters in it, I promise."
     document = ReferenceDocument(doc_id="d", text=" ".join([sentence] * 3))
-    passages = chunk_document(document, ChunkingConfig(strategy="sentences", sentences_per_passage=3, stride=1, max_passage_chars=130))
+    passages = chunk_document(
+        document,
+        ChunkingConfig(
+            strategy="sentences", sentences_per_passage=3, stride=1, max_passage_chars=130
+        ),
+    )
     assert all(len(p.text) <= 130 for p in passages)
 
 
 def test_offsets_are_code_points():
-    document = ReferenceDocument(doc_id="emoji", text="Loved by \U0001F600 fans. Made in Portugal.")
+    document = ReferenceDocument(doc_id="emoji", text="Loved by \U0001f600 fans. Made in Portugal.")
     passages = chunk_document(document, single_sentences())
-    assert texts(passages) == ["Loved by \U0001F600 fans.", "Made in Portugal."]
+    assert texts(passages) == ["Loved by \U0001f600 fans.", "Made in Portugal."]
     assert passages[1].span.slice(document.text) == "Made in Portugal."
 
 
@@ -144,7 +167,10 @@ def test_whitespace_padded_document():
         {"overlap_tokens": 200},  # overlap must be < min
         {"max_tokens": True},
         {"sentences_per_passage": 2},  # sentence setting under the tokens strategy
-        {"strategy": "sentences", "target_tokens": 300},  # token setting under the sentences strategy
+        {
+            "strategy": "sentences",
+            "target_tokens": 300,
+        },  # token setting under the sentences strategy
     ],
 )
 def test_invalid_chunking_config(settings):
@@ -157,7 +183,10 @@ def test_invalid_chunking_config(settings):
 LONG = ReferenceDocument(
     doc_id="handbook",
     text="\n\n".join(
-        " ".join(f"Section {p} fact {i}: the item weighs {p * 10 + i} grams and ships in box {i}." for i in range(14))
+        " ".join(
+            f"Section {p} fact {i}: the item weighs {p * 10 + i} grams and ships in box {i}."
+            for i in range(14)
+        )
         for p in range(1, 9)
     ),
 )
@@ -169,7 +198,11 @@ def word_count(text: str) -> int:
 
 def test_tokens_is_the_default_strategy():
     assert ChunkingConfig().strategy == "tokens"
-    assert (ChunkingConfig().min_tokens, ChunkingConfig().target_tokens, ChunkingConfig().max_tokens) == (200, 300, 400)
+    assert (
+        ChunkingConfig().min_tokens,
+        ChunkingConfig().target_tokens,
+        ChunkingConfig().max_tokens,
+    ) == (200, 300, 400)
 
 
 def test_token_chunks_are_within_bounds_and_exact():
@@ -215,7 +248,9 @@ def test_overlong_sentence_is_cut_into_token_windows():
 
 
 def test_character_cap_holds_for_very_long_words():
-    document = ReferenceDocument(doc_id="urls", text=" ".join("https://example.com/" + "x" * 60 for _ in range(300)))
+    document = ReferenceDocument(
+        doc_id="urls", text=" ".join("https://example.com/" + "x" * 60 for _ in range(300))
+    )
     assert all(len(p.text) <= MAX_PASSAGE_CHARS for p in chunk_document(document, ChunkingConfig()))
 
 
@@ -225,7 +260,9 @@ def test_final_chunk_is_extended_to_the_minimum():
 
 
 def test_custom_token_sizes():
-    passages = chunk_document(LONG, ChunkingConfig(min_tokens=40, target_tokens=60, max_tokens=80, overlap_tokens=10))
+    passages = chunk_document(
+        LONG, ChunkingConfig(min_tokens=40, target_tokens=60, max_tokens=80, overlap_tokens=10)
+    )
     assert all(word_count(p.text) <= 80 for p in passages) and len(passages) > 10
 
 
@@ -243,7 +280,12 @@ def test_chunks_stop_at_the_target_not_the_maximum():
 
 def test_a_short_tail_is_extended_backwards_to_the_minimum():
     # 33 ten-word sentences: the first chunk takes 30; on its own the tail would be ~50 tokens.
-    document = ReferenceDocument(doc_id="tail", text=" ".join(f"Sentence {i:02d} has exactly ten words in it today, see." for i in range(33)))
+    document = ReferenceDocument(
+        doc_id="tail",
+        text=" ".join(
+            f"Sentence {i:02d} has exactly ten words in it today, see." for i in range(33)
+        ),
+    )
     passages = chunk_document(document, ChunkingConfig())
     assert len(passages) == 2
     assert word_count(passages[-1].text) >= 200

@@ -100,15 +100,22 @@ class EvidenceRetriever(Protocol):
 
     method: RetrievalMethod
 
-    def retrieve(self, claim: Claim | Mapping[str, Any], top_k: int | None = None) -> list[EvidencePassage]:
+    def retrieve(
+        self, claim: Claim | Mapping[str, Any], top_k: int | None = None
+    ) -> list[EvidencePassage]:
         """Passages ranked best first; empty when nothing in the corpus is relevant."""
         ...
 
 
-def _as_documents(documents: Iterable[ReferenceDocument | Mapping[str, Any]]) -> list[ReferenceDocument]:
+def _as_documents(
+    documents: Iterable[ReferenceDocument | Mapping[str, Any]],
+) -> list[ReferenceDocument]:
     if isinstance(documents, (str, bytes, Mapping)):
         raise RetrievalError("documents must be a sequence of reference documents")
-    validated = [d if isinstance(d, ReferenceDocument) else ReferenceDocument.model_validate(d) for d in documents]
+    validated = [
+        d if isinstance(d, ReferenceDocument) else ReferenceDocument.model_validate(d)
+        for d in documents
+    ]
     seen: set[str] = set()
     for document in validated:
         if document.doc_id in seen:
@@ -156,7 +163,9 @@ class BM25Retriever:
         for order, document in enumerate(self.documents):
             passages.extend(chunk_document(document, self.chunking, doc_order=order))
             if len(passages) > MAX_INDEXED_PASSAGES:
-                raise RetrievalLimitError(f"reference documents produce more than {MAX_INDEXED_PASSAGES} passages")
+                raise RetrievalLimitError(
+                    f"reference documents produce more than {MAX_INDEXED_PASSAGES} passages"
+                )
 
         tokenized = [(passage, tokenize(passage.text)) for passage in passages]
         # A passage with no searchable terms (only punctuation or stopwords) can never match.
@@ -169,10 +178,16 @@ class BM25Retriever:
             else None
         )
 
-    def retrieve(self, claim: Claim | Mapping[str, Any], top_k: int | None = None) -> list[EvidencePassage]:
+    def retrieve(
+        self, claim: Claim | Mapping[str, Any], top_k: int | None = None
+    ) -> list[EvidencePassage]:
         claim = claim if isinstance(claim, Claim) else Claim.model_validate(claim)
         limit = self.config.top_k if top_k is None else top_k
-        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_PASSAGES_PER_CLAIM:
+        if (
+            isinstance(limit, bool)
+            or not isinstance(limit, int)
+            or not 1 <= limit <= MAX_PASSAGES_PER_CLAIM
+        ):
             raise RetrievalError(f"top_k must be an integer from 1 to {MAX_PASSAGES_PER_CLAIM}")
 
         query = sorted(set(tokenize(claim.statement)))
@@ -180,9 +195,13 @@ class BM25Retriever:
             return []
 
         scores = self._bm25.get_scores(query)
-        candidates = [i for i in range(len(self.passages)) if scores[i] > 0 and self._is_relevant(i, query)]
+        candidates = [
+            i for i in range(len(self.passages)) if scores[i] > 0 and self._is_relevant(i, query)
+        ]
         # Best score first; ties go to the earlier document, then the earlier position.
-        candidates.sort(key=lambda i: (-scores[i], self.passages[i].doc_order, self.passages[i].span.start))
+        candidates.sort(
+            key=lambda i: (-scores[i], self.passages[i].doc_order, self.passages[i].span.start)
+        )
         return [
             self._to_evidence(self.passages[i], float(scores[i]), rank)
             for rank, i in enumerate(self._select(candidates, limit), start=1)
@@ -190,7 +209,10 @@ class BM25Retriever:
 
     def _is_relevant(self, index: int, query: list[str]) -> bool:
         matched = sum(1 for term in query if term in self._terms[index])
-        return matched >= self.config.min_matched_terms and matched / len(query) >= self.config.min_term_coverage
+        return (
+            matched >= self.config.min_matched_terms
+            and matched / len(query) >= self.config.min_term_coverage
+        )
 
     def _select(self, candidates: list[int], limit: int) -> list[int]:
         """Takes candidates in rank order, skipping repeated text and overlapping windows."""
@@ -201,7 +223,9 @@ class BM25Retriever:
             key = _dedupe_key(passage.text)
             if key in seen_text:
                 continue
-            if self.config.suppress_overlaps and any(self._overlaps(passage, self.passages[s]) for s in selected):
+            if self.config.suppress_overlaps and any(
+                self._overlaps(passage, self.passages[s]) for s in selected
+            ):
                 continue
             seen_text.add(key)
             selected.append(index)

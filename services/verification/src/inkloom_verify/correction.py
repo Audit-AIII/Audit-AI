@@ -36,7 +36,12 @@ from inkloom_verify.extraction import _ATTRIBUTION, QUALIFIERS, describe_validat
 from inkloom_verify.intent_lock import check_replacement, validate_locks
 from inkloom_verify.prompts import correction as prompt
 from inkloom_verify.prompts.loader import load_prompt
-from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
+from inkloom_verify.providers.base import (
+    JsonCompletionRequest,
+    LLMProvider,
+    MalformedOutputError,
+    ProviderError,
+)
 from inkloom_verify.schemas import (
     MAX_CLAIM_CHARS,
     Citation,
@@ -53,7 +58,11 @@ from inkloom_verify.schemas import (
     SourceSpan,
     Verdict,
 )
-from inkloom_verify.security import clean_display_text, has_hidden_characters, model_text_for_display
+from inkloom_verify.security import (
+    clean_display_text,
+    has_hidden_characters,
+    model_text_for_display,
+)
 from inkloom_verify.verification import ClaimVerifier
 
 logger = logging.getLogger(__name__)
@@ -70,7 +79,9 @@ MIN_EDIT_BOUND = 4
 
 def words(text: str) -> list[str]:
     """Case-folded words and numbers; thousands separators are dropped (1,200 -> 1200)."""
-    return [w.replace(",", "") for w in _WORD.findall(unicodedata.normalize("NFKC", text).casefold())]
+    return [
+        w.replace(",", "") for w in _WORD.findall(unicodedata.normalize("NFKC", text).casefold())
+    ]
 
 
 def _has_phrase(phrase: str, text: str) -> bool:
@@ -83,7 +94,9 @@ def edit_distance(a: list[str], b: list[str]) -> int:
     for i, word_a in enumerate(a, start=1):
         current = [i]
         for j, word_b in enumerate(b, start=1):
-            current.append(min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (word_a != word_b)))
+            current.append(
+                min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (word_a != word_b))
+            )
         previous = current
     return previous[-1]
 
@@ -106,11 +119,21 @@ def correction_issues(
     evidence = set(words(" ".join(quotes)))
     added = sorted(set(words(replacement)) - set(words(original)) - NEUTRAL_WORDS - evidence)
     evidence_symbols = set(_SYMBOL.findall(" ".join(quotes)))
-    symbols = sorted(set(_SYMBOL.findall(replacement)) - set(_SYMBOL.findall(original)) - evidence_symbols)
+    symbols = sorted(
+        set(_SYMBOL.findall(replacement)) - set(_SYMBOL.findall(original)) - evidence_symbols
+    )
     old_text, new_text = before + original + after, before + replacement + after
-    old_figures, new_figures, evidence_figures = quantities(old_text), quantities(new_text), quantities(" ".join(quotes))
+    old_figures, new_figures, evidence_figures = (
+        quantities(old_text),
+        quantities(new_text),
+        quantities(" ".join(quotes)),
+    )
     # A new figure with a unit must appear in the evidence with that unit: "36" there may be hours.
-    mispaired = sorted(f"{n} {u}" for n, u in new_figures - old_figures if u is not None and (n, u) not in evidence_figures)
+    mispaired = sorted(
+        f"{n} {u}"
+        for n, u in new_figures - old_figures
+        if u is not None and (n, u) not in evidence_figures
+    )
     # A new whole date must be a whole date of the evidence, not a year borrowed from elsewhere.
     new_dates = full_dates(new_text) - full_dates(old_text) - full_dates(" ".join(quotes))
     unpaired = mispaired + sorted(f"{d[1]} {d[0]}" for d in new_dates)
@@ -129,20 +152,44 @@ def correction_issues(
     new_units = sorted(u for _, u in new_figures if u is not None)
     if len(new_units) < len(old_units):
         dropped_units = sorted(set(old_units) - set(new_units)) or old_units
-        issues.append(CorrectionIssue(code=CorrectionIssueCode.DROPS_UNIT, detail=("drops: " + ", ".join(dropped_units))[:300]))
+        issues.append(
+            CorrectionIssue(
+                code=CorrectionIssueCode.DROPS_UNIT,
+                detail=("drops: " + ", ".join(dropped_units))[:300],
+            )
+        )
     # The source a sentence names for its fact must survive the fix.
-    if len(_ATTRIBUTION.findall(old_text.casefold())) > len(_ATTRIBUTION.findall(new_text.casefold())):
+    if len(_ATTRIBUTION.findall(old_text.casefold())) > len(
+        _ATTRIBUTION.findall(new_text.casefold())
+    ):
         issues.append(CorrectionIssue(code=CorrectionIssueCode.DROPS_ATTRIBUTION))
-    evidence_text, original_cf, replacement_cf = " ".join(quotes).casefold(), original.casefold(), replacement.casefold()
-    kept_by_evidence = [q for q in QUALIFIERS if _has_phrase(q, original_cf) and _has_phrase(q, evidence_text)]
+    evidence_text, original_cf, replacement_cf = (
+        " ".join(quotes).casefold(),
+        original.casefold(),
+        replacement.casefold(),
+    )
+    kept_by_evidence = [
+        q for q in QUALIFIERS if _has_phrase(q, original_cf) and _has_phrase(q, evidence_text)
+    ]
     dropped = [q for q in kept_by_evidence if not _has_phrase(q, replacement_cf)]
     if dropped:
-        issues.append(CorrectionIssue(code=CorrectionIssueCode.DROPS_QUALIFIER, detail=("drops: " + ", ".join(dropped))[:300]))
+        issues.append(
+            CorrectionIssue(
+                code=CorrectionIssueCode.DROPS_QUALIFIER,
+                detail=("drops: " + ", ".join(dropped))[:300],
+            )
+        )
     original_words, replacement_words = words(original), words(replacement)
-    distance, limit = edit_distance(original_words, replacement_words), minimality_limit(len(original_words))
+    distance, limit = (
+        edit_distance(original_words, replacement_words),
+        minimality_limit(len(original_words)),
+    )
     if distance > limit:
         issues.append(
-            CorrectionIssue(code=CorrectionIssueCode.NOT_MINIMAL, detail=f"{distance} word edits; the limit is {limit}")
+            CorrectionIssue(
+                code=CorrectionIssueCode.NOT_MINIMAL,
+                detail=f"{distance} word edits; the limit is {limit}",
+            )
         )
     return issues
 
@@ -181,19 +228,27 @@ class ClaimCorrector:
         self.provider = provider
         self.verifier = verifier
         self.config = config or CorrectionConfig()
-        self.prompt = load_prompt("correction", self.config.prompt_version)  # fails clearly if missing
+        self.prompt = load_prompt(
+            "correction", self.config.prompt_version
+        )  # fails clearly if missing
         self.prompt_sent = False
         self.models_used: set[str] = set()
         if self.config.recheck and verifier is None:
             raise ValueError("re-checking corrections needs a ClaimVerifier for the same request")
 
-    def correct(self, result: ClaimResult, content: InputContent, locked_phrases: Sequence[str] = ()) -> ClaimResult:
+    def correct(
+        self, result: ClaimResult, content: InputContent, locked_phrases: Sequence[str] = ()
+    ) -> ClaimResult:
         """``result`` with a correction attempt added, or unchanged if no correction applies.
 
         ``locked_phrases`` (Intent-lock): a proposal that would remove locked text is refused with
         issue ``intent_lock`` before the re-check, whatever the evidence says; a person decides."""
         locks = validate_locks(locked_phrases)
-        if result.verdict is not Verdict.CONTRADICTED or not result.citations or result.correction_attempt is not None:
+        if (
+            result.verdict is not Verdict.CONTRADICTED
+            or not result.citations
+            or result.correction_attempt is not None
+        ):
             return result
         claim = result.claim
         if not claim.source_span.fits(len(content.text)):
@@ -202,7 +257,9 @@ class ClaimCorrector:
         labels = {f"C{i}": c for i, c in enumerate(result.citations, start=1)}
         request = JsonCompletionRequest(
             system=self.prompt.text,
-            user=prompt.user_message(sentence, claim.statement, [(label, c.quote) for label, c in labels.items()]),
+            user=prompt.user_message(
+                sentence, claim.statement, [(label, c.quote) for label, c in labels.items()]
+            ),
             schema_name="claim_correction",
             json_schema=prompt.OUTPUT_SCHEMA,
             max_output_tokens=self.config.max_output_tokens,
@@ -217,7 +274,15 @@ class ClaimCorrector:
             return _with(result, None, failed)
 
         if output.status == "needs_human_review":
-            return _review(result, [CorrectionIssue(code=CorrectionIssueCode.MODEL_DECLINED, detail=model_text_for_display(output.reason, 300, self.prompt.text))])
+            return _review(
+                result,
+                [
+                    CorrectionIssue(
+                        code=CorrectionIssueCode.MODEL_DECLINED,
+                        detail=model_text_for_display(output.reason, 300, self.prompt.text),
+                    )
+                ],
+            )
 
         issues: list[CorrectionIssue] = []
         cited: list[Citation] = []
@@ -225,7 +290,12 @@ class ClaimCorrector:
             if label in labels:
                 cited.append(labels[label])
             else:
-                issues.append(CorrectionIssue(code=CorrectionIssueCode.UNKNOWN_CITATION, detail=clean_display_text(label, 300)))
+                issues.append(
+                    CorrectionIssue(
+                        code=CorrectionIssueCode.UNKNOWN_CITATION,
+                        detail=clean_display_text(label, 300),
+                    )
+                )
         if not output.citations:
             issues.append(CorrectionIssue(code=CorrectionIssueCode.NO_CITATION))
         located = locate(output.original_text, sentence)
@@ -235,23 +305,44 @@ class ClaimCorrector:
             return _review(result, issues)
 
         assert located is not None
-        target = SourceSpan(start=claim.source_span.start + located[0], end=claim.source_span.start + located[1])
+        target = SourceSpan(
+            start=claim.source_span.start + located[0], end=claim.source_span.start + located[1]
+        )
         original = target.slice(content.text)
         replacement = output.replacement_text.strip()
         issues = correction_issues(
-            original, replacement, [c.quote for c in cited], before=sentence[: located[0]], after=sentence[located[1] :]
+            original,
+            replacement,
+            [c.quote for c in cited],
+            before=sentence[: located[0]],
+            after=sentence[located[1] :],
         )
         if issues:
             return _review(result, issues)
         broken = check_replacement(content.text, target.start, target.end, replacement, locks)
         if broken:
-            return _review(result, [CorrectionIssue(code=CorrectionIssueCode.INTENT_LOCK,
-                                                    detail=f"would remove {len(broken)} locked phrase(s)")])
+            return _review(
+                result,
+                [
+                    CorrectionIssue(
+                        code=CorrectionIssueCode.INTENT_LOCK,
+                        detail=f"would remove {len(broken)} locked phrase(s)",
+                    )
+                ],
+            )
         try:
-            correction = Correction(target_span=target, original_text=original, replacement_text=replacement, citations=cited)
+            correction = Correction(
+                target_span=target,
+                original_text=original,
+                replacement_text=replacement,
+                citations=cited,
+            )
         except ValidationError as error:
             detail = describe_validation_error(error)[:300]
-            return _review(result, [CorrectionIssue(code=CorrectionIssueCode.INVALID_CORRECTION, detail=detail)])
+            return _review(
+                result,
+                [CorrectionIssue(code=CorrectionIssueCode.INVALID_CORRECTION, detail=detail)],
+            )
 
         recheck_verdict = None
         if self.config.recheck:
@@ -259,10 +350,19 @@ class ClaimCorrector:
             if issue is not None:
                 return _review(result, [issue], recheck_verdict)
         logger.info("correction claim=%s proposed", claim.claim_id)
-        return _with(result, correction, CorrectionAttempt(status=CorrectionStatus.PROPOSED, recheck_verdict=recheck_verdict))
+        return _with(
+            result,
+            correction,
+            CorrectionAttempt(status=CorrectionStatus.PROPOSED, recheck_verdict=recheck_verdict),
+        )
 
     def _recheck(
-        self, result: ClaimResult, sentence: str, located: tuple[int, int], original: str, replacement: str
+        self,
+        result: ClaimResult,
+        sentence: str,
+        located: tuple[int, int],
+        original: str,
+        replacement: str,
     ) -> tuple[Verdict | None, CorrectionIssue | None]:
         """Verifies the corrected claim against the same evidence. Only SUPPORTED lets it stand."""
         assert self.verifier is not None
@@ -272,11 +372,15 @@ class ClaimCorrector:
         else:
             corrected = sentence[: located[0]] + replacement + sentence[located[1] :]
         if len(corrected) > MAX_CLAIM_CHARS:
-            return None, CorrectionIssue(code=CorrectionIssueCode.RECHECK_UNAVAILABLE, detail="corrected claim too long")
+            return None, CorrectionIssue(
+                code=CorrectionIssueCode.RECHECK_UNAVAILABLE, detail="corrected claim too long"
+            )
         checked = self.verifier.verify(
             ClaimVerificationInput(
                 claim=Claim(
-                    claim_id=claim.claim_id, text=claim.text, source_span=claim.source_span,
+                    claim_id=claim.claim_id,
+                    text=claim.text,
+                    source_span=claim.source_span,
                     normalized_text=corrected if corrected != claim.text else None,
                 ),
                 passages=result.evidence,
@@ -284,10 +388,13 @@ class ClaimCorrector:
         )
         if checked.verdict is Verdict.ERROR:
             detail = checked.error.code.value if checked.error else None
-            return None, CorrectionIssue(code=CorrectionIssueCode.RECHECK_UNAVAILABLE, detail=detail)
+            return None, CorrectionIssue(
+                code=CorrectionIssueCode.RECHECK_UNAVAILABLE, detail=detail
+            )
         if checked.verdict is not Verdict.SUPPORTED:
             return checked.verdict, CorrectionIssue(
-                code=CorrectionIssueCode.RECHECK_NOT_SUPPORTED, detail=f"corrected claim re-checked as {checked.verdict.value}"
+                code=CorrectionIssueCode.RECHECK_NOT_SUPPORTED,
+                detail=f"corrected claim re-checked as {checked.verdict.value}",
             )
         return checked.verdict, None
 
@@ -302,22 +409,36 @@ class ClaimCorrector:
                 return _ModelOutput.model_validate(completion.data)
             except ValidationError as error:
                 problems = describe_validation_error(error)
-            current = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+            current = request.model_copy(
+                update={"user": prompt.repair_message(request.user, problems)}
+            )
         raise MalformedOutputError(
             f"Correction output did not match the schema after {self.config.max_repairs} repair attempt(s)."
         )
 
 
-def _with(result: ClaimResult, correction: Correction | None, attempt: CorrectionAttempt) -> ClaimResult:
+def _with(
+    result: ClaimResult, correction: Correction | None, attempt: CorrectionAttempt
+) -> ClaimResult:
     """A validated copy of ``result`` with the correction fields set."""
     fields = {name: getattr(result, name) for name in ClaimResult.model_fields}
     return ClaimResult(**{**fields, "correction": correction, "correction_attempt": attempt})
 
 
-def _review(result: ClaimResult, issues: list[CorrectionIssue], recheck_verdict: Verdict | None = None) -> ClaimResult:
-    logger.info("correction claim=%s needs review: %s", result.claim.claim_id, ",".join(i.code.value for i in issues))
+def _review(
+    result: ClaimResult, issues: list[CorrectionIssue], recheck_verdict: Verdict | None = None
+) -> ClaimResult:
+    logger.info(
+        "correction claim=%s needs review: %s",
+        result.claim.claim_id,
+        ",".join(i.code.value for i in issues),
+    )
     return _with(
         result,
         None,
-        CorrectionAttempt(status=CorrectionStatus.NEEDS_HUMAN_REVIEW, issues=issues, recheck_verdict=recheck_verdict),
+        CorrectionAttempt(
+            status=CorrectionStatus.NEEDS_HUMAN_REVIEW,
+            issues=issues,
+            recheck_verdict=recheck_verdict,
+        ),
     )

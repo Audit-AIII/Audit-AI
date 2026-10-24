@@ -16,7 +16,9 @@ from collections.abc import Sequence
 from inkloom_verify.intent_lock import check_replacement
 
 
-def breaks_locks(text: str, start: int, end: int, replacement: str | None, locks: Sequence[str]) -> bool:
+def breaks_locks(
+    text: str, start: int, end: int, replacement: str | None, locks: Sequence[str]
+) -> bool:
     """True if replacing text[start:end] with `replacement` would remove a locked phrase."""
     if not replacement or not locks or not 0 <= start <= end <= len(text):
         return False

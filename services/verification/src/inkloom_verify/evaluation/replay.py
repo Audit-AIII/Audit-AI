@@ -56,20 +56,29 @@ class ReplayMissError(ProviderError):
 
 
 def request_key(request: JsonCompletionRequest) -> str:
-    material = json.dumps([request.schema_name, request.system, request.user, request.max_output_tokens], ensure_ascii=False)
+    material = json.dumps(
+        [request.schema_name, request.system, request.user, request.max_output_tokens],
+        ensure_ascii=False,
+    )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 class RecordingProvider:
     """Passes every call to ``inner`` and appends what happened to ``path``."""
 
-    def __init__(self, inner: LLMProvider, path: Path, metadata: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, inner: LLMProvider, path: Path, metadata: dict[str, Any] | None = None
+    ) -> None:
         self.inner = inner
         self.name = inner.name
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
-        header = {"kind": CASSETTE_KIND, "version": CASSETTE_VERSION, "source": inner.name,
-                  "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds")} | (metadata or {})
+        header = {
+            "kind": CASSETTE_KIND,
+            "version": CASSETTE_VERSION,
+            "source": inner.name,
+            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        } | (metadata or {})
         path.write_text(json.dumps(header, ensure_ascii=False) + "\n", encoding="utf-8")
 
     def sampling(self) -> dict[str, Any]:
@@ -84,9 +93,18 @@ class RecordingProvider:
         try:
             completion = self.inner.complete_json(request)
         except ProviderError as error:
-            self._append({"key": key, "schema_name": request.schema_name, "error_code": error.code.value})
+            self._append(
+                {"key": key, "schema_name": request.schema_name, "error_code": error.code.value}
+            )
             raise
-        self._append({"key": key, "schema_name": request.schema_name, "model": completion.model, "data": completion.data})
+        self._append(
+            {
+                "key": key,
+                "schema_name": request.schema_name,
+                "model": completion.model,
+                "data": completion.data,
+            }
+        )
         return completion
 
 
@@ -102,7 +120,11 @@ class ReplayProvider:
             entries = [json.loads(line) for line in lines]
         except json.JSONDecodeError as error:
             raise CassetteError(f"cassette {path} is not valid JSONL ({error.msg})") from None
-        if not entries or not isinstance(entries[0], dict) or entries[0].get("kind") != CASSETTE_KIND:
+        if (
+            not entries
+            or not isinstance(entries[0], dict)
+            or entries[0].get("kind") != CASSETTE_KIND
+        ):
             raise CassetteError(f"{path} is not an evaluation cassette")
         self.header: dict[str, Any] = entries[0]
         self.path = path
@@ -111,7 +133,11 @@ class ReplayProvider:
         self._replies: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
         self._last: dict[str, dict[str, Any]] = {}
         for entry in entries[1:]:
-            if not isinstance(entry, dict) or "key" not in entry or ("data" not in entry and "error_code" not in entry):
+            if (
+                not isinstance(entry, dict)
+                or "key" not in entry
+                or ("data" not in entry and "error_code" not in entry)
+            ):
                 raise CassetteError(f"cassette {path} has a malformed entry")
             self._replies[entry["key"]].append(entry)
         self.misses = 0
@@ -137,5 +163,7 @@ class ReplayProvider:
             self.misses += 1
             raise ReplayMissError(f"no recorded reply for this {request.schema_name} request")
         if "error_code" in entry:
-            raise _ERRORS.get(entry["error_code"], ProviderUnavailableError)(f"recorded provider error {entry['error_code']}")
+            raise _ERRORS.get(entry["error_code"], ProviderUnavailableError)(
+                f"recorded provider error {entry['error_code']}"
+            )
         return JsonCompletion(data=entry["data"], model=entry.get("model") or "replay", attempts=1)

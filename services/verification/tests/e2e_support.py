@@ -13,7 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from inkloom_verify.evaluation.runner import load_records
-from inkloom_verify.providers.base import JsonCompletion, JsonCompletionRequest, ProviderTimeoutError
+from inkloom_verify.providers.base import (
+    JsonCompletion,
+    JsonCompletionRequest,
+    ProviderTimeoutError,
+)
 from inkloom_verify.schemas import ReferenceDocument, VerificationRequest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,15 +43,24 @@ CONTENT = " ".join([SUPPORTED_CLAIM, CONTRADICTED_CLAIM, UNVERIFIED_CLAIM, ERROR
 VERDICTS = {
     SUPPORTED_CLAIM: ("SUPPORTED", "up to 12 hours of playback per charge"),
     CONTRADICTED_CLAIM: ("CONTRADICTED", "Price: €129 (EU launch price)."),
-    "The Lumen Pods price is €129.": ("SUPPORTED", "Price: €129 (EU launch price)."),  # the re-check
+    "The Lumen Pods price is €129.": (
+        "SUPPORTED",
+        "Price: €129 (EU launch price).",
+    ),  # the re-check
     UNVERIFIED_CLAIM: ("NOT_ENOUGH_EVIDENCE", None),
 }
 
 
-def request(content: str = CONTENT, tenant: str = "tenant-demo", doc_ids=("pods-fact-sheet", "company-facts"),
-            request_id: str = "req-e2e-0001") -> VerificationRequest:
+def request(
+    content: str = CONTENT,
+    tenant: str = "tenant-demo",
+    doc_ids=("pods-fact-sheet", "company-facts"),
+    request_id: str = "req-e2e-0001",
+) -> VerificationRequest:
     return VerificationRequest(
-        request_id=request_id, tenant_id=tenant, content={"content_id": "draft-e2e", "text": content},
+        request_id=request_id,
+        tenant_id=tenant,
+        content={"content_id": "draft-e2e", "text": content},
         references=[DOCS[d] for d in doc_ids],
     )
 
@@ -63,8 +76,13 @@ def careful_model(request: JsonCompletionRequest) -> dict[str, Any] | Exception:
             if s["text"].startswith("We think"):
                 statements.append({"sentence_id": s["id"], "kind": "opinion", "claims": []})
             else:
-                statements.append({"sentence_id": s["id"], "kind": "factual",
-                                   "claims": [{"text": s["text"], "source_quote": s["text"]}]})
+                statements.append(
+                    {
+                        "sentence_id": s["id"],
+                        "kind": "factual",
+                        "claims": [{"text": s["text"], "source_quote": s["text"]}],
+                    }
+                )
         return {"statements": statements}
     if request.schema_name == "claim_verification":
         block = data_block(request, "verification_input_json")
@@ -77,10 +95,19 @@ def careful_model(request: JsonCompletionRequest) -> dict[str, Any] | Exception:
             verdict = "NOT_ENOUGH_EVIDENCE"
         elif quote:
             citations = [{"passage": label, "quote": quote}]
-        return {"verdict": verdict, "citations": citations, "rationale": f"Decided from {len(citations)} passage(s)."}
+        return {
+            "verdict": verdict,
+            "citations": citations,
+            "rationale": f"Decided from {len(citations)} passage(s).",
+        }
     if request.schema_name == "claim_correction":
-        return {"status": "corrected", "original_text": "€99", "replacement_text": "€129",
-                "citations": ["C1"], "reason": "C1 gives the price."}
+        return {
+            "status": "corrected",
+            "original_text": "€99",
+            "replacement_text": "€129",
+            "citations": ["C1"],
+            "reason": "C1 gives the price.",
+        }
     raise AssertionError(f"unexpected schema {request.schema_name}")
 
 
@@ -89,7 +116,9 @@ class RoutedProvider:
 
     name = "scripted"
 
-    def __init__(self, respond: Callable[[JsonCompletionRequest], Any], model: str = "scripted/careful-v1") -> None:
+    def __init__(
+        self, respond: Callable[[JsonCompletionRequest], Any], model: str = "scripted/careful-v1"
+    ) -> None:
         self.respond = respond
         self.model = model
         self.calls: list[JsonCompletionRequest] = []

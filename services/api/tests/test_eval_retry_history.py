@@ -22,8 +22,11 @@ def _scripted_eval(monkeypatch) -> None:
     from inkloom_api.routers import evaluations
 
     monkeypatch.setattr(
-        evaluations, "build_provider",
-        lambda confidential=False, on_attempt=None: FallbackProvider([("scripted", lambda: scripted_provider([]))], on_attempt=on_attempt),
+        evaluations,
+        "build_provider",
+        lambda confidential=False, on_attempt=None: FallbackProvider(
+            [("scripted", lambda: scripted_provider([]))], on_attempt=on_attempt
+        ),
     )
 
 
@@ -53,9 +56,14 @@ def test_already_running_429_says_how_long_to_wait(client, monkeypatch, account_
     monkeypatch.setattr(evaluations, "_in_flight", {uuid.UUID(owner.user_id)})
     response = client.post("/api/evaluations", headers=owner.headers)
     assert response.status_code == 429
-    assert response.json()["error"]["message"] == "an evaluation is already running for this account"
-    assert int(response.headers["Retry-After"]) == response.json()["error"]["retry_after"] == int(
-        get_settings().eval_deadline_seconds)
+    assert (
+        response.json()["error"]["message"] == "an evaluation is already running for this account"
+    )
+    assert (
+        int(response.headers["Retry-After"])
+        == response.json()["error"]["retry_after"]
+        == int(get_settings().eval_deadline_seconds)
+    )
 
 
 @requires_db
@@ -64,12 +72,28 @@ def test_history_lists_finding_events_per_version(client, force_stub_mode, accou
     v1 = owner.submit()
     finding_id = v1["findings"][0]["finding_id"]
     secret = "zebra-comment-text-never-in-history"
-    assert client.post(f"/api/findings/{finding_id}/dismiss", json={"note": "fine for the US ad"},
-                       headers=owner.headers).status_code == 201
-    assert client.post(f"/api/findings/{finding_id}/comments", json={"body": secret}, headers=owner.headers).status_code == 201
-    assert client.post(f"/api/findings/{finding_id}/restore", headers=owner.headers).status_code == 201
-    client.post(f"/api/content/{v1['content_item_id']}/versions", json={"text": "Lumen Pods offer 12 hours."},
-                headers=owner.headers)
+    assert (
+        client.post(
+            f"/api/findings/{finding_id}/dismiss",
+            json={"note": "fine for the US ad"},
+            headers=owner.headers,
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            f"/api/findings/{finding_id}/comments", json={"body": secret}, headers=owner.headers
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(f"/api/findings/{finding_id}/restore", headers=owner.headers).status_code == 201
+    )
+    client.post(
+        f"/api/content/{v1['content_item_id']}/versions",
+        json={"text": "Lumen Pods offer 12 hours."},
+        headers=owner.headers,
+    )
 
     response = client.get(f"/api/content/{v1['content_item_id']}/history", headers=owner.headers)
     assert response.status_code == 200

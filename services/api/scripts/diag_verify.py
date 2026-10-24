@@ -1,5 +1,6 @@
 """Throwaway diagnostic: shows what the model returns for ONE verification call, using the same
 settings as the backend (services/api/.env). Prints no secrets. Delete after use; do not commit."""
+
 import json
 from pathlib import Path
 

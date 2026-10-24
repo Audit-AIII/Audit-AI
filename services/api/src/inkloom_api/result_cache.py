@@ -31,7 +31,9 @@ from .statuses import CheckType
 def compute_cache_key(
     organisation_id: uuid.UUID, content_version: ContentVersion, corpus: list[CorpusEntry]
 ) -> str:
-    source_fingerprints = sorted(f"{entry.brand_source_id}:{entry.document.text_sha256}" for entry in corpus)
+    source_fingerprints = sorted(
+        f"{entry.brand_source_id}:{entry.document.text_sha256}" for entry in corpus
+    )
     payload = {
         "organisation_id": str(organisation_id),
         "content_sha256": content_version.text_sha256,
@@ -62,7 +64,9 @@ def serialize_review_outcome(db: Session, review: Review) -> dict:
     Rule findings are left out: rules run fresh on every review (engine/brand_rules.py), since a
     brand's rules can change while the content and its sources stay the same."""
     findings = (
-        db.query(Finding).filter(Finding.review_id == review.id, Finding.check_type != CheckType.RULE.value).all()
+        db.query(Finding)
+        .filter(Finding.review_id == review.id, Finding.check_type != CheckType.RULE.value)
+        .all()
     )
     return {
         "report_status": review.report_status,
@@ -88,7 +92,9 @@ def serialize_review_outcome(db: Session, review: Review) -> dict:
                 "evidence": [
                     {
                         "source_id": str(e.source_id) if e.source_id else None,
-                        "source_version_id": str(e.source_version_id) if e.source_version_id else None,
+                        "source_version_id": str(e.source_version_id)
+                        if e.source_version_id
+                        else None,
                         "quote": e.quote,
                         "relation": e.relation,
                         "cited_section_hash": e.cited_section_hash,
@@ -125,7 +131,9 @@ def materialize_cached_report(db: Session, review: Review, report: dict) -> None
             safer_wording=f.get("safer_wording"),  # absent in reports cached before migration 0011
             requires_human_review=f["requires_human_review"],
             engine_claim_id=f["engine_claim_id"],
-            review_reasons=f.get("review_reasons"),  # absent in reports cached before migration 0013
+            review_reasons=f.get(
+                "review_reasons"
+            ),  # absent in reports cached before migration 0013
         )
         db.add(finding)
         db.flush()
@@ -134,7 +142,9 @@ def materialize_cached_report(db: Session, review: Review, report: dict) -> None
                 EvidenceLink(
                     finding_id=finding.finding_id,
                     source_id=uuid.UUID(e["source_id"]) if e["source_id"] else None,
-                    source_version_id=uuid.UUID(e["source_version_id"]) if e["source_version_id"] else None,
+                    source_version_id=uuid.UUID(e["source_version_id"])
+                    if e["source_version_id"]
+                    else None,
                     quote=e["quote"],
                     relation=e["relation"],
                     cited_section_hash=e["cited_section_hash"],

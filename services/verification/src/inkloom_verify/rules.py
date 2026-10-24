@@ -167,7 +167,9 @@ def _char_class(ch: str) -> str:
     return re.escape(ch)
 
 
-def term_pattern(term: str, case_sensitive: bool = False, whole_word: bool = True) -> re.Pattern[str]:
+def term_pattern(
+    term: str, case_sensitive: bool = False, whole_word: bool = True
+) -> re.Pattern[str]:
     """A literal pattern for ``term`` (never a regular expression from configuration)."""
     term = unicodedata.normalize("NFC", term.strip())
     body = r"\s+".join("".join(_char_class(c) for c in part) for part in term.split())
@@ -204,7 +206,9 @@ def _find(t: _Text, term: str, opts: _MatchOptions | None = None) -> list[_Match
     return found
 
 
-def _find_all(t: _Text, terms: list[str], opts: _MatchOptions | None = None) -> list[tuple[str, _Match]]:
+def _find_all(
+    t: _Text, terms: list[str], opts: _MatchOptions | None = None
+) -> list[tuple[str, _Match]]:
     """Every occurrence of any of ``terms``, longest term first, never overlapping."""
     taken: list[tuple[int, int]] = []
     out = []
@@ -254,28 +258,65 @@ class _Run:
                 return start, start + min(len(stripped), MAX_RULE_TEXT_CHARS)
         return 0, min(len(text), MAX_RULE_TEXT_CHARS)
 
-    def run(self, rule: _Rule, rule_type: RuleType, check: Callable[[], list[_Hit]], basis: str | None = None) -> None:
+    def run(
+        self,
+        rule: _Rule,
+        rule_type: RuleType,
+        check: Callable[[], list[_Hit]],
+        basis: str | None = None,
+    ) -> None:
         try:
             hits = check()
         except _NotCheckable as reason:
             self._record(rule, rule_type, RuleCheckStatus.NOT_CHECKABLE, 0, str(reason))
             return
         except Exception as error:  # noqa: BLE001 - one broken rule must not stop or pass the others
-            logger.error("rules: %s (%s) failed: %s", rule.rule_id, rule_type.value, type(error).__name__)
-            self._record(rule, rule_type, RuleCheckStatus.ERROR, 0, f"the check could not run ({type(error).__name__})")
+            logger.error(
+                "rules: %s (%s) failed: %s", rule.rule_id, rule_type.value, type(error).__name__
+            )
+            self._record(
+                rule,
+                rule_type,
+                RuleCheckStatus.ERROR,
+                0,
+                f"the check could not run ({type(error).__name__})",
+            )
             return
         for n, hit in enumerate(hits, start=1):
             self.total += 1
             if len(self.findings) < MAX_RULE_FINDINGS:
                 self.findings.append(self._finding(rule, rule_type, hit, n, basis))
-        self._record(rule, rule_type, RuleCheckStatus.VIOLATED if hits else RuleCheckStatus.PASSED, len(hits))
+        self._record(
+            rule, rule_type, RuleCheckStatus.VIOLATED if hits else RuleCheckStatus.PASSED, len(hits)
+        )
 
-    def _record(self, rule: _Rule, rule_type: RuleType, status: RuleCheckStatus, n: int, reason: str | None = None) -> None:
-        self.checks.append(RuleCheck(rule_id=rule.rule_id, rule_type=rule_type, category=RULE_CATEGORY[rule_type],
-                                     status=status, findings=n, reason=reason))
+    def _record(
+        self,
+        rule: _Rule,
+        rule_type: RuleType,
+        status: RuleCheckStatus,
+        n: int,
+        reason: str | None = None,
+    ) -> None:
+        self.checks.append(
+            RuleCheck(
+                rule_id=rule.rule_id,
+                rule_type=rule_type,
+                category=RULE_CATEGORY[rule_type],
+                status=status,
+                findings=n,
+                reason=reason,
+            )
+        )
 
-    def _finding(self, rule: _Rule, rule_type: RuleType, hit: _Hit, n: int, basis: str | None) -> RuleFinding:
-        evidence = [RuleEvidence(source_id=rule.source.doc_id, quote=rule.source.quote)] if rule.source else []
+    def _finding(
+        self, rule: _Rule, rule_type: RuleType, hit: _Hit, n: int, basis: str | None
+    ) -> RuleFinding:
+        evidence = (
+            [RuleEvidence(source_id=rule.source.doc_id, quote=rule.source.quote)]
+            if rule.source
+            else []
+        )
         if hit.start is None:
             scope, (start, end) = "document", self.anchor()
         else:
@@ -305,7 +346,9 @@ class _Run:
 
 def _problems(error: ValidationError) -> list[str]:
     """Field paths and messages only: pydantic's error input (a configured value or content) is dropped."""
-    return [(".".join(str(p) for p in e["loc"]) or "rules") + ": " + e["msg"] for e in error.errors()][:20]
+    return [
+        (".".join(str(p) for p in e["loc"]) or "rules") + ": " + e["msg"] for e in error.errors()
+    ][:20]
 
 
 def evaluate_rules(
@@ -322,25 +365,40 @@ def evaluate_rules(
     if len(text) > MAX_CONTENT_CHARS:
         raise RuleInputError(f"content exceeds {MAX_CONTENT_CHARS} characters")
     try:
-        brand = rules if isinstance(rules, BrandRules) or rules is None else BrandRules.model_validate(rules)
+        brand = (
+            rules
+            if isinstance(rules, BrandRules) or rules is None
+            else BrandRules.model_validate(rules)
+        )
     except ValidationError as error:
         raise RuleConfigurationError("invalid brand rules", _problems(error)) from None
     try:
-        meta = metadata if isinstance(metadata, ContentMetadata) or metadata is None else ContentMetadata.model_validate(metadata)
+        meta = (
+            metadata
+            if isinstance(metadata, ContentMetadata) or metadata is None
+            else ContentMetadata.model_validate(metadata)
+        )
     except ValidationError as error:
         raise RuleConfigurationError("invalid content metadata", _problems(error)) from None
 
     run = _Run(_prepare(text))
     if brand is not None:
         _brand_checks(run, brand)
-    style = brand.style if brand is not None and brand.style is not None else (StyleRules() if accessibility_defaults else None)
+    style = (
+        brand.style
+        if brand is not None and brand.style is not None
+        else (StyleRules() if accessibility_defaults else None)
+    )
     if style is not None:
         _style_checks(run, style, meta or ContentMetadata())
     if run.total > MAX_RULE_FINDINGS:
         logger.info("rules: %d findings, only the first %d kept", run.total, MAX_RULE_FINDINGS)
-    return RuleEvaluation(findings=run.findings, checks=run.checks,
-                          complete=not any(c.status is RuleCheckStatus.ERROR for c in run.checks),
-                          truncated=run.total > len(run.findings))
+    return RuleEvaluation(
+        findings=run.findings,
+        checks=run.checks,
+        complete=not any(c.status is RuleCheckStatus.ERROR for c in run.checks),
+        truncated=run.total > len(run.findings),
+    )
 
 
 def check_rules(text: str, rules: BrandRules | None) -> list[RuleFinding]:
@@ -356,41 +414,84 @@ def check_rules(text: str, rules: BrandRules | None) -> list[RuleFinding]:
 def _brand_checks(run: _Run, rules: BrandRules) -> None:
     t = run.t
     for rule in rules.required_terms:
-        run.run(rule, RuleType.REQUIRED_TERM, lambda r=rule: [] if _find(t, r.term, r) else [
-            _Hit(f'The required term "{r.term}" does not appear.')])
+        run.run(
+            rule,
+            RuleType.REQUIRED_TERM,
+            lambda r=rule: []
+            if _find(t, r.term, r)
+            else [_Hit(f'The required term "{r.term}" does not appear.')],
+        )
     for rule in rules.prohibited_terms:
-        run.run(rule, RuleType.PROHIBITED_TERM, lambda r=rule: [
-            _Hit(f'"{m.text}" is a prohibited term.', m.start, m.end, r.approved_alternative)
-            for m in _find(t, r.term, r)], basis="brand_rule")
+        run.run(
+            rule,
+            RuleType.PROHIBITED_TERM,
+            lambda r=rule: [
+                _Hit(f'"{m.text}" is a prohibited term.', m.start, m.end, r.approved_alternative)
+                for m in _find(t, r.term, r)
+            ],
+            basis="brand_rule",
+        )
     for rule in rules.product_names:
         run.run(rule, RuleType.PRODUCT_NAMING, lambda r=rule: _naming(t, r), basis="brand_rule")
     for rule in rules.preferred_terms:
-        run.run(rule, RuleType.PREFERRED_TERM, lambda r=rule: _replace(t, r, r.discouraged, r.preferred,
-                                                                        'Use "{want}" instead of "{got}".'), basis="brand_rule")
+        run.run(
+            rule,
+            RuleType.PREFERRED_TERM,
+            lambda r=rule: _replace(
+                t, r, r.discouraged, r.preferred, 'Use "{want}" instead of "{got}".'
+            ),
+            basis="brand_rule",
+        )
     for rule in rules.spelling:
-        run.run(rule, RuleType.SPELLING, lambda r=rule: _replace(t, r, r.incorrect, r.correct,
-                                                                  'The brand spells this "{want}", not "{got}".'), basis="brand_rule")
+        run.run(
+            rule,
+            RuleType.SPELLING,
+            lambda r=rule: _replace(
+                t, r, r.incorrect, r.correct, 'The brand spells this "{want}", not "{got}".'
+            ),
+            basis="brand_rule",
+        )
     for rule in rules.consistency:
         run.run(rule, RuleType.TERMINOLOGY_CONSISTENCY, lambda r=rule: _consistency(t, r))
     content = _normalised(t.original)
     for rule in rules.disclaimers:
+
         def disclaimer(r=rule) -> list[_Hit]:
             triggered = not r.trigger_terms or any(_find(t, term) for term in r.trigger_terms)
             missing = triggered and _normalised(r.disclaimer) not in content
-            return [_Hit(f'The required disclaimer "{r.disclaimer}" is missing.')] if missing else []
+            return (
+                [_Hit(f'The required disclaimer "{r.disclaimer}" is missing.')] if missing else []
+            )
+
         run.run(rule, RuleType.REQUIRED_DISCLAIMER, disclaimer)
     for rule in rules.numeric_limits:
         run.run(rule, RuleType.NUMERIC_LIMIT, lambda r=rule: _numeric(t.original, r))
 
 
-def _replace(t: _Text, rule: PreferredTermRule | SpellingRule, unwanted: list[str], wanted: str, template: str) -> list[_Hit]:
-    return [_Hit(template.format(want=wanted, got=m.text), m.start, m.end, wanted)
-            for _, m in _find_all(t, unwanted, rule)]
+def _replace(
+    t: _Text,
+    rule: PreferredTermRule | SpellingRule,
+    unwanted: list[str],
+    wanted: str,
+    template: str,
+) -> list[_Hit]:
+    return [
+        _Hit(template.format(want=wanted, got=m.text), m.start, m.end, wanted)
+        for _, m in _find_all(t, unwanted, rule)
+    ]
 
 
 def _naming(t: _Text, rule: ProductNamingRule) -> list[_Hit]:
-    return [_Hit(f'"{m.text}" is not the approved product name "{rule.approved_name}".', m.start, m.end, rule.approved_name)
-            for _, m in _find_all(t, [rule.approved_name, *rule.variants]) if m.text != rule.approved_name]
+    return [
+        _Hit(
+            f'"{m.text}" is not the approved product name "{rule.approved_name}".',
+            m.start,
+            m.end,
+            rule.approved_name,
+        )
+        for _, m in _find_all(t, [rule.approved_name, *rule.variants])
+        if m.text != rule.approved_name
+    ]
 
 
 def _consistency(t: _Text, rule: ConsistencyRule) -> list[_Hit]:
@@ -402,9 +503,19 @@ def _consistency(t: _Text, rule: ConsistencyRule) -> list[_Hit]:
         return []
     # The most frequent form stays; ties go to the form used first.
     keep = max(used, key=lambda term: (len(used[term]), -used[term][0].start))
-    summary = ", ".join(f'"{term}" ({len(ms)})' for term, ms in sorted(used.items(), key=lambda kv: kv[1][0].start))
-    return [_Hit(f'This document mixes {summary}. Use one form throughout (most used here: "{keep}").', m.start, m.end)
-            for term, ms in used.items() if term != keep for m in ms]
+    summary = ", ".join(
+        f'"{term}" ({len(ms)})' for term, ms in sorted(used.items(), key=lambda kv: kv[1][0].start)
+    )
+    return [
+        _Hit(
+            f'This document mixes {summary}. Use one form throughout (most used here: "{keep}").',
+            m.start,
+            m.end,
+        )
+        for term, ms in used.items()
+        if term != keep
+        for m in ms
+    ]
 
 
 _SENTENCE = re.compile(r"[^.!?\n]+[.!?]?")
@@ -416,8 +527,13 @@ def _numeric(text: str, rule: NumericLimitRule) -> list[_Hit]:
     figure = re.compile(_NUMBER + r"\s*(?:" + units + r")(?![\w])", re.IGNORECASE)
     subject = term_pattern(rule.subject)
     low, high = rule.minimum, rule.maximum
-    limit = (f"between {low:g} and {high:g}" if low is not None and high is not None
-             else f"at most {high:g}" if high is not None else f"at least {low:g}")
+    limit = (
+        f"between {low:g} and {high:g}"
+        if low is not None and high is not None
+        else f"at most {high:g}"
+        if high is not None
+        else f"at least {low:g}"
+    )
     hits = []
     for sentence in _SENTENCE.finditer(text):
         if not subject.search(sentence.group(0)):
@@ -425,10 +541,19 @@ def _numeric(text: str, rule: NumericLimitRule) -> list[_Hit]:
         for match in figure.finditer(text, sentence.start(), sentence.end()):
             number = match.group(1)
             # "1,200" is twelve hundred; "4,5" (one to two digits after the comma) is a decimal comma.
-            value = float(number.replace(",", "") if re.search(r",\d{3}(?!\d)", number) else number.replace(",", "."))
+            value = float(
+                number.replace(",", "")
+                if re.search(r",\d{3}(?!\d)", number)
+                else number.replace(",", ".")
+            )
             if (low is not None and value < low) or (high is not None and value > high):
-                hits.append(_Hit(f'"{match.group(0)}" for {rule.subject} breaks the rule: it must be {limit}.',
-                                 match.start(), match.end()))
+                hits.append(
+                    _Hit(
+                        f'"{match.group(0)}" for {rule.subject} breaks the rule: it must be {limit}.',
+                        match.start(),
+                        match.end(),
+                    )
+                )
     return hits
 
 
@@ -446,10 +571,12 @@ STYLE_RULE_IDS = {
 BARE_VAGUE_PHRASES = ("click here",)  # flagged in plain text too, not only as link text
 
 _WORD = re.compile(r"[^\W\d_][\w'’-]*")
-_EMOJI_BASE = (r"[\U0001F000-\U0001F02F\U0001F0A0-\U0001F0FF\U0001F100-\U0001F1FF\U0001F200-\U0001F2FF"
-               r"\U0001F300-\U0001F5FF\U0001F600-\U0001F64F\U0001F680-\U0001F6FF\U0001F700-\U0001F77F"
-               r"\U0001F780-\U0001F7FF\U0001F800-\U0001F8FF\U0001F900-\U0001F9FF\U0001FA00-\U0001FAFF"
-               r"☀-➿⬀-⯿⌀-⏿]")
+_EMOJI_BASE = (
+    r"[\U0001F000-\U0001F02F\U0001F0A0-\U0001F0FF\U0001F100-\U0001F1FF\U0001F200-\U0001F2FF"
+    r"\U0001F300-\U0001F5FF\U0001F600-\U0001F64F\U0001F680-\U0001F6FF\U0001F700-\U0001F77F"
+    r"\U0001F780-\U0001F7FF\U0001F800-\U0001F8FF\U0001F900-\U0001F9FF\U0001FA00-\U0001FAFF"
+    r"☀-➿⬀-⯿⌀-⏿]"
+)
 _EMOJI_MODIFIER = r"[︎️\U0001F3FB-\U0001F3FF⃣]"
 _ONE_EMOJI = _EMOJI_BASE + _EMOJI_MODIFIER + "*(?:‍" + _EMOJI_BASE + _EMOJI_MODIFIER + "*)*"
 _EMOJI_RUN = re.compile("(?:" + _ONE_EMOJI + ")(?:[ \t]*(?:" + _ONE_EMOJI + "))*")
@@ -464,7 +591,9 @@ _HTML_IMG = re.compile(r"<img\b[^<>]{0,2000}>", re.IGNORECASE)
 _ALT_ATTR = re.compile(r"\balt\s*=", re.IGNORECASE)
 _TAG = re.compile(r"<[^<>]{0,2000}>")
 _MD_HEADING = re.compile(r"^[ ]{0,3}(#{1,6})(?:[ \t]+([^\n]{0,500}?))?[ \t#]*$", re.MULTILINE)
-_CAPTION_TRACK = re.compile(r"<track\b[^<>]{0,2000}\bkind\s*=\s*[\"']?(captions|subtitles)\b", re.IGNORECASE)
+_CAPTION_TRACK = re.compile(
+    r"<track\b[^<>]{0,2000}\bkind\s*=\s*[\"']?(captions|subtitles)\b", re.IGNORECASE
+)
 _AUDIO = re.compile(r"<audio\b[^<>]{0,2000}>", re.IGNORECASE)
 _EMBED = re.compile(r"<(iframe|embed|object)\b[^<>]{0,2000}>", re.IGNORECASE)
 _ANY_TAG = re.compile(r"<[a-zA-Z][a-zA-Z0-9]{0,20}\b[^<>]{0,3000}>")
@@ -493,7 +622,15 @@ def _elements(text: str, tag: str, max_inner: int = 20_000) -> list[_Element]:
             i = bisect_left(starts, m.end())
             if i < len(starts) and starts[i] - m.end() <= max_inner:
                 close = closes[i]
-        found.append(_Element(m.start(), m.end(), close[0] if close else None, close[1] if close else None, m.group(0)))
+        found.append(
+            _Element(
+                m.start(),
+                m.end(),
+                close[0] if close else None,
+                close[1] if close else None,
+                m.group(0),
+            )
+        )
     return found
 
 
@@ -509,29 +646,61 @@ def _style_checks(run: _Run, style: StyleRules, meta: ContentMetadata) -> None:
 
     if style.all_caps:
         allowed = {a.casefold() for a in style.allowed_caps}
-        run.run(rule(RuleType.ALL_CAPS_RUN), RuleType.ALL_CAPS_RUN, lambda: [
-            _Hit(f"{n} words in a row are in capitals; screen readers may spell them out and readers read it as shouting.",
-                 s, e) for s, e, n in _caps_runs(text, style.all_caps_min_words, allowed)])
+        run.run(
+            rule(RuleType.ALL_CAPS_RUN),
+            RuleType.ALL_CAPS_RUN,
+            lambda: [
+                _Hit(
+                    f"{n} words in a row are in capitals; screen readers may spell them out and readers read it as shouting.",
+                    s,
+                    e,
+                )
+                for s, e, n in _caps_runs(text, style.all_caps_min_words, allowed)
+            ],
+        )
     if style.emoji:
+
         def emoji() -> list[_Hit]:
             hits = []
             for m in _EMOJI_RUN.finditer(text):
                 n = len(_ONE_EMOJI_RE.findall(m.group(0)))
                 if n > style.emoji_max_run:
-                    hits.append(_Hit(f"{n} emoji in a row (at most {style.emoji_max_run}); screen readers read every one aloud.",
-                                     m.start(), m.end()))
+                    hits.append(
+                        _Hit(
+                            f"{n} emoji in a row (at most {style.emoji_max_run}); screen readers read every one aloud.",
+                            m.start(),
+                            m.end(),
+                        )
+                    )
             return hits
+
         run.run(rule(RuleType.EMOJI_RUN), RuleType.EMOJI_RUN, emoji)
     if style.vague_link_text:
-        run.run(rule(RuleType.VAGUE_LINK_TEXT), RuleType.VAGUE_LINK_TEXT, lambda: _vague_links(run.t, style))
+        run.run(
+            rule(RuleType.VAGUE_LINK_TEXT),
+            RuleType.VAGUE_LINK_TEXT,
+            lambda: _vague_links(run.t, style),
+        )
     if style.alt_text:
-        run.run(rule(RuleType.MISSING_ALT_TEXT), RuleType.MISSING_ALT_TEXT, lambda: _alt_text(text, meta))
+        run.run(
+            rule(RuleType.MISSING_ALT_TEXT),
+            RuleType.MISSING_ALT_TEXT,
+            lambda: _alt_text(text, meta),
+        )
     if style.heading_structure:
-        run.run(rule(RuleType.HEADING_STRUCTURE), RuleType.HEADING_STRUCTURE, lambda: _headings(text))
+        run.run(
+            rule(RuleType.HEADING_STRUCTURE), RuleType.HEADING_STRUCTURE, lambda: _headings(text)
+        )
     if style.media_captions:
-        run.run(rule(RuleType.MISSING_CAPTIONS), RuleType.MISSING_CAPTIONS, lambda: _captions(text, meta))
+        run.run(
+            rule(RuleType.MISSING_CAPTIONS),
+            RuleType.MISSING_CAPTIONS,
+            lambda: _captions(text, meta),
+        )
     if style.color_contrast:
-        run.run(rule(RuleType.LOW_CONTRAST), RuleType.LOW_CONTRAST, lambda: _contrast(text, meta, style))
+        run.run(
+            rule(RuleType.LOW_CONTRAST), RuleType.LOW_CONTRAST, lambda: _contrast(text, meta, style)
+        )
 
 
 def _caps_runs(text: str, min_words: int, allowed: set[str]) -> Iterator[tuple[int, int, int]]:
@@ -546,7 +715,7 @@ def _caps_runs(text: str, min_words: int, allowed: set[str]) -> Iterator[tuple[i
     for word in _WORD.finditer(text):
         token = word.group(0)
         letters = [c for c in token if c.isalpha()]
-        if run and "\n" in text[previous_end:word.start()]:
+        if run and "\n" in text[previous_end : word.start()]:
             yield from flush()
             run = []
         previous_end = word.end()
@@ -564,17 +733,35 @@ def _vague_links(t: _Text, style: StyleRules) -> list[_Hit]:
     text = t.original
     vague = {" ".join(p.split()).casefold() for p in style.vague_link_phrases}
     links = [(m.start(1), m.end(1)) for m in _MD_LINK.finditer(text)]
-    links += [(e.open_end, e.inner_end) for e in _elements(text, "a", 2_000)
-              if e.inner_end is not None and text[e.open_end:e.inner_end].strip()]
+    links += [
+        (e.open_end, e.inner_end)
+        for e in _elements(text, "a", 2_000)
+        if e.inner_end is not None and text[e.open_end : e.inner_end].strip()
+    ]
     hits, flagged = [], []
     for start, end in sorted(links):
         label = " ".join(_TAG.sub(" ", text[start:end]).split()).casefold().strip(" .:!")
         if label in vague:
             flagged.append((start, end))
-            hits.append(_Hit(f'Link text "{text[start:end].strip()}" does not say where the link goes.', start, end))
-    bare = [m for phrase in BARE_VAGUE_PHRASES for m in _find(t, phrase)
-            if not any(m.start < e and s < m.end for s, e in flagged)]
-    hits += [_Hit(f'"{m.text}" does not say what happens; name the destination or action.', m.start, m.end) for m in bare]
+            hits.append(
+                _Hit(
+                    f'Link text "{text[start:end].strip()}" does not say where the link goes.',
+                    start,
+                    end,
+                )
+            )
+    bare = [
+        m
+        for phrase in BARE_VAGUE_PHRASES
+        for m in _find(t, phrase)
+        if not any(m.start < e and s < m.end for s, e in flagged)
+    ]
+    hits += [
+        _Hit(
+            f'"{m.text}" does not say what happens; name the destination or action.', m.start, m.end
+        )
+        for m in bare
+    ]
     if not links and not bare:
         raise _NotCheckable("no links in the submitted text")
     return sorted(hits, key=lambda h: h.start)
@@ -584,32 +771,69 @@ def _alt_text(text: str, meta: ContentMetadata) -> list[_Hit]:
     md = list(_MD_IMAGE.finditer(text))
     html = list(_HTML_IMG.finditer(text))
     if not md and not html and not meta.images:
-        raise _NotCheckable("no images in the submitted text or metadata (images inside uploaded files are not visible here)")
-    hits = [_Hit("This image has no alt text, so screen-reader users get nothing from it.", m.start(), m.end())
-            for m in md if not m.group(1).strip()]
-    hits += [_Hit('This <img> has no alt attribute. Describe the image, or use alt="" if it is decorative.', m.start(), m.end())
-             for m in html if not _ALT_ATTR.search(m.group(0))]
-    hits += [_Hit(f'Image "{image.ref}" has no alt text (from metadata).') for image in meta.images if image.alt_text is None]
+        raise _NotCheckable(
+            "no images in the submitted text or metadata (images inside uploaded files are not visible here)"
+        )
+    hits = [
+        _Hit(
+            "This image has no alt text, so screen-reader users get nothing from it.",
+            m.start(),
+            m.end(),
+        )
+        for m in md
+        if not m.group(1).strip()
+    ]
+    hits += [
+        _Hit(
+            'This <img> has no alt attribute. Describe the image, or use alt="" if it is decorative.',
+            m.start(),
+            m.end(),
+        )
+        for m in html
+        if not _ALT_ATTR.search(m.group(0))
+    ]
+    hits += [
+        _Hit(f'Image "{image.ref}" has no alt text (from metadata).')
+        for image in meta.images
+        if image.alt_text is None
+    ]
     return hits
 
 
 def _headings(text: str) -> list[_Hit]:
-    found = [(m.start(), m.end(), len(m.group(1)), (m.group(2) or "").strip()) for m in _MD_HEADING.finditer(text)]
+    found = [
+        (m.start(), m.end(), len(m.group(1)), (m.group(2) or "").strip())
+        for m in _MD_HEADING.finditer(text)
+    ]
     for level in range(1, 7):
         for e in _elements(text, f"h{level}", 2_000):
             if e.inner_end is not None:
-                label = " ".join(_TAG.sub(" ", text[e.open_end:e.inner_end]).split())
+                label = " ".join(_TAG.sub(" ", text[e.open_end : e.inner_end]).split())
                 found.append((e.open_start, e.close_end, level, label))
     if not found:
         raise _NotCheckable("no headings in the submitted text (Markdown # or HTML <h1>-<h6>)")
     hits, previous, h1_seen = [], None, False
     for start, end, level, label in sorted(found):
         if not label:
-            hits.append(_Hit(f"An empty level-{level} heading; screen-reader users navigate by headings.", start, end))
+            hits.append(
+                _Hit(
+                    f"An empty level-{level} heading; screen-reader users navigate by headings.",
+                    start,
+                    end,
+                )
+            )
         if previous is not None and level > previous + 1:
-            hits.append(_Hit(f"Heading level jumps from {previous} to {level}; use level {previous + 1} first.", start, end))
+            hits.append(
+                _Hit(
+                    f"Heading level jumps from {previous} to {level}; use level {previous + 1} first.",
+                    start,
+                    end,
+                )
+            )
         if level == 1 and h1_seen:
-            hits.append(_Hit("A second level-1 heading; a page should have one main heading.", start, end))
+            hits.append(
+                _Hit("A second level-1 heading; a page should have one main heading.", start, end)
+            )
         h1_seen = h1_seen or level == 1
         previous = level
     return hits
@@ -621,20 +845,45 @@ def _captions(text: str, meta: ContentMetadata) -> list[_Hit]:
     embeds = list(_EMBED.finditer(text))
     if not videos and not audio and not embeds and not meta.media:
         raise _NotCheckable("no video or audio in the submitted text or metadata")
-    hits = [_Hit("This <video> has no captions or subtitles <track>.", v.open_start, v.close_end or v.open_end)
-            for v in videos if not _CAPTION_TRACK.search(text[v.open_end:v.inner_end] if v.inner_end else "")]
+    hits = [
+        _Hit(
+            "This <video> has no captions or subtitles <track>.",
+            v.open_start,
+            v.close_end or v.open_end,
+        )
+        for v in videos
+        if not _CAPTION_TRACK.search(text[v.open_end : v.inner_end] if v.inner_end else "")
+    ]
     for item in meta.media:
         if item.kind == "video" and item.captions is False:
             hits.append(_Hit(f'Video "{item.ref}" has no captions (from metadata).'))
         if item.kind == "audio" and item.transcript is False:
             hits.append(_Hit(f'Audio "{item.ref}" has no transcript (from metadata).'))
-    unknown = len(audio) + len(embeds) + sum(
-        1 for i in meta.media if (i.kind == "video" and i.captions is None) or (i.kind == "audio" and i.transcript is None))
-    inspected = len(videos) + len(meta.media) - sum(
-        1 for i in meta.media if (i.kind == "video" and i.captions is None) or (i.kind == "audio" and i.transcript is None))
+    unknown = (
+        len(audio)
+        + len(embeds)
+        + sum(
+            1
+            for i in meta.media
+            if (i.kind == "video" and i.captions is None)
+            or (i.kind == "audio" and i.transcript is None)
+        )
+    )
+    inspected = (
+        len(videos)
+        + len(meta.media)
+        - sum(
+            1
+            for i in meta.media
+            if (i.kind == "video" and i.captions is None)
+            or (i.kind == "audio" and i.transcript is None)
+        )
+    )
     if not hits and unknown and not inspected:
-        raise _NotCheckable(f"{unknown} media item(s) whose captions or transcript cannot be inspected "
-                            "(embedded players, <audio>, or metadata marked unknown)")
+        raise _NotCheckable(
+            f"{unknown} media item(s) whose captions or transcript cannot be inspected "
+            "(embedded players, <audio>, or metadata marked unknown)"
+        )
     return hits
 
 
@@ -644,18 +893,22 @@ def _rgb(value: str) -> tuple[float, float, float] | None:
     if m:
         h = m.group(1)
         h = "".join(c * 2 for c in h) if len(h) == 3 else h
-        return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))  # type: ignore[return-value]
+        return tuple(int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))  # type: ignore[return-value]
     m = re.fullmatch(r"rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)", value)
     if m and all(int(g) <= 255 for g in m.groups()):
         return tuple(int(g) / 255 for g in m.groups())  # type: ignore[return-value]
     return None
 
 
-def contrast_ratio(foreground: tuple[float, float, float], background: tuple[float, float, float]) -> float:
+def contrast_ratio(
+    foreground: tuple[float, float, float], background: tuple[float, float, float]
+) -> float:
     """WCAG 2 contrast ratio between two sRGB colours (channels in 0..1)."""
+
     def luminance(rgb: tuple[float, float, float]) -> float:
         lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb]
         return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
     light, dark = sorted((luminance(foreground), luminance(background)), reverse=True)
     return (light + 0.05) / (dark + 0.05)
 
@@ -676,17 +929,30 @@ def _contrast(text: str, meta: ContentMetadata, style: StyleRules) -> list[_Hit]
         inspected += 1
         ratio = contrast_ratio(a, b)
         if ratio < style.min_contrast_ratio:
-            hits.append(_Hit(f"Text colour against its background is {ratio:.2f}:1; at least {style.min_contrast_ratio:g}:1 is needed.",
-                             m.start(), m.end()))
+            hits.append(
+                _Hit(
+                    f"Text colour against its background is {ratio:.2f}:1; at least {style.min_contrast_ratio:g}:1 is needed.",
+                    m.start(),
+                    m.end(),
+                )
+            )
     for pair in meta.colors:
         a, b = _rgb(pair.foreground), _rgb(pair.background)
         if a is None or b is None:
             continue
         inspected += 1
-        needed = style.min_contrast_ratio_large_text if pair.large_text else style.min_contrast_ratio
+        needed = (
+            style.min_contrast_ratio_large_text if pair.large_text else style.min_contrast_ratio
+        )
         ratio = contrast_ratio(a, b)
         if ratio < needed:
-            hits.append(_Hit(f'"{pair.ref}": contrast {ratio:.2f}:1, at least {needed:g}:1 is needed (from metadata).'))
+            hits.append(
+                _Hit(
+                    f'"{pair.ref}": contrast {ratio:.2f}:1, at least {needed:g}:1 is needed (from metadata).'
+                )
+            )
     if not inspected:
-        raise _NotCheckable("no text/background colour pair with parseable colours in the submitted text or metadata")
+        raise _NotCheckable(
+            "no text/background colour pair with parseable colours in the submitted text or metadata"
+        )
     return hits

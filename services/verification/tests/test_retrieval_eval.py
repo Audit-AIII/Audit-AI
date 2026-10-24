@@ -13,8 +13,12 @@ DATA = Path(__file__).resolve().parents[1] / "eval" / "data"
 
 
 def recall(dataset: str, top_k: int, strategy: str = "tokens", split: str = "all"):
-    report = run(DATA / dataset, baseline="abstain", split=split,
-                 retrieval=(ChunkingConfig(strategy=strategy), RetrievalConfig(top_k=top_k)))
+    report = run(
+        DATA / dataset,
+        baseline="abstain",
+        split=split,
+        retrieval=(ChunkingConfig(strategy=strategy), RetrievalConfig(top_k=top_k)),
+    )
     return report.results.retrieval.evidence_hit_rate
 
 
@@ -38,5 +42,8 @@ def test_retrieval_dataset_has_long_documents_and_gold_sentences():
     assert len(records) == 34
     handbook = records[0].references[0]
     assert len(handbook.text.split()) > 1000  # long enough that chunking matters
-    assert all({d.doc_id for d in r.references} == {"product-handbook", "company-overview"} for r in records)
+    assert all(
+        {d.doc_id for d in r.references} == {"product-handbook", "company-overview"}
+        for r in records
+    )
     assert sum(1 for r in records if r.gold_evidence) == 32

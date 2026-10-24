@@ -22,9 +22,15 @@ from conftest import DEFAULT_FACT_SHEET, requires_db, use_scripted_provider
 from inkloom_api.engine.scripted_provider import ScriptedRule
 
 CLAIM = "Lumen Pods offer up to 40 hours of playback per charge."
-BRAND_Y_FACTS = "Lumen Pods Max - Fact Sheet\n\nBattery life: up to 40 hours of playback per charge.\n"
-QUOTES_Y = ScriptedRule("playback per charge", "SUPPORTED", "up to 40 hours of playback per charge",
-                        "The fact sheet states 40 hours.")
+BRAND_Y_FACTS = (
+    "Lumen Pods Max - Fact Sheet\n\nBattery life: up to 40 hours of playback per charge.\n"
+)
+QUOTES_Y = ScriptedRule(
+    "playback per charge",
+    "SUPPORTED",
+    "up to 40 hours of playback per charge",
+    "The fact sheet states 40 hours.",
+)
 
 
 def _cited_sources(review: dict) -> set[str]:
@@ -36,7 +42,9 @@ def _statuses(review: dict) -> list[str]:
 
 
 @requires_db
-def test_each_brand_is_checked_only_against_its_own_documents(client, monkeypatch, account_factory) -> None:
+def test_each_brand_is_checked_only_against_its_own_documents(
+    client, monkeypatch, account_factory
+) -> None:
     from inkloom_api import review_runner
 
     use_scripted_provider(monkeypatch, [QUOTES_Y])
@@ -75,10 +83,15 @@ def test_each_brand_is_checked_only_against_its_own_documents(client, monkeypatc
     assert _statuses(x_again) == ["unverified"] and _cited_sources(x_again) == set()
 
     # 5. Y's document withdrawn: Y's next review neither uses it nor replays the cached result.
-    withdrawn = client.post(f"/api/brands/{brand_y}/sources/{source_y}/withdraw",
-                            json={"status": "archived", "reason": "discontinued"}, headers=owner.headers)
+    withdrawn = client.post(
+        f"/api/brands/{brand_y}/sources/{source_y}/withdraw",
+        json={"status": "archived", "reason": "discontinued"},
+        headers=owner.headers,
+    )
     assert withdrawn.status_code == 200, withdrawn.text
-    y_after = client.post("/api/reviews", json={"brand_id": brand_y, "text": CLAIM}, headers=owner.headers)
+    y_after = client.post(
+        "/api/reviews", json={"brand_id": brand_y, "text": CLAIM}, headers=owner.headers
+    )
     assert y_after.status_code == 201, y_after.text
     y_after = y_after.json()
     assert handed_to_engine[-1] == set()

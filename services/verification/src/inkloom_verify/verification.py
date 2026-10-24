@@ -25,7 +25,12 @@ from inkloom_verify.citation_guard import CitationGuard, conflicting_passage, su
 from inkloom_verify.extraction import describe_validation_error
 from inkloom_verify.prompts import verification as prompt
 from inkloom_verify.prompts.loader import load_prompt
-from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
+from inkloom_verify.providers.base import (
+    JsonCompletionRequest,
+    LLMProvider,
+    MalformedOutputError,
+    ProviderError,
+)
 from inkloom_verify.retrieval import EvidenceRetriever
 from inkloom_verify.security import clean_display_text, instruction_like, model_text_for_display
 from inkloom_verify.schemas import (
@@ -88,7 +93,9 @@ class ClaimVerifier:
         self.provider = provider
         self.documents = list(documents)
         self.config = config or VerificationConfig()
-        self.prompt = load_prompt("verification", self.config.prompt_version)  # fails clearly if missing
+        self.prompt = load_prompt(
+            "verification", self.config.prompt_version
+        )  # fails clearly if missing
         self.prompt_sent = False
         self.models_used: set[str] = set()
 
@@ -111,7 +118,10 @@ class ClaimVerifier:
         labels = {f"P{i}": p.passage_id for i, p in enumerate(passages, start=1)}
         request = JsonCompletionRequest(
             system=self.prompt.text,
-            user=prompt.user_message(claim.statement, [(label, guard.passages[pid].text) for label, pid in labels.items()]),
+            user=prompt.user_message(
+                claim.statement,
+                [(label, guard.passages[pid].text) for label, pid in labels.items()],
+            ),
             schema_name="claim_verification",
             json_schema=prompt.OUTPUT_SCHEMA,
             max_output_tokens=self.config.max_output_tokens,
@@ -119,7 +129,11 @@ class ClaimVerifier:
         try:
             output = self._ask(request)
         except ProviderError as error:
-            return self._error(claim, passages, error.to_processing_error(PipelineStage.VERIFICATION, claim.claim_id))
+            return self._error(
+                claim,
+                passages,
+                error.to_processing_error(PipelineStage.VERIFICATION, claim.claim_id),
+            )
 
         model_verdict = Verdict(output.verdict)
         rationale = model_text_for_display(output.rationale, MAX_RATIONALE_CHARS, self.prompt.text)
@@ -139,7 +153,13 @@ class ClaimVerifier:
             label = cited.passage.strip()
             checked = guard.check(labels.get(label), cited.quote)
             if isinstance(checked, GuardRejectionReason):
-                rejected.append(RejectedCitation(reason=checked, passage_id=labels.get(label), cited_as=clean_display_text(label, 64)))
+                rejected.append(
+                    RejectedCitation(
+                        reason=checked,
+                        passage_id=labels.get(label),
+                        cited_as=clean_display_text(label, 64),
+                    )
+                )
                 continue
             key = (checked.passage_id, checked.quote_span.start, checked.quote_span.end)
             if key not in seen:
@@ -150,10 +170,14 @@ class ClaimVerifier:
         if model_verdict is Verdict.SUPPORTED and citations and not rejected:
             # Valid quotes are necessary, not sufficient: they must also carry the claim's figures,
             # and its names must be in the cited passages.
-            cited_passages = [guard.passages[pid].text for pid in dict.fromkeys(c.passage_id for c in citations)]
+            cited_passages = [
+                guard.passages[pid].text for pid in dict.fromkeys(c.passage_id for c in citations)
+            ]
             rejected.extend(
                 RejectedCitation(reason=r)
-                for r in support_problems(claim.statement, [c.quote for c in citations], cited_passages)
+                for r in support_problems(
+                    claim.statement, [c.quote for c in citations], cited_passages
+                )
             )
             # A claim that gives instructions is checked, never confirmed: dropping it would let a
             # false claim go unchecked by adding "ignore the evidence" to its sentence, and
@@ -164,21 +188,35 @@ class ClaimVerifier:
             # References that disagree about the claim's figure: no verdict, a person decides.
             other = conflicting_passage(claim.statement, passages)
             if other is not None:
-                rejected.append(RejectedCitation(reason=GuardRejectionReason.CONFLICTING_EVIDENCE, passage_id=other.passage_id))
+                rejected.append(
+                    RejectedCitation(
+                        reason=GuardRejectionReason.CONFLICTING_EVIDENCE,
+                        passage_id=other.passage_id,
+                    )
+                )
 
         if rejected:
             logger.info(
                 "verification claim=%s model_verdict=%s downgraded reasons=%s",
-                claim.claim_id, model_verdict.value, ",".join(sorted({r.reason.value for r in rejected})),
+                claim.claim_id,
+                model_verdict.value,
+                ",".join(sorted({r.reason.value for r in rejected})),
             )
             return ClaimResult(
                 claim=claim,
                 verdict=Verdict.NOT_ENOUGH_EVIDENCE,
                 evidence=passages,
                 model_rationale=rationale,
-                citation_guard=CitationGuardReport(model_verdict=model_verdict, downgraded=True, rejected=rejected),
+                citation_guard=CitationGuardReport(
+                    model_verdict=model_verdict, downgraded=True, rejected=rejected
+                ),
             )
-        logger.info("verification claim=%s verdict=%s citations=%d", claim.claim_id, model_verdict.value, len(citations))
+        logger.info(
+            "verification claim=%s verdict=%s citations=%d",
+            claim.claim_id,
+            model_verdict.value,
+            len(citations),
+        )
         return ClaimResult(
             claim=claim,
             verdict=model_verdict,
@@ -200,13 +238,17 @@ class ClaimVerifier:
                 return _ModelOutput.model_validate(completion.data)
             except ValidationError as error:
                 problems = describe_validation_error(error)
-            current = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+            current = request.model_copy(
+                update={"user": prompt.repair_message(request.user, problems)}
+            )
         raise MalformedOutputError(
             f"Verification output did not match the schema after {self.config.max_repairs} repair attempt(s)."
         )
 
     @staticmethod
-    def _error(claim: Claim, passages: list[EvidencePassage], error: ProcessingError) -> ClaimResult:
+    def _error(
+        claim: Claim, passages: list[EvidencePassage], error: ProcessingError
+    ) -> ClaimResult:
         logger.warning("verification claim=%s error=%s", claim.claim_id, error.code.value)
         return ClaimResult(claim=claim, verdict=Verdict.ERROR, evidence=passages, error=error)
 

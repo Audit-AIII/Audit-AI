@@ -28,7 +28,9 @@ import pytest
 
 from inkloom_api.engine.providers.fallback import FallbackProvider
 
-REQUEST = JsonCompletionRequest(system="system", user="user", schema_name="test_schema", json_schema={"type": "object"})
+REQUEST = JsonCompletionRequest(
+    system="system", user="user", schema_name="test_schema", json_schema={"type": "object"}
+)
 
 
 class _FakeProvider:
@@ -66,7 +68,9 @@ def test_falls_through_on_rate_limit_to_next_provider() -> None:
     first = _FakeProvider("first", ProviderRateLimitError("slow down"))
     second = _FakeProvider("second", {"ok": True})
     attempts, on_attempt = _attempt_recorder()
-    provider = FallbackProvider([("first", lambda: first), ("second", lambda: second)], on_attempt=on_attempt)
+    provider = FallbackProvider(
+        [("first", lambda: first), ("second", lambda: second)], on_attempt=on_attempt
+    )
 
     result = provider.complete_json(REQUEST)
 
@@ -122,7 +126,9 @@ def test_all_providers_failing_raises() -> None:
 
 
 def test_no_providers_configured_raises_immediately() -> None:
-    provider = FallbackProvider([("first", _unconfigured("first")), ("second", _unconfigured("second"))])
+    provider = FallbackProvider(
+        [("first", _unconfigured("first")), ("second", _unconfigured("second"))]
+    )
 
     assert provider.configured_providers == []
     with pytest.raises(ProviderUnavailableError) as exc_info:
@@ -132,7 +138,9 @@ def test_no_providers_configured_raises_immediately() -> None:
 
 def test_configured_providers_skips_unconfigured_ones() -> None:
     working = _FakeProvider("working", {"ok": True})
-    provider = FallbackProvider([("missing", _unconfigured("missing")), ("working", lambda: working)])
+    provider = FallbackProvider(
+        [("missing", _unconfigured("missing")), ("working", lambda: working)]
+    )
 
     assert provider.configured_providers == ["working"]
     result = provider.complete_json(REQUEST)

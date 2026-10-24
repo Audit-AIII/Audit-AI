@@ -21,7 +21,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from inkloom_verify.providers.base import JsonCompletion, JsonCompletionRequest, LLMProvider, ProviderError
+from inkloom_verify.providers.base import (
+    JsonCompletion,
+    JsonCompletionRequest,
+    LLMProvider,
+    ProviderError,
+)
 from inkloom_verify.schemas import ErrorCode
 
 CHARS_PER_TOKEN = 4
@@ -48,7 +53,9 @@ def estimate_tokens(request: JsonCompletionRequest) -> int:
 class BudgetedProvider:
     """Wraps one request's provider; refuses calls beyond the budget."""
 
-    def __init__(self, provider: LLMProvider, budget: CallBudget, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(
+        self, provider: LLMProvider, budget: CallBudget, clock: Callable[[], float] = time.monotonic
+    ) -> None:
         self.provider = provider
         self.name = provider.name
         self.budget = budget
@@ -61,19 +68,26 @@ class BudgetedProvider:
         return self.provider.sampling()
 
     def usage(self) -> dict[str, Any]:
-        return {"calls": self.calls, "estimated_tokens": self.estimated_tokens,
-                "seconds": round(self._clock() - self._started, 3)}
+        return {
+            "calls": self.calls,
+            "estimated_tokens": self.estimated_tokens,
+            "seconds": round(self._clock() - self._started, 3),
+        }
 
     def complete_json(self, request: JsonCompletionRequest) -> JsonCompletion:
         estimate = estimate_tokens(request)
         if self.calls >= self.budget.max_calls:
-            raise BudgetExceededError(f"Request stopped: it reached its limit of {self.budget.max_calls} model calls.")
+            raise BudgetExceededError(
+                f"Request stopped: it reached its limit of {self.budget.max_calls} model calls."
+            )
         if self.estimated_tokens + estimate > self.budget.max_estimated_tokens:
             raise BudgetExceededError(
                 f"Request stopped: it would exceed its limit of {self.budget.max_estimated_tokens} estimated tokens."
             )
         if self._clock() - self._started > self.budget.deadline_seconds:
-            raise BudgetExceededError(f"Request stopped: it ran past its {self.budget.deadline_seconds:g}s deadline.")
+            raise BudgetExceededError(
+                f"Request stopped: it ran past its {self.budget.deadline_seconds:g}s deadline."
+            )
         self.calls += 1
         self.estimated_tokens += estimate
         completion = self.provider.complete_json(request)

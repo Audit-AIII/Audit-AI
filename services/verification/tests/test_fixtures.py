@@ -22,7 +22,11 @@ from inkloom_verify.scope import report_violations
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
 INVALID = EXAMPLES / "invalid"
-MODELS = {"VerificationRequest": VerificationRequest, "ClaimResult": ClaimResult, "VerificationReport": VerificationReport}
+MODELS = {
+    "VerificationRequest": VerificationRequest,
+    "ClaimResult": ClaimResult,
+    "VerificationReport": VerificationReport,
+}
 VALID = {
     "verification_request.json": VerificationRequest,
     "verification_report.json": VerificationReport,
@@ -74,14 +78,20 @@ def test_invalid_fixture_is_rejected_for_its_documented_reason(case):
 
 @pytest.mark.parametrize("case", CASES, ids=[c["file"] for c in CASES])
 def test_manifest_is_truthful_about_json_schema_coverage(case):
-    report_schema = json.loads((ROOT / "schemas" / "verification_report.schema.json").read_text(encoding="utf-8"))
+    report_schema = json.loads(
+        (ROOT / "schemas" / "verification_report.schema.json").read_text(encoding="utf-8")
+    )
     schema = {
-        "VerificationRequest": json.loads((ROOT / "schemas" / "verification_request.schema.json").read_text(encoding="utf-8")),
+        "VerificationRequest": json.loads(
+            (ROOT / "schemas" / "verification_request.schema.json").read_text(encoding="utf-8")
+        ),
         "VerificationReport": report_schema,
         "ClaimResult": {"$defs": report_schema["$defs"], "$ref": "#/$defs/ClaimResult"},
     }[case["model"]]
     payload = json.loads((INVALID / case["file"]).read_text(encoding="utf-8"))
-    assert (not jsonschema.Draft202012Validator(schema).is_valid(payload)) is case["json_schema_rejects"]
+    assert (not jsonschema.Draft202012Validator(schema).is_valid(payload)) is case[
+        "json_schema_rejects"
+    ]
 
 
 def test_manifest_lists_every_invalid_fixture():
@@ -107,7 +117,15 @@ def test_empty_object_lists_every_missing_required_field():
     with pytest.raises(ValidationError) as caught:
         VerificationReport.model_validate({})
     missing = {e["loc"][0] for e in caught.value.errors() if e["type"] == "missing"}
-    assert missing == {"request_id", "tenant_id", "content_sha256", "content_length", "references", "status", "provenance"}
+    assert missing == {
+        "request_id",
+        "tenant_id",
+        "content_sha256",
+        "content_length",
+        "references",
+        "status",
+        "provenance",
+    }
 
 
 # --- reference_set_id --------------------------------------------------------------------------
@@ -134,9 +152,13 @@ def test_a_report_must_echo_the_requests_reference_set():
     request = VerificationRequest.model_validate(load("verification_request.json"))
     report = load("verification_report.json")
     report["reference_set_id"] = "refset-other"
-    assert "reference_set_id differs from the request" in report_violations(request, VerificationReport.model_validate(report))
+    assert "reference_set_id differs from the request" in report_violations(
+        request, VerificationReport.model_validate(report)
+    )
     report.pop("reference_set_id")
-    assert "reference_set_id differs from the request" in report_violations(request, VerificationReport.model_validate(report))
+    assert "reference_set_id differs from the request" in report_violations(
+        request, VerificationReport.model_validate(report)
+    )
 
 
 # --- requires_human_review ---------------------------------------------------------------------
@@ -144,7 +166,11 @@ def test_a_report_must_echo_the_requests_reference_set():
 
 @pytest.mark.parametrize(
     ("fixture", "index", "expected"),
-    [("verification_report.json", 0, False), ("verification_report.json", 1, True), ("verification_report.json", 2, True)],
+    [
+        ("verification_report.json", 0, False),
+        ("verification_report.json", 1, True),
+        ("verification_report.json", 2, True),
+    ],
 )
 def test_review_flag_is_derived_from_the_verdict_when_omitted(fixture, index, expected):
     result = load(fixture)["results"][index]
@@ -170,6 +196,8 @@ def test_review_flag_must_be_a_boolean(value):
 
 
 def test_review_flag_is_always_serialised():
-    result = ClaimResult.model_validate({k: v for k, v in load("claim_result_error.json").items() if k != "requires_human_review"})
+    result = ClaimResult.model_validate(
+        {k: v for k, v in load("claim_result_error.json").items() if k != "requires_human_review"}
+    )
     assert json.loads(result.model_dump_json(exclude_none=True))["requires_human_review"] is True
     assert result.verdict is Verdict.ERROR

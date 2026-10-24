@@ -23,7 +23,14 @@ from inkloom_verify.providers.fake import ScriptedProvider
 
 from conftest import requires_db
 from inkloom_api.auth.security import hash_password
-from inkloom_api.models import BrandProfile, BrandSource, Membership, Organisation, SourceVersion, User
+from inkloom_api.models import (
+    BrandProfile,
+    BrandSource,
+    Membership,
+    Organisation,
+    SourceVersion,
+    User,
+)
 from inkloom_api.statuses import BrandSourceStatus
 
 PASSWORD = "correct-horse-battery-staple"
@@ -53,18 +60,24 @@ def fixture(db_session):
     admin = User(email=f"admin-{unique}@example.com", password_hash=hash_password(PASSWORD))
     db_session.add_all([org, admin])
     db_session.flush()
-    db_session.add(Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True))
+    db_session.add(
+        Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True)
+    )
 
     brand = BrandProfile(organisation_id=org.id, name="Brand")
     db_session.add(brand)
     db_session.flush()
-    source = BrandSource(brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value)
+    source = BrandSource(
+        brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value
+    )
     db_session.add(source)
     db_session.flush()
     text = "Approved fact."
     db_session.add(
         SourceVersion(
-            brand_source_id=source.id, version_number=1, text=text,
+            brand_source_id=source.id,
+            version_number=1,
+            text=text,
             text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
     )
@@ -85,12 +98,15 @@ def _login(client, email: str) -> str:
 
 
 @requires_db
-def test_unexpected_verification_error_does_not_crash_the_request(client, monkeypatch, fixture: Fixture) -> None:
+def test_unexpected_verification_error_does_not_crash_the_request(
+    client, monkeypatch, fixture: Fixture
+) -> None:
     from inkloom_api.engine import pipeline
     from inkloom_api.engine.providers.fallback import FallbackProvider
 
     monkeypatch.setattr(
-        pipeline, "build_provider",
+        pipeline,
+        "build_provider",
         lambda confidential=False, on_attempt=None: FallbackProvider(
             [("fake", lambda: ScriptedProvider(dict(EXTRACTION_REPLY)))]
         ),
@@ -113,7 +129,11 @@ def test_unexpected_verification_error_does_not_crash_the_request(client, monkey
     assert body["status"] == "needs_human_review"  # never silently "completed"
     assert len(body["findings"]) == 1
     finding = body["findings"][0]
-    assert finding["verification_status"] == "unverified"  # never contradicted/supported - unknown, honestly
+    assert (
+        finding["verification_status"] == "unverified"
+    )  # never contradicted/supported - unknown, honestly
     assert finding["requires_human_review"] is True
     assert "RuntimeError" in finding["explanation"]
-    assert "simulated unexpected failure" not in finding["explanation"]  # the raw message is not echoed
+    assert (
+        "simulated unexpected failure" not in finding["explanation"]
+    )  # the raw message is not echoed

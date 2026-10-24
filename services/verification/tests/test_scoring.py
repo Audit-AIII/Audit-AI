@@ -21,7 +21,12 @@ from inkloom_verify.schemas import (
 from inkloom_verify.scope import check_report_scope
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
-S, M, W, NONE = EvidenceStrength.STRONG, EvidenceStrength.MODERATE, EvidenceStrength.WEAK, EvidenceStrength.NONE
+S, M, W, NONE = (
+    EvidenceStrength.STRONG,
+    EvidenceStrength.MODERATE,
+    EvidenceStrength.WEAK,
+    EvidenceStrength.NONE,
+)
 
 
 def example(index: int) -> dict:
@@ -47,7 +52,9 @@ def test_supported_with_a_figure_from_the_top_passage_is_strong():
 
 def test_supported_without_figures_from_the_top_passage_is_moderate():
     data = example(0)
-    data["claim"]["normalized_text"] = "The Lumen Bottle keeps drinks cold."  # the statement checked
+    data["claim"]["normalized_text"] = (
+        "The Lumen Bottle keeps drinks cold."  # the statement checked
+    )
     result = build(data)
     assert result.evidence_strength is M and result.requires_human_review is False
 
@@ -61,7 +68,9 @@ def test_support_from_a_lower_ranked_passage_only_is_weak_and_needs_review():
 
 def test_two_accepted_citations_are_strong_even_without_figures():
     data = example(0)
-    data["claim"]["normalized_text"] = "The Lumen Bottle keeps drinks cold."  # the statement checked
+    data["claim"]["normalized_text"] = (
+        "The Lumen Bottle keeps drinks cold."  # the statement checked
+    )
     passage = data["evidence"][0]
     second = copy.deepcopy(data["citations"][0])
     words = passage["text"].split()
@@ -83,7 +92,12 @@ def test_no_definite_verdict_means_no_strength_and_review(verdict):
     data = example(0)
     data.update(verdict=verdict, citations=[])
     if verdict == "ERROR":
-        data["error"] = {"code": "PROVIDER_TIMEOUT", "stage": "verification", "message": "slow", "retryable": True}
+        data["error"] = {
+            "code": "PROVIDER_TIMEOUT",
+            "stage": "verification",
+            "message": "slow",
+            "retryable": True,
+        }
     result = build(data)
     assert result.evidence_strength is NONE and result.requires_human_review is True
 
@@ -95,7 +109,11 @@ def test_a_rejected_citation_is_not_rescued_by_rank_or_score():
     data.update(
         verdict="NOT_ENOUGH_EVIDENCE",
         citations=[],
-        citation_guard={"model_verdict": "SUPPORTED", "downgraded": True, "rejected": [{"reason": "quote_not_found"}]},
+        citation_guard={
+            "model_verdict": "SUPPORTED",
+            "downgraded": True,
+            "rejected": [{"reason": "quote_not_found"}],
+        },
         model_rationale="I am 99% confident.",
     )
     result = build(data)
@@ -134,7 +152,10 @@ def test_strength_has_no_numeric_probability():
 
 def test_strength_function_matches_the_contract():
     result = build(example(0))
-    assert evidence_strength(result.verdict, result.claim.text, result.evidence, result.citations) is result.evidence_strength
+    assert (
+        evidence_strength(result.verdict, result.claim.text, result.evidence, result.citations)
+        is result.evidence_strength
+    )
 
 
 # --- Report-level review -----------------------------------------------------------------------
@@ -163,9 +184,16 @@ def test_every_correction_traces_back_to_its_evidence_and_the_content():
     [result] = [r for r in report.results if r.claim.text == CONTRADICTED_CLAIM]
     correction = result.correction
     assert correction is not None and result.correction_attempt.recheck_verdict is Verdict.SUPPORTED
-    assert CONTENT[correction.target_span.start : correction.target_span.end] == correction.original_text
+    assert (
+        CONTENT[correction.target_span.start : correction.target_span.end]
+        == correction.original_text
+    )
     assert result.claim.source_span.contains(correction.target_span)
     for citation in correction.citations:
-        assert citation in result.citations  # backed by the evidence that established the contradiction
-        assert citation.matches(DOCS[citation.doc_id])  # and that evidence is verbatim in its source
+        assert (
+            citation in result.citations
+        )  # backed by the evidence that established the contradiction
+        assert citation.matches(
+            DOCS[citation.doc_id]
+        )  # and that evidence is verbatim in its source
     assert result.claim.text == CONTRADICTED_CLAIM  # the original claim is kept unchanged

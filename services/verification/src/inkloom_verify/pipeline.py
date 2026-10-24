@@ -26,7 +26,12 @@ from inkloom_verify import __version__
 from inkloom_verify.chunking import ChunkingConfig
 from inkloom_verify.correction import ClaimCorrector, CorrectionConfig
 from inkloom_verify.decision_policy import DecisionPolicy, apply_policy
-from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig, ExtractionResult, WarningCode
+from inkloom_verify.extraction import (
+    ClaimExtractor,
+    ExtractionConfig,
+    ExtractionResult,
+    WarningCode,
+)
 from inkloom_verify.prompts import correction as correction_prompt
 from inkloom_verify.prompts import extraction as extraction_prompt
 from inkloom_verify.prompts import verification as verification_prompt
@@ -102,16 +107,36 @@ def verify_request(
         return report
     except ScopeViolation as violation:
         # Ids only (never text), so the violations are safe to log.
-        logger.error("pipeline request=%s scope violation: %s", request.request_id, violation.violations[:5])
-        return _failed(request, provider, models, "The report did not match its request and was discarded.", prompts,
-                       rule_findings)
+        logger.error(
+            "pipeline request=%s scope violation: %s", request.request_id, violation.violations[:5]
+        )
+        return _failed(
+            request,
+            provider,
+            models,
+            "The report did not match its request and was discarded.",
+            prompts,
+            rule_findings,
+        )
     except Exception as error:  # noqa: BLE001 - never fail open; the type name is safe to log, the message may not be
-        logger.error("pipeline request=%s failed unexpectedly: %s", request.request_id, type(error).__name__)
-        return _failed(request, provider, models, "The verification engine failed unexpectedly.", prompts, rule_findings)
+        logger.error(
+            "pipeline request=%s failed unexpectedly: %s", request.request_id, type(error).__name__
+        )
+        return _failed(
+            request,
+            provider,
+            models,
+            "The verification engine failed unexpectedly.",
+            prompts,
+            rule_findings,
+        )
 
 
 def _run(
-    request: VerificationRequest, provider: LLMProvider, config: PipelineConfig, models: set[str],
+    request: VerificationRequest,
+    provider: LLMProvider,
+    config: PipelineConfig,
+    models: set[str],
     prompts: dict[str, str],
 ) -> tuple[list[ClaimResult], list[ProcessingError]]:
     extractor = ClaimExtractor(provider, config.extraction)
@@ -121,7 +146,9 @@ def _run(
     models.update(extraction.provenance.models)
     errors = list(extraction.errors) + _unchecked_sentences(extraction)
 
-    retriever = BM25Retriever.for_request(request, chunking=config.chunking, config=config.retrieval)
+    retriever = BM25Retriever.for_request(
+        request, chunking=config.chunking, config=config.retrieval
+    )
     verifier = ClaimVerifier(provider, request.references, config.verification)
     corrector = (
         ClaimCorrector(provider, verifier if config.correction.recheck else None, config.correction)
@@ -138,15 +165,23 @@ def _run(
         try:
             result = verify_claim(claim, retriever, verifier, top_k=config.retrieval.top_k)
         except Exception as error:  # noqa: BLE001 - the type name is safe to log, the message may hold content
-            logger.error("pipeline request=%s claim=%s verification failed unexpectedly: %s",
-                         request.request_id, claim.claim_id, type(error).__name__)
+            logger.error(
+                "pipeline request=%s claim=%s verification failed unexpectedly: %s",
+                request.request_id,
+                claim.claim_id,
+                type(error).__name__,
+            )
             result = _claim_error(claim, PipelineStage.VERIFICATION)
         if corrector is not None and result.verdict is Verdict.CONTRADICTED:
             try:
                 result = corrector.correct(result, request.content, request.locked_phrases)
             except Exception as error:  # noqa: BLE001
-                logger.error("pipeline request=%s claim=%s correction failed unexpectedly: %s",
-                             request.request_id, claim.claim_id, type(error).__name__)
+                logger.error(
+                    "pipeline request=%s claim=%s correction failed unexpectedly: %s",
+                    request.request_id,
+                    claim.claim_id,
+                    type(error).__name__,
+                )
                 result = _correction_failed(result)
         if softener is not None and result.verdict is Verdict.NOT_ENOUGH_EVIDENCE:
             result = _with_safer_wording(softener, result, request)
@@ -164,25 +199,35 @@ def _run(
             prompts["soften_claim"] = softener.prompt.version
     logger.info(
         "pipeline request=%s claims=%d errors=%d verdicts=%s",
-        request.request_id, len(results), len(errors),
+        request.request_id,
+        len(results),
+        len(errors),
         ",".join(f"{v.value}:{sum(r.verdict is v for r in results)}" for v in Verdict),
     )
     return results, errors
 
 
-def _with_safer_wording(softener: ClaimSoftener, result: ClaimResult, request: VerificationRequest) -> ClaimResult:
+def _with_safer_wording(
+    softener: ClaimSoftener, result: ClaimResult, request: VerificationRequest
+) -> ClaimResult:
     """``result`` with a safer wording attached, or unchanged. A softening problem never changes
     or drops the verdict: the softener returns None on any failure, and anything unexpected is
     caught here."""
     try:
         wording = softener.soften(result, request.content, request.locked_phrases)
     except Exception as error:  # noqa: BLE001 - the type name is safe to log, the message may hold content
-        logger.error("pipeline request=%s claim=%s softening failed unexpectedly: %s",
-                     request.request_id, result.claim.claim_id, type(error).__name__)
+        logger.error(
+            "pipeline request=%s claim=%s softening failed unexpectedly: %s",
+            request.request_id,
+            result.claim.claim_id,
+            type(error).__name__,
+        )
         return result
     if wording is None:
         return result
-    return ClaimResult.model_validate({**result.model_dump(), "safer_wording": wording.model_dump()})
+    return ClaimResult.model_validate(
+        {**result.model_dump(), "safer_wording": wording.model_dump()}
+    )
 
 
 def _claim_error(claim: Claim, stage: PipelineStage) -> ClaimResult:
@@ -191,7 +236,10 @@ def _claim_error(claim: Claim, stage: PipelineStage) -> ClaimResult:
         claim=claim,
         verdict=Verdict.ERROR,
         error=ProcessingError(
-            code=ErrorCode.INTERNAL_ERROR, stage=stage, retryable=False, claim_id=claim.claim_id,
+            code=ErrorCode.INTERNAL_ERROR,
+            stage=stage,
+            retryable=False,
+            claim_id=claim.claim_id,
             message="This claim could not be checked because of an internal error.",
         ),
     )
@@ -202,7 +250,10 @@ def _correction_failed(result: ClaimResult) -> ClaimResult:
     attempt = CorrectionAttempt(
         status=CorrectionStatus.FAILED,
         error=ProcessingError(
-            code=ErrorCode.INTERNAL_ERROR, stage=PipelineStage.CORRECTION, retryable=False, claim_id=result.claim.claim_id,
+            code=ErrorCode.INTERNAL_ERROR,
+            stage=PipelineStage.CORRECTION,
+            retryable=False,
+            claim_id=result.claim.claim_id,
             message="No correction could be proposed because of an internal error.",
         ),
     )
@@ -222,15 +273,23 @@ def _unchecked_sentences(extraction: ExtractionResult) -> list[ProcessingError]:
     dropped = codes.count(WarningCode.QUOTE_NOT_FOUND) + codes.count(WarningCode.AMBIGUOUS_QUOTE)
     errors = []
     if skipped:
-        errors.append(ProcessingError(
-            code=ErrorCode.MALFORMED_MODEL_OUTPUT, stage=PipelineStage.EXTRACTION, retryable=True,
-            message=f"{skipped} sentence(s) were not classified by the model and were not checked.",
-        ))
+        errors.append(
+            ProcessingError(
+                code=ErrorCode.MALFORMED_MODEL_OUTPUT,
+                stage=PipelineStage.EXTRACTION,
+                retryable=True,
+                message=f"{skipped} sentence(s) were not classified by the model and were not checked.",
+            )
+        )
     if dropped:
-        errors.append(ProcessingError(
-            code=ErrorCode.MALFORMED_MODEL_OUTPUT, stage=PipelineStage.EXTRACTION, retryable=True,
-            message=f"{dropped} extracted claim(s) could not be located exactly in the content and were not checked.",
-        ))
+        errors.append(
+            ProcessingError(
+                code=ErrorCode.MALFORMED_MODEL_OUTPUT,
+                stage=PipelineStage.EXTRACTION,
+                retryable=True,
+                message=f"{dropped} extracted claim(s) could not be located exactly in the content and were not checked.",
+            )
+        )
     return errors
 
 
@@ -242,7 +301,9 @@ def _status(results: list[ClaimResult], errors: list[ProcessingError]) -> Report
     return ReportStatus.COMPLETED
 
 
-def _provenance(provider: LLMProvider, models: set[str], prompts: dict[str, str]) -> EngineProvenance:
+def _provenance(
+    provider: LLMProvider, models: set[str], prompts: dict[str, str]
+) -> EngineProvenance:
     return EngineProvenance(
         engine_version=__version__,
         retrieval_method=RetrievalMethod.BM25,
@@ -289,7 +350,11 @@ def _report(
 
 
 def _failed(
-    request: VerificationRequest, provider: LLMProvider, models: set[str], message: str, prompts: dict[str, str],
+    request: VerificationRequest,
+    provider: LLMProvider,
+    models: set[str],
+    message: str,
+    prompts: dict[str, str],
     rule_findings: list[RuleFinding] = (),
 ) -> VerificationReport:
     error = ProcessingError(
@@ -301,7 +366,9 @@ def _failed(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m inkloom_verify.pipeline", description=__doc__)
     parser.add_argument("--request", type=Path, required=True, help="VerificationRequest JSON file")
-    parser.add_argument("--out", type=Path, help="write the VerificationReport JSON here (default: stdout)")
+    parser.add_argument(
+        "--out", type=Path, help="write the VerificationReport JSON here (default: stdout)"
+    )
     args = parser.parse_args(argv)
     try:
         from inkloom_verify.providers.openrouter import OpenRouterProvider
@@ -346,14 +413,24 @@ class PipelineEngine:
         return self.config.correct_contradicted
 
     def verify(
-        self, request: VerificationRequest, *, suggest_corrections: bool = True, max_claims: int | None = None
+        self,
+        request: VerificationRequest,
+        *,
+        suggest_corrections: bool = True,
+        max_claims: int | None = None,
     ) -> VerificationReport:
         """``suggest_corrections`` and ``max_claims`` are the request's options (POST /v1/verify).
         Corrections run only if the server allows them (``corrections_enabled``) **and** the request
         asks for them: a request can never turn on what the server turned off."""
         extraction = self.config.extraction
         if max_claims is not None:
-            extraction = extraction.model_copy(update={"max_claims": min(max_claims, extraction.max_claims)})
-        config = self.config.model_copy(update={"correct_contradicted": self.corrections_enabled and suggest_corrections,
-                                                "extraction": extraction})
+            extraction = extraction.model_copy(
+                update={"max_claims": min(max_claims, extraction.max_claims)}
+            )
+        config = self.config.model_copy(
+            update={
+                "correct_contradicted": self.corrections_enabled and suggest_corrections,
+                "extraction": extraction,
+            }
+        )
         return verify_request(request, self.provider, config)

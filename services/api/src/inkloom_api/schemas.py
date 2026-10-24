@@ -117,7 +117,9 @@ class EvidenceLinkOut(BaseModel):
             relation=evidence.relation,
             source_title=evidence.source.title if evidence.source is not None else None,
             source_version_number=(
-                evidence.source_version.version_number if evidence.source_version is not None else None
+                evidence.source_version.version_number
+                if evidence.source_version is not None
+                else None
             ),
         )
 
@@ -153,7 +155,9 @@ class FindingOut(BaseModel):
     # null on claim findings. Defaults keep older idempotency replays parsing.
     rule_id: str | None = None
     rule_type: str | None = None
-    scope: str | None = None  # "text": the span is the offending text; "document": something is missing
+    scope: str | None = (
+        None  # "text": the span is the offending text; "document": something is missing
+    )
     suggestion_basis: str | None = None  # "brand_rule" | "approved_document"
     source_ids: list[uuid.UUID] | None = None  # the approved documents a rule is quoted from
     # Phase 7 (all additive). True when a stored suggestion would remove a phrase the writer locked
@@ -163,7 +167,9 @@ class FindingOut(BaseModel):
     comment_count: int = 0
 
     @classmethod
-    def from_model(cls, finding, text: str | None = None, locks: list[str] | None = None) -> "FindingOut":
+    def from_model(
+        cls, finding, text: str | None = None, locks: list[str] | None = None
+    ) -> "FindingOut":
         suggested, safer, withheld = finding.suggested_correction, finding.safer_wording, False
         if text is not None and locks:
             if breaks_locks(text, finding.span_start, finding.span_end, suggested, locks):
@@ -187,8 +193,11 @@ class FindingOut(BaseModel):
             review_reasons=finding.review_reasons,
             withheld_by_intent_lock=withheld,
             dismissal=(
-                DismissalOut(by_user_id=latest.actor_user_id, at=latest.created_at, note=latest.note)
-                if latest is not None and latest.action == "dismissed" else None
+                DismissalOut(
+                    by_user_id=latest.actor_user_id, at=latest.created_at, note=latest.note
+                )
+                if latest is not None and latest.action == "dismissed"
+                else None
             ),
             comment_count=len(finding.comments),
             rule_id=finding.rule_id,
@@ -197,7 +206,8 @@ class FindingOut(BaseModel):
             suggestion_basis=finding.suggestion_basis,
             source_ids=(
                 [e.source_id for e in finding.evidence if e.source_id is not None]
-                if finding.check_type == "rule" else None
+                if finding.check_type == "rule"
+                else None
             ),
         )
 
@@ -282,11 +292,15 @@ class ReviewOut(BaseModel):
             created_at=review.created_at,
             updated_at=review.updated_at,
             findings=[
-                FindingOut.from_model(f, content_version.text if content_version is not None else None, locks)
+                FindingOut.from_model(
+                    f, content_version.text if content_version is not None else None, locks
+                )
                 for f in review.findings
             ],
             required_reviewer_role=review.required_reviewer_role,
-            content_item_id=content_version.content_item_id if content_version is not None else None,
+            content_item_id=content_version.content_item_id
+            if content_version is not None
+            else None,
             brand_id=content_item.brand_profile_id if content_item is not None else None,
             title=content_item.title if content_item is not None else None,
             version_number=content_version.version_number if content_version is not None else None,
@@ -335,8 +349,13 @@ class ApprovalEventOut(BaseModel):
     @classmethod
     def from_model(cls, event, version_number: int | None = None) -> "ApprovalEventOut":
         return cls(
-            id=event.id, content_version_id=event.content_version_id, version_number=version_number,
-            action=event.action, actor_user_id=event.actor_user_id, note=event.note, created_at=event.created_at,
+            id=event.id,
+            content_version_id=event.content_version_id,
+            version_number=version_number,
+            action=event.action,
+            actor_user_id=event.actor_user_id,
+            note=event.note,
+            created_at=event.created_at,
         )
 
 

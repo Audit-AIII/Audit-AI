@@ -27,8 +27,14 @@ BRAND_RULES = {
     "rule_set_id": "lumen-demo-rules",
     "version": "1",
     "required_terms": [{"rule_id": "req-company", "term": "Lumen Goods"}],
-    "prohibited_terms": [{"rule_id": "no-guarantee", "term": "guaranteed", "approved_alternative": "designed for",
-                          "severity": "high"}],
+    "prohibited_terms": [
+        {
+            "rule_id": "no-guarantee",
+            "term": "guaranteed",
+            "approved_alternative": "designed for",
+            "severity": "high",
+        }
+    ],
     "product_names": [{"rule_id": "name-pods", "approved_name": "Lumen Pods"}],
     "preferred_terms": [{"rule_id": "pref-email", "preferred": "email", "discouraged": ["e-mail"]}],
     "consistency": [{"rule_id": "cons-wifi", "variants": ["Wi-Fi", "WiFi"]}],
@@ -45,7 +51,9 @@ def main() -> None:
     print("\nChecks:")
     for c in evaluation.checks:
         print(f"  {c.status.value:13} {c.rule_id}{'  (' + c.reason + ')' if c.reason else ''}")
-    print(f"\ncomplete={evaluation.complete}  findings={len(evaluation.findings)}  every finding needs a person's decision")
+    print(
+        f"\ncomplete={evaluation.complete}  findings={len(evaluation.findings)}  every finding needs a person's decision"
+    )
 
 
 if __name__ == "__main__":

@@ -23,12 +23,17 @@ from .base import Base, created_at_column, uuid_pk
 class ExternalCallLog(Base):
     __tablename__ = "external_call_log"
     __table_args__ = (
-        CheckConstraint(f"status IN {tuple(values(ExternalCallStatus))}", name="ck_external_call_status"),
+        CheckConstraint(
+            f"status IN {tuple(values(ExternalCallStatus))}", name="ck_external_call_status"
+        ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     organisation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organisations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     review_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("reviews.id", ondelete="SET NULL")
@@ -38,7 +43,9 @@ class ExternalCallLog(Base):
     request_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     latency_ms: Mapped[int | None] = mapped_column(Integer)
-    error_code: Mapped[str | None] = mapped_column(String(50))  # inkloom_verify.schemas.ErrorCode value
+    error_code: Mapped[str | None] = mapped_column(
+        String(50)
+    )  # inkloom_verify.schemas.ErrorCode value
     created_at: Mapped[datetime] = created_at_column()
 
 
@@ -47,12 +54,17 @@ class IdempotencyKey(Base):
 
     __tablename__ = "idempotency_keys"
     __table_args__ = (
-        UniqueConstraint("organisation_id", "endpoint", "key", name="uq_idempotency_org_endpoint_key"),
+        UniqueConstraint(
+            "organisation_id", "endpoint", "key", name="uq_idempotency_org_endpoint_key"
+        ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     organisation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organisations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     key: Mapped[str] = mapped_column(String(200), nullable=False)
     endpoint: Mapped[str] = mapped_column(String(200), nullable=False)

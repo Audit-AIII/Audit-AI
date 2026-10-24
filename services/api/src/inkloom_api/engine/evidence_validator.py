@@ -46,7 +46,9 @@ class EvidenceIntegrityError(Exception):
         super().__init__(f"{code.value}: doc_id={citation.doc_id} passage_id={citation.passage_id}")
 
 
-def validate_citation(citation: Citation, corpus_lookup: dict[tuple[str, str], CorpusEntry]) -> CorpusEntry:
+def validate_citation(
+    citation: Citation, corpus_lookup: dict[tuple[str, str], CorpusEntry]
+) -> CorpusEntry:
     """Returns the `CorpusEntry` the citation actually matches, or raises `EvidenceIntegrityError`.
 
     This is the one function that decides whether a citation may be saved as evidence. A source
@@ -70,7 +72,9 @@ def validate_citation(citation: Citation, corpus_lookup: dict[tuple[str, str], C
     return entry
 
 
-def validate_all(citations: list[Citation], corpus_lookup: dict[tuple[str, str], CorpusEntry]) -> list[CorpusEntry]:
+def validate_all(
+    citations: list[Citation], corpus_lookup: dict[tuple[str, str], CorpusEntry]
+) -> list[CorpusEntry]:
     """All-or-nothing: returns one `CorpusEntry` per citation, in order, or raises on the first
     failure. Callers should catch `EvidenceIntegrityError` and treat the whole finding as
     unverified rather than save any of its citations (see pipeline.py)."""

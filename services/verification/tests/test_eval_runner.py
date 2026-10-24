@@ -38,7 +38,11 @@ def oracle(record: EvalRecord) -> EvalPrediction:
         record_id=record.record_id,
         verdict=record.expected_verdict,
         citations=[
-            {"doc_id": g.doc_id, "quote": g.quote, "quote_span": {"start": g.span.start, "end": g.span.end}}
+            {
+                "doc_id": g.doc_id,
+                "quote": g.quote,
+                "quote_span": {"start": g.span.start, "end": g.span.end},
+            }
             for g in record.gold_evidence
         ],
     )
@@ -47,7 +51,11 @@ def oracle(record: EvalRecord) -> EvalPrediction:
 def cite(record: EvalRecord, doc_id: str, quote: str) -> dict:
     text = next(d.text for d in record.references if d.doc_id == doc_id)
     start = text.index(quote)
-    return {"doc_id": doc_id, "quote": quote, "quote_span": {"start": start, "end": start + len(quote)}}
+    return {
+        "doc_id": doc_id,
+        "quote": quote,
+        "quote_span": {"start": start, "end": start + len(quote)},
+    }
 
 
 def write_jsonl(path: Path, rows) -> Path:
@@ -88,18 +96,24 @@ def test_abstain_baseline(records):
 
 
 def single(record: EvalRecord, **prediction) -> dict:
-    results = evaluate([record], {record.record_id: EvalPrediction(record_id=record.record_id, **prediction)})
+    results = evaluate(
+        [record], {record.record_id: EvalPrediction(record_id=record.record_id, **prediction)}
+    )
     return {k: v for k, v in results.failures.counts.items() if v}, results
 
 
 def test_wrong_verdict_kinds(records):
-    supported, contradicted, nee = by_id(records, "v1-001"), by_id(records, "v1-020"), by_id(records, "v1-037")
-    assert single(contradicted, verdict=S, citations=[oracle(contradicted).citations[0].model_dump()])[0] == {
-        FailureKind.FALSE_SUPPORTED: 1
-    }
-    assert single(nee, verdict=C, citations=[cite(nee, "pods-fact-sheet", "Charging: USB-C.")])[0] == {
-        FailureKind.FALSE_CONTRADICTION: 1
-    }
+    supported, contradicted, nee = (
+        by_id(records, "v1-001"),
+        by_id(records, "v1-020"),
+        by_id(records, "v1-037"),
+    )
+    assert single(
+        contradicted, verdict=S, citations=[oracle(contradicted).citations[0].model_dump()]
+    )[0] == {FailureKind.FALSE_SUPPORTED: 1}
+    assert single(nee, verdict=C, citations=[cite(nee, "pods-fact-sheet", "Charging: USB-C.")])[
+        0
+    ] == {FailureKind.FALSE_CONTRADICTION: 1}
     assert single(contradicted, verdict=N)[0] == {FailureKind.MISSED_CONTRADICTION: 1}
     assert single(supported, verdict=N)[0] == {FailureKind.OVER_ABSTENTION: 1}
     assert single(supported, verdict=E)[0] == {FailureKind.ERROR_VERDICT: 1}
@@ -135,7 +149,9 @@ def test_invalid_citation(records):
 
 def test_citation_on_abstention(records):
     record = by_id(records, "v1-037")
-    failures, results = single(record, verdict=N, citations=[cite(record, "pods-fact-sheet", "Charging: USB-C.")])
+    failures, results = single(
+        record, verdict=N, citations=[cite(record, "pods-fact-sheet", "Charging: USB-C.")]
+    )
     assert failures == {FailureKind.CITATION_ON_ABSTENTION: 1}
     assert results.verdict.accuracy.value == 1.0
     assert results.citations.fully_correct.value == 0.0
@@ -143,7 +159,9 @@ def test_citation_on_abstention(records):
 
 def test_ungrounded_but_valid_citation(records):
     record = by_id(records, "v1-001")
-    failures, results = single(record, verdict=S, citations=[cite(record, "pods-fact-sheet", "Charging: USB-C.")])
+    failures, results = single(
+        record, verdict=S, citations=[cite(record, "pods-fact-sheet", "Charging: USB-C.")]
+    )
     assert failures == {FailureKind.UNGROUNDED_CITATION: 1}
     assert results.citations.validity.value == 1.0
     assert results.citations.grounding.value == 0.0
@@ -177,7 +195,10 @@ def test_per_category_and_split_breakdowns(records):
 
 
 def test_predictions_cannot_carry_labels(tmp_path):
-    path = write_jsonl(tmp_path / "p.jsonl", [{"record_id": "v1-001", "verdict": "SUPPORTED", "expected_verdict": "SUPPORTED"}])
+    path = write_jsonl(
+        tmp_path / "p.jsonl",
+        [{"record_id": "v1-001", "verdict": "SUPPORTED", "expected_verdict": "SUPPORTED"}],
+    )
     with pytest.raises(EvaluationInputError, match="expected_verdict"):
         load_predictions(path)
 
@@ -197,7 +218,9 @@ def test_invalid_json_reports_the_line(tmp_path):
 
 def test_unknown_verdict_rejected(tmp_path):
     with pytest.raises(EvaluationInputError, match="verdict"):
-        load_predictions(write_jsonl(tmp_path / "p.jsonl", [{"record_id": "a", "verdict": "MAYBE"}]))
+        load_predictions(
+            write_jsonl(tmp_path / "p.jsonl", [{"record_id": "a", "verdict": "MAYBE"}])
+        )
 
 
 def test_dataset_errors(tmp_path, records):
@@ -207,7 +230,11 @@ def test_dataset_errors(tmp_path, records):
     with pytest.raises(EvaluationInputError, match="no records"):
         load_records(write_jsonl(tmp_path / "e.jsonl", []))
     with pytest.raises(EvaluationInputError, match=":1: label_rationale"):
-        load_records(write_jsonl(tmp_path / "f.jsonl", [{k: v for k, v in row.items() if k != "label_rationale"}]))
+        load_records(
+            write_jsonl(
+                tmp_path / "f.jsonl", [{k: v for k, v in row.items() if k != "label_rationale"}]
+            )
+        )
     with pytest.raises(EvaluationInputError, match="cannot read"):
         load_records(tmp_path / "missing.jsonl")
 
@@ -250,7 +277,10 @@ def test_run_records_provenance_and_does_not_touch_the_dataset(tmp_path, records
     before = file_sha256(DATASET)
     predictions = write_jsonl(
         tmp_path / "p.jsonl",
-        [dict(json.loads(oracle(r).model_dump_json()), model_id="model-x", prompt_version="v1") for r in records],
+        [
+            dict(json.loads(oracle(r).model_dump_json()), model_id="model-x", prompt_version="v1")
+            for r in records
+        ],
     )
     report = run(DATASET, predictions_path=predictions, split="heldout")
     assert file_sha256(DATASET) == before
@@ -259,7 +289,10 @@ def test_run_records_provenance_and_does_not_touch_the_dataset(tmp_path, records
     assert report.manifest.predictor.sha256 == file_sha256(predictions)
     assert report.manifest.predictor.model_ids == ["model-x"]
     assert report.manifest.predictor.prompt_versions == ["v1"]
-    assert report.manifest.dataset.human_reviewed.denominator == report.manifest.dataset.records_evaluated
+    assert (
+        report.manifest.dataset.human_reviewed.denominator
+        == report.manifest.dataset.records_evaluated
+    )
     assert report.manifest.environment.packages["rank_bm25"] != "not installed"
     assert report.results.counts.unexpected_predictions == 0
 
@@ -279,7 +312,10 @@ def test_cli(tmp_path, capsys):
     assert cli.main(["--dataset", str(DATASET), "--baseline", "abstain", "--out", str(out)]) == 0
     printed = capsys.readouterr().out
     assert "Verdict accuracy" in printed and "Confusion" in printed
-    assert json.loads(out.read_text(encoding="utf-8"))["manifest"]["predictor"]["name"] == "baseline-abstain"
+    assert (
+        json.loads(out.read_text(encoding="utf-8"))["manifest"]["predictor"]["name"]
+        == "baseline-abstain"
+    )
 
 
 def test_cli_reports_input_errors(tmp_path, capsys):
@@ -310,11 +346,15 @@ def test_engine_predictor_runs_retrieval_verifier_and_guard(tmp_path, records):
     assert report.manifest.predictor.prompt_versions == ["verify-claim-v1"]
     assert report.results.counts.examples == len(heldout)
     # One model call per record with retrieved passages; records without passages never call it.
-    assert len(provider.calls) == len(heldout) - round(report.results.retrieval.empty_results.numerator)
+    assert len(provider.calls) == len(heldout) - round(
+        report.results.retrieval.empty_results.numerator
+    )
     assert report.results.counts.predicted[E] == 1  # the timeout is an ERROR, not a verdict
     predictions = load_predictions(saved)
     assert set(predictions) == {r.record_id for r in heldout}
-    assert all("expected_verdict" not in line for line in saved.read_text(encoding="utf-8").splitlines())
+    assert all(
+        "expected_verdict" not in line for line in saved.read_text(encoding="utf-8").splitlines()
+    )
 
 
 def test_engine_requires_exactly_one_source():

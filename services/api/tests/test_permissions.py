@@ -33,7 +33,9 @@ def test_unknown_role_has_no_permissions() -> None:
 def _auth_context(role: str) -> AuthContext:
     user = User(id=uuid.uuid4(), email="u@example.com")
     org = Organisation(id=uuid.uuid4(), name="Acme", slug="acme")
-    membership = Membership(id=uuid.uuid4(), organisation_id=org.id, user_id=user.id, role=role, is_active=True)
+    membership = Membership(
+        id=uuid.uuid4(), organisation_id=org.id, user_id=user.id, role=role, is_active=True
+    )
     return AuthContext(user=user, organisation=org, membership=membership)
 
 

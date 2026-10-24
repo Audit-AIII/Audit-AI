@@ -88,13 +88,21 @@ def approve_content_version(
         ) from None
 
     event = record_decision(
-        db, review, content_version, auth.organisation_id, auth.user_id, ApprovalAction.APPROVED, note=None
+        db,
+        review,
+        content_version,
+        auth.organisation_id,
+        auth.user_id,
+        ApprovalAction.APPROVED,
+        note=None,
     )
     db.commit()
     return ApprovalEventOut.from_model(event, content_version.version_number)
 
 
-@router.post("/{content_version_id}/request-changes", response_model=ApprovalEventOut, status_code=201)
+@router.post(
+    "/{content_version_id}/request-changes", response_model=ApprovalEventOut, status_code=201
+)
 def request_changes(
     content_version_id: uuid.UUID,
     body: RequestChangesBody,
@@ -109,8 +117,12 @@ def request_changes(
     except InvalidReviewTransitionError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
 
-    action = ApprovalAction.REJECTED if body.decision == "rejected" else ApprovalAction.CHANGES_REQUESTED
-    event = record_decision(db, review, content_version, auth.organisation_id, auth.user_id, action, body.note)
+    action = (
+        ApprovalAction.REJECTED if body.decision == "rejected" else ApprovalAction.CHANGES_REQUESTED
+    )
+    event = record_decision(
+        db, review, content_version, auth.organisation_id, auth.user_id, action, body.note
+    )
     db.commit()
     return ApprovalEventOut.from_model(event, content_version.version_number)
 
@@ -134,7 +146,9 @@ def get_locks(
     db: Session = Depends(get_db),
 ) -> LocksOut:
     version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
-    return LocksOut(content_version_id=version.id, locked_phrases=list(version.locked_phrases or []))
+    return LocksOut(
+        content_version_id=version.id, locked_phrases=list(version.locked_phrases or [])
+    )
 
 
 @router.put("/{content_version_id}/locks", response_model=LocksOut)
@@ -150,7 +164,10 @@ def put_locks(
     suggestion that would is withheld when read (`withheld_by_intent_lock`)."""
     version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
     if any(NUL in phrase for phrase in body.locked_phrases):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "locked phrases must not contain NUL (0x00) characters")
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "locked phrases must not contain NUL (0x00) characters",
+        )
     try:
         locks = validate_locks(body.locked_phrases)
     except IntentLockError as error:

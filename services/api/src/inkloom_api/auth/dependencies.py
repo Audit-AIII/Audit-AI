@@ -46,7 +46,9 @@ class AuthContext:
     def require(self, permission: Permission) -> None:
         if not role_has_permission(self.role, permission):
             # Safe 403: names the missing permission, never which other tenant/role could do it.
-            raise HTTPException(status.HTTP_403_FORBIDDEN, f"missing permission: {permission.value}")
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, f"missing permission: {permission.value}"
+            )
 
 
 def get_current_membership(

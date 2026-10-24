@@ -78,7 +78,9 @@ CHANGES = "changes_requested"
 class DemoContent:
     title: str
     text: str
-    decision: str | None = None  # APPROVE / CHANGES on the first version's review, or None (left open)
+    decision: str | None = (
+        None  # APPROVE / CHANGES on the first version's review, or None (left open)
+    )
     # Later versions of the same item: (text, decision) - each runs its own review.
     revisions: list[tuple[str, str | None]] = field(default_factory=list)
 
@@ -131,28 +133,63 @@ LUMEN = DemoBrand(
         ("Lumen Pods 2025 Colour Range", LUMEN_OLD_COLOURS),
     ],
     rules=[
-        ScriptedRule("24 hours of playback per charge", "CONTRADICTED", "up to 12 hours of playback per charge",
-                     "The fact sheet gives up to 12 hours per charge, not 24.",
-                     correction=("24 hours", "12 hours")),
-        ScriptedRule("12 hours of playback per charge", "SUPPORTED", "up to 12 hours of playback per charge",
-                     "The fact sheet states up to 12 hours of playback per charge."),
-        ScriptedRule("waterproof", "CONTRADICTED", "Not suitable for swimming.",
-                     "The fact sheet rates the product IPX4 splash resistant and not suitable for swimming."),
-        ScriptedRule("warranty", "SUPPORTED", "Warranty: 2 years.", "The fact sheet states a 2-year warranty."),
-        ScriptedRule("Graphite, Sand and Teal", "SUPPORTED", "Colours: Graphite, Sand, Teal.",
-                     "The colour range lists Graphite, Sand and Teal."),
-        ScriptedRule("best-selling", "NOT_ENOUGH_EVIDENCE", None, "No approved document mentions sales rankings."),
+        ScriptedRule(
+            "24 hours of playback per charge",
+            "CONTRADICTED",
+            "up to 12 hours of playback per charge",
+            "The fact sheet gives up to 12 hours per charge, not 24.",
+            correction=("24 hours", "12 hours"),
+        ),
+        ScriptedRule(
+            "12 hours of playback per charge",
+            "SUPPORTED",
+            "up to 12 hours of playback per charge",
+            "The fact sheet states up to 12 hours of playback per charge.",
+        ),
+        ScriptedRule(
+            "waterproof",
+            "CONTRADICTED",
+            "Not suitable for swimming.",
+            "The fact sheet rates the product IPX4 splash resistant and not suitable for swimming.",
+        ),
+        ScriptedRule(
+            "warranty",
+            "SUPPORTED",
+            "Warranty: 2 years.",
+            "The fact sheet states a 2-year warranty.",
+        ),
+        ScriptedRule(
+            "Graphite, Sand and Teal",
+            "SUPPORTED",
+            "Colours: Graphite, Sand, Teal.",
+            "The colour range lists Graphite, Sand and Teal.",
+        ),
+        ScriptedRule(
+            "best-selling",
+            "NOT_ENOUGH_EVIDENCE",
+            None,
+            "No approved document mentions sales rankings.",
+        ),
     ],
     content=[
-        DemoContent(f"{SEED_TAG} Lumen Pods launch post",
-                    "Lumen Pods offer up to 24 hours of playback per charge. Every pair comes with a 2-year warranty."),
-        DemoContent(f"{SEED_TAG} Lumen Pods product page",
-                    "Lumen Pods offer up to 12 hours of playback per charge. Lumen Pods come with a 2-year warranty.",
-                    decision=APPROVE),
-        DemoContent(f"{SEED_TAG} Lumen Pods colour announcement",
-                    "Lumen Pods come in Graphite, Sand and Teal.", decision=APPROVE),
-        DemoContent(f"{SEED_TAG} Lumen Pods summer ad",
-                    "Lumen Pods are the best-selling earbuds in Europe. Lumen Pods are waterproof for any swim."),
+        DemoContent(
+            f"{SEED_TAG} Lumen Pods launch post",
+            "Lumen Pods offer up to 24 hours of playback per charge. Every pair comes with a 2-year warranty.",
+        ),
+        DemoContent(
+            f"{SEED_TAG} Lumen Pods product page",
+            "Lumen Pods offer up to 12 hours of playback per charge. Lumen Pods come with a 2-year warranty.",
+            decision=APPROVE,
+        ),
+        DemoContent(
+            f"{SEED_TAG} Lumen Pods colour announcement",
+            "Lumen Pods come in Graphite, Sand and Teal.",
+            decision=APPROVE,
+        ),
+        DemoContent(
+            f"{SEED_TAG} Lumen Pods summer ad",
+            "Lumen Pods are the best-selling earbuds in Europe. Lumen Pods are waterproof for any swim.",
+        ),
     ],
     withdraw=[("Lumen Pods 2025 Colour Range", "superseded", "Replaced by the 2026 colour range.")],
 )
@@ -170,27 +207,58 @@ KORA = DemoBrand(
     description="Synthetic demo brand: a smartphone launched in India.",
     sources=[("Kora X2 Product Fact Sheet", KORA_FACTS)],
     rules=[
-        ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None,
-                     "None of the approved documents mention market rankings or sales position."),
-        ScriptedRule("6,000 mAh", "CONTRADICTED", "Battery: 5,000 mAh.",
-                     "The fact sheet gives a 5,000 mAh battery, not 6,000 mAh.",
-                     correction=("6,000 mAh", "5,000 mAh")),
-        ScriptedRule("5,000 mAh", "SUPPORTED", "Battery: 5,000 mAh.", "The fact sheet states a 5,000 mAh battery."),
-        ScriptedRule("50 MP", "SUPPORTED", "Camera: 50 MP main camera.", "The fact sheet states a 50 MP main camera."),
-        ScriptedRule("120 Hz", "SUPPORTED", "Display: 6.5-inch AMOLED, 120 Hz.", "The fact sheet states a 120 Hz display."),
+        ScriptedRule(
+            "number one",
+            "NOT_ENOUGH_EVIDENCE",
+            None,
+            "None of the approved documents mention market rankings or sales position.",
+        ),
+        ScriptedRule(
+            "6,000 mAh",
+            "CONTRADICTED",
+            "Battery: 5,000 mAh.",
+            "The fact sheet gives a 5,000 mAh battery, not 6,000 mAh.",
+            correction=("6,000 mAh", "5,000 mAh"),
+        ),
+        ScriptedRule(
+            "5,000 mAh",
+            "SUPPORTED",
+            "Battery: 5,000 mAh.",
+            "The fact sheet states a 5,000 mAh battery.",
+        ),
+        ScriptedRule(
+            "50 MP",
+            "SUPPORTED",
+            "Camera: 50 MP main camera.",
+            "The fact sheet states a 50 MP main camera.",
+        ),
+        ScriptedRule(
+            "120 Hz",
+            "SUPPORTED",
+            "Display: 6.5-inch AMOLED, 120 Hz.",
+            "The fact sheet states a 120 Hz display.",
+        ),
     ],
     content=[
-        DemoContent(f"{SEED_TAG} Kora X2 launch ad",
-                    "The Kora X2 is India's number one smartphone. It has a 50 MP main camera."),
-        DemoContent(f"{SEED_TAG} Kora X2 spec sheet copy",
-                    "The Kora X2 packs a 6,000 mAh battery. It has a 50 MP main camera.",
-                    decision=CHANGES,
-                    revisions=[("The Kora X2 packs a 5,000 mAh battery. It has a 50 MP main camera.", APPROVE)]),
+        DemoContent(
+            f"{SEED_TAG} Kora X2 launch ad",
+            "The Kora X2 is India's number one smartphone. It has a 50 MP main camera.",
+        ),
+        DemoContent(
+            f"{SEED_TAG} Kora X2 spec sheet copy",
+            "The Kora X2 packs a 6,000 mAh battery. It has a 50 MP main camera.",
+            decision=CHANGES,
+            revisions=[
+                ("The Kora X2 packs a 5,000 mAh battery. It has a 50 MP main camera.", APPROVE)
+            ],
+        ),
         # Left undecided and clean -> stays "completed". (Not "The Kora X2 has ...": the engine's
         # citation guard rightly refuses SUPPORTED when the claim has a number - the "2" of
         # "X2" - that the cited quote doesn't contain.)
-        DemoContent(f"{SEED_TAG} Kora X2 display teaser",
-                    "The Kora display runs at 120 Hz. It has a 50 MP main camera."),
+        DemoContent(
+            f"{SEED_TAG} Kora X2 display teaser",
+            "The Kora display runs at 120 Hz. It has a 50 MP main camera.",
+        ),
     ],
 )
 
@@ -202,35 +270,66 @@ VERDE_FACTS = (
     "Price: $34.\n"
 )
 VERDE_OLD_LID = (
-    "Verde Bottle - Lid Spec (version 1, superseded)\n\n"
-    "Lid: bamboo cap with a steel thread.\n"
+    "Verde Bottle - Lid Spec (version 1, superseded)\n\nLid: bamboo cap with a steel thread.\n"
 )
 VERDE = DemoBrand(
     name=f"Verde Bottles {SEED_TAG}",
     description="Synthetic demo brand: insulated steel bottles.",
     sources=[("Verde Steel Bottle Fact Sheet", VERDE_FACTS), ("Verde Lid Spec v1", VERDE_OLD_LID)],
     rules=[
-        ScriptedRule("90% recycled", "CONTRADICTED", "Material: 70% recycled stainless steel.",
-                     "The fact sheet gives 70% recycled stainless steel, not 90%.",
-                     correction=("90%", "70%")),
-        ScriptedRule("70% recycled", "SUPPORTED", "Material: 70% recycled stainless steel.",
-                     "The fact sheet states 70% recycled stainless steel."),
-        ScriptedRule("cold for up to 24 hours", "SUPPORTED", "Keeps drinks cold for up to 24 hours",
-                     "The fact sheet states drinks stay cold for up to 24 hours."),
-        ScriptedRule("bamboo", "SUPPORTED", "Lid: bamboo cap with a steel thread.", "The lid spec states a bamboo cap."),
-        ScriptedRule("best-selling", "NOT_ENOUGH_EVIDENCE", None, "No approved document mentions sales rankings."),
-        ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No approved document mentions rankings."),
+        ScriptedRule(
+            "90% recycled",
+            "CONTRADICTED",
+            "Material: 70% recycled stainless steel.",
+            "The fact sheet gives 70% recycled stainless steel, not 90%.",
+            correction=("90%", "70%"),
+        ),
+        ScriptedRule(
+            "70% recycled",
+            "SUPPORTED",
+            "Material: 70% recycled stainless steel.",
+            "The fact sheet states 70% recycled stainless steel.",
+        ),
+        ScriptedRule(
+            "cold for up to 24 hours",
+            "SUPPORTED",
+            "Keeps drinks cold for up to 24 hours",
+            "The fact sheet states drinks stay cold for up to 24 hours.",
+        ),
+        ScriptedRule(
+            "bamboo",
+            "SUPPORTED",
+            "Lid: bamboo cap with a steel thread.",
+            "The lid spec states a bamboo cap.",
+        ),
+        ScriptedRule(
+            "best-selling",
+            "NOT_ENOUGH_EVIDENCE",
+            None,
+            "No approved document mentions sales rankings.",
+        ),
+        ScriptedRule(
+            "number one", "NOT_ENOUGH_EVIDENCE", None, "No approved document mentions rankings."
+        ),
     ],
     content=[
-        DemoContent(f"{SEED_TAG} Verde summer campaign",
-                    "The Verde bottle keeps drinks cold for up to 24 hours. It is made from 90% recycled stainless steel."),
-        DemoContent(f"{SEED_TAG} Verde marketplace listing",
-                    "Verde is the best-selling steel bottle in Europe. The Verde bottle keeps drinks cold for up to 24 hours."),
-        DemoContent(f"{SEED_TAG} Verde gift guide copy",
-                    "The Verde bottle is made from 90% recycled stainless steel.",
-                    decision=CHANGES,
-                    revisions=[("The Verde bottle is made from 70% recycled stainless steel.", None)]),
-        DemoContent(f"{SEED_TAG} Verde lid feature", "The Verde bottle has a bamboo cap.", decision=APPROVE),
+        DemoContent(
+            f"{SEED_TAG} Verde summer campaign",
+            "The Verde bottle keeps drinks cold for up to 24 hours. It is made from 90% recycled stainless steel.",
+        ),
+        DemoContent(
+            f"{SEED_TAG} Verde marketplace listing",
+            "Verde is the best-selling steel bottle in Europe. The Verde bottle keeps drinks cold for up to 24 hours.",
+        ),
+        DemoContent(
+            f"{SEED_TAG} Verde gift guide copy",
+            "The Verde bottle is made from 90% recycled stainless steel.",
+            decision=CHANGES,
+            revisions=[("The Verde bottle is made from 70% recycled stainless steel.", None)],
+        ),
+        DemoContent(
+            f"{SEED_TAG} Verde lid feature", "The Verde bottle has a bamboo cap.", decision=APPROVE
+        ),
     ],
     withdraw=[("Verde Lid Spec v1", "archived", "The bamboo cap was discontinued.")],
 )
@@ -247,26 +346,56 @@ NIMBUS = DemoBrand(
     description="Synthetic demo brand: single-origin coffee.",
     sources=[("Nimbus Coffee Product Facts", NIMBUS_FACTS)],
     rules=[
-        ScriptedRule("Fairtrade", "SUPPORTED", "Certification: Fairtrade certified.",
-                     "The product facts state Fairtrade certification."),
-        ScriptedRule("organic", "NOT_ENOUGH_EVIDENCE", None, "No approved document mentions organic certification."),
-        ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No approved document mentions rankings."),
-        ScriptedRule("250 g", "SUPPORTED", "Pack size: 250 g.", "The product facts state a 250 g pack."),
+        ScriptedRule(
+            "Fairtrade",
+            "SUPPORTED",
+            "Certification: Fairtrade certified.",
+            "The product facts state Fairtrade certification.",
+        ),
+        ScriptedRule(
+            "organic",
+            "NOT_ENOUGH_EVIDENCE",
+            None,
+            "No approved document mentions organic certification.",
+        ),
+        ScriptedRule(
+            "number one", "NOT_ENOUGH_EVIDENCE", None, "No approved document mentions rankings."
+        ),
+        ScriptedRule(
+            "250 g", "SUPPORTED", "Pack size: 250 g.", "The product facts state a 250 g pack."
+        ),
     ],
     content=[
-        DemoContent(f"{SEED_TAG} Nimbus newsletter",
-                    "Nimbus Coffee is Fairtrade certified. Every 250 g pack is roasted to order.", decision=APPROVE),
-        DemoContent(f"{SEED_TAG} Nimbus shop banner",
-                    "Nimbus Coffee is 100% organic. Nimbus Coffee is Fairtrade certified."),
-        DemoContent(f"{SEED_TAG} Nimbus India launch post",
-                    "Nimbus is India's number one coffee brand. Every 250 g pack is Fairtrade certified."),
+        DemoContent(
+            f"{SEED_TAG} Nimbus newsletter",
+            "Nimbus Coffee is Fairtrade certified. Every 250 g pack is roasted to order.",
+            decision=APPROVE,
+        ),
+        DemoContent(
+            f"{SEED_TAG} Nimbus shop banner",
+            "Nimbus Coffee is 100% organic. Nimbus Coffee is Fairtrade certified.",
+        ),
+        DemoContent(
+            f"{SEED_TAG} Nimbus India launch post",
+            "Nimbus is India's number one coffee brand. Every 250 g pack is Fairtrade certified.",
+        ),
         DemoContent(f"{SEED_TAG} Nimbus pack copy", "Nimbus Coffee is Fairtrade certified."),
     ],
 )
 
 DEMO_USERS = [
-    DemoUser("asha@seed.inkloom.demo", f"Asha (demo) {SEED_TAG}", f"{SEED_TAG} Asha's account", [LUMEN, KORA]),
-    DemoUser("ben@seed.inkloom.demo", f"Ben (demo) {SEED_TAG}", f"{SEED_TAG} Ben's account", [VERDE, NIMBUS]),
+    DemoUser(
+        "asha@seed.inkloom.demo",
+        f"Asha (demo) {SEED_TAG}",
+        f"{SEED_TAG} Asha's account",
+        [LUMEN, KORA],
+    ),
+    DemoUser(
+        "ben@seed.inkloom.demo",
+        f"Ben (demo) {SEED_TAG}",
+        f"{SEED_TAG} Ben's account",
+        [VERDE, NIMBUS],
+    ),
 ]
 
 
@@ -292,15 +421,21 @@ class _Clock:
 
 def _add_source(db, brand: BrandProfile, title: str, body: str, owner_id) -> BrandSource:
     source = BrandSource(
-        brand_profile_id=brand.id, title=title, status=BrandSourceStatus.APPROVED.value,
-        source_type="txt", created_by=owner_id,
+        brand_profile_id=brand.id,
+        title=title,
+        status=BrandSourceStatus.APPROVED.value,
+        source_type="txt",
+        created_by=owner_id,
     )
     db.add(source)
     db.flush()
     text_sha256 = _sha(body)
     db.add(
         SourceVersion(
-            brand_source_id=source.id, version_number=1, text=body, text_sha256=text_sha256,
+            brand_source_id=source.id,
+            version_number=1,
+            text=body,
+            text_sha256=text_sha256,
             section_hashes=document_section_hashes(
                 ReferenceDocument(doc_id=str(source.id), text=body, text_sha256=text_sha256)
             ),
@@ -315,52 +450,85 @@ def _scripted(rules: list[ScriptedRule]):
     return [("scripted", lambda: scripted_provider(rules))]
 
 
-def _review(db, org, owner, brand, demo: DemoBrand, version: ContentVersion, at: datetime, event: str) -> Review:
+def _review(
+    db, org, owner, brand, demo: DemoBrand, version: ContentVersion, at: datetime, event: str
+) -> Review:
     review = start_review(db, version, brand.id, provider_builders=_scripted(demo.rules))
     review.created_at = at
     log_audit_event(
-        db, organisation_id=org.id, actor_user_id=owner.id, event_type=event, entity_type="review",
-        entity_id=review.id, details={"content_item_id": str(version.content_item_id), "seeded": True},
+        db,
+        organisation_id=org.id,
+        actor_user_id=owner.id,
+        event_type=event,
+        entity_type="review",
+        entity_id=review.id,
+        details={"content_item_id": str(version.content_item_id), "seeded": True},
         request_id=review.request_id,
     )
     db.flush()
     return review
 
 
-def _decide(db, org, owner, review: Review, version: ContentVersion, decision: str, at: datetime) -> None:
+def _decide(
+    db, org, owner, review: Review, version: ContentVersion, decision: str, at: datetime
+) -> None:
     """Exactly what the approve / request-changes routes do, through the same guards."""
     if decision == APPROVE:
         check_approve_guards(db, review, version.content_item_id)
         action, note = ApprovalAction.APPROVED, None
     else:
-        action, note = ApprovalAction.CHANGES_REQUESTED, "Please fix the claims flagged in the review."
+        action, note = (
+            ApprovalAction.CHANGES_REQUESTED,
+            "Please fix the claims flagged in the review.",
+        )
     event = record_decision(db, review, version, org.id, owner.id, action, note)
     db.flush()
     event.created_at = at
     db.flush()
 
 
-def _submit(db, org, owner, brand, demo: DemoBrand, content: DemoContent, clock: _Clock) -> list[Review]:
-    item = ContentItem(organisation_id=org.id, brand_profile_id=brand.id, title=content.title, created_by=owner.id)
+def _submit(
+    db, org, owner, brand, demo: DemoBrand, content: DemoContent, clock: _Clock
+) -> list[Review]:
+    item = ContentItem(
+        organisation_id=org.id, brand_profile_id=brand.id, title=content.title, created_by=owner.id
+    )
     db.add(item)
     db.flush()
     reviews = []
     previous: ContentVersion | None = None
-    for number, (body, decision) in enumerate([(content.text, content.decision)] + content.revisions, start=1):
+    for number, (body, decision) in enumerate(
+        [(content.text, content.decision)] + content.revisions, start=1
+    ):
         if previous is not None:
             previous.is_current = False
             db.flush()  # one current version per item (partial unique index)
         at = clock.next()
         version = ContentVersion(
-            content_item_id=item.id, version_number=number, text=body, text_sha256=_sha(body),
-            is_current=True, created_by=owner.id, created_at=at,
+            content_item_id=item.id,
+            version_number=number,
+            text=body,
+            text_sha256=_sha(body),
+            is_current=True,
+            created_by=owner.id,
+            created_at=at,
         )
         db.add(version)
         db.flush()
-        review = _review(db, org, owner, brand, demo, version, at,
-                         "review.submitted" if number == 1 else "content_version.created")
+        review = _review(
+            db,
+            org,
+            owner,
+            brand,
+            demo,
+            version,
+            at,
+            "review.submitted" if number == 1 else "content_version.created",
+        )
         if decision is not None:
-            _decide(db, org, owner, review, version, decision, at + timedelta(minutes=45 + 30 * number))
+            _decide(
+                db, org, owner, review, version, decision, at + timedelta(minutes=45 + 30 * number)
+            )
         reviews.append(review)
         previous = version
     return reviews
@@ -388,31 +556,64 @@ def seed_user(db, demo: DemoUser, start_hours_ago: float) -> None:
         return
 
     clock = _Clock(start_hours_ago)
-    owner = User(email=demo.email, display_name=demo.display_name, password_hash=hash_password(DEMO_PASSWORD))
+    owner = User(
+        email=demo.email, display_name=demo.display_name, password_hash=hash_password(DEMO_PASSWORD)
+    )
     org = Organisation(name=demo.account_name, slug=f"seed-{demo.email.split('@')[0]}")
     db.add_all([owner, org])
     db.flush()
     # One membership: this user is the account owner ("admin" now means exactly that).
-    db.add(Membership(organisation_id=org.id, user_id=owner.id, role=MembershipRole.ADMIN.value, is_active=True))
-    log_audit_event(db, organisation_id=org.id, actor_user_id=owner.id, event_type="account.registered",
-                    entity_type="organisation", entity_id=org.id, details={"seeded": True})
+    db.add(
+        Membership(
+            organisation_id=org.id,
+            user_id=owner.id,
+            role=MembershipRole.ADMIN.value,
+            is_active=True,
+        )
+    )
+    log_audit_event(
+        db,
+        organisation_id=org.id,
+        actor_user_id=owner.id,
+        event_type="account.registered",
+        entity_type="organisation",
+        entity_id=org.id,
+        details={"seeded": True},
+    )
 
     print(f"{demo.email}: account '{org.name}'")
     for demo_brand in demo.brands:
-        brand = BrandProfile(organisation_id=org.id, name=demo_brand.name, description=demo_brand.description)
+        brand = BrandProfile(
+            organisation_id=org.id, name=demo_brand.name, description=demo_brand.description
+        )
         db.add(brand)
         db.flush()
-        sources = {title: _add_source(db, brand, title, body, owner.id) for title, body in demo_brand.sources}
+        sources = {
+            title: _add_source(db, brand, title, body, owner.id)
+            for title, body in demo_brand.sources
+        }
         print(f"  brand '{brand.name}' ({brand.id}), {len(sources)} approved source(s)")
         for content in demo_brand.content:
             for review in _submit(db, org, owner, brand, demo_brand, content, clock):
                 print(f"    {content.title} -> review {review.id} ({review.status})")
         for title, status, reason in demo_brand.withdraw:
             flipped = withdraw_source(db, sources[title], status, reason, org.id, owner.id)
-            log_audit_event(db, organisation_id=org.id, actor_user_id=owner.id, event_type="brand_source.withdrawn",
-                            entity_type="brand_source", entity_id=sources[title].id,
-                            details={"new_status": status, "reason": reason, "dependents_flipped": len(flipped)})
-            print(f"    withdrew '{title}' ({status}) -> {len(flipped)} approved item(s) now source_changed")
+            log_audit_event(
+                db,
+                organisation_id=org.id,
+                actor_user_id=owner.id,
+                event_type="brand_source.withdrawn",
+                entity_type="brand_source",
+                entity_id=sources[title].id,
+                details={
+                    "new_status": status,
+                    "reason": reason,
+                    "dependents_flipped": len(flipped),
+                },
+            )
+            print(
+                f"    withdrew '{title}' ({status}) -> {len(flipped)} approved item(s) now source_changed"
+            )
     db.commit()
 
 
@@ -433,5 +634,7 @@ def seed(reset: bool = False) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Seed the two [SEEDED] individual demo accounts.")
-    parser.add_argument("--reset", action="store_true", help="delete the demo accounts first, then reseed")
+    parser.add_argument(
+        "--reset", action="store_true", help="delete the demo accounts first, then reseed"
+    )
     seed(reset=parser.parse_args().reset)

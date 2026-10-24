@@ -31,8 +31,23 @@ RECORDS = load_extraction_records(DATASET)
 def test_at_least_twenty_paragraphs_covering_the_required_cases():
     assert len(RECORDS) >= 20 and sum(len(r.claims) for r in RECORDS) == 33
     categories = {c for r in RECORDS for c in r.categories}
-    assert {"compound", "opinion", "numbers", "dates", "negation", "qualifier", "pronoun", "attribution",
-            "marketing_only", "list", "unicode", "non_bmp", "abbreviation", "number_words", "may_verb"} <= categories
+    assert {
+        "compound",
+        "opinion",
+        "numbers",
+        "dates",
+        "negation",
+        "qualifier",
+        "pronoun",
+        "attribution",
+        "marketing_only",
+        "list",
+        "unicode",
+        "non_bmp",
+        "abbreviation",
+        "number_words",
+        "may_verb",
+    } <= categories
     assert any(not r.claims for r in RECORDS)  # paragraphs with nothing to check
     assert {r.split for r in RECORDS} == {"dev", "heldout"}
 
@@ -40,7 +55,7 @@ def test_at_least_twenty_paragraphs_covering_the_required_cases():
 def test_every_label_is_the_exact_text_at_its_offsets():
     for record in RECORDS:
         for claim in record.claims:
-            assert record.text[claim.start:claim.end] == claim.text
+            assert record.text[claim.start : claim.end] == claim.text
 
 
 def test_a_wrong_offset_is_refused():
@@ -54,7 +69,10 @@ def test_every_labelled_claim_lies_inside_one_extractor_sentence():
     for record in RECORDS:
         spans = sentence_spans(record.text, MAX_CLAIM_CHARS)
         for claim in record.claims:
-            assert any(s.start <= claim.start and claim.end <= s.end for s in spans), (record.record_id, claim.text)
+            assert any(s.start <= claim.start and claim.end <= s.end for s in spans), (
+                record.record_id,
+                claim.text,
+            )
 
 
 def test_labelled_statements_follow_the_rewording_rules():
@@ -62,11 +80,16 @@ def test_labelled_statements_follow_the_rewording_rules():
     for record in RECORDS:
         for claim in record.claims:
             if claim.statement:
-                assert rewrite_problems(claim.statement, claim.text, record.text) == [], (record.record_id, claim.statement)
+                assert rewrite_problems(claim.statement, claim.text, record.text) == [], (
+                    record.record_id,
+                    claim.statement,
+                )
 
 
 def test_labels_are_not_yet_human_reviewed():
-    assert all(not r.reviewed_by for r in RECORDS)  # stated in every report until someone reviews them
+    assert all(
+        not r.reviewed_by for r in RECORDS
+    )  # stated in every report until someone reviews them
 
 
 # --- The oracle checks the code -------------------------------------------------------------------
@@ -80,38 +103,65 @@ def test_the_oracle_replay_returns_every_labelled_claim_exactly():
     for record, result in zip(RECORDS, results):
         assert not result.warnings and not result.errors, record.record_id
         for claim in result.claims:
-            assert record.text[claim.source_span.start:claim.source_span.end] == claim.text
-            label = next(c for c in record.claims if (c.start, c.end) == (claim.source_span.start, claim.source_span.end))
+            assert record.text[claim.source_span.start : claim.source_span.end] == claim.text
+            label = next(
+                c
+                for c in record.claims
+                if (c.start, c.end) == (claim.source_span.start, claim.source_span.end)
+            )
             assert claim.statement == (label.statement or label.text)
 
 
 def test_compound_sentences_become_separate_atomic_claims():
-    record = next(r for r in RECORDS if r.record_id == "x-013")  # rated IPX4, weigh 5.2 g and come in three colours
+    record = next(
+        r for r in RECORDS if r.record_id == "x-013"
+    )  # rated IPX4, weigh 5.2 g and come in three colours
     [result] = extract_all([record], lambda r: ResponderProvider(oracle(r)))
-    assert [c.text for c in result.claims] == ["Lumen Pods are rated IPX4", "weigh 5.2 g", "come in three colours"]
-    assert [c.statement for c in result.claims][1:] == ["Lumen Pods weigh 5.2 g.", "Lumen Pods come in three colours."]
+    assert [c.text for c in result.claims] == [
+        "Lumen Pods are rated IPX4",
+        "weigh 5.2 g",
+        "come in three colours",
+    ]
+    assert [c.statement for c in result.claims][1:] == [
+        "Lumen Pods weigh 5.2 g.",
+        "Lumen Pods come in three colours.",
+    ]
 
 
 # --- Adversaries: what the code enforces, and what the metrics see -------------------------------
 
 
 def test_no_embellished_wording_survives():
-    metrics = score(RECORDS, extract_all(RECORDS, lambda r: ResponderProvider(ADVERSARIES["embellisher"](r))), _embellish)
+    metrics = score(
+        RECORDS,
+        extract_all(RECORDS, lambda r: ResponderProvider(ADVERSARIES["embellisher"](r))),
+        _embellish,
+    )
     assert metrics.statements_changed_unsafely == 0
-    assert metrics.slice_violations == 0 and metrics.claim_recall.value == 1.0  # safe fallback to the sentence
+    assert (
+        metrics.slice_violations == 0 and metrics.claim_recall.value == 1.0
+    )  # safe fallback to the sentence
 
 
 def test_the_unsafe_wording_metric_would_see_a_broken_guard(monkeypatch):
     """Not vacuous: switch the rewording rules off and the embellishments are counted."""
     monkeypatch.setattr(extraction_module, "rewrite_problems", lambda *a: [])
-    metrics = score(RECORDS, extract_all(RECORDS, lambda r: ResponderProvider(ADVERSARIES["embellisher"](r))), _embellish)
+    metrics = score(
+        RECORDS,
+        extract_all(RECORDS, lambda r: ResponderProvider(ADVERSARIES["embellisher"](r))),
+        _embellish,
+    )
     assert metrics.statements_changed_unsafely == 33
 
 
 def test_merging_and_opinion_extraction_are_measured_not_hidden():
-    merged = score(RECORDS, extract_all(RECORDS, lambda r: ResponderProvider(ADVERSARIES["merger"](r))))
+    merged = score(
+        RECORDS, extract_all(RECORDS, lambda r: ResponderProvider(ADVERSARIES["merger"](r)))
+    )
     assert merged.atomicity_violations == 3  # x-002, x-013, x-023
-    leaked = score(RECORDS, extract_all(RECORDS, lambda r: ResponderProvider(ADVERSARIES["opinion_leaker"](r))))
+    leaked = score(
+        RECORDS, extract_all(RECORDS, lambda r: ResponderProvider(ADVERSARIES["opinion_leaker"](r)))
+    )
     assert leaked.opinion_leakage == 9 and leaked.claim_precision.value < 1.0
 
 

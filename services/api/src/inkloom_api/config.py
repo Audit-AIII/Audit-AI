@@ -34,7 +34,9 @@ class Settings(BaseSettings):
     rate_limit_registration_window_seconds: float = 600.0
     # Trust Scorecard (GET /api/evaluations/latest): where the engine's evaluation runner writes
     # its timestamped reports. Defaults to services/verification/eval/reports in this repository.
-    evaluation_reports_dir: str = str(Path(__file__).resolve().parents[3] / "verification" / "eval" / "reports")
+    evaluation_reports_dir: str = str(
+        Path(__file__).resolve().parents[3] / "verification" / "eval" / "reports"
+    )
     # --- Security limits (services/verification/SECURITY.md, "Whole system") ---
     # JSON request bodies larger than this are refused (413) before they are read or parsed.
     # Upload routes get max_source_upload_bytes plus 1 MB for the multipart envelope instead.
@@ -53,9 +55,13 @@ class Settings(BaseSettings):
         """Unsafe settings, by name only (values are never included)."""
         problems = []
         if len(self.auth_secret_key) < MIN_AUTH_SECRET_CHARS:
-            problems.append(f"AUTH_SECRET_KEY is missing or shorter than {MIN_AUTH_SECRET_CHARS} characters")
+            problems.append(
+                f"AUTH_SECRET_KEY is missing or shorter than {MIN_AUTH_SECRET_CHARS} characters"
+            )
         if "*" in self.cors_origins:
-            problems.append("CORS_ALLOW_ORIGINS must list origins, not '*' (credentials are allowed)")
+            problems.append(
+                "CORS_ALLOW_ORIGINS must list origins, not '*' (credentials are allowed)"
+            )
         return problems
 
     def check_startup(self) -> list[str]:

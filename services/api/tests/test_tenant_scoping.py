@@ -46,8 +46,12 @@ def tenants(db_session):
     db_session.add_all([org_a, org_b, user_a, user_b])
     db_session.flush()
 
-    membership_a = Membership(organisation_id=org_a.id, user_id=user_a.id, role="submitter", is_active=True)
-    membership_b = Membership(organisation_id=org_b.id, user_id=user_b.id, role="submitter", is_active=True)
+    membership_a = Membership(
+        organisation_id=org_a.id, user_id=user_a.id, role="submitter", is_active=True
+    )
+    membership_b = Membership(
+        organisation_id=org_b.id, user_id=user_b.id, role="submitter", is_active=True
+    )
     db_session.add_all([membership_a, membership_b])
 
     brand_a = BrandProfile(organisation_id=org_a.id, name="Brand A")
@@ -137,7 +141,9 @@ def test_revoked_membership_loses_access(client, db_session, tenants: Tenants) -
 @requires_db
 def test_guessed_brand_id_returns_safe_404(client, tenants: Tenants) -> None:
     token = _login(client, tenants.user_a.email)
-    response = client.get(f"/api/brands/{uuid.uuid4()}/sources", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(
+        f"/api/brands/{uuid.uuid4()}/sources", headers={"Authorization": f"Bearer {token}"}
+    )
     assert response.status_code == 404
     body = response.json()
     assert body["error"]["code"] == "NOT_FOUND"
@@ -152,7 +158,11 @@ def test_missing_token_is_401(client, tenants: Tenants) -> None:
 
 @requires_db
 def test_wrong_password_is_401_same_message_as_unknown_email(client, tenants: Tenants) -> None:
-    wrong_password = client.post("/api/auth/login", json={"email": tenants.user_a.email, "password": "nope"})
-    unknown_email = client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "nope"})
+    wrong_password = client.post(
+        "/api/auth/login", json={"email": tenants.user_a.email, "password": "nope"}
+    )
+    unknown_email = client.post(
+        "/api/auth/login", json={"email": "nobody@example.com", "password": "nope"}
+    )
     assert wrong_password.status_code == unknown_email.status_code == 401
     assert wrong_password.json()["error"]["message"] == unknown_email.json()["error"]["message"]

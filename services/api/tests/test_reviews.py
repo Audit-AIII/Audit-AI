@@ -23,7 +23,14 @@ import pytest
 from conftest import requires_db
 from inkloom_api.auth.security import hash_password
 from inkloom_api.statuses import BrandSourceStatus
-from inkloom_api.models import BrandProfile, BrandSource, Membership, Organisation, SourceVersion, User
+from inkloom_api.models import (
+    BrandProfile,
+    BrandSource,
+    Membership,
+    Organisation,
+    SourceVersion,
+    User,
+)
 
 PASSWORD = "correct-horse-battery-staple"
 
@@ -45,13 +52,19 @@ def review_fixture(db_session):
     org_a = Organisation(name="Org A", slug=f"rev-org-a-{unique}")
     org_b = Organisation(name="Org B", slug=f"rev-org-b-{unique}")
     user_a = User(email=f"rev-user-a-{unique}@example.com", password_hash=hash_password(PASSWORD))
-    user_reviewer = User(email=f"rev-user-reviewer-{unique}@example.com", password_hash=hash_password(PASSWORD))
+    user_reviewer = User(
+        email=f"rev-user-reviewer-{unique}@example.com", password_hash=hash_password(PASSWORD)
+    )
     db_session.add_all([org_a, org_b, user_a, user_reviewer])
     db_session.flush()
 
-    db_session.add(Membership(organisation_id=org_a.id, user_id=user_a.id, role="submitter", is_active=True))
     db_session.add(
-        Membership(organisation_id=org_a.id, user_id=user_reviewer.id, role="reviewer", is_active=True)
+        Membership(organisation_id=org_a.id, user_id=user_a.id, role="submitter", is_active=True)
+    )
+    db_session.add(
+        Membership(
+            organisation_id=org_a.id, user_id=user_reviewer.id, role="reviewer", is_active=True
+        )
     )
 
     brand_with_source = BrandProfile(organisation_id=org_a.id, name="Brand With Source")
@@ -61,11 +74,15 @@ def review_fixture(db_session):
     db_session.flush()
 
     approved_source = BrandSource(
-        brand_profile_id=brand_with_source.id, title="Spec sheet", status=BrandSourceStatus.APPROVED.value
+        brand_profile_id=brand_with_source.id,
+        title="Spec sheet",
+        status=BrandSourceStatus.APPROVED.value,
     )
     db_session.add(approved_source)
     db_session.flush()
-    source_text = "Lumen Bottle Product Specification. Insulation: keeps drinks cold for up to 24 hours."
+    source_text = (
+        "Lumen Bottle Product Specification. Insulation: keeps drinks cold for up to 24 hours."
+    )
     db_session.add(
         SourceVersion(
             brand_source_id=approved_source.id,
@@ -103,12 +120,17 @@ def _login(client, email: str) -> str:
 
 
 @requires_db
-def test_create_review_without_llm_provider_uses_labelled_stub(client, force_stub_mode, review_fixture: ReviewFixture) -> None:
+def test_create_review_without_llm_provider_uses_labelled_stub(
+    client, force_stub_mode, review_fixture: ReviewFixture
+) -> None:
     token = _login(client, review_fixture.user_a.email)
 
     response = client.post(
         "/api/reviews",
-        json={"brand_id": str(review_fixture.brand_with_source.id), "text": "The Lumen Bottle keeps drinks cold."},
+        json={
+            "brand_id": str(review_fixture.brand_with_source.id),
+            "text": "The Lumen Bottle keeps drinks cold.",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201, response.text
@@ -129,7 +151,9 @@ def test_create_review_without_llm_provider_uses_labelled_stub(client, force_stu
 
 
 @requires_db
-def test_create_review_with_no_approved_sources_fails_not_silently(client, review_fixture: ReviewFixture) -> None:
+def test_create_review_with_no_approved_sources_fails_not_silently(
+    client, review_fixture: ReviewFixture
+) -> None:
     token = _login(client, review_fixture.user_a.email)
 
     response = client.post(
@@ -145,7 +169,9 @@ def test_create_review_with_no_approved_sources_fails_not_silently(client, revie
 
 
 @requires_db
-def test_create_review_rejects_brand_from_another_organisation(client, review_fixture: ReviewFixture) -> None:
+def test_create_review_rejects_brand_from_another_organisation(
+    client, review_fixture: ReviewFixture
+) -> None:
     token = _login(client, review_fixture.user_a.email)
 
     response = client.post(
@@ -158,16 +184,23 @@ def test_create_review_rejects_brand_from_another_organisation(client, review_fi
 
 
 @requires_db
-def test_get_review_is_scoped_to_organisation(client, force_stub_mode, review_fixture: ReviewFixture) -> None:
+def test_get_review_is_scoped_to_organisation(
+    client, force_stub_mode, review_fixture: ReviewFixture
+) -> None:
     token = _login(client, review_fixture.user_a.email)
     created = client.post(
         "/api/reviews",
-        json={"brand_id": str(review_fixture.brand_with_source.id), "text": "The Lumen Bottle keeps drinks cold."},
+        json={
+            "brand_id": str(review_fixture.brand_with_source.id),
+            "text": "The Lumen Bottle keeps drinks cold.",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     review_id = created.json()["id"]
 
-    guessed = client.get(f"/api/reviews/{uuid.uuid4()}", headers={"Authorization": f"Bearer {token}"})
+    guessed = client.get(
+        f"/api/reviews/{uuid.uuid4()}", headers={"Authorization": f"Bearer {token}"}
+    )
     assert guessed.status_code == 404
 
     missing_auth = client.get(f"/api/reviews/{review_id}")
@@ -175,7 +208,9 @@ def test_get_review_is_scoped_to_organisation(client, force_stub_mode, review_fi
 
 
 @requires_db
-def test_legacy_reviewer_role_can_submit(client, force_stub_mode, review_fixture: ReviewFixture) -> None:
+def test_legacy_reviewer_role_can_submit(
+    client, force_stub_mode, review_fixture: ReviewFixture
+) -> None:
     """Individual-user mode (2026-10-24): roles no longer gate anything, so a member with the
     legacy `reviewer` role (which used to get 403 here, lacking `submit`) is the account owner and
     may submit. Replaces test_post_reviews_requires_submit_permission."""
@@ -215,8 +250,12 @@ def test_draft_source_is_never_used_as_evidence(db_session) -> None:
     db_session.add(brand)
     db_session.flush()
 
-    draft = BrandSource(brand_profile_id=brand.id, title="Unreviewed draft", status=BrandSourceStatus.DRAFT.value)
-    approved = BrandSource(brand_profile_id=brand.id, title="Approved spec", status=BrandSourceStatus.APPROVED.value)
+    draft = BrandSource(
+        brand_profile_id=brand.id, title="Unreviewed draft", status=BrandSourceStatus.DRAFT.value
+    )
+    approved = BrandSource(
+        brand_profile_id=brand.id, title="Approved spec", status=BrandSourceStatus.APPROVED.value
+    )
     db_session.add_all([draft, approved])
     db_session.flush()
 
@@ -225,11 +264,15 @@ def test_draft_source_is_never_used_as_evidence(db_session) -> None:
     db_session.add_all(
         [
             SourceVersion(
-                brand_source_id=draft.id, version_number=1, text=draft_text,
+                brand_source_id=draft.id,
+                version_number=1,
+                text=draft_text,
                 text_sha256=hashlib.sha256(draft_text.encode("utf-8")).hexdigest(),
             ),
             SourceVersion(
-                brand_source_id=approved.id, version_number=1, text=approved_text,
+                brand_source_id=approved.id,
+                version_number=1,
+                text=approved_text,
                 text_sha256=hashlib.sha256(approved_text.encode("utf-8")).hexdigest(),
             ),
         ]

@@ -15,8 +15,14 @@ from inkloom_api.engine.scripted_provider import ScriptedRule
 
 SINGLE = "Lumen Pods offer up to 12 hours of playback per charge."
 COMPOUND = "Lumen Pods offer up to 12 hours of playback per charge and are splash resistant."
-ONE_QUOTE = [ScriptedRule("12 hours of playback per charge", "SUPPORTED", "up to 12 hours of playback per charge",
-                          "The fact sheet states 12 hours.")]
+ONE_QUOTE = [
+    ScriptedRule(
+        "12 hours of playback per charge",
+        "SUPPORTED",
+        "up to 12 hours of playback per charge",
+        "The fact sheet states 12 hours.",
+    )
+]
 
 
 @requires_db
@@ -24,7 +30,10 @@ def test_single_fact_on_strong_evidence_is_cleared(client, monkeypatch, account_
     use_scripted_provider(monkeypatch, ONE_QUOTE)
     review = account_factory("owner").submit(SINGLE)
     [finding] = review["findings"]
-    assert (finding["verification_status"], finding["requires_human_review"]) == ("supported", False)
+    assert (finding["verification_status"], finding["requires_human_review"]) == (
+        "supported",
+        False,
+    )
     assert finding["review_reasons"] == []
     assert review["status"] == "completed"
 
@@ -58,10 +67,18 @@ def test_a_failing_policy_sends_the_claim_to_a_person(client, monkeypatch, accou
 
 @requires_db
 def test_review_reasons_for_each_kind_of_finding(client, monkeypatch, account_factory) -> None:
-    use_scripted_provider(monkeypatch, [
-        ScriptedRule("24 hours of playback per charge", "CONTRADICTED", "up to 12 hours of playback per charge", "12 hours."),
-        ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No rankings."),
-    ])
+    use_scripted_provider(
+        monkeypatch,
+        [
+            ScriptedRule(
+                "24 hours of playback per charge",
+                "CONTRADICTED",
+                "up to 12 hours of playback per charge",
+                "12 hours.",
+            ),
+            ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No rankings."),
+        ],
+    )
     review = account_factory("owner").submit(
         "Lumen Pods offer up to 24 hours of playback per charge. Lumen Pods are India's number one earbuds. BUY NOW TODAY."
     )

@@ -65,8 +65,10 @@ class ExtractionRecord(_Model):
     @model_validator(mode="after")
     def _check_offsets(self) -> ExtractionRecord:
         for item in [*self.claims, *self.non_factual]:
-            if self.text[item.start:item.end] != item.text:
-                raise ValueError(f"{self.record_id}: {item.text!r} is not the text at [{item.start}, {item.end})")
+            if self.text[item.start : item.end] != item.text:
+                raise ValueError(
+                    f"{self.record_id}: {item.text!r} is not the text at [{item.start}, {item.end})"
+                )
         return self
 
 
@@ -108,8 +110,15 @@ def oracle(record: ExtractionRecord) -> Responder:
         statements = []
         for sid, _, inside, kind in _labelled_by_sentence(record, request):
             if inside:
-                statements.append({"sentence_id": sid, "kind": "factual",
-                                   "claims": [{"text": c.statement or c.text, "source_quote": c.text} for c in inside]})
+                statements.append(
+                    {
+                        "sentence_id": sid,
+                        "kind": "factual",
+                        "claims": [
+                            {"text": c.statement or c.text, "source_quote": c.text} for c in inside
+                        ],
+                    }
+                )
             else:
                 statements.append({"sentence_id": sid, "kind": kind or "other", "claims": []})
         return {"statements": statements}
@@ -147,7 +156,13 @@ def merger(record: ExtractionRecord) -> Responder:
         statements = []
         for sid, text, inside, kind in _labelled_by_sentence(record, request):
             if inside:
-                statements.append({"sentence_id": sid, "kind": "factual", "claims": [{"text": text, "source_quote": text}]})
+                statements.append(
+                    {
+                        "sentence_id": sid,
+                        "kind": "factual",
+                        "claims": [{"text": text, "source_quote": text}],
+                    }
+                )
             else:
                 statements.append({"sentence_id": sid, "kind": kind or "other", "claims": []})
         return {"statements": statements}
@@ -161,7 +176,9 @@ def opinion_leaker(record: ExtractionRecord) -> Responder:
     def respond(request: JsonCompletionRequest) -> dict[str, Any]:
         statements = []
         for sid, text, inside, _ in _labelled_by_sentence(record, request):
-            claims = [{"text": c.statement or c.text, "source_quote": c.text} for c in inside] or [{"text": text, "source_quote": text}]
+            claims = [{"text": c.statement or c.text, "source_quote": c.text} for c in inside] or [
+                {"text": text, "source_quote": text}
+            ]
             statements.append({"sentence_id": sid, "kind": "factual", "claims": claims})
         return {"statements": statements}
 
@@ -188,7 +205,9 @@ class ExtractionMetrics(_Model):
     opinion_leakage: int  # predictions inside sentences labelled non-factual
     slice_violations: int  # claim.text != content[start:end]; the contract makes this impossible
     exact_span_matches: Ratio  # labels whose exact span was returned
-    statements_changed_unsafely: int  # adversary statements kept despite the embellishment (0 expected)
+    statements_changed_unsafely: (
+        int  # adversary statements kept despite the embellishment (0 expected)
+    )
     records_failed: int  # extraction returned an error
 
 
@@ -196,52 +215,77 @@ def _covers(start: int, end: int, label: LabelledClaim) -> bool:
     return min(end, label.end) - max(start, label.start) >= (label.end - label.start) / 2
 
 
-def score(records: Sequence[ExtractionRecord], results: Sequence[ExtractionResult],
-          embellished: Callable[[str], str] | None = None) -> ExtractionMetrics:
+def score(
+    records: Sequence[ExtractionRecord],
+    results: Sequence[ExtractionResult],
+    embellished: Callable[[str], str] | None = None,
+) -> ExtractionMetrics:
     covered = matching = exact = atomicity = leakage = slices = unsafe = failed = predicted = 0
     for record, result in zip(records, results, strict=True):
         failed += bool(result.errors)
         for claim in result.claims:
             predicted += 1
             span = claim.source_span
-            slices += record.text[span.start:span.end] != claim.text
+            slices += record.text[span.start : span.end] != claim.text
             hits = [label for label in record.claims if _covers(span.start, span.end, label)]
             matching += bool(hits)
             atomicity += len(hits) >= 2
             leakage += any(n.start <= span.start and span.end <= n.end for n in record.non_factual)
             if embellished is not None:
-                unsafe += any(claim.statement == embellished(label.statement or label.text) for label in record.claims)
+                unsafe += any(
+                    claim.statement == embellished(label.statement or label.text)
+                    for label in record.claims
+                )
         for label in record.claims:
             spans = [(c.source_span.start, c.source_span.end) for c in result.claims]
             covered += any(_covers(s, e, label) for s, e in spans)
             exact += (label.start, label.end) in spans
     labelled = sum(len(r.claims) for r in records)
     return ExtractionMetrics(
-        records=len(records), labelled_claims=labelled, predicted_claims=predicted,
-        claim_recall=ratio(covered, labelled), claim_precision=ratio(matching, predicted),
-        atomicity_violations=atomicity, opinion_leakage=leakage, slice_violations=slices,
-        exact_span_matches=ratio(exact, labelled), statements_changed_unsafely=unsafe, records_failed=failed,
+        records=len(records),
+        labelled_claims=labelled,
+        predicted_claims=predicted,
+        claim_recall=ratio(covered, labelled),
+        claim_precision=ratio(matching, predicted),
+        atomicity_violations=atomicity,
+        opinion_leakage=leakage,
+        slice_violations=slices,
+        exact_span_matches=ratio(exact, labelled),
+        statements_changed_unsafely=unsafe,
+        records_failed=failed,
     )
 
 
-def extract_all(records: Sequence[ExtractionRecord], provider_for: Callable[[ExtractionRecord], LLMProvider],
-                config: ExtractionConfig | None = None) -> list[ExtractionResult]:
+def extract_all(
+    records: Sequence[ExtractionRecord],
+    provider_for: Callable[[ExtractionRecord], LLMProvider],
+    config: ExtractionConfig | None = None,
+) -> list[ExtractionResult]:
     return [ClaimExtractor(provider_for(r), config).extract(r.text) for r in records]
 
 
-def evaluate_extraction(records: Sequence[ExtractionRecord], live: LLMProvider | None = None,
-                        prompt_version: str | None = None) -> dict[str, Any]:
+def evaluate_extraction(
+    records: Sequence[ExtractionRecord],
+    live: LLMProvider | None = None,
+    prompt_version: str | None = None,
+) -> dict[str, Any]:
     """The report section: oracle replay, adversaries, and the live model when one is given."""
     section: dict[str, Any] = {
-        "oracle": score(records, extract_all(records, lambda r: ResponderProvider(oracle(r)))).model_dump(mode="json"),
+        "oracle": score(
+            records, extract_all(records, lambda r: ResponderProvider(oracle(r)))
+        ).model_dump(mode="json"),
         "adversaries": {},
         "live": None,
         "human_reviewed": sum(1 for r in records if r.reviewed_by),
     }
     for name, make in ADVERSARIES.items():
         results = extract_all(records, lambda r, make=make: ResponderProvider(make(r)))
-        section["adversaries"][name] = score(records, results, _embellish if name == "embellisher" else None).model_dump(mode="json")
+        section["adversaries"][name] = score(
+            records, results, _embellish if name == "embellisher" else None
+        ).model_dump(mode="json")
     if live is not None:
         config = ExtractionConfig(prompt_version=prompt_version) if prompt_version else None
-        section["live"] = score(records, extract_all(records, lambda r: live, config)).model_dump(mode="json")
+        section["live"] = score(records, extract_all(records, lambda r: live, config)).model_dump(
+            mode="json"
+        )
     return section

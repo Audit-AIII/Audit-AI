@@ -36,8 +36,23 @@ DRAFT = (
     "Lumen Pods offer up to 24 hours of playback per charge. "
     "Lumen Pods are India's number one earbuds. Lumen Pods come with a 2-year warranty."
 )
-REVIEW_KEYS = {"id", "content_version_id", "content_item_id", "brand_id", "brand_name", "title", "status", "findings"}
-RISK_KEYS = {"top_categories", "median_turnaround_minutes", "re_review_rate", "queue_age_minutes", "sample_size"}
+REVIEW_KEYS = {
+    "id",
+    "content_version_id",
+    "content_item_id",
+    "brand_id",
+    "brand_name",
+    "title",
+    "status",
+    "findings",
+}
+RISK_KEYS = {
+    "top_categories",
+    "median_turnaround_minutes",
+    "re_review_rate",
+    "queue_age_minutes",
+    "sample_size",
+}
 
 
 def step(label: str) -> None:
@@ -60,35 +75,66 @@ def main() -> None:
 
     step("register")
     email = f"smoke-{uuid.uuid4().hex[:10]}@example.com"
-    body = expect(client.post("/api/auth/register", json={"email": email, "password": "correct-horse-battery"}),
-                  201, "register")
+    body = expect(
+        client.post(
+            "/api/auth/register", json={"email": email, "password": "correct-horse-battery"}
+        ),
+        201,
+        "register",
+    )
     headers = {"Authorization": f"Bearer {body['access_token']}"}
     brand_id = body["brand"]["id"]
     print(f"  {email}: role={body['role']} (account owner), starter brand {brand_id}")
 
     step("upload an approved brand document")
-    source = expect(client.post(f"/api/brands/{brand_id}/sources", data={"title": "Fact Sheet", "approve": "true"},
-                                files={"file": ("facts.txt", FACT_SHEET.encode(), "text/plain")}, headers=headers),
-                    201, "upload source")
+    source = expect(
+        client.post(
+            f"/api/brands/{brand_id}/sources",
+            data={"title": "Fact Sheet", "approve": "true"},
+            files={"file": ("facts.txt", FACT_SHEET.encode(), "text/plain")},
+            headers=headers,
+        ),
+        201,
+        "upload source",
+    )
     print(f"  source {source['id']} status={source['status']}")
 
     step("submit a review")
-    review = expect(client.post("/api/reviews", json={"brand_id": brand_id, "text": DRAFT, "title": "Smoke draft"},
-                                headers=headers), 201, "POST /api/reviews")
+    review = expect(
+        client.post(
+            "/api/reviews",
+            json={"brand_id": brand_id, "text": DRAFT, "title": "Smoke draft"},
+            headers=headers,
+        ),
+        201,
+        "POST /api/reviews",
+    )
     missing = REVIEW_KEYS - set(review)
     if missing:
         fail(f"review response missing {sorted(missing)}")
     stub = any(f["category"] == "stub" for f in review["findings"])
-    print(f"  review {review['id']} status={review['status']} engine={review['engine']} "
-          f"required_reviewer_role={review['required_reviewer_role']}")
+    print(
+        f"  review {review['id']} status={review['status']} engine={review['engine']} "
+        f"required_reviewer_role={review['required_reviewer_role']}"
+    )
     if stub:
-        print("  NOTE: stub output - no AI provider configured; findings are a labelled placeholder.")
+        print(
+            "  NOTE: stub output - no AI provider configured; findings are a labelled placeholder."
+        )
     for finding in review["findings"]:
-        print(f"   - [{finding['verification_status']}/{finding['category']}] {finding['original_text']!r}"
-              + (f" -> suggest {finding['suggested_correction']!r}" if finding["suggested_correction"] else ""))
+        print(
+            f"   - [{finding['verification_status']}/{finding['category']}] {finding['original_text']!r}"
+            + (
+                f" -> suggest {finding['suggested_correction']!r}"
+                if finding["suggested_correction"]
+                else ""
+            )
+        )
         for evidence in finding["evidence"]:
-            print(f"       {evidence['relation']}: {evidence['quote']!r} "
-                  f"({evidence['source_title']} v{evidence['source_version_number']})")
+            print(
+                f"       {evidence['relation']}: {evidence['quote']!r} "
+                f"({evidence['source_title']} v{evidence['source_version_number']})"
+            )
     if review["required_reviewer_role"] is not None:
         fail("individual-user mode: required_reviewer_role must be null")
 
@@ -96,20 +142,32 @@ def main() -> None:
     listed = expect(client.get("/api/reviews", headers=headers), 200, "GET /api/reviews")
     if not isinstance(listed, list) or [r["id"] for r in listed] != [review["id"]]:
         fail(f"expected a plain array holding exactly this review, got {listed!r:.300}")
-    print(f"  {len(listed)} review(s); ?status={review['status']} -> "
-          f"{len(expect(client.get(f'/api/reviews?status={review['status']}', headers=headers), 200, 'filter'))}")
+    print(
+        f"  {len(listed)} review(s); ?status={review['status']} -> "
+        f"{len(expect(client.get(f'/api/reviews?status={review["status"]}', headers=headers), 200, 'filter'))}"
+    )
 
     step("fetch the review")
-    fetched = expect(client.get(f"/api/reviews/{review['id']}", headers=headers), 200, "GET /api/reviews/{id}")
+    fetched = expect(
+        client.get(f"/api/reviews/{review['id']}", headers=headers), 200, "GET /api/reviews/{id}"
+    )
     if fetched != listed[0]:
         fail("GET /api/reviews/{id} differs from the list entry")
-    print(f"  brand_name={fetched['brand_name']!r} title={fetched['title']!r} version={fetched['version_number']}")
+    print(
+        f"  brand_name={fetched['brand_name']!r} title={fetched['title']!r} version={fetched['version_number']}"
+    )
 
     step("brand dashboard + analytics")
     [brand] = expect(client.get("/api/brands", headers=headers), 200, "GET /api/brands")
-    print(f"  review_count={brand['review_count']} open_review_count={brand['open_review_count']} "
-          f"last_review_at={brand['last_review_at']}")
-    risk = expect(client.get(f"/api/analytics/brand-risk?brand_id={brand_id}", headers=headers), 200, "brand-risk")
+    print(
+        f"  review_count={brand['review_count']} open_review_count={brand['open_review_count']} "
+        f"last_review_at={brand['last_review_at']}"
+    )
+    risk = expect(
+        client.get(f"/api/analytics/brand-risk?brand_id={brand_id}", headers=headers),
+        200,
+        "brand-risk",
+    )
     if set(risk) != RISK_KEYS:
         fail(f"brand-risk keys {sorted(risk)}")
     print(f"  {risk}")
@@ -121,13 +179,26 @@ def main() -> None:
 
     if review["status"] in ("completed", "needs_human_review"):
         step("approve (ready to publish) + history")
-        event = expect(client.post(f"/api/content-versions/{review['content_version_id']}/approve", headers=headers),
-                       201, "approve")
-        history = expect(client.get(f"/api/content/{review['content_item_id']}/history", headers=headers), 200, "history")
-        print(f"  {event['action']}; history decisions={[d['action'] for v in history['versions'] for d in v['decisions']]}")
+        event = expect(
+            client.post(
+                f"/api/content-versions/{review['content_version_id']}/approve", headers=headers
+            ),
+            201,
+            "approve",
+        )
+        history = expect(
+            client.get(f"/api/content/{review['content_item_id']}/history", headers=headers),
+            200,
+            "history",
+        )
+        print(
+            f"  {event['action']}; history decisions={[d['action'] for v in history['versions'] for d in v['decisions']]}"
+        )
     else:
-        print(f"\n  review status {review['status']!r} is not decidable (error: {review['error_summary']!r}); "
-              "skipped approve. Retry if this was a provider hiccup.")
+        print(
+            f"\n  review status {review['status']!r} is not decidable (error: {review['error_summary']!r}); "
+            "skipped approve. Retry if this was a provider hiccup."
+        )
 
     print("\nSMOKE TEST PASSED" + (" (stub mode)" if stub else ""))
 

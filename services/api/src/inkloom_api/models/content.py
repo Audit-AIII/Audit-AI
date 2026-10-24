@@ -24,7 +24,10 @@ class ContentItem(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     organisation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organisations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     # Phase 6: which brand's sources every version of this content is checked against. Set once
     # at creation (routers/reviews.py); nullable only because rows from before this column
@@ -37,7 +40,9 @@ class ContentItem(Base):
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()
 
-    versions: Mapped[list["ContentVersion"]] = relationship(back_populates="content_item", passive_deletes=True)
+    versions: Mapped[list["ContentVersion"]] = relationship(
+        back_populates="content_item", passive_deletes=True
+    )
     # Read-only: lets ReviewOut.from_model show the brand's name without another query.
     brand_profile: Mapped["BrandProfile | None"] = relationship("BrandProfile", viewonly=True)
 
@@ -52,13 +57,20 @@ class ContentVersion(Base):
         UniqueConstraint("content_item_id", "version_number", name="uq_content_version_number"),
         # Exactly one current version per content item (migration 0003). Declared here too so the
         # models match the migrations (`alembic check`).
-        Index("uq_content_versions_one_current_per_item", "content_item_id", unique=True,
-              postgresql_where=sql_text("is_current")),
+        Index(
+            "uq_content_versions_one_current_per_item",
+            "content_item_id",
+            unique=True,
+            postgresql_where=sql_text("is_current"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     content_item_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("content_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
@@ -69,7 +81,9 @@ class ContentVersion(Base):
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Intent-lock: exact must-keep phrases (validated by inkloom_verify.intent_lock.validate_locks).
     # No suggestion that would remove one is ever offered (intent_lock_guard.py).
-    locked_phrases: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+    locked_phrases: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = created_at_column()
 

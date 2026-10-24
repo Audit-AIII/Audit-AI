@@ -38,14 +38,20 @@ def _assert_same_404(response, random_response) -> None:
 def _counts(db_session, a, b) -> dict:
     db_session.expire_all()
     return {
-        "items": db_session.query(ContentItem).filter(
-            ContentItem.organisation_id.in_([uuid.UUID(a.organisation_id), uuid.UUID(b.organisation_id)])
-        ).count(),
+        "items": db_session.query(ContentItem)
+        .filter(
+            ContentItem.organisation_id.in_(
+                [uuid.UUID(a.organisation_id), uuid.UUID(b.organisation_id)]
+            )
+        )
+        .count(),
         "approvals": db_session.query(ApprovalEvent).count(),
-        "sources": db_session.query(BrandSource).filter(
-            BrandSource.brand_profile_id.in_([uuid.UUID(a.brand_id), uuid.UUID(b.brand_id)])
-        ).count(),
-        "b_audit": db_session.query(AuditEvent).filter_by(organisation_id=uuid.UUID(b.organisation_id)).count(),
+        "sources": db_session.query(BrandSource)
+        .filter(BrandSource.brand_profile_id.in_([uuid.UUID(a.brand_id), uuid.UUID(b.brand_id)]))
+        .count(),
+        "b_audit": db_session.query(AuditEvent)
+        .filter_by(organisation_id=uuid.UUID(b.organisation_id))
+        .count(),
     }
 
 
@@ -73,24 +79,37 @@ def test_b_cannot_list_or_read_a(client, force_stub_mode, account_factory) -> No
 
 
 @requires_db
-def test_b_cannot_review_against_a_brand(client, force_stub_mode, db_session, account_factory) -> None:
+def test_b_cannot_review_against_a_brand(
+    client, force_stub_mode, db_session, account_factory
+) -> None:
     a, b = account_factory("a"), account_factory("b")
     before = _counts(db_session, a, b)
     rnd = str(uuid.uuid4())
 
     _assert_same_404(
-        client.post("/api/reviews", json={"brand_id": a.brand_id, "text": "Probe."}, headers=b.headers),
+        client.post(
+            "/api/reviews", json={"brand_id": a.brand_id, "text": "Probe."}, headers=b.headers
+        ),
         client.post("/api/reviews", json={"brand_id": rnd, "text": "Probe."}, headers=b.headers),
     )
     _assert_same_404(
-        client.post("/api/reviews/upload", data={"brand_id": a.brand_id}, files=_file("Probe."), headers=b.headers),
-        client.post("/api/reviews/upload", data={"brand_id": rnd}, files=_file("Probe."), headers=b.headers),
+        client.post(
+            "/api/reviews/upload",
+            data={"brand_id": a.brand_id},
+            files=_file("Probe."),
+            headers=b.headers,
+        ),
+        client.post(
+            "/api/reviews/upload", data={"brand_id": rnd}, files=_file("Probe."), headers=b.headers
+        ),
     )
     assert _counts(db_session, a, b) == before  # nothing created in either account
 
 
 @requires_db
-def test_b_cannot_decide_or_edit_a_content(client, force_stub_mode, db_session, account_factory) -> None:
+def test_b_cannot_decide_or_edit_a_content(
+    client, force_stub_mode, db_session, account_factory
+) -> None:
     a, b = account_factory("a"), account_factory("b")
     review = a.submit()
     cv, item = review["content_version_id"], review["content_item_id"]
@@ -111,7 +130,9 @@ def test_b_cannot_decide_or_edit_a_content(client, force_stub_mode, db_session, 
         client.post(f"/api/reviews/{rnd}/rerun", headers=b.headers),
     )
     _assert_same_404(
-        client.post(f"/api/content/{item}/versions", json={"text": "Overwrite."}, headers=b.headers),
+        client.post(
+            f"/api/content/{item}/versions", json={"text": "Overwrite."}, headers=b.headers
+        ),
         client.post(f"/api/content/{rnd}/versions", json={"text": "Overwrite."}, headers=b.headers),
     )
 
@@ -129,8 +150,18 @@ def test_b_cannot_upload_or_change_a_sources(client, db_session, account_factory
     before = _counts(db_session, a, b)
 
     _assert_same_404(
-        client.post(f"/api/brands/{a.brand_id}/sources", data={"title": "x", "approve": "true"}, files=_file(), headers=b.headers),
-        client.post(f"/api/brands/{rnd}/sources", data={"title": "x", "approve": "true"}, files=_file(), headers=b.headers),
+        client.post(
+            f"/api/brands/{a.brand_id}/sources",
+            data={"title": "x", "approve": "true"},
+            files=_file(),
+            headers=b.headers,
+        ),
+        client.post(
+            f"/api/brands/{rnd}/sources",
+            data={"title": "x", "approve": "true"},
+            files=_file(),
+            headers=b.headers,
+        ),
     )
     _assert_same_404(
         client.post(f"/api/brands/{a.brand_id}/sources/{a.source_id}/approve", headers=b.headers),
@@ -138,17 +169,31 @@ def test_b_cannot_upload_or_change_a_sources(client, db_session, account_factory
     )
     withdraw = {"status": "archived", "reason": "probe"}
     _assert_same_404(
-        client.post(f"/api/brands/{a.brand_id}/sources/{a.source_id}/withdraw", json=withdraw, headers=b.headers),
+        client.post(
+            f"/api/brands/{a.brand_id}/sources/{a.source_id}/withdraw",
+            json=withdraw,
+            headers=b.headers,
+        ),
         client.post(f"/api/brands/{rnd}/sources/{rnd}/withdraw", json=withdraw, headers=b.headers),
     )
     _assert_same_404(
-        client.post(f"/api/brands/{a.brand_id}/sources/{a.source_id}/versions", files=_file(), headers=b.headers),
+        client.post(
+            f"/api/brands/{a.brand_id}/sources/{a.source_id}/versions",
+            files=_file(),
+            headers=b.headers,
+        ),
         client.post(f"/api/brands/{rnd}/sources/{rnd}/versions", files=_file(), headers=b.headers),
     )
     # B's own brand id with A's source id: the source must not resolve through a brand B owns.
     _assert_same_404(
-        client.post(f"/api/brands/{b.brand_id}/sources/{a.source_id}/withdraw", json=withdraw, headers=b.headers),
-        client.post(f"/api/brands/{b.brand_id}/sources/{rnd}/withdraw", json=withdraw, headers=b.headers),
+        client.post(
+            f"/api/brands/{b.brand_id}/sources/{a.source_id}/withdraw",
+            json=withdraw,
+            headers=b.headers,
+        ),
+        client.post(
+            f"/api/brands/{b.brand_id}/sources/{rnd}/withdraw", json=withdraw, headers=b.headers
+        ),
     )
 
     assert _counts(db_session, a, b) == before

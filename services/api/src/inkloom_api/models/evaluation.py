@@ -16,7 +16,9 @@ from .base import Base, created_at_column, uuid_pk
 class EvaluationRun(Base):
     __tablename__ = "evaluation_runs"
     __table_args__ = (
-        CheckConstraint(f"status IN {tuple(values(EvaluationRunStatus))}", name="ck_evaluation_run_status"),
+        CheckConstraint(
+            f"status IN {tuple(values(EvaluationRunStatus))}", name="ck_evaluation_run_status"
+        ),
         CheckConstraint("sample_size >= 0", name="ck_evaluation_run_sample_size"),
         Index("ix_evaluation_runs_organisation_ran_at", "organisation_id", "ran_at"),
     )

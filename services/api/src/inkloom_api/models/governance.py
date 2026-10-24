@@ -26,9 +26,14 @@ class ApprovalEvent(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     content_version_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("content_versions.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("content_versions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    review_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("reviews.id"))
+    review_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("reviews.id")
+    )
     action: Mapped[str] = mapped_column(String(30), nullable=False)
     actor_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
@@ -44,9 +49,14 @@ class AuditEvent(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     organisation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("organisations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
     event_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_id: Mapped[str] = mapped_column(String(128), nullable=False)

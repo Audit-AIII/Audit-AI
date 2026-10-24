@@ -33,7 +33,8 @@ def validated_key(key: str | None) -> str | None:
     """The header value, or a 422 if it isn't 1-200 visible ASCII characters."""
     if key is not None and not _KEY_PATTERN.fullmatch(key):
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "Idempotency-Key must be 1-200 visible ASCII characters"
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Idempotency-Key must be 1-200 visible ASCII characters",
         )
     return key
 
@@ -62,7 +63,9 @@ def find_replay(
     return existing.response_body
 
 
-def claim(db: Session, organisation_id: uuid.UUID, endpoint: str, key: str, request_hash: str) -> dict | None:
+def claim(
+    db: Session, organisation_id: uuid.UUID, endpoint: str, key: str, request_hash: str
+) -> dict | None:
     """Reserves the key in the caller's transaction. Returns a stored response to replay instead
     if a request with this key already completed - including one that finished while this one
     waited for it."""
@@ -71,17 +74,27 @@ def claim(db: Session, organisation_id: uuid.UUID, endpoint: str, key: str, requ
         return replay
     try:
         with db.begin_nested():
-            db.add(IdempotencyKey(organisation_id=organisation_id, endpoint=endpoint, key=key, request_hash=request_hash))
+            db.add(
+                IdempotencyKey(
+                    organisation_id=organisation_id,
+                    endpoint=endpoint,
+                    key=key,
+                    request_hash=request_hash,
+                )
+            )
     except IntegrityError:
         # A concurrent request with the same key committed first while this insert waited.
         replay = find_replay(db, organisation_id, endpoint, key, request_hash)
         if replay is not None:
             return replay
-        raise HTTPException(status.HTTP_409_CONFLICT, "a request with this Idempotency-Key is still being processed") from None
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "a request with this Idempotency-Key is still being processed"
+        ) from None
     except OperationalError:
         # The statement timeout fired while waiting for a concurrent request with the same key.
         raise HTTPException(
-            status.HTTP_409_CONFLICT, "a request with this Idempotency-Key is still being processed; retry shortly"
+            status.HTTP_409_CONFLICT,
+            "a request with this Idempotency-Key is still being processed; retry shortly",
         ) from None
     return None
 
@@ -95,6 +108,10 @@ def complete(
     response_body: dict,
 ) -> None:
     """Stores the response on the key `claim` reserved; committed with the work itself."""
-    row = db.query(IdempotencyKey).filter_by(organisation_id=organisation_id, endpoint=endpoint, key=key).one()
+    row = (
+        db.query(IdempotencyKey)
+        .filter_by(organisation_id=organisation_id, endpoint=endpoint, key=key)
+        .one()
+    )
     row.response_status = response_status
     row.response_body = response_body

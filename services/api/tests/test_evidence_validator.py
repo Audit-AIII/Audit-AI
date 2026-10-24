@@ -21,7 +21,11 @@ import pytest
 from inkloom_verify.schemas import Citation, ReferenceDocument, SourceSpan
 
 from inkloom_api.engine.corpus import CorpusEntry
-from inkloom_api.engine.evidence_validator import EvidenceIntegrityError, IntegrityErrorCode, validate_citation
+from inkloom_api.engine.evidence_validator import (
+    EvidenceIntegrityError,
+    IntegrityErrorCode,
+    validate_citation,
+)
 
 SOURCE_TEXT = "Body: 18/8 stainless steel with 70% recycled content."
 _QUOTE = "70% recycled content"
@@ -41,7 +45,9 @@ def _entry(doc_id: str, text: str = SOURCE_TEXT) -> CorpusEntry:
     )
 
 
-def _citation(entry: CorpusEntry, start: int, end: int, quote: str, passage_id: str = "psg_test_0001") -> Citation:
+def _citation(
+    entry: CorpusEntry, start: int, end: int, quote: str, passage_id: str = "psg_test_0001"
+) -> Citation:
     return Citation(
         doc_id=entry.document.doc_id,
         doc_text_sha256=entry.document.text_sha256,

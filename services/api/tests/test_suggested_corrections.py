@@ -29,10 +29,19 @@ from inkloom_api.engine.scripted_provider import SCRIPTED_MODEL_ID, ScriptedRule
 from inkloom_api.models import ExternalCallLog
 
 CLAIM = "Lumen Pods offer up to 24 hours of playback per charge."
-CONTRADICTED = ScriptedRule("24 hours of playback per charge", "CONTRADICTED", "up to 12 hours of playback per charge",
-                            "The fact sheet gives 12 hours.", correction=("24 hours", "12 hours"))
-SUPPORTED_12 = ScriptedRule("12 hours of playback per charge", "SUPPORTED", "up to 12 hours of playback per charge",
-                            "The fact sheet states 12 hours.")
+CONTRADICTED = ScriptedRule(
+    "24 hours of playback per charge",
+    "CONTRADICTED",
+    "up to 12 hours of playback per charge",
+    "The fact sheet gives 12 hours.",
+    correction=("24 hours", "12 hours"),
+)
+SUPPORTED_12 = ScriptedRule(
+    "12 hours of playback per charge",
+    "SUPPORTED",
+    "up to 12 hours of playback per charge",
+    "The fact sheet states 12 hours.",
+)
 
 
 def _calls(db_session, review_id: str) -> list[ExternalCallLog]:
@@ -54,7 +63,9 @@ def test_contradicted_claim_gets_claim_level_suggestion_and_calls_are_logged(
     review = owner.submit(CLAIM)
     finding = _only_finding(review)
     assert finding["verification_status"] == "contradicted"
-    assert finding["suggested_correction"] == "Lumen Pods offer up to 12 hours of playback per charge."
+    assert (
+        finding["suggested_correction"] == "Lumen Pods offer up to 12 hours of playback per charge."
+    )
     # The UI does draft.replace(original_text, suggested_correction): that must give a sentence.
     assert review["text"].replace(finding["original_text"], finding["suggested_correction"]) == (
         "Lumen Pods offer up to 12 hours of playback per charge."
@@ -68,15 +79,25 @@ def test_contradicted_claim_gets_claim_level_suggestion_and_calls_are_logged(
 
 @requires_db
 def test_proposal_with_unsupported_number_is_dropped(client, monkeypatch, account_factory) -> None:
-    bad = ScriptedRule(CONTRADICTED.match, "CONTRADICTED", CONTRADICTED.evidence, "x", correction=("24 hours", "18 hours"))
-    use_scripted_provider(monkeypatch, [bad, ScriptedRule("18 hours", "SUPPORTED", CONTRADICTED.evidence)])
+    bad = ScriptedRule(
+        CONTRADICTED.match,
+        "CONTRADICTED",
+        CONTRADICTED.evidence,
+        "x",
+        correction=("24 hours", "18 hours"),
+    )
+    use_scripted_provider(
+        monkeypatch, [bad, ScriptedRule("18 hours", "SUPPORTED", CONTRADICTED.evidence)]
+    )
     finding = _only_finding(account_factory("owner").submit(CLAIM))
     assert finding["verification_status"] == "contradicted"  # the verdict stands
     assert finding["suggested_correction"] is None  # "18" is in no cited quote
 
 
 @requires_db
-def test_proposal_that_fails_recheck_is_dropped(client, monkeypatch, db_session, account_factory) -> None:
+def test_proposal_that_fails_recheck_is_dropped(
+    client, monkeypatch, db_session, account_factory
+) -> None:
     use_scripted_provider(monkeypatch, [CONTRADICTED])  # no rule supports the corrected claim
     review = account_factory("owner").submit(CLAIM)
     assert _only_finding(review)["suggested_correction"] is None
@@ -84,7 +105,9 @@ def test_proposal_that_fails_recheck_is_dropped(client, monkeypatch, db_session,
 
 
 @requires_db
-def test_correction_provider_failure_keeps_verdict(client, monkeypatch, db_session, account_factory) -> None:
+def test_correction_provider_failure_keeps_verdict(
+    client, monkeypatch, db_session, account_factory
+) -> None:
     from inkloom_api.engine import pipeline
     from inkloom_api.engine.providers.fallback import FallbackProvider
 
@@ -96,9 +119,11 @@ def test_correction_provider_failure_keeps_verdict(client, monkeypatch, db_sessi
         return scripted(request)
 
     monkeypatch.setattr(
-        pipeline, "build_provider",
+        pipeline,
+        "build_provider",
         lambda confidential=False, on_attempt=None: FallbackProvider(
-            [("scripted", lambda: ResponderProvider(respond, model=SCRIPTED_MODEL_ID))], on_attempt=on_attempt
+            [("scripted", lambda: ResponderProvider(respond, model=SCRIPTED_MODEL_ID))],
+            on_attempt=on_attempt,
         ),
     )
     review = account_factory("owner").submit(CLAIM)
@@ -111,7 +136,9 @@ def test_correction_provider_failure_keeps_verdict(client, monkeypatch, db_sessi
 
 
 @requires_db
-def test_backend_validation_downgrade_drops_correction(client, monkeypatch, account_factory) -> None:
+def test_backend_validation_downgrade_drops_correction(
+    client, monkeypatch, account_factory
+) -> None:
     from inkloom_api.engine import pipeline
     from inkloom_api.engine.evidence_validator import EvidenceIntegrityError, IntegrityErrorCode
 
@@ -129,8 +156,12 @@ def test_backend_validation_downgrade_drops_correction(client, monkeypatch, acco
 
 
 @requires_db
-def test_no_correction_call_for_supported_or_unverified(client, monkeypatch, db_session, account_factory) -> None:
-    use_scripted_provider(monkeypatch, [SUPPORTED_12, ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE")])
+def test_no_correction_call_for_supported_or_unverified(
+    client, monkeypatch, db_session, account_factory
+) -> None:
+    use_scripted_provider(
+        monkeypatch, [SUPPORTED_12, ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE")]
+    )
     review = account_factory("owner").submit(
         "Lumen Pods offer up to 12 hours of playback per charge. Lumen Pods are India's number one earbuds."
     )

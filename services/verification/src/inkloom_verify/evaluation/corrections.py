@@ -76,7 +76,9 @@ class CorrectionCase(_Model):
                 raise ValueError(f"evidence quote does not match {gold.doc_id}")
         for candidate in self.candidates:
             if candidate.original_text not in self.sentence:
-                raise ValueError(f"candidate original_text not in sentence: {candidate.original_text!r}")
+                raise ValueError(
+                    f"candidate original_text not in sentence: {candidate.original_text!r}"
+                )
         return self
 
 
@@ -89,7 +91,9 @@ def load_cases(path: Path) -> list[CorrectionCase]:
             cases.append(CorrectionCase.model_validate_json(line))
         except ValidationError as error:
             first = error.errors()[0]
-            raise ValueError(f"{path}:{number}: {'.'.join(map(str, first['loc']))}: {first['msg']}") from None
+            raise ValueError(
+                f"{path}:{number}: {'.'.join(map(str, first['loc']))}: {first['msg']}"
+            ) from None
     if len({c.case_id for c in cases}) != len(cases):
         raise ValueError(f"{path}: duplicate case_id")
     return cases
@@ -127,8 +131,14 @@ def check_candidates(cases: Sequence[CorrectionCase]) -> CheckerReport:
         quotes = [g.quote for g in case.evidence]
         for candidate in case.candidates:
             at = case.sentence.find(candidate.original_text)
-            before, after = (case.sentence[:at], case.sentence[at + len(candidate.original_text):]) if at >= 0 else ("", "")
-            issues = correction_issues(candidate.original_text, candidate.replacement_text, quotes, before, after)
+            before, after = (
+                (case.sentence[:at], case.sentence[at + len(candidate.original_text) :])
+                if at >= 0
+                else ("", "")
+            )
+            issues = correction_issues(
+                candidate.original_text, candidate.replacement_text, quotes, before, after
+            )
             outcomes.append(
                 CandidateOutcome(
                     case_id=case.case_id,
@@ -165,19 +175,38 @@ def contradicted_result(case: CorrectionCase) -> tuple[ClaimResult, InputContent
     for order, document in enumerate(case.references):
         for p in chunk_document(document, ChunkingConfig(), doc_order=order):
             for gold in case.evidence:
-                if p.doc_id == gold.doc_id and p.span.contains(gold.span) and p.passage_id not in passages:
+                if (
+                    p.doc_id == gold.doc_id
+                    and p.span.contains(gold.span)
+                    and p.passage_id not in passages
+                ):
                     passages[p.passage_id] = EvidencePassage(
-                        passage_id=p.passage_id, doc_id=p.doc_id, doc_text_sha256=p.doc_text_sha256,
-                        span=p.span, text=p.text, retrieval={"method": "bm25", "score": 1.0, "rank": len(passages) + 1},
+                        passage_id=p.passage_id,
+                        doc_id=p.doc_id,
+                        doc_text_sha256=p.doc_text_sha256,
+                        span=p.span,
+                        text=p.text,
+                        retrieval={"method": "bm25", "score": 1.0, "rank": len(passages) + 1},
                     )
     for gold in case.evidence:
-        passage = next(p for p in passages.values() if p.doc_id == gold.doc_id and p.span.contains(gold.span))
+        passage = next(
+            p for p in passages.values() if p.doc_id == gold.doc_id and p.span.contains(gold.span)
+        )
         citations.append(
-            Citation(doc_id=gold.doc_id, doc_text_sha256=passage.doc_text_sha256, passage_id=passage.passage_id,
-                     quote=gold.quote, quote_span=gold.span)
+            Citation(
+                doc_id=gold.doc_id,
+                doc_text_sha256=passage.doc_text_sha256,
+                passage_id=passage.passage_id,
+                quote=gold.quote,
+                quote_span=gold.span,
+            )
         )
     result = ClaimResult(
-        claim={"claim_id": "clm_0001", "text": case.sentence, "source_span": SourceSpan(start=0, end=len(case.sentence))},
+        claim={
+            "claim_id": "clm_0001",
+            "text": case.sentence,
+            "source_span": SourceSpan(start=0, end=len(case.sentence)),
+        },
         verdict=Verdict.CONTRADICTED,
         evidence=list(passages.values()),
         citations=citations,
@@ -205,27 +234,43 @@ class LiveReport(_Model):
     outcomes: list[LiveCaseOutcome]
 
 
-def run_live(cases: Sequence[CorrectionCase], provider, correction_prompt: str | None = None,
-             verifier_prompt: str | None = None) -> LiveReport:
+def run_live(
+    cases: Sequence[CorrectionCase],
+    provider,
+    correction_prompt: str | None = None,
+    verifier_prompt: str | None = None,
+) -> LiveReport:
     """The live corrector (and its re-check) on every case; prompt versions default to the components' own."""
     from inkloom_verify.correction import ClaimCorrector, CorrectionConfig, edit_distance, words
     from inkloom_verify.schemas import CorrectionStatus
     from inkloom_verify.verification import ClaimVerifier, VerificationConfig
 
-    correction_config = CorrectionConfig(prompt_version=correction_prompt) if correction_prompt else None
-    verification_config = VerificationConfig(prompt_version=verifier_prompt) if verifier_prompt else None
+    correction_config = (
+        CorrectionConfig(prompt_version=correction_prompt) if correction_prompt else None
+    )
+    verification_config = (
+        VerificationConfig(prompt_version=verifier_prompt) if verifier_prompt else None
+    )
 
     outcomes = []
     for case in cases:
         result, content = contradicted_result(case)
-        corrector = ClaimCorrector(provider, ClaimVerifier(provider, case.references, verification_config), correction_config)
+        corrector = ClaimCorrector(
+            provider,
+            ClaimVerifier(provider, case.references, verification_config),
+            correction_config,
+        )
         attempt_result = corrector.correct(result, content)
         attempt = attempt_result.correction_attempt
         assert attempt is not None
         corrected, edits = None, None
         if attempt_result.correction is not None:
             c = attempt_result.correction
-            corrected = case.sentence[: c.target_span.start] + c.replacement_text + case.sentence[c.target_span.end :]
+            corrected = (
+                case.sentence[: c.target_span.start]
+                + c.replacement_text
+                + case.sentence[c.target_span.end :]
+            )
             edits = edit_distance(words(c.original_text), words(c.replacement_text))
         normalized = " ".join(corrected.split()) if corrected else None
         outcomes.append(
@@ -234,9 +279,11 @@ def run_live(cases: Sequence[CorrectionCase], provider, correction_prompt: str |
                 expected_outcome=case.expected_outcome,
                 status=attempt.status.value,
                 corrected_sentence=corrected,
-                matches_reference=normalized is not None and normalized in {" ".join(r.split()) for r in case.reference_corrections},
+                matches_reference=normalized is not None
+                and normalized in {" ".join(r.split()) for r in case.reference_corrections},
                 word_edits=edits,
-                issues=[i.code.value for i in attempt.issues] + ([attempt.error.code.value] if attempt.error else []),
+                issues=[i.code.value for i in attempt.issues]
+                + ([attempt.error.code.value] if attempt.error else []),
             )
         )
     correctable = [o for o in outcomes if o.expected_outcome == "correctable"]
@@ -245,7 +292,9 @@ def run_live(cases: Sequence[CorrectionCase], provider, correction_prompt: str |
     edits = [o.word_edits for o in proposals if o.word_edits is not None]
     return LiveReport(
         cases=len(outcomes),
-        proposed_when_correctable=ratio(sum(o.status == "proposed" for o in correctable), len(correctable)),
+        proposed_when_correctable=ratio(
+            sum(o.status == "proposed" for o in correctable), len(correctable)
+        ),
         declined_when_needs_review=ratio(sum(o.status != "proposed" for o in review), len(review)),
         reference_match=ratio(sum(o.matches_reference for o in proposals), len(proposals)),
         failed=sum(o.status == CorrectionStatus.FAILED.value for o in outcomes),
@@ -257,7 +306,9 @@ def run_live(cases: Sequence[CorrectionCase], provider, correction_prompt: str |
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m inkloom_verify.evaluation.corrections")
     parser.add_argument("--cases", type=Path, required=True)
-    parser.add_argument("--verifier", choices=["openrouter"], help="also run the engine live on every case")
+    parser.add_argument(
+        "--verifier", choices=["openrouter"], help="also run the engine live on every case"
+    )
     parser.add_argument("--out", type=Path, help="write the JSON report here")
     args = parser.parse_args(argv)
     try:
@@ -271,7 +322,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 2
     checker = report["checker"]
-    print(f"Candidates {checker['candidates']} ({checker['expected_accept']} good, {checker['expected_reject']} bad)")
+    print(
+        f"Candidates {checker['candidates']} ({checker['expected_accept']} good, {checker['expected_reject']} bad)"
+    )
     for key in ("correctly_accepted", "correctly_rejected"):
         r = checker[key]
         value = "n/a" if r["value"] is None else f"{r['value']:.1%}"
@@ -279,13 +332,17 @@ def main(argv: list[str] | None = None) -> int:
     for key in ("false_accepts", "false_rejects"):
         print(f"  {key}: {len(checker[key])}")
         for o in checker[key]:
-            print(f"    {o['case_id']}: {o['original_text']!r} -> {o['replacement_text']!r}  [{o['note']}]")
+            print(
+                f"    {o['case_id']}: {o['original_text']!r} -> {o['replacement_text']!r}  [{o['note']}]"
+            )
     print(f"  rejection codes: {checker['rejection_codes']}")
     if "live" in report:
         print(json.dumps({k: v for k, v in report["live"].items() if k != "outcomes"}, indent=2))
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        args.out.write_text(
+            json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
     return 0
 
 

@@ -38,8 +38,20 @@ from inkloom_verify.extraction import describe_validation_error, locate
 from inkloom_verify.intent_lock import check_replacement, validate_locks
 from inkloom_verify.prompts import softening as prompt
 from inkloom_verify.prompts.loader import load_prompt
-from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
-from inkloom_verify.schemas import ClaimResult, InputContent, SaferWording, SourceSpan, Verdict, numbers_in
+from inkloom_verify.providers.base import (
+    JsonCompletionRequest,
+    LLMProvider,
+    MalformedOutputError,
+    ProviderError,
+)
+from inkloom_verify.schemas import (
+    ClaimResult,
+    InputContent,
+    SaferWording,
+    SourceSpan,
+    Verdict,
+    numbers_in,
+)
 from inkloom_verify.security import has_hidden_characters, instruction_like
 
 logger = logging.getLogger(__name__)
@@ -47,11 +59,46 @@ logger = logging.getLogger(__name__)
 # Unproven rankings and superlatives (rule 3). Includes every term of the backend's guard. Kept
 # broad on purpose: a false refusal only means no suggestion is shown.
 RANKING_TERMS = (
-    "number one", "number 1", "no. 1", "no.1", "no 1", "#1", "best", "better", "leading", "fastest",
-    "only", "top", "largest", "biggest", "cheapest", "most", "first", "greatest", "strongest",
-    "ultimate", "unbeatable", "unmatched", "unrivalled", "unrivaled", "world-class", "best-selling",
-    "industry-leading", "market-leading", "finest", "highest", "lowest", "smartest", "safest",
-    "superior", "unique", "unparalleled", "favourite", "favorite", "premier", "foremost",
+    "number one",
+    "number 1",
+    "no. 1",
+    "no.1",
+    "no 1",
+    "#1",
+    "best",
+    "better",
+    "leading",
+    "fastest",
+    "only",
+    "top",
+    "largest",
+    "biggest",
+    "cheapest",
+    "most",
+    "first",
+    "greatest",
+    "strongest",
+    "ultimate",
+    "unbeatable",
+    "unmatched",
+    "unrivalled",
+    "unrivaled",
+    "world-class",
+    "best-selling",
+    "industry-leading",
+    "market-leading",
+    "finest",
+    "highest",
+    "lowest",
+    "smartest",
+    "safest",
+    "superior",
+    "unique",
+    "unparalleled",
+    "favourite",
+    "favorite",
+    "premier",
+    "foremost",
 )
 # Words a softened wording may add (rule 1). Grammatical words, plus hedges and plain
 # descriptions that state no new fact. Deliberately short; product owners may tighten it.
@@ -61,8 +108,18 @@ SOFTENING_WORDS = NEUTRAL_WORDS | frozenset(
     "can may could help helps designed made intended aims aim offered offers sold available".split()
 )
 _MONTHS = (
-    "january", "february", "march", "april", "may", "june", "july", "august", "september",
-    "october", "november", "december",
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
 )
 _CURRENCY = re.compile(r"[€$£¥₹%]")
 _CAPITALISED = re.compile(r"\b([A-Z][\w-]*)")
@@ -120,7 +177,9 @@ def softening_issues(sentence: str, rewritten: str, original: str, replacement: 
         issues.append("adds_currency")
     if _months(rewritten) - _months(sentence):
         issues.append("adds_date")
-    added_names = sorted(names_in(rewritten) - names_in(sentence) - {w.capitalize() for w in words(sentence)})
+    added_names = sorted(
+        names_in(rewritten) - names_in(sentence) - {w.capitalize() for w in words(sentence)}
+    )
     if added_names:
         issues.append("adds_names:" + ",".join(added_names))
     added_words = sorted(set(words(replacement)) - set(words(original)) - SOFTENING_WORDS)
@@ -175,12 +234,18 @@ class ClaimSoftener:
     def __init__(self, provider: LLMProvider, config: SofteningConfig | None = None) -> None:
         self.provider = provider
         self.config = config or SofteningConfig()
-        self.prompt = load_prompt("softening", self.config.prompt_version)  # fails clearly if missing
+        self.prompt = load_prompt(
+            "softening", self.config.prompt_version
+        )  # fails clearly if missing
         self.prompt_sent = False
         self.models_used: set[str] = set()
-        self.last_issues: list[str] = []  # why the last proposal was refused (codes only; for logs and tests)
+        self.last_issues: list[
+            str
+        ] = []  # why the last proposal was refused (codes only; for logs and tests)
 
-    def soften(self, result: ClaimResult, content: InputContent, locked_phrases: Sequence[str] = ()) -> SoftenedWording | None:
+    def soften(
+        self, result: ClaimResult, content: InputContent, locked_phrases: Sequence[str] = ()
+    ) -> SoftenedWording | None:
         """For a NOT_ENOUGH_EVIDENCE result only (anything else -> None, no model call).
         Returns None when the model declines or any check fails, including Intent-lock: a wording
         that would remove a ``locked_phrases`` entry is refused (``last_issues`` = intent_lock)."""
@@ -217,19 +282,29 @@ class ClaimSoftener:
         if located is None:
             self.last_issues = ["target_not_found"]
             return None
-        target = SourceSpan(start=claim.source_span.start + located[0], end=claim.source_span.start + located[1])
+        target = SourceSpan(
+            start=claim.source_span.start + located[0], end=claim.source_span.start + located[1]
+        )
         original = target.slice(content.text)
         replacement = output.replacement_text.strip()
         rewritten = sentence[: located[0]] + replacement + sentence[located[1] :]
         issues = softening_issues(sentence, rewritten, original, replacement)
-        if not issues and check_replacement(content.text, target.start, target.end, replacement, locks):
+        if not issues and check_replacement(
+            content.text, target.start, target.end, replacement, locks
+        ):
             issues = ["intent_lock"]
         if issues:
             self.last_issues = issues
-            logger.info("softening claim=%s refused: %s", claim.claim_id, ",".join(i.split(":")[0] for i in issues))
+            logger.info(
+                "softening claim=%s refused: %s",
+                claim.claim_id,
+                ",".join(i.split(":")[0] for i in issues),
+            )
             return None
         try:
-            wording = SoftenedWording(target_span=target, original_text=original, replacement_text=replacement)
+            wording = SoftenedWording(
+                target_span=target, original_text=original, replacement_text=replacement
+            )
         except ValidationError:
             self.last_issues = ["invalid_wording"]
             return None
@@ -247,7 +322,9 @@ class ClaimSoftener:
                 return _ModelOutput.model_validate(completion.data)
             except ValidationError as error:
                 problems = describe_validation_error(error)
-            current = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+            current = request.model_copy(
+                update={"user": prompt.repair_message(request.user, problems)}
+            )
         raise MalformedOutputError(
             f"Softening output did not match the schema after {self.config.max_repairs} repair attempt(s)."
         )

@@ -44,13 +44,17 @@ def seed_module(db_session):
 
 
 def _login(client, module, email: str) -> dict:
-    response = client.post("/api/auth/login", json={"email": email, "password": module.DEMO_PASSWORD})
+    response = client.post(
+        "/api/auth/login", json={"email": email, "password": module.DEMO_PASSWORD}
+    )
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 @requires_db
-def test_seed_creates_two_demo_accounts_covering_every_state(client, seed_module, db_session) -> None:
+def test_seed_creates_two_demo_accounts_covering_every_state(
+    client, seed_module, db_session
+) -> None:
     seed_module.seed()
     [asha, ben] = seed_module.DEMO_USERS
     accounts = {}
@@ -59,19 +63,34 @@ def test_seed_creates_two_demo_accounts_covering_every_state(client, seed_module
         me = client.get("/api/auth/me", headers=headers).json()
         assert me["role"] == "admin"  # account owner
         brands = client.get("/api/brands", headers=headers).json()
-        assert len(brands) == 2 and all("[SEEDED]" in b["name"] and b["approved_source_count"] >= 1 for b in brands)
+        assert len(brands) == 2 and all(
+            "[SEEDED]" in b["name"] and b["approved_source_count"] >= 1 for b in brands
+        )
         reviews = client.get("/api/reviews?limit=100", headers=headers).json()
         accounts[demo.email] = (headers, brands, reviews)
 
         statuses = {r["status"] for r in reviews}
-        assert {"completed", "needs_human_review", "approved", "changes_requested", "source_changed"} <= statuses
+        assert {
+            "completed",
+            "needs_human_review",
+            "approved",
+            "changes_requested",
+            "source_changed",
+        } <= statuses
         assert all(r["title"].startswith("[SEEDED]") for r in reviews)
-        assert {r["engine"]["model_id"] for r in reviews} == {"scripted/demo-v1"}  # never a real model
+        assert {r["engine"]["model_id"] for r in reviews} == {
+            "scripted/demo-v1"
+        }  # never a real model
 
         findings = [f for r in reviews for f in r["findings"]]
         number_one = [f for f in findings if "number one" in f["original_text"]]
-        assert number_one and all(f["verification_status"] == "unverified" and not f["evidence"] for f in number_one)
-        assert any(f["verification_status"] == "contradicted" and f["suggested_correction"] for f in findings)
+        assert number_one and all(
+            f["verification_status"] == "unverified" and not f["evidence"] for f in number_one
+        )
+        assert any(
+            f["verification_status"] == "contradicted" and f["suggested_correction"]
+            for f in findings
+        )
 
         item_ids = [r["content_item_id"] for r in reviews]
         multi = [i for i in set(item_ids) if item_ids.count(i) >= 2]
@@ -81,33 +100,53 @@ def test_seed_creates_two_demo_accounts_covering_every_state(client, seed_module
         assert history["versions"][0]["decisions"][0]["action"] == "changes_requested"
 
         withdrawn = [
-            s for b in brands for s in client.get(f"/api/brands/{b['id']}/sources", headers=headers).json()
+            s
+            for b in brands
+            for s in client.get(f"/api/brands/{b['id']}/sources", headers=headers).json()
             if s["status"] in ("superseded", "archived")
         ]
         assert len(withdrawn) == 1
 
-        risk = client.get(f"/api/analytics/brand-risk?brand_id={brands[0]['id']}", headers=headers).json()
+        risk = client.get(
+            f"/api/analytics/brand-risk?brand_id={brands[0]['id']}", headers=headers
+        ).json()
         assert risk["sample_size"] > 0 and risk["top_categories"]
-        assert risk["median_turnaround_minutes"] is not None  # seeded decisions have real timestamps
+        assert (
+            risk["median_turnaround_minutes"] is not None
+        )  # seeded decisions have real timestamps
 
     # Each demo user sees only their own data.
     asha_headers, asha_brands, asha_reviews = accounts[asha.email]
     ben_headers, ben_brands, _ = accounts[ben.email]
-    assert client.get(f"/api/reviews/{asha_reviews[0]['id']}", headers=ben_headers).status_code == 404
-    assert client.get(f"/api/reviews?brand_id={ben_brands[0]['id']}", headers=asha_headers).status_code == 404
+    assert (
+        client.get(f"/api/reviews/{asha_reviews[0]['id']}", headers=ben_headers).status_code == 404
+    )
+    assert (
+        client.get(f"/api/reviews?brand_id={ben_brands[0]['id']}", headers=asha_headers).status_code
+        == 404
+    )
 
 
 @requires_db
 def test_seed_is_idempotent_and_reset_reseeds(client, seed_module, db_session, capsys) -> None:
     seed_module.seed()
     [asha, _] = seed_module.DEMO_USERS
-    first_brand_ids = {b["id"] for b in client.get("/api/brands", headers=_login(client, seed_module, asha.email)).json()}
+    first_brand_ids = {
+        b["id"]
+        for b in client.get("/api/brands", headers=_login(client, seed_module, asha.email)).json()
+    }
 
     seed_module.seed()
     assert capsys.readouterr().out.count("already seeded - skipped") == 2
-    same = {b["id"] for b in client.get("/api/brands", headers=_login(client, seed_module, asha.email)).json()}
+    same = {
+        b["id"]
+        for b in client.get("/api/brands", headers=_login(client, seed_module, asha.email)).json()
+    }
     assert same == first_brand_ids
 
     seed_module.seed(reset=True)
-    fresh = {b["id"] for b in client.get("/api/brands", headers=_login(client, seed_module, asha.email)).json()}
+    fresh = {
+        b["id"]
+        for b in client.get("/api/brands", headers=_login(client, seed_module, asha.email)).json()
+    }
     assert len(fresh) == 2 and fresh.isdisjoint(first_brand_ids)

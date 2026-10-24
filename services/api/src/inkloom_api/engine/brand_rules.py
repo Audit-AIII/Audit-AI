@@ -46,7 +46,11 @@ class RulesOutcome:
 
 
 def apply_brand_rules(
-    db: Session, review: Review, content_version: ContentVersion, brand_rules: dict | None, corpus: list[CorpusEntry],
+    db: Session,
+    review: Review,
+    content_version: ContentVersion,
+    brand_rules: dict | None,
+    corpus: list[CorpusEntry],
     locks: list[str] = (),
 ) -> RulesOutcome:
     try:
@@ -60,23 +64,35 @@ def apply_brand_rules(
     except Exception as error:  # noqa: BLE001 - one failed check must not fail the review
         logger.error("review=%s rules failed unexpectedly: %s", review.id, type(error).__name__)
         review.rules_status = RulesStatus.NOT_APPLIED.value
-        return RulesOutcome(True, f"{NOT_APPLIED}: the rules check failed unexpectedly ({type(error).__name__}).")
+        return RulesOutcome(
+            True, f"{NOT_APPLIED}: the rules check failed unexpectedly ({type(error).__name__})."
+        )
 
     documents = {entry.document.doc_id: entry for entry in corpus}
     for finding in evaluation.findings:
         _write_rule_finding(db, review, finding, documents, content_version.text, locks)
     review.rule_checks = [check.model_dump(mode="json") for check in evaluation.checks]
-    review.rules_status = (RulesStatus.COMPLETE if evaluation.complete else RulesStatus.INCOMPLETE).value
+    review.rules_status = (
+        RulesStatus.COMPLETE if evaluation.complete else RulesStatus.INCOMPLETE
+    ).value
 
     notes = []
     if not evaluation.complete:
-        notes.append("Some brand rule checks could not run, so this draft is not shown as rule-clean.")
+        notes.append(
+            "Some brand rule checks could not run, so this draft is not shown as rule-clean."
+        )
     if evaluation.truncated:
-        notes.append(f"Only the first {len(evaluation.findings)} rule findings are listed; rule_checks has the full counts.")
-    return RulesOutcome(bool(evaluation.findings) or not evaluation.complete, " ".join(notes) or None)
+        notes.append(
+            f"Only the first {len(evaluation.findings)} rule findings are listed; rule_checks has the full counts."
+        )
+    return RulesOutcome(
+        bool(evaluation.findings) or not evaluation.complete, " ".join(notes) or None
+    )
 
 
-def _resolve(evidence: RuleEvidence, documents: dict[str, CorpusEntry]) -> tuple[CorpusEntry, SourceSpan] | None:
+def _resolve(
+    evidence: RuleEvidence, documents: dict[str, CorpusEntry]
+) -> tuple[CorpusEntry, SourceSpan] | None:
     entry = documents.get(evidence.source_id)
     start = entry.document.text.find(evidence.quote) if entry is not None else -1
     if start < 0:
@@ -85,15 +101,24 @@ def _resolve(evidence: RuleEvidence, documents: dict[str, CorpusEntry]) -> tuple
 
 
 def _write_rule_finding(
-    db: Session, review: Review, finding: RuleFinding, documents: dict[str, CorpusEntry], text: str, locks: list[str]
+    db: Session,
+    review: Review,
+    finding: RuleFinding,
+    documents: dict[str, CorpusEntry],
+    text: str,
+    locks: list[str],
 ) -> None:
     fields = rule_finding_fields(finding)
     extra = proposed_rule_finding_fields(finding)
     resolved = [(e, r) for e in finding.evidence if (r := _resolve(e, documents)) is not None]
     suggestion, basis = fields["suggested_correction"], extra["suggestion_basis"]
     if len(resolved) < len(finding.evidence):
-        logger.warning("review=%s rule=%s: %d rule evidence item(s) not in an approved source, dropped",
-                       review.id, finding.rule_id, len(finding.evidence) - len(resolved))
+        logger.warning(
+            "review=%s rule=%s: %d rule evidence item(s) not in an approved source, dropped",
+            review.id,
+            finding.rule_id,
+            len(finding.evidence) - len(resolved),
+        )
         if basis == "approved_document":
             suggestion = basis = None  # its stated basis is gone
     if breaks_locks(text, finding.span.start, finding.span.end, suggestion, locks):

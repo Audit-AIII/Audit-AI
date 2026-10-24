@@ -88,7 +88,9 @@ def clean_display_text(text: str, max_length: int) -> str | None:
     kept = (
         " " if ch in "\t\n\r" else ch
         for ch in text
-        if ch not in _INVISIBLE and ch not in _BIDI and (ch in "\t\n\r" or unicodedata.category(ch) != "Cc")
+        if ch not in _INVISIBLE
+        and ch not in _BIDI
+        and (ch in "\t\n\r" or unicodedata.category(ch) != "Cc")
     )
     cleaned = " ".join("".join(kept).split())[:max_length]
     return cleaned or None
@@ -110,7 +112,7 @@ def repeats_instructions(text: str, instructions: str, window: int = PROMPT_ECHO
     needle = " ".join(instructions.split()).casefold()
     if len(haystack) < window or len(needle) < window:
         return False
-    return any(needle[i:i + window] in haystack for i in range(len(needle) - window + 1))
+    return any(needle[i : i + window] in haystack for i in range(len(needle) - window + 1))
 
 
 def model_text_for_display(text: str, max_length: int, instructions: str) -> str | None:

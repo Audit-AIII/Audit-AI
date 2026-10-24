@@ -25,7 +25,9 @@ from conftest import requires_db, use_scripted_provider
 from inkloom_api.engine.scripted_provider import ScriptedRule
 
 RULES = [
-    ScriptedRule("24 hours", "CONTRADICTED", "up to 12 hours of playback per charge", "12 hours, not 24."),
+    ScriptedRule(
+        "24 hours", "CONTRADICTED", "up to 12 hours of playback per charge", "12 hours, not 24."
+    ),
     ScriptedRule("12 hours", "SUPPORTED", "up to 12 hours of playback per charge", "Stated."),
 ]
 
@@ -35,7 +37,9 @@ def _list(client, account, query: str = ""):
 
 
 @requires_db
-def test_lists_own_reviews_as_plain_array_newest_first(client, monkeypatch, account_factory) -> None:
+def test_lists_own_reviews_as_plain_array_newest_first(
+    client, monkeypatch, account_factory
+) -> None:
     use_scripted_provider(monkeypatch, RULES)
     owner, other = account_factory("owner"), account_factory("other")
     other.submit("Other account's draft: up to 24 hours.")
@@ -46,7 +50,10 @@ def test_lists_own_reviews_as_plain_array_newest_first(client, monkeypatch, acco
     assert response.status_code == 200
     body = response.json()
     assert isinstance(body, list)  # not wrapped in an object
-    assert [r["id"] for r in body] == [second["id"], first["id"]]  # newest first, other account absent
+    assert [r["id"] for r in body] == [
+        second["id"],
+        first["id"],
+    ]  # newest first, other account absent
     newest = body[0]
     # Full ReviewOut, identical to GET /api/reviews/{id} - not a slim row.
     assert newest == client.get(f"/api/reviews/{second['id']}", headers=owner.headers).json()
@@ -59,17 +66,24 @@ def test_status_filter_single_and_repeated(client, monkeypatch, account_factory)
     use_scripted_provider(monkeypatch, RULES)
     owner = account_factory("owner")
     clean = owner.submit("Lumen Pods offer up to 12 hours of playback per charge.")  # completed
-    flagged = owner.submit("Lumen Pods offer up to 24 hours of playback per charge.")  # needs_human_review
+    flagged = owner.submit(
+        "Lumen Pods offer up to 24 hours of playback per charge."
+    )  # needs_human_review
     decided = owner.submit("Lumen Pods have 24 hours of playback.")
-    client.post(f"/api/content-versions/{decided['content_version_id']}/request-changes",
-                json={"decision": "changes_requested"}, headers=owner.headers)
+    client.post(
+        f"/api/content-versions/{decided['content_version_id']}/request-changes",
+        json={"decision": "changes_requested"},
+        headers=owner.headers,
+    )
 
     needs = _list(client, owner, "?status=needs_human_review").json()
     assert [r["id"] for r in needs] == [flagged["id"]]
     both = _list(client, owner, "?status=needs_human_review&status=completed").json()
     assert {r["id"] for r in both} == {flagged["id"], clean["id"]}
     changes = _list(client, owner, "?status=changes_requested").json()
-    assert [r["id"] for r in changes] == [decided["id"]] and changes[0]["status"] == "changes_requested"
+    assert [r["id"] for r in changes] == [decided["id"]] and changes[0][
+        "status"
+    ] == "changes_requested"
 
 
 @requires_db
@@ -80,9 +94,15 @@ def test_brand_filter(client, force_stub_mode, account_factory) -> None:
     in_first = owner.submit("First brand draft.")
     in_second = owner.submit("Second brand draft.", brand_id=second_brand["id"])
 
-    assert [r["id"] for r in _list(client, owner, f"?brand_id={owner.brand_id}").json()] == [in_first["id"]]
-    assert [r["id"] for r in _list(client, owner, f"?brand_id={second_brand['id']}").json()] == [in_second["id"]]
-    combined = _list(client, owner, f"?brand_id={second_brand['id']}&status=needs_human_review").json()
+    assert [r["id"] for r in _list(client, owner, f"?brand_id={owner.brand_id}").json()] == [
+        in_first["id"]
+    ]
+    assert [r["id"] for r in _list(client, owner, f"?brand_id={second_brand['id']}").json()] == [
+        in_second["id"]
+    ]
+    combined = _list(
+        client, owner, f"?brand_id={second_brand['id']}&status=needs_human_review"
+    ).json()
     assert [r["id"] for r in combined] == [in_second["id"]]
 
 

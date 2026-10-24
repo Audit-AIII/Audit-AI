@@ -15,24 +15,40 @@ from inkloom_verify.retrieval import RetrievalConfig
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m inkloom_verify.evaluation", description=__doc__)
-    parser.add_argument("--dataset", type=Path, required=True, help="labelled EvalRecord JSONL file")
+    parser = argparse.ArgumentParser(
+        prog="python -m inkloom_verify.evaluation", description=__doc__
+    )
+    parser.add_argument(
+        "--dataset", type=Path, required=True, help="labelled EvalRecord JSONL file"
+    )
     parser.add_argument("--split", choices=["all", "dev", "heldout"], default="all")
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--predictions", type=Path, help="EvalPrediction JSONL file from the system under test")
-    source.add_argument("--baseline", choices=sorted(BASELINES), help="built-in baseline instead of a predictions file")
+    source.add_argument(
+        "--predictions", type=Path, help="EvalPrediction JSONL file from the system under test"
+    )
+    source.add_argument(
+        "--baseline",
+        choices=sorted(BASELINES),
+        help="built-in baseline instead of a predictions file",
+    )
     source.add_argument(
         "--verifier",
         choices=["openrouter"],
         help="run the engine live (retrieval, LLM verifier, citation guard); needs OPENROUTER_API_KEY and INKLOOM_LLM_MODELS",
     )
     parser.add_argument("--no-retrieval", action="store_true", help="skip the retrieval metrics")
-    parser.add_argument("--top-k", type=int, default=RetrievalConfig().top_k, help="passages retrieved per claim")
     parser.add_argument(
-        "--chunking-strategy", choices=["tokens", "sentences"], default="tokens",
+        "--top-k", type=int, default=RetrievalConfig().top_k, help="passages retrieved per claim"
+    )
+    parser.add_argument(
+        "--chunking-strategy",
+        choices=["tokens", "sentences"],
+        default="tokens",
         help="how reference documents are split into passages (default: 200-400 token chunks)",
     )
-    parser.add_argument("--examples", type=int, default=5, help="failure examples kept per failure kind")
+    parser.add_argument(
+        "--examples", type=int, default=5, help="failure examples kept per failure kind"
+    )
     parser.add_argument("--out", type=Path, help="write the full JSON report here")
     parser.add_argument("--save-predictions", type=Path, help="write the predictions as JSONL here")
     return parser
@@ -66,7 +82,10 @@ def summary(report: EvalReport) -> str:
     lines += ["", "Confusion (rows = label, columns = prediction)"]
     lines.append("  " + " " * 20 + "".join(f"{p.value[:12]:>14}" for p in PREDICTED_CLASSES))
     for gold in GOLD_CLASSES:
-        lines.append(f"  {gold.value:<20}" + "".join(f"{r.verdict.confusion[gold][p]:>14}" for p in PREDICTED_CLASSES))
+        lines.append(
+            f"  {gold.value:<20}"
+            + "".join(f"{r.verdict.confusion[gold][p]:>14}" for p in PREDICTED_CLASSES)
+        )
     lines += [
         "",
         f"Citations           {r.citations.citations_total} given",
@@ -88,13 +107,17 @@ def summary(report: EvalReport) -> str:
             f"  no passages       {r.retrieval.empty_results}",
         ]
     lines += ["", "Accuracy by split"] + [f"  {s.value:<20}{v}" for s, v in r.by_split.items()]
-    lines += ["", "Accuracy by category"] + [f"  {c.value:<22}{v}" for c, v in r.by_category.items()]
+    lines += ["", "Accuracy by category"] + [
+        f"  {c.value:<22}{v}" for c, v in r.by_category.items()
+    ]
     lines += ["", "Failures"]
     for kind, count in r.failures.counts.items():
         if count:
             lines.append(f"  {kind.value:<26}{count}")
             for example in r.failures.examples.get(kind, []):
-                lines.append(f"    {example.record_id}: {example.claim_text[:70]}  [{example.detail}]")
+                lines.append(
+                    f"    {example.record_id}: {example.claim_text[:70]}  [{example.detail}]"
+                )
     return "\n".join(lines)
 
 
@@ -108,8 +131,11 @@ def main(argv: list[str] | None = None) -> int:
             predictions_path=args.predictions,
             baseline=args.baseline,
             engine_provider=provider,
-            retrieval=None if args.no_retrieval else (
-                ChunkingConfig(strategy=args.chunking_strategy), RetrievalConfig(top_k=args.top_k)
+            retrieval=None
+            if args.no_retrieval
+            else (
+                ChunkingConfig(strategy=args.chunking_strategy),
+                RetrievalConfig(top_k=args.top_k),
             ),
             max_examples=args.examples,
             save_predictions=args.save_predictions,

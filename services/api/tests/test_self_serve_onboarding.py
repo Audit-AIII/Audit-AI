@@ -78,7 +78,9 @@ def _unique_email(label: str) -> str:
 
 
 def _register(client, email: str, password: str = PASSWORD, **extra) -> dict:
-    response = client.post("/api/auth/register", json={"email": email, "password": password, **extra})
+    response = client.post(
+        "/api/auth/register", json={"email": email, "password": password, **extra}
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -98,7 +100,13 @@ def _make_docx_bytes(text: str) -> bytes:
 @requires_db
 def test_register_creates_admin_workspace_and_brand(client, force_stub_mode, cleanup) -> None:
     email = _unique_email("register-basic")
-    body = _register(client, email, display_name="Ada Lovelace", organisation_name="Ada Co", brand_name="Ada Brand")
+    body = _register(
+        client,
+        email,
+        display_name="Ada Lovelace",
+        organisation_name="Ada Co",
+        brand_name="Ada Brand",
+    )
     cleanup.append((uuid.UUID(body["organisation"]["id"]), uuid.UUID(body["user"]["id"])))
 
     assert body["role"] == "admin"
@@ -127,14 +135,21 @@ def test_register_defaults_with_only_email_and_password(client, force_stub_mode,
 
 
 @requires_db
-def test_register_body_cannot_choose_role_or_organisation(client, force_stub_mode, cleanup, db_session) -> None:
+def test_register_body_cannot_choose_role_or_organisation(
+    client, force_stub_mode, cleanup, db_session
+) -> None:
     """Extra fields in the body (role, organisation_id) are silently ignored - the role is always
     `admin` and the organisation is always the one created in this same transaction."""
     email = _unique_email("register-escalate")
     bogus_org_id = str(uuid.uuid4())
     response = client.post(
         "/api/auth/register",
-        json={"email": email, "password": PASSWORD, "role": "submitter", "organisation_id": bogus_org_id},
+        json={
+            "email": email,
+            "password": PASSWORD,
+            "role": "submitter",
+            "organisation_id": bogus_org_id,
+        },
     )
     assert response.status_code == 201, response.text
     body = response.json()
@@ -147,20 +162,28 @@ def test_register_body_cannot_choose_role_or_organisation(client, force_stub_mod
 
 
 @requires_db
-def test_register_duplicate_email_rejected_case_insensitively(client, force_stub_mode, cleanup) -> None:
+def test_register_duplicate_email_rejected_case_insensitively(
+    client, force_stub_mode, cleanup
+) -> None:
     email = _unique_email("dup")
     first = _register(client, email)
     cleanup.append((uuid.UUID(first["organisation"]["id"]), uuid.UUID(first["user"]["id"])))
 
-    response = client.post("/api/auth/register", json={"email": email.upper(), "password": PASSWORD})
+    response = client.post(
+        "/api/auth/register", json={"email": email.upper(), "password": PASSWORD}
+    )
     assert response.status_code == 409, response.text
     assert "already exists" in response.json()["error"]["message"]
 
 
 @requires_db
-@pytest.mark.parametrize("password", ["short1", "", "é" * 40], ids=["too_short", "blank", "eighty_bytes"])
+@pytest.mark.parametrize(
+    "password", ["short1", "", "é" * 40], ids=["too_short", "blank", "eighty_bytes"]
+)
 def test_register_rejects_weak_passwords(client, force_stub_mode, password: str) -> None:
-    response = client.post("/api/auth/register", json={"email": _unique_email("weakpw"), "password": password})
+    response = client.post(
+        "/api/auth/register", json={"email": _unique_email("weakpw"), "password": password}
+    )
     assert response.status_code == 422, response.text
 
 
@@ -168,7 +191,9 @@ def test_register_rejects_weak_passwords(client, force_stub_mode, password: str)
 def test_login_case_insensitive_with_expires_in(client, force_stub_mode, cleanup) -> None:
     email = _unique_email("login-ci")
     registered = _register(client, email)
-    cleanup.append((uuid.UUID(registered["organisation"]["id"]), uuid.UUID(registered["user"]["id"])))
+    cleanup.append(
+        (uuid.UUID(registered["organisation"]["id"]), uuid.UUID(registered["user"]["id"]))
+    )
 
     response = client.post("/api/auth/login", json={"email": email.upper(), "password": PASSWORD})
     assert response.status_code == 200, response.text
@@ -197,7 +222,9 @@ def test_two_signups_cannot_see_each_others_brands(client, force_stub_mode, clea
     cleanup.append((uuid.UUID(a["organisation"]["id"]), uuid.UUID(a["user"]["id"])))
     cleanup.append((uuid.UUID(b["organisation"]["id"]), uuid.UUID(b["user"]["id"])))
 
-    cross_tenant = client.get(f"/api/brands/{a['brand']['id']}/sources", headers=_auth(b["access_token"]))
+    cross_tenant = client.get(
+        f"/api/brands/{a['brand']['id']}/sources", headers=_auth(b["access_token"])
+    )
     assert cross_tenant.status_code == 404, cross_tenant.text
 
     own_brands = client.get("/api/brands", headers=_auth(a["access_token"]))
@@ -210,7 +237,9 @@ def test_create_brand_duplicate_and_list_order(client, force_stub_mode, cleanup)
     cleanup.append((uuid.UUID(user["organisation"]["id"]), uuid.UUID(user["user"]["id"])))
     token = user["access_token"]
 
-    created = client.post("/api/brands", json={"name": "Second Brand", "description": "desc"}, headers=_auth(token))
+    created = client.post(
+        "/api/brands", json={"name": "Second Brand", "description": "desc"}, headers=_auth(token)
+    )
     assert created.status_code == 201, created.text
     assert created.json()["name"] == "Second Brand"
     assert created.json()["approved_source_count"] == 0
@@ -244,7 +273,9 @@ def test_brand_source_approve_on_upload(client, force_stub_mode, cleanup, db_ses
 
     events = (
         db_session.query(AuditEvent)
-        .filter_by(organisation_id=uuid.UUID(user["organisation"]["id"]), entity_id=approved.json()["id"])
+        .filter_by(
+            organisation_id=uuid.UUID(user["organisation"]["id"]), entity_id=approved.json()["id"]
+        )
         .all()
     )
     assert {e.event_type for e in events} == {"brand_source.uploaded", "brand_source.approved"}
@@ -271,7 +302,13 @@ def test_full_self_serve_flow_with_docx_draft(client, force_stub_mode, cleanup) 
         f"/api/brands/{brand_id}/sources",
         headers=_auth(token),
         data={"title": "Fact Sheet", "approve": "true"},
-        files={"file": ("facts.txt", io.BytesIO(b"Fact: the Lumen Widget weighs 200 grams."), "text/plain")},
+        files={
+            "file": (
+                "facts.txt",
+                io.BytesIO(b"Fact: the Lumen Widget weighs 200 grams."),
+                "text/plain",
+            )
+        },
     )
     assert source.status_code == 201, source.text
     assert source.json()["status"] == "approved"

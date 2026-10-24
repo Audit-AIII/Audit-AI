@@ -110,7 +110,9 @@ def _submit_content_and_review(
     db.refresh(review)
     result = ReviewOut.from_model(review)
     if idempotency_key:
-        complete(db, auth.organisation_id, endpoint, idempotency_key, 201, result.model_dump(mode="json"))
+        complete(
+            db, auth.organisation_id, endpoint, idempotency_key, 201, result.model_dump(mode="json")
+        )
     db.commit()
     return result
 
@@ -158,13 +160,16 @@ def create_review_from_upload(
     text = extract_text(file_type, content)
     if len(text) > MAX_CONTENT_CHARS:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, f"extracted text exceeds the {MAX_CONTENT_CHARS:,} character limit"
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"extracted text exceeds the {MAX_CONTENT_CHARS:,} character limit",
         )
 
     resolved_title = (title or Path(file.filename or "").stem or "Untitled")[:300]
     file_sha256 = hashlib.sha256(content).hexdigest()
     request_hash = (
-        hash_request_body({"brand_id": str(brand_id), "title": resolved_title, "file_sha256": file_sha256})
+        hash_request_body(
+            {"brand_id": str(brand_id), "title": resolved_title, "file_sha256": file_sha256}
+        )
         if idempotency_key
         else None
     )
@@ -209,9 +214,15 @@ def list_reviews(
         # Everything ReviewOut.from_model touches, loaded in a fixed number of queries rather
         # than a few per review.
         .options(
-            selectinload(Review.content_version).selectinload(ContentVersion.content_item).selectinload(ContentItem.brand_profile),
-            selectinload(Review.findings).selectinload(Finding.evidence).selectinload(EvidenceLink.source),
-            selectinload(Review.findings).selectinload(Finding.evidence).selectinload(EvidenceLink.source_version),
+            selectinload(Review.content_version)
+            .selectinload(ContentVersion.content_item)
+            .selectinload(ContentItem.brand_profile),
+            selectinload(Review.findings)
+            .selectinload(Finding.evidence)
+            .selectinload(EvidenceLink.source),
+            selectinload(Review.findings)
+            .selectinload(Finding.evidence)
+            .selectinload(EvidenceLink.source_version),
             selectinload(Review.findings).selectinload(Finding.decisions),
             selectinload(Review.findings).selectinload(Finding.comments),
         )
@@ -269,6 +280,13 @@ def rerun_review(
     db.refresh(new_review)
     result = ReviewOut.from_model(new_review)
     if idempotency_key:
-        complete(db, auth.organisation_id, _RERUN_ENDPOINT, idempotency_key, 201, result.model_dump(mode="json"))
+        complete(
+            db,
+            auth.organisation_id,
+            _RERUN_ENDPOINT,
+            idempotency_key,
+            201,
+            result.model_dump(mode="json"),
+        )
     db.commit()
     return result

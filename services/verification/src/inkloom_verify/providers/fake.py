@@ -7,7 +7,9 @@ from typing import Any, Union
 
 from inkloom_verify.providers.base import JsonCompletion, JsonCompletionRequest
 
-Reply = Union[dict[str, Any], Exception, Callable[[JsonCompletionRequest], Union[dict[str, Any], Exception]]]
+Reply = Union[
+    dict[str, Any], Exception, Callable[[JsonCompletionRequest], Union[dict[str, Any], Exception]]
+]
 
 
 class ScriptedProvider:
@@ -45,7 +47,9 @@ class ResponderProvider:
 
     name = "scripted"
 
-    def __init__(self, respond: Callable[[JsonCompletionRequest], Any], model: str = "scripted/responder") -> None:
+    def __init__(
+        self, respond: Callable[[JsonCompletionRequest], Any], model: str = "scripted/responder"
+    ) -> None:
         self.respond = respond
         self.model = model
         self.calls: list[JsonCompletionRequest] = []

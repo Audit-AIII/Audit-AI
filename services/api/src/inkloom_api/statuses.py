@@ -68,8 +68,12 @@ class RulesStatus(str, Enum):
     NULL on reviews from before rules were wired in."""
 
     COMPLETE = "complete"  # every rule check ran (each one passed, violated or not_checkable)
-    INCOMPLETE = "incomplete"  # at least one check ended in error: never show the draft as rule-clean
-    NOT_APPLIED = "not_applied"  # nothing ran: the stored rules are invalid, or the rules engine failed
+    INCOMPLETE = (
+        "incomplete"  # at least one check ended in error: never show the draft as rule-clean
+    )
+    NOT_APPLIED = (
+        "not_applied"  # nothing ran: the stored rules are invalid, or the rules engine failed
+    )
 
 
 class CheckType(str, Enum):

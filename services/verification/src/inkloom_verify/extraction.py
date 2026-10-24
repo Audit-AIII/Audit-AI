@@ -102,15 +102,27 @@ class ExtractionConfig(BaseModel):
 
 class WarningCode(str, Enum):
     QUOTE_NOT_FOUND = "quote_not_found"  # source_quote is not in the sentence; the claim is dropped
-    AMBIGUOUS_QUOTE = "ambiguous_quote"  # source_quote occurs several times; which one is unknown; dropped
-    REWRITE_REJECTED = "rewrite_rejected"  # the rewording changed the meaning; the quote's own text is used
-    CLAIM_TOO_LONG = "claim_too_long"  # claim text blank or over the limit; the quote's own text is used
-    FACTUAL_WITHOUT_CLAIMS = "factual_without_claims"  # sentence marked factual, no claims; used the sentence
-    CLAIMS_ON_NON_FACTUAL = "claims_on_non_factual"  # claims listed for a non-factual sentence; ignored
+    AMBIGUOUS_QUOTE = (
+        "ambiguous_quote"  # source_quote occurs several times; which one is unknown; dropped
+    )
+    REWRITE_REJECTED = (
+        "rewrite_rejected"  # the rewording changed the meaning; the quote's own text is used
+    )
+    CLAIM_TOO_LONG = (
+        "claim_too_long"  # claim text blank or over the limit; the quote's own text is used
+    )
+    FACTUAL_WITHOUT_CLAIMS = (
+        "factual_without_claims"  # sentence marked factual, no claims; used the sentence
+    )
+    CLAIMS_ON_NON_FACTUAL = (
+        "claims_on_non_factual"  # claims listed for a non-factual sentence; ignored
+    )
     TOO_MANY_CLAIMS_IN_SENTENCE = "too_many_claims_in_sentence"  # extra claims ignored
     UNKNOWN_SENTENCE = "unknown_sentence"  # statement for a sentence id that was not sent; ignored
     DUPLICATE_STATEMENT = "duplicate_statement"  # second statement for a sentence; ignored
-    SENTENCE_NOT_CLASSIFIED = "sentence_not_classified"  # model skipped a sentence; nothing extracted
+    SENTENCE_NOT_CLASSIFIED = (
+        "sentence_not_classified"  # model skipped a sentence; nothing extracted
+    )
     DUPLICATE_CLAIM = "duplicate_claim"  # same text and span as an earlier claim; dropped
 
 
@@ -165,11 +177,35 @@ MONTHS = re.compile(
 )
 NEGATION = re.compile(r"\b(not|no|never|none|nor|neither|without|cannot)\b|n['’]t\b|\w-free\b")
 QUALIFIERS = (
-    "up to", "about", "approximately", "approx", "around", "at least", "at most", "more than",
-    "less than", "fewer than", "nearly", "almost", "only", "roughly", "as much as", "as many as",
-    "maximum", "minimum", "average", "typically", "estimated", "may", "might", "can", "could",
+    "up to",
+    "about",
+    "approximately",
+    "approx",
+    "around",
+    "at least",
+    "at most",
+    "more than",
+    "less than",
+    "fewer than",
+    "nearly",
+    "almost",
+    "only",
+    "roughly",
+    "as much as",
+    "as many as",
+    "maximum",
+    "minimum",
+    "average",
+    "typically",
+    "estimated",
+    "may",
+    "might",
+    "can",
+    "could",
 )
-_ATTRIBUTION = re.compile(r"\b(according to|says|said|claims|claimed|reports|reported|states|stated)\b")
+_ATTRIBUTION = re.compile(
+    r"\b(according to|says|said|claims|claimed|reports|reported|states|stated)\b"
+)
 
 
 def _has(pattern: str, text: str) -> bool:
@@ -201,10 +237,11 @@ def rewrite_problems(claim: str, quote: str, content: str) -> list[str]:
 
 def _quote_pattern(quote: str) -> str:
     """Matches ``quote`` with any run of whitespace and either style of quotation mark."""
-    alternatives = {"'": "['‘’]", "’": "['‘’]", '"': "[\"“”]",
-                    "“": "[\"“”]", "”": "[\"“”]"}
+    alternatives = {"'": "['‘’]", "’": "['‘’]", '"': '["“”]', "“": '["“”]', "”": '["“”]'}
     tokens = quote.split()
-    return r"\s+".join("".join(alternatives.get(ch, re.escape(ch)) for ch in token) for token in tokens)
+    return r"\s+".join(
+        "".join(alternatives.get(ch, re.escape(ch)) for ch in token) for token in tokens
+    )
 
 
 def locate(quote: str, sentence: str) -> tuple[int, int] | None:
@@ -253,7 +290,9 @@ class ClaimExtractor:
     def __init__(self, provider: LLMProvider, config: ExtractionConfig | None = None) -> None:
         self.provider = provider
         self.config = config or ExtractionConfig()
-        self.prompt = load_prompt("extraction", self.config.prompt_version)  # fails clearly if missing
+        self.prompt = load_prompt(
+            "extraction", self.config.prompt_version
+        )  # fails clearly if missing
         self.prompt_sent = False
 
     def extract(self, content: InputContent | str) -> ExtractionResult:
@@ -280,18 +319,30 @@ class ClaimExtractor:
                     message=f"Content must contain text and be at most {MAX_CONTENT_CHARS} characters.",
                     retryable=False,
                 )
-                return result(content_sha256=sha256_text(raw), claims=[], sentences=[], warnings=[], errors=[error])
+                return result(
+                    content_sha256=sha256_text(raw),
+                    claims=[],
+                    sentences=[],
+                    warnings=[],
+                    errors=[error],
+                )
             content = InputContent(text=raw)
         elif not isinstance(content, InputContent):
             raise TypeError("content must be InputContent or str")
 
         text = content.text
-        spans = [s for s in sentence_spans(text, MAX_CLAIM_CHARS) if any(ch.isalnum() for ch in s.slice(text))]
+        spans = [
+            s
+            for s in sentence_spans(text, MAX_CLAIM_CHARS)
+            if any(ch.isalnum() for ch in s.slice(text))
+        ]
         sentences = {f"s{i}": span for i, span in enumerate(spans, start=1)}
         kinds: dict[str, StatementKind] = {}
         warnings: list[ExtractionWarning] = []
         errors: list[ProcessingError] = []
-        proposed: list[tuple[str, str | None, SourceSpan]] = []  # (sentence_id, rewording or None, span)
+        proposed: list[
+            tuple[str, str | None, SourceSpan]
+        ] = []  # (sentence_id, rewording or None, span)
 
         ids = list(sentences)
         size = self.config.max_sentences_per_call
@@ -323,13 +374,22 @@ class ClaimExtractor:
 
         logger.info(
             "extraction sentences=%d claims=%d warnings=%d errors=%d calls=%d",
-            len(sentences), len(claims), len(warnings), len(errors), stats.calls,
+            len(sentences),
+            len(claims),
+            len(warnings),
+            len(errors),
+            stats.calls,
         )
         return result(
             content_sha256=content.text_sha256,
             claims=claims,
             sentences=[
-                ExtractedSentence(sentence_id=sid, span=span, kind=kinds.get(sid), claim_ids=claim_ids.get(sid, []))
+                ExtractedSentence(
+                    sentence_id=sid,
+                    span=span,
+                    kind=kinds.get(sid),
+                    claim_ids=claim_ids.get(sid, []),
+                )
                 for sid, span in sentences.items()
             ],
             warnings=warnings,
@@ -359,7 +419,9 @@ class ClaimExtractor:
                 return _ModelOutput.model_validate(self._complete(current, stats))
             except ValidationError as error:
                 problems = describe_validation_error(error)
-            current = request.model_copy(update={"user": prompt.repair_message(request.user, problems)})
+            current = request.model_copy(
+                update={"user": prompt.repair_message(request.user, problems)}
+            )
         raise MalformedOutputError(
             f"Claim extraction output did not match the schema after {self.config.max_repairs} repair attempt(s)."
         )
@@ -382,28 +444,50 @@ class ClaimExtractor:
         for statement in output.statements:
             sid = statement.sentence_id
             if sid not in expected:
-                warn(WarningCode.UNKNOWN_SENTENCE, sid, "statement for a sentence that was not sent")
+                warn(
+                    WarningCode.UNKNOWN_SENTENCE, sid, "statement for a sentence that was not sent"
+                )
                 continue
             if sid in kinds:
-                warn(WarningCode.DUPLICATE_STATEMENT, sid, "second statement for this sentence ignored")
+                warn(
+                    WarningCode.DUPLICATE_STATEMENT,
+                    sid,
+                    "second statement for this sentence ignored",
+                )
                 continue
             kinds[sid] = statement.kind
             span = sentences[sid]
             if statement.kind is not StatementKind.FACTUAL:
                 if statement.claims:
-                    warn(WarningCode.CLAIMS_ON_NON_FACTUAL, sid, f"{len(statement.claims)} claim(s) ignored")
+                    warn(
+                        WarningCode.CLAIMS_ON_NON_FACTUAL,
+                        sid,
+                        f"{len(statement.claims)} claim(s) ignored",
+                    )
                 continue
             if not statement.claims:
-                warn(WarningCode.FACTUAL_WITHOUT_CLAIMS, sid, "no claims listed; the sentence is used as the claim")
+                warn(
+                    WarningCode.FACTUAL_WITHOUT_CLAIMS,
+                    sid,
+                    "no claims listed; the sentence is used as the claim",
+                )
                 proposed.append((sid, None, span))
                 continue
             limit = self.config.max_claims_per_sentence
             if len(statement.claims) > limit:
-                warn(WarningCode.TOO_MANY_CLAIMS_IN_SENTENCE, sid, f"only the first {limit} claims kept")
+                warn(
+                    WarningCode.TOO_MANY_CLAIMS_IN_SENTENCE,
+                    sid,
+                    f"only the first {limit} claims kept",
+                )
             proposed.extend(self._ground_sentence(statement.claims[:limit], sid, span, text, warn))
         for sid in batch:
             if sid not in kinds:
-                warn(WarningCode.SENTENCE_NOT_CLASSIFIED, sid, "the model did not classify this sentence")
+                warn(
+                    WarningCode.SENTENCE_NOT_CLASSIFIED,
+                    sid,
+                    "the model did not classify this sentence",
+                )
         return proposed
 
     @classmethod
@@ -429,15 +513,30 @@ class ClaimExtractor:
         for claim in model_claims:
             found = occurrences[id(claim)]
             if not found:
-                warn(WarningCode.QUOTE_NOT_FOUND, sid, "source_quote is not in the sentence; the claim was dropped")
+                warn(
+                    WarningCode.QUOTE_NOT_FOUND,
+                    sid,
+                    "source_quote is not in the sentence; the claim was dropped",
+                )
                 continue
             group = groups[tuple(found)]
             if len(found) > 1 and len(group) != len(found):
-                warn(WarningCode.AMBIGUOUS_QUOTE, sid,
-                     f"source_quote occurs {len(found)} times in the sentence; the claim was dropped")
+                warn(
+                    WarningCode.AMBIGUOUS_QUOTE,
+                    sid,
+                    f"source_quote occurs {len(found)} times in the sentence; the claim was dropped",
+                )
                 continue
             start, end = found[group.index(claim)] if len(found) > 1 else found[0]
-            grounded.append(cls._ground(claim, sid, SourceSpan(start=span.start + start, end=span.start + end), text, warn))
+            grounded.append(
+                cls._ground(
+                    claim,
+                    sid,
+                    SourceSpan(start=span.start + start, end=span.start + end),
+                    text,
+                    warn,
+                )
+            )
         return grounded
 
     @staticmethod
@@ -449,20 +548,34 @@ class ClaimExtractor:
         source = quote_span.slice(text)
         claim_text = model_claim.text.strip()
         if not claim_text or len(claim_text) > MAX_CLAIM_CHARS:
-            warn(WarningCode.CLAIM_TOO_LONG, sid, "claim text blank or too long; the quote's own text is used")
+            warn(
+                WarningCode.CLAIM_TOO_LONG,
+                sid,
+                "claim text blank or too long; the quote's own text is used",
+            )
             return sid, None, quote_span
         if has_hidden_characters(claim_text):
-            warn(WarningCode.REWRITE_REJECTED, sid, "the rewording contains control or invisible characters; the quote's own text is used")
+            warn(
+                WarningCode.REWRITE_REJECTED,
+                sid,
+                "the rewording contains control or invisible characters; the quote's own text is used",
+            )
             return sid, None, quote_span
         problems = rewrite_problems(claim_text, source, text)
         if problems:
-            warn(WarningCode.REWRITE_REJECTED, sid, "; ".join(problems) + "; the quote's own text is used")
+            warn(
+                WarningCode.REWRITE_REJECTED,
+                sid,
+                "; ".join(problems) + "; the quote's own text is used",
+            )
             return sid, None, quote_span
         return sid, (claim_text if claim_text != source else None), quote_span
 
     @staticmethod
     def _number(
-        proposed: list[tuple[str, str | None, SourceSpan]], warnings: list[ExtractionWarning], text: str
+        proposed: list[tuple[str, str | None, SourceSpan]],
+        warnings: list[ExtractionWarning],
+        text: str,
     ) -> tuple[list[Claim], dict[str, list[str]]]:
         """Numbers claims clm_0001, clm_0002, ... in sentence order, dropping exact duplicates."""
         claims: list[Claim] = []
@@ -472,12 +585,19 @@ class ClaimExtractor:
             key = (rewording, span.start, span.end)
             if key in seen:
                 warnings.append(
-                    ExtractionWarning(code=WarningCode.DUPLICATE_CLAIM, sentence_id=sid, message="duplicate claim dropped")
+                    ExtractionWarning(
+                        code=WarningCode.DUPLICATE_CLAIM,
+                        sentence_id=sid,
+                        message="duplicate claim dropped",
+                    )
                 )
                 continue
             seen.add(key)
             claim = Claim(
-                claim_id=f"clm_{len(claims) + 1:04d}", text=span.slice(text), source_span=span, normalized_text=rewording
+                claim_id=f"clm_{len(claims) + 1:04d}",
+                text=span.slice(text),
+                source_span=span,
+                normalized_text=rewording,
             )
             claims.append(claim)
             by_sentence.setdefault(sid, []).append(claim.claim_id)
@@ -496,12 +616,19 @@ def _location(error: Any) -> str:
     loc = list(error["loc"])
     if error["type"] == "extra_forbidden" and loc:
         loc[-1] = "(unexpected field)"
-    parts = [str(p) if isinstance(p, int) or p == "(unexpected field)" or _SCHEMA_FIELD.fullmatch(str(p))
-             else "(unexpected field)" for p in loc]
+    parts = [
+        str(p)
+        if isinstance(p, int) or p == "(unexpected field)" or _SCHEMA_FIELD.fullmatch(str(p))
+        else "(unexpected field)"
+        for p in loc
+    ]
     return ".".join(parts) or "reply"
 
 
 def describe_validation_error(error: ValidationError) -> str:
     """The schema problems, without echoing any of the model's output."""
-    parts = [f"{_location(e)}: {e['msg']}" for e in error.errors(include_input=False, include_url=False)[:5]]
+    parts = [
+        f"{_location(e)}: {e['msg']}"
+        for e in error.errors(include_input=False, include_url=False)[:5]
+    ]
     return "; ".join(parts)

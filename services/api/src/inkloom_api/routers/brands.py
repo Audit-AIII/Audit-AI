@@ -30,7 +30,13 @@ from ..db import get_db
 from ..models import AuditEvent, BrandProfile, BrandSource, SourceVersion
 from ..request_text import StoredText, contains_nul
 from ..review_queries import brand_review_stats
-from ..schemas import BrandOut, BrandSourceOut, FlippedDependentOut, NewSourceVersionResponse, WithdrawSourceResponse
+from ..schemas import (
+    BrandOut,
+    BrandSourceOut,
+    FlippedDependentOut,
+    NewSourceVersionResponse,
+    WithdrawSourceResponse,
+)
 from ..section_diff import document_section_hashes
 from ..source_lifecycle import apply_new_version_diff, withdraw_source
 from ..source_upload import extract_text, file_type_from_name, read_limited, store_upload
@@ -111,7 +117,9 @@ def create_brand(
 ) -> BrandOut:
     # organisation_id comes only from the token - a caller can never create a brand in another
     # tenant's organisation by passing one in the body (there is no such field to pass).
-    brand = BrandProfile(organisation_id=auth.organisation_id, name=body.name, description=body.description)
+    brand = BrandProfile(
+        organisation_id=auth.organisation_id, name=body.name, description=body.description
+    )
     db.add(brand)
     try:
         db.flush()
@@ -131,7 +139,11 @@ def create_brand(
     db.commit()
     db.refresh(brand)
     return BrandOut(
-        id=brand.id, name=brand.name, description=brand.description, approved_source_count=0, created_at=brand.created_at
+        id=brand.id,
+        name=brand.name,
+        description=brand.description,
+        approved_source_count=0,
+        created_at=brand.created_at,
     )
 
 
@@ -146,7 +158,10 @@ def list_brand_sources(
     # exist (tenancy.get_brand_profile_or_404).
     brand = get_brand_profile_or_404(db, auth.organisation_id, brand_id)
     sources = (
-        db.query(BrandSource).filter(BrandSource.brand_profile_id == brand.id).order_by(BrandSource.created_at).all()
+        db.query(BrandSource)
+        .filter(BrandSource.brand_profile_id == brand.id)
+        .order_by(BrandSource.created_at)
+        .all()
     )
     return [BrandSourceOut.from_model(s) for s in sources]
 
@@ -168,8 +183,13 @@ def upload_brand_source(
     `manage_sources` (the same permission `.../approve` requires); the default (`False`) is
     unchanged for every other caller."""
     brand = get_brand_profile_or_404(db, auth.organisation_id, brand_id)
-    if sensitivity not in (BrandSourceSensitivity.NORMAL.value, BrandSourceSensitivity.CONFIDENTIAL.value):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "sensitivity must be 'normal' or 'confidential'")
+    if sensitivity not in (
+        BrandSourceSensitivity.NORMAL.value,
+        BrandSourceSensitivity.CONFIDENTIAL.value,
+    ):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "sensitivity must be 'normal' or 'confidential'"
+        )
 
     file_type = file_type_from_name(file.filename)
     content = read_limited(file, settings.max_source_upload_bytes)
@@ -246,7 +266,9 @@ def withdraw_brand_source(
     if source.status != BrandSourceStatus.APPROVED.value:
         raise HTTPException(status.HTTP_409_CONFLICT, "only an approved source can be withdrawn")
 
-    flipped = withdraw_source(db, source, body.status, body.reason, auth.organisation_id, auth.user_id)
+    flipped = withdraw_source(
+        db, source, body.status, body.reason, auth.organisation_id, auth.user_id
+    )
     log_audit_event(
         db,
         organisation_id=auth.organisation_id,
@@ -254,7 +276,11 @@ def withdraw_brand_source(
         event_type="brand_source.withdrawn",
         entity_type="brand_source",
         entity_id=source.id,
-        details={"new_status": body.status, "reason": body.reason, "dependents_flipped": len(flipped)},
+        details={
+            "new_status": body.status,
+            "reason": body.reason,
+            "dependents_flipped": len(flipped),
+        },
     )
     db.commit()
     db.refresh(source)
@@ -265,7 +291,11 @@ def withdraw_brand_source(
     )
 
 
-@router.post("/{brand_id}/sources/{source_id}/versions", response_model=NewSourceVersionResponse, status_code=201)
+@router.post(
+    "/{brand_id}/sources/{source_id}/versions",
+    response_model=NewSourceVersionResponse,
+    status_code=201,
+)
 def upload_new_source_version(
     brand_id: uuid.UUID,
     source_id: uuid.UUID,
@@ -394,7 +424,9 @@ def delete_brand_source(
     if storage_path:
         base = Path(settings.brand_source_storage_dir).resolve()
         target = (base / storage_path).resolve()
-        if target.is_relative_to(base):  # stored paths are generated, but never follow one outside the store
+        if target.is_relative_to(
+            base
+        ):  # stored paths are generated, but never follow one outside the store
             target.unlink(missing_ok=True)
     return deleted
 
@@ -438,15 +470,24 @@ def put_brand_rules(
     stored = None
     if body.rules is not None:
         if contains_nul(body.rules):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid brand rules: must not contain NUL (0x00) characters")
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "invalid brand rules: must not contain NUL (0x00) characters",
+            )
         previous = (brand.rules or {}).get("version")
         version = int(previous) + 1 if isinstance(previous, str) and previous.isdigit() else 1
         candidate = {**body.rules, "rule_set_id": f"brand-{brand.id}", "version": str(version)}
         try:
             validated = BrandRules.model_validate(candidate)
         except ValidationError as error:
-            problems = [(".".join(str(p) for p in e["loc"]) or "rules") + ": " + e["msg"] for e in error.errors()][:20]
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"invalid brand rules: {'; '.join(problems)}"[:1000]) from None
+            problems = [
+                (".".join(str(p) for p in e["loc"]) or "rules") + ": " + e["msg"]
+                for e in error.errors()
+            ][:20]
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"invalid brand rules: {'; '.join(problems)}"[:1000],
+            ) from None
         stored = validated.model_dump(mode="json", exclude_unset=True)
 
     brand.rules = stored

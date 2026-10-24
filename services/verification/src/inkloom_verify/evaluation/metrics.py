@@ -16,7 +16,11 @@ from pydantic import BaseModel, ConfigDict
 from inkloom_verify.schemas import EvalRecord, SourceSpan, Verdict
 
 # The verdicts a label can take. ERROR is an engine outcome only and never a gold class.
-GOLD_CLASSES: tuple[Verdict, ...] = (Verdict.SUPPORTED, Verdict.CONTRADICTED, Verdict.NOT_ENOUGH_EVIDENCE)
+GOLD_CLASSES: tuple[Verdict, ...] = (
+    Verdict.SUPPORTED,
+    Verdict.CONTRADICTED,
+    Verdict.NOT_ENOUGH_EVIDENCE,
+)
 PREDICTED_CLASSES: tuple[Verdict, ...] = (*GOLD_CLASSES, Verdict.ERROR)
 DEFINITE: frozenset[Verdict] = frozenset({Verdict.SUPPORTED, Verdict.CONTRADICTED})
 
@@ -39,7 +43,11 @@ class Ratio(_Model):
 def ratio(numerator: int, denominator: int) -> Ratio:
     if numerator < 0 or denominator < 0 or numerator > denominator:
         raise ValueError(f"invalid ratio {numerator}/{denominator}")
-    return Ratio(numerator=numerator, denominator=denominator, value=numerator / denominator if denominator else None)
+    return Ratio(
+        numerator=numerator,
+        denominator=denominator,
+        value=numerator / denominator if denominator else None,
+    )
 
 
 class ClassMetrics(_Model):
@@ -70,7 +78,10 @@ def confusion_matrix(pairs: Iterable[tuple[Verdict, Verdict]]) -> Confusion:
     for gold, _ in counts:
         if gold not in GOLD_CLASSES:
             raise ValueError(f"{gold.value} is not a gold class")
-    return {gold: {pred: counts.get((gold, pred), 0) for pred in PREDICTED_CLASSES} for gold in GOLD_CLASSES}
+    return {
+        gold: {pred: counts.get((gold, pred), 0) for pred in PREDICTED_CLASSES}
+        for gold in GOLD_CLASSES
+    }
 
 
 def class_metrics(confusion: Confusion, cls: Verdict) -> ClassMetrics:
@@ -85,7 +96,9 @@ def class_metrics(confusion: Confusion, cls: Verdict) -> ClassMetrics:
         f1 = 0.0
     else:
         f1 = 2 * precision.value * recall.value / (precision.value + recall.value)
-    return ClassMetrics(support=support, predicted=predicted, precision=precision, recall=recall, f1=f1)
+    return ClassMetrics(
+        support=support, predicted=predicted, precision=precision, recall=recall, f1=f1
+    )
 
 
 class MacroF1(_Model):
@@ -119,7 +132,10 @@ def false_supported_rate(confusion: Confusion) -> Ratio:
     The most harmful error: it tells a reviewer something is backed by the sources when it is not.
     """
     negatives = [Verdict.CONTRADICTED, Verdict.NOT_ENOUGH_EVIDENCE]
-    return ratio(sum(confusion[g][Verdict.SUPPORTED] for g in negatives), sum(sum(confusion[g].values()) for g in negatives))
+    return ratio(
+        sum(confusion[g][Verdict.SUPPORTED] for g in negatives),
+        sum(sum(confusion[g].values()) for g in negatives),
+    )
 
 
 # Trust Scorecard candidates. A claim is "flagged" when the engine would show it to a reviewer as
@@ -147,13 +163,20 @@ def false_positive_rate(confusion: Confusion) -> Ratio:
 class CitationProblem(str, Enum):
     UNKNOWN_DOCUMENT = "unknown_document"  # doc_id is not among the record's references
     WRONG_DOCUMENT_VERSION = "wrong_document_version"  # doc_text_sha256 given and different
-    SPAN_OUT_OF_RANGE = "span_out_of_range"  # span is empty, reversed or past the end of the document
+    SPAN_OUT_OF_RANGE = (
+        "span_out_of_range"  # span is empty, reversed or past the end of the document
+    )
     QUOTE_MISMATCH = "quote_mismatch"  # the text at the span is not the quote
     BLANK_QUOTE = "blank_quote"
 
 
 def citation_problem(
-    record: EvalRecord, doc_id: str, quote: str, start: int, end: int, doc_text_sha256: str | None = None
+    record: EvalRecord,
+    doc_id: str,
+    quote: str,
+    start: int,
+    end: int,
+    doc_text_sha256: str | None = None,
 ) -> CitationProblem | None:
     """Why a citation does not quote the record's references verbatim, or None if it does.
 
@@ -176,7 +199,10 @@ def citation_problem(
 
 def overlaps_gold(record: EvalRecord, doc_id: str, start: int, end: int) -> bool:
     """True when [start, end) in ``doc_id`` shares at least one character with a gold evidence span."""
-    return any(g.doc_id == doc_id and start < g.span.end and g.span.start < end for g in record.gold_evidence)
+    return any(
+        g.doc_id == doc_id and start < g.span.end and g.span.start < end
+        for g in record.gold_evidence
+    )
 
 
 def gold_spans_covered(record: EvalRecord, spans: Iterable[tuple[str, SourceSpan]]) -> int:
@@ -185,5 +211,8 @@ def gold_spans_covered(record: EvalRecord, spans: Iterable[tuple[str, SourceSpan
     return sum(
         1
         for g in record.gold_evidence
-        if any(doc_id == g.doc_id and s.start < g.span.end and g.span.start < s.end for doc_id, s in spans)
+        if any(
+            doc_id == g.doc_id and s.start < g.span.end and g.span.start < s.end
+            for doc_id, s in spans
+        )
     )

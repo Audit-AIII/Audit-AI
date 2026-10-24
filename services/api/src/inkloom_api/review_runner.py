@@ -18,7 +18,9 @@ from .models import BrandProfile, BrandSource, ContentVersion, Review, SourceVer
 from .statuses import BrandSourceSensitivity, BrandSourceStatus, ReviewState
 
 
-def latest_approved_sources(db: Session, brand_profile_id: uuid.UUID) -> list[tuple[BrandSource, SourceVersion]]:
+def latest_approved_sources(
+    db: Session, brand_profile_id: uuid.UUID
+) -> list[tuple[BrandSource, SourceVersion]]:
     sources = (
         db.query(BrandSource)
         .filter(
@@ -64,8 +66,17 @@ def start_review(
     # Phase 5 task 8: if ANY source in scope is confidential, the whole review is treated as
     # confidential - a mixed-sensitivity corpus must not let the content touch a cloud provider
     # just because some of its other sources are normal.
-    confidential = any(source.sensitivity == BrandSourceSensitivity.CONFIDENTIAL.value for source, _ in entries)
+    confidential = any(
+        source.sensitivity == BrandSourceSensitivity.CONFIDENTIAL.value for source, _ in entries
+    )
     brand = db.get(BrandProfile, brand_profile_id) if brand_profile_id else None
-    run_review(db, review, content_version, corpus, confidential=confidential, provider_builders=provider_builders,
-               brand_rules=brand.rules if brand is not None else None)
+    run_review(
+        db,
+        review,
+        content_version,
+        corpus,
+        confidential=confidential,
+        provider_builders=provider_builders,
+        brand_rules=brand.rules if brand is not None else None,
+    )
     return review

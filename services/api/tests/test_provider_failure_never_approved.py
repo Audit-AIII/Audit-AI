@@ -17,11 +17,22 @@ import uuid
 from dataclasses import dataclass
 
 import pytest
-from inkloom_verify.providers.base import JsonCompletion, JsonCompletionRequest, ProviderRateLimitError
+from inkloom_verify.providers.base import (
+    JsonCompletion,
+    JsonCompletionRequest,
+    ProviderRateLimitError,
+)
 
 from conftest import requires_db
 from inkloom_api.auth.security import hash_password
-from inkloom_api.models import BrandProfile, BrandSource, Membership, Organisation, SourceVersion, User
+from inkloom_api.models import (
+    BrandProfile,
+    BrandSource,
+    Membership,
+    Organisation,
+    SourceVersion,
+    User,
+)
 from inkloom_api.statuses import BrandSourceStatus
 
 PASSWORD = "correct-horse-battery-staple"
@@ -55,18 +66,24 @@ def fixture(db_session):
     admin = User(email=f"admin-{unique}@example.com", password_hash=hash_password(PASSWORD))
     db_session.add_all([org, admin])
     db_session.flush()
-    db_session.add(Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True))
+    db_session.add(
+        Membership(organisation_id=org.id, user_id=admin.id, role="admin", is_active=True)
+    )
 
     brand = BrandProfile(organisation_id=org.id, name="Brand")
     db_session.add(brand)
     db_session.flush()
-    source = BrandSource(brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value)
+    source = BrandSource(
+        brand_profile_id=brand.id, title="Spec", status=BrandSourceStatus.APPROVED.value
+    )
     db_session.add(source)
     db_session.flush()
     text = "Approved fact."
     db_session.add(
         SourceVersion(
-            brand_source_id=source.id, version_number=1, text=text,
+            brand_source_id=source.id,
+            version_number=1,
+            text=text,
             text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
     )
@@ -87,12 +104,15 @@ def _login(client, email: str) -> str:
 
 
 @requires_db
-def test_all_providers_failing_never_produces_an_approved_state(client, monkeypatch, fixture: Fixture) -> None:
+def test_all_providers_failing_never_produces_an_approved_state(
+    client, monkeypatch, fixture: Fixture
+) -> None:
     from inkloom_api.engine import pipeline
     from inkloom_api.engine.providers.fallback import FallbackProvider
 
     monkeypatch.setattr(
-        pipeline, "build_provider",
+        pipeline,
+        "build_provider",
         lambda confidential=False, on_attempt=None: FallbackProvider(
             [("always-429", lambda: _AlwaysRateLimitedProvider())]
         ),

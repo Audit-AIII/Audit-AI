@@ -27,19 +27,33 @@ from inkloom_api.engine.scripted_provider import ScriptedRule
 from inkloom_api.models import Finding
 
 RULES = [
-    ScriptedRule("24 hours", "CONTRADICTED", "up to 12 hours of playback per charge", "12, not 24."),
+    ScriptedRule(
+        "24 hours", "CONTRADICTED", "up to 12 hours of playback per charge", "12, not 24."
+    ),
     ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No rankings in any document."),
     ScriptedRule("warranty", "SUPPORTED", "Warranty: 2 years.", "Stated."),
 ]
-EXPECTED_KEYS = {"top_categories", "median_turnaround_minutes", "re_review_rate", "queue_age_minutes", "sample_size", "dismissed_finding_rate"}
+EXPECTED_KEYS = {
+    "top_categories",
+    "median_turnaround_minutes",
+    "re_review_rate",
+    "queue_age_minutes",
+    "sample_size",
+    "dismissed_finding_rate",
+}
 
 
 def _risk(client, account, query: str = ""):
-    return client.get(f"/api/analytics/brand-risk?brand_id={account.brand_id}{query}", headers=account.headers)
+    return client.get(
+        f"/api/analytics/brand-risk?brand_id={account.brand_id}{query}", headers=account.headers
+    )
 
 
 def _set_created(db_session, table: str, row_id: str, when: datetime, column: str = "id") -> None:
-    db_session.execute(text(f"UPDATE {table} SET created_at = :when WHERE {column} = :id"), {"when": when, "id": row_id})
+    db_session.execute(
+        text(f"UPDATE {table} SET created_at = :when WHERE {column} = :id"),
+        {"when": when, "id": row_id},
+    )
     db_session.commit()
 
 
@@ -59,15 +73,21 @@ def test_zero_reviews_returns_empty_and_nulls(client, account_factory) -> None:
 
 
 @requires_db
-def test_metrics_from_real_rows_and_period(client, monkeypatch, db_session, account_factory) -> None:
+def test_metrics_from_real_rows_and_period(
+    client, monkeypatch, db_session, account_factory
+) -> None:
     use_scripted_provider(monkeypatch, RULES)
     owner, other = account_factory("owner"), account_factory("other")
     other.submit("Lumen Pods offer up to 24 hours of playback per charge.")  # never counted
     now = datetime.now(timezone.utc)
 
     # Decided 120 minutes after it was created: contradicted + unsupported.
-    decided = owner.submit("Lumen Pods offer up to 24 hours of playback per charge. They are India's number one earbuds.")
-    event = client.post(f"/api/content-versions/{decided['content_version_id']}/approve", headers=owner.headers).json()
+    decided = owner.submit(
+        "Lumen Pods offer up to 24 hours of playback per charge. They are India's number one earbuds."
+    )
+    event = client.post(
+        f"/api/content-versions/{decided['content_version_id']}/approve", headers=owner.headers
+    ).json()
     _set_created(db_session, "reviews", decided["id"], now - timedelta(minutes=180))
     _set_created(db_session, "approval_events", event["id"], now - timedelta(minutes=60))
 
@@ -77,8 +97,11 @@ def test_metrics_from_real_rows_and_period(client, monkeypatch, db_session, acco
 
     # One item, two versions: v1's review is stale (not waiting), v2's waits 30 minutes. Supported only.
     v1 = owner.submit("Lumen Pods come with a 2-year warranty.")
-    v2 = client.post(f"/api/content/{v1['content_item_id']}/versions",
-                     json={"text": "Every pair of Lumen Pods comes with a 2-year warranty."}, headers=owner.headers).json()
+    v2 = client.post(
+        f"/api/content/{v1['content_item_id']}/versions",
+        json={"text": "Every pair of Lumen Pods comes with a 2-year warranty."},
+        headers=owner.headers,
+    ).json()
     _set_created(db_session, "reviews", v1["id"], now - timedelta(minutes=50))
     _set_created(db_session, "reviews", v2["review"]["id"], now - timedelta(minutes=30))
 
@@ -110,9 +133,18 @@ def test_top_categories_capped_at_six(client, force_stub_mode, db_session, accou
     review = owner.submit()
     for index, category in enumerate(["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]):
         for _ in range(8 - index):  # c1 most frequent ... c8 least
-            db_session.add(Finding(review_id=uuid.UUID(review["id"]), category=category, severity="medium",
-                                   original_text="x", span_start=0, span_end=1, check_type="retrieval",
-                                   verification_status="unverified"))
+            db_session.add(
+                Finding(
+                    review_id=uuid.UUID(review["id"]),
+                    category=category,
+                    severity="medium",
+                    original_text="x",
+                    span_start=0,
+                    span_end=1,
+                    check_type="retrieval",
+                    verification_status="unverified",
+                )
+            )
     db_session.commit()
 
     categories = _risk(client, owner).json()["top_categories"]
@@ -130,11 +162,17 @@ def test_stub_findings_are_not_a_category(client, force_stub_mode, account_facto
 
 
 @requires_db
-def test_other_accounts_brand_is_404_and_validation(client, force_stub_mode, account_factory) -> None:
+def test_other_accounts_brand_is_404_and_validation(
+    client, force_stub_mode, account_factory
+) -> None:
     owner, other = account_factory("owner"), account_factory("other")
     other.submit()
-    theirs = client.get(f"/api/analytics/brand-risk?brand_id={other.brand_id}", headers=owner.headers)
-    random_brand = client.get(f"/api/analytics/brand-risk?brand_id={uuid.uuid4()}", headers=owner.headers)
+    theirs = client.get(
+        f"/api/analytics/brand-risk?brand_id={other.brand_id}", headers=owner.headers
+    )
+    random_brand = client.get(
+        f"/api/analytics/brand-risk?brand_id={uuid.uuid4()}", headers=owner.headers
+    )
     assert theirs.status_code == random_brand.status_code == 404
     assert theirs.json()["error"]["message"] == random_brand.json()["error"]["message"]
     for bad in ("&days=0", "&days=366", "&days=abc"):

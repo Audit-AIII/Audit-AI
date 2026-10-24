@@ -67,7 +67,9 @@ def create_version(
         is_current=True,
         created_by=auth.user_id,
         # The writer's Intent-lock list carries over to the edit; change it with PUT .../locks.
-        locked_phrases=list(previous_current.locked_phrases or []) if previous_current is not None else [],
+        locked_phrases=list(previous_current.locked_phrases or [])
+        if previous_current is not None
+        else [],
     )
     db.add(new_version)
     db.flush()
@@ -88,8 +90,11 @@ def create_version(
     db.refresh(new_version)
     db.refresh(review)
     warnings = (
-        intent_lock_violations(previous_current.text, new_version.text, previous_current.locked_phrases or [])
-        if previous_current is not None else []
+        intent_lock_violations(
+            previous_current.text, new_version.text, previous_current.locked_phrases or []
+        )
+        if previous_current is not None
+        else []
     )
     return NewVersionResponse(
         content_version_id=new_version.id,
@@ -118,12 +123,22 @@ def _finding_events(db: Session, review_ids: list[uuid.UUID]) -> list[FindingEve
         .all()
     )
     events = [
-        FindingEventOut(event_type=f"finding.{d.action}", finding_id=d.finding_id, actor_user_id=d.actor_user_id,
-                        created_at=d.created_at, note=d.note)
+        FindingEventOut(
+            event_type=f"finding.{d.action}",
+            finding_id=d.finding_id,
+            actor_user_id=d.actor_user_id,
+            created_at=d.created_at,
+            note=d.note,
+        )
         for d in decisions
     ] + [
-        FindingEventOut(event_type="finding.commented", finding_id=c.finding_id, actor_user_id=c.author_user_id,
-                        created_at=c.created_at, note=None)
+        FindingEventOut(
+            event_type="finding.commented",
+            finding_id=c.finding_id,
+            actor_user_id=c.author_user_id,
+            created_at=c.created_at,
+            note=None,
+        )
         for c in comments
     ]
     return sorted(events, key=lambda e: e.created_at)
@@ -145,7 +160,12 @@ def get_history(
 
     history = []
     for version in versions:
-        reviews = db.query(Review).filter_by(content_version_id=version.id).order_by(Review.created_at).all()
+        reviews = (
+            db.query(Review)
+            .filter_by(content_version_id=version.id)
+            .order_by(Review.created_at)
+            .all()
+        )
         decisions = (
             db.query(ApprovalEvent)
             .filter_by(content_version_id=version.id)
@@ -160,7 +180,9 @@ def get_history(
                 created_by=version.created_by,
                 created_at=version.created_at,
                 reviews=[ReviewSummaryOut.from_model(r) for r in reviews],
-                decisions=[ApprovalEventOut.from_model(d, version.version_number) for d in decisions],
+                decisions=[
+                    ApprovalEventOut.from_model(d, version.version_number) for d in decisions
+                ],
                 finding_events=_finding_events(db, [r.id for r in reviews]),
             )
         )

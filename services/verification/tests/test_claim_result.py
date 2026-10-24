@@ -116,7 +116,10 @@ def test_correction_must_stay_inside_claim_span(contradicted_result):
     claim = contradicted_result["claim"]
     start = claim["source_span"]["start"]
     claim["source_span"] = {"start": start, "end": start + 5}
-    claim["normalized_text"], claim["text"] = claim["text"], claim["text"][:5]  # still the exact content slice
+    claim["normalized_text"], claim["text"] = (
+        claim["text"],
+        claim["text"][:5],
+    )  # still the exact content slice
     check(contradicted_result, "outside the claim's source_span")
 
 

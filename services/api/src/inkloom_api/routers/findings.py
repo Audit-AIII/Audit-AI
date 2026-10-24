@@ -59,7 +59,9 @@ class FindingCommentOut(BaseModel):
     created_at: datetime
 
 
-def _finding_or_404(db: Session, auth: AuthContext, finding_id: uuid.UUID, lock: bool = False) -> Finding:
+def _finding_or_404(
+    db: Session, auth: AuthContext, finding_id: uuid.UUID, lock: bool = False
+) -> Finding:
     """Scoped through the finding's review (tenancy.get_review_or_404). `lock` takes a row lock so
     two concurrent decisions on one finding serialize instead of both being recorded."""
     finding = db.get(Finding, finding_id, with_for_update=lock)
@@ -82,14 +84,18 @@ def _is_dismissed(db: Session, finding_id: uuid.UUID) -> bool:
     return latest is not None and latest.action == "dismissed"
 
 
-def _decide(db: Session, auth: AuthContext, finding_id: uuid.UUID, action: str, note: str | None) -> FindingDecisionOut:
+def _decide(
+    db: Session, auth: AuthContext, finding_id: uuid.UUID, action: str, note: str | None
+) -> FindingDecisionOut:
     finding = _finding_or_404(db, auth, finding_id, lock=True)
     dismissed = _is_dismissed(db, finding.finding_id)
     if action == "dismissed" and dismissed:
         raise HTTPException(status.HTTP_409_CONFLICT, "this finding is already dismissed")
     if action == "restored" and not dismissed:
         raise HTTPException(status.HTTP_409_CONFLICT, "this finding is not dismissed")
-    decision = FindingDecision(finding_id=finding.finding_id, action=action, note=note, actor_user_id=auth.user_id)
+    decision = FindingDecision(
+        finding_id=finding.finding_id, action=action, note=note, actor_user_id=auth.user_id
+    )
     db.add(decision)
     db.flush()
     log_audit_event(
@@ -103,11 +109,19 @@ def _decide(db: Session, auth: AuthContext, finding_id: uuid.UUID, action: str, 
     )
     db.commit()
     db.refresh(decision)
-    return FindingDecisionOut(id=decision.id, finding_id=decision.finding_id, action=decision.action, note=decision.note,
-                              actor_user_id=decision.actor_user_id, created_at=decision.created_at)
+    return FindingDecisionOut(
+        id=decision.id,
+        finding_id=decision.finding_id,
+        action=decision.action,
+        note=decision.note,
+        actor_user_id=decision.actor_user_id,
+        created_at=decision.created_at,
+    )
 
 
-@router.post("/{finding_id}/dismiss", response_model=FindingDecisionOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{finding_id}/dismiss", response_model=FindingDecisionOut, status_code=status.HTTP_201_CREATED
+)
 def dismiss_finding(
     finding_id: uuid.UUID,
     body: DecisionBody | None = None,
@@ -117,7 +131,9 @@ def dismiss_finding(
     return _decide(db, auth, finding_id, "dismissed", body.note if body else None)
 
 
-@router.post("/{finding_id}/restore", response_model=FindingDecisionOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{finding_id}/restore", response_model=FindingDecisionOut, status_code=status.HTTP_201_CREATED
+)
 def restore_finding(
     finding_id: uuid.UUID,
     body: DecisionBody | None = None,
@@ -140,11 +156,21 @@ def list_comments(
         .order_by(FindingComment.created_at, FindingComment.id)
         .all()
     )
-    return [FindingCommentOut(id=c.id, finding_id=c.finding_id, author_user_id=c.author_user_id, body=c.body,
-                              created_at=c.created_at) for c in comments]
+    return [
+        FindingCommentOut(
+            id=c.id,
+            finding_id=c.finding_id,
+            author_user_id=c.author_user_id,
+            body=c.body,
+            created_at=c.created_at,
+        )
+        for c in comments
+    ]
 
 
-@router.post("/{finding_id}/comments", response_model=FindingCommentOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{finding_id}/comments", response_model=FindingCommentOut, status_code=status.HTTP_201_CREATED
+)
 def add_comment(
     finding_id: uuid.UUID,
     body: CommentBody,
@@ -152,7 +178,9 @@ def add_comment(
     db: Session = Depends(get_db),
 ) -> FindingCommentOut:
     finding = _finding_or_404(db, auth, finding_id)
-    comment = FindingComment(finding_id=finding.finding_id, author_user_id=auth.user_id, body=body.body)
+    comment = FindingComment(
+        finding_id=finding.finding_id, author_user_id=auth.user_id, body=body.body
+    )
     db.add(comment)
     db.flush()
     log_audit_event(
@@ -162,9 +190,17 @@ def add_comment(
         event_type="finding.commented",
         entity_type="finding",
         entity_id=finding.finding_id,
-        details={"review_id": str(finding.review_id), "comment_id": str(comment.id)},  # never the text
+        details={
+            "review_id": str(finding.review_id),
+            "comment_id": str(comment.id),
+        },  # never the text
     )
     db.commit()
     db.refresh(comment)
-    return FindingCommentOut(id=comment.id, finding_id=comment.finding_id, author_user_id=comment.author_user_id,
-                             body=comment.body, created_at=comment.created_at)
+    return FindingCommentOut(
+        id=comment.id,
+        finding_id=comment.finding_id,
+        author_user_id=comment.author_user_id,
+        body=comment.body,
+        created_at=comment.created_at,
+    )

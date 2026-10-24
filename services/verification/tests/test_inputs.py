@@ -59,7 +59,10 @@ def test_request_round_trip(request_data):
 
 def test_contract_version_defaults_and_must_match(request_data):
     del request_data["contract_version"]
-    assert VerificationRequest.model_validate(request_data).contract_version == schemas.CONTRACT_VERSION
+    assert (
+        VerificationRequest.model_validate(request_data).contract_version
+        == schemas.CONTRACT_VERSION
+    )
     request_data["contract_version"] = "9.9.9"
     with pytest.raises(ValidationError):
         VerificationRequest.model_validate(request_data)
@@ -96,7 +99,10 @@ def test_reference_count_limit(request_data):
 
 def test_total_reference_size_limit(request_data, monkeypatch):
     monkeypatch.setattr(schemas, "MAX_TOTAL_REFERENCE_CHARS", 10)
-    request_data["references"] = [{"doc_id": "a", "text": "x" * 5}, {"doc_id": "b", "text": "y" * 5}]
+    request_data["references"] = [
+        {"doc_id": "a", "text": "x" * 5},
+        {"doc_id": "b", "text": "y" * 5},
+    ]
     VerificationRequest.model_validate(request_data)
     request_data["references"][1]["text"] = "y" * 6
     with pytest.raises(ValidationError, match="in total"):

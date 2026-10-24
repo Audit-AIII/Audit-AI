@@ -27,7 +27,14 @@ from ..db import get_db
 from ..models import BrandProfile, Membership, Organisation, User
 from ..rate_limit import enforce_registration_rate_limit
 from ..request_text import StoredText
-from ..schemas import BrandOut, LoginResponse, OrganisationOut, RegisterResponse, SessionInfo, UserOut
+from ..schemas import (
+    BrandOut,
+    LoginResponse,
+    OrganisationOut,
+    RegisterResponse,
+    SessionInfo,
+    UserOut,
+)
 from ..statuses import MembershipRole
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -43,11 +50,17 @@ _DUPLICATE_EMAIL = "an account with this email already exists; sign in instead"
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> LoginResponse:
+def login(
+    body: LoginRequest, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)
+) -> LoginResponse:
     # Case-insensitive: register() always stores email lower-cased, but older rows (e.g. the
     # seed script, written before this lookup changed) may not be, so compare both sides folded.
     user = db.query(User).filter(func.lower(User.email) == body.email.lower()).one_or_none()
-    if user is None or user.password_hash is None or not verify_password(body.password, user.password_hash):
+    if (
+        user is None
+        or user.password_hash is None
+        or not verify_password(body.password, user.password_hash)
+    ):
         # Same message whether the email is unknown or the password is wrong: don't let a caller
         # enumerate registered addresses.
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, _INVALID_CREDENTIALS)
@@ -123,10 +136,16 @@ def register(
         raise HTTPException(status.HTTP_409_CONFLICT, _DUPLICATE_EMAIL)
 
     local_part = normalized_email.split("@", 1)[0]
-    organisation_name = (body.organisation_name or f"{body.display_name or local_part}'s workspace")[:200]
+    organisation_name = (
+        body.organisation_name or f"{body.display_name or local_part}'s workspace"
+    )[:200]
     brand_name = body.brand_name or "My brand"
 
-    user = User(email=normalized_email, display_name=body.display_name, password_hash=hash_password(body.password))
+    user = User(
+        email=normalized_email,
+        display_name=body.display_name,
+        password_hash=hash_password(body.password),
+    )
     db.add(user)
     try:
         db.flush()
@@ -144,7 +163,11 @@ def register(
     # role/organisation_id field at all, so even an extra field in the body is silently ignored).
     # Individual-user mode: "admin" simply means "account owner" - this organisation is this one
     # person's private account, and roles no longer gate anything (auth/permissions.py).
-    db.add(Membership(organisation_id=org.id, user_id=user.id, role=MembershipRole.ADMIN.value, is_active=True))
+    db.add(
+        Membership(
+            organisation_id=org.id, user_id=user.id, role=MembershipRole.ADMIN.value, is_active=True
+        )
+    )
 
     brand = BrandProfile(organisation_id=org.id, name=brand_name)
     db.add(brand)

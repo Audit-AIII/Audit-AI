@@ -46,7 +46,9 @@ class ErrorResponse(BaseModel):
 
 
 def _body(code: ErrorCode, message: str, retry_after: int | None = None) -> dict:
-    body = ErrorResponse(error=ApiError(code=code, message=message, request_id=get_request_id())).model_dump()
+    body = ErrorResponse(
+        error=ApiError(code=code, message=message, request_id=get_request_id())
+    ).model_dump()
     if retry_after is not None:
         body["error"]["retry_after"] = retry_after  # seconds; only on 429
     return body
@@ -93,8 +95,16 @@ def install_error_handlers(app: FastAPI) -> None:
         }.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
         message = exc.detail if isinstance(exc.detail, str) else "request failed"
         headers = dict(exc.headers or {})
-        retry_after = int(headers["Retry-After"]) if exc.status_code == 429 and "Retry-After" in headers else None
-        return JSONResponse(status_code=exc.status_code, content=_body(code, message, retry_after), headers=headers or None)
+        retry_after = (
+            int(headers["Retry-After"])
+            if exc.status_code == 429 and "Retry-After" in headers
+            else None
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_body(code, message, retry_after),
+            headers=headers or None,
+        )
 
     @app.exception_handler(Exception)
     async def _on_unhandled_exception(request: Request, exc: Exception) -> JSONResponse:

@@ -14,7 +14,16 @@ from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, 
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..statuses import CheckType, EvidenceRelation, MembershipRole, ReviewState, RulesStatus, Severity, VerificationStatus, values
+from ..statuses import (
+    CheckType,
+    EvidenceRelation,
+    MembershipRole,
+    ReviewState,
+    RulesStatus,
+    Severity,
+    VerificationStatus,
+    values,
+)
 from .base import Base, created_at_column, updated_at_column, uuid_pk
 
 
@@ -30,13 +39,17 @@ class Review(Base):
             name="ck_review_required_reviewer_role",
         ),
         CheckConstraint(
-            f"rules_status IS NULL OR rules_status IN {tuple(values(RulesStatus))}", name="ck_review_rules_status"
+            f"rules_status IS NULL OR rules_status IN {tuple(values(RulesStatus))}",
+            name="ck_review_rules_status",
         ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     content_version_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("content_versions.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("content_versions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     status: Mapped[str] = mapped_column(String(30), nullable=False, default=ReviewState.DRAFT.value)
     # Engine config, carried with the review so a result is always reproducible (docs/backend.md).
@@ -46,8 +59,12 @@ class Review(Base):
     engine_contract_version: Mapped[str | None] = mapped_column(String(20))
     # The request_id this backend sent to the engine (inkloom_verify.VerificationRequest.request_id).
     request_id: Mapped[str | None] = mapped_column(String(128), index=True)
-    report_status: Mapped[str | None] = mapped_column(String(20))  # engine ReportStatus, once received
-    error_summary: Mapped[str | None] = mapped_column(Text)  # safe message only; never raw provider errors
+    report_status: Mapped[str | None] = mapped_column(
+        String(20)
+    )  # engine ReportStatus, once received
+    error_summary: Mapped[str | None] = mapped_column(
+        Text
+    )  # safe message only; never raw provider errors
     # Phase 5 task 5: true when this review's findings were replayed from result_cache rather
     # than actually sent to any provider.
     served_from_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -80,7 +97,8 @@ class Finding(Base):
         CheckConstraint(f"severity IN {tuple(values(Severity))}", name="ck_finding_severity"),
         CheckConstraint(f"check_type IN {tuple(values(CheckType))}", name="ck_finding_check_type"),
         CheckConstraint(
-            f"verification_status IN {tuple(values(VerificationStatus))}", name="ck_finding_verification_status"
+            f"verification_status IN {tuple(values(VerificationStatus))}",
+            name="ck_finding_verification_status",
         ),
         CheckConstraint("scope IS NULL OR scope IN ('text', 'document')", name="ck_finding_scope"),
     )
@@ -97,7 +115,9 @@ class Finding(Base):
     check_type: Mapped[str] = mapped_column(String(20), nullable=False)
     explanation: Mapped[str | None] = mapped_column(Text)
     verification_status: Mapped[str] = mapped_column(String(30), nullable=False)
-    suggested_correction: Mapped[str | None] = mapped_column(Text)  # evidence-backed corrections only
+    suggested_correction: Mapped[str | None] = mapped_column(
+        Text
+    )  # evidence-backed corrections only
     # A softened wording for an unverified claim (migration 0011): not evidence-backed, so never in
     # suggested_correction (engine CONTRACTS.md, "Mapping to Member 3's shared values").
     safer_wording: Mapped[str | None] = mapped_column(Text)
@@ -111,13 +131,19 @@ class Finding(Base):
     rule_id: Mapped[str | None] = mapped_column(String(128))  # engine ids are up to 128 chars
     rule_type: Mapped[str | None] = mapped_column(String(40))
     scope: Mapped[str | None] = mapped_column(String(10))  # "text" | "document" (something missing)
-    suggestion_basis: Mapped[str | None] = mapped_column(String(30))  # "brand_rule" | "approved_document"
+    suggestion_basis: Mapped[str | None] = mapped_column(
+        String(30)
+    )  # "brand_rule" | "approved_document"
     created_at: Mapped[datetime] = created_at_column()
 
     review: Mapped[Review] = relationship(back_populates="findings")
     evidence: Mapped[list["EvidenceLink"]] = relationship(back_populates="finding")
-    decisions: Mapped[list["FindingDecision"]] = relationship(order_by="FindingDecision.created_at", viewonly=True)
-    comments: Mapped[list["FindingComment"]] = relationship(order_by="FindingComment.created_at", viewonly=True)
+    decisions: Mapped[list["FindingDecision"]] = relationship(
+        order_by="FindingDecision.created_at", viewonly=True
+    )
+    comments: Mapped[list["FindingComment"]] = relationship(
+        order_by="FindingComment.created_at", viewonly=True
+    )
 
 
 class EvidenceLink(Base):
@@ -125,12 +151,17 @@ class EvidenceLink(Base):
 
     __tablename__ = "evidence_links"
     __table_args__ = (
-        CheckConstraint(f"relation IN {tuple(values(EvidenceRelation))}", name="ck_evidence_relation"),
+        CheckConstraint(
+            f"relation IN {tuple(values(EvidenceRelation))}", name="ck_evidence_relation"
+        ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     finding_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("findings.finding_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     # SET NULL, not CASCADE: a brand_source is never hard-deleted by the app today (withdraw only
     # changes its status - Phase 7), but if it ever were, the evidence record itself should
@@ -164,15 +195,22 @@ class FindingDecision(Base):
     "supported" - it was set aside by a person. The latest row says whether it is dismissed now."""
 
     __tablename__ = "finding_decisions"
-    __table_args__ = (CheckConstraint("action IN ('dismissed', 'restored')", name="ck_finding_decision_action"),)
+    __table_args__ = (
+        CheckConstraint("action IN ('dismissed', 'restored')", name="ck_finding_decision_action"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     finding_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("findings.finding_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     action: Mapped[str] = mapped_column(String(20), nullable=False)
     note: Mapped[str | None] = mapped_column(Text)
-    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = created_at_column()
 
 
@@ -183,8 +221,13 @@ class FindingComment(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     finding_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("findings.finding_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    author_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = created_at_column()

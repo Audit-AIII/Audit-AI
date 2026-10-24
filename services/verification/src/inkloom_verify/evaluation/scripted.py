@@ -55,20 +55,30 @@ def first_words(text: str, n: int = 8) -> str:
 def fabricator(request: JsonCompletionRequest) -> dict:
     """SUPPORTED, 'quoting' the claim itself whatever the passages say."""
     block = data_block(request, "verification_input_json")
-    return {"verdict": "SUPPORTED", "citations": [{"passage": "P1", "quote": block["claim"]}], "rationale": "x"}
+    return {
+        "verdict": "SUPPORTED",
+        "citations": [{"passage": "P1", "quote": block["claim"]}],
+        "rationale": "x",
+    }
 
 
 def valid_quote_always_supported(request: JsonCompletionRequest) -> dict:
     """Quotes real passage text verbatim, then asserts SUPPORTED regardless of meaning."""
     block = data_block(request, "verification_input_json")
-    return {"verdict": "SUPPORTED", "citations": [{"passage": "P1", "quote": first_words(block["passages"][0]["text"])}],
-            "rationale": "x"}
+    return {
+        "verdict": "SUPPORTED",
+        "citations": [{"passage": "P1", "quote": first_words(block["passages"][0]["text"])}],
+        "rationale": "x",
+    }
 
 
 def valid_quote_always_contradicted(request: JsonCompletionRequest) -> dict:
     block = data_block(request, "verification_input_json")
-    return {"verdict": "CONTRADICTED", "citations": [{"passage": "P1", "quote": first_words(block["passages"][0]["text"])}],
-            "rationale": "x"}
+    return {
+        "verdict": "CONTRADICTED",
+        "citations": [{"passage": "P1", "quote": first_words(block["passages"][0]["text"])}],
+        "rationale": "x",
+    }
 
 
 ADVERSARIES: dict[str, Responder] = {
@@ -94,7 +104,9 @@ class EnforcementResult(_Model):
     false_supported: Ratio  # harness definition (EVAL.md)
 
 
-def enforcement(records: Sequence[EvalRecord], name: str, adversary: Responder) -> EnforcementResult:
+def enforcement(
+    records: Sequence[EvalRecord], name: str, adversary: Responder
+) -> EnforcementResult:
     definite = accepted = cited = verbatim = fabricated = 0
     reasons: Counter[str] = Counter()
     for record in records:
@@ -113,7 +125,9 @@ def enforcement(records: Sequence[EvalRecord], name: str, adversary: Responder) 
             verbatim += citation.matches(documents[citation.doc_id])
             fabricated += not any(citation.quote in d.text for d in documents.values())
     predictor = EngineVerifierPredictor(ResponderProvider(adversary))
-    results = evaluate(records, {r.record_id: predictor.predict(r) for r in records}, retrieval=None)
+    results = evaluate(
+        records, {r.record_id: predictor.predict(r) for r in records}, retrieval=None
+    )
     return EnforcementResult(
         adversary=name,
         definite_answers=definite,
@@ -137,7 +151,11 @@ FAULTS: dict[str, Callable[[], Any]] = {
     "schema_invalid": lambda: {"unexpected": "shape"},
     "not_configured": lambda: ProviderNotConfiguredError("scripted: provider not configured"),
 }
-STAGE_SCHEMAS = {"extraction": "claim_extraction", "verification": "claim_verification", "correction": "claim_correction"}
+STAGE_SCHEMAS = {
+    "extraction": "claim_extraction",
+    "verification": "claim_verification",
+    "correction": "claim_correction",
+}
 
 
 class FaultCase(_Model):
@@ -160,12 +178,25 @@ def _cooperative(request: JsonCompletionRequest) -> dict:
     """A scripted model that reaches every stage: one factual claim per sentence, a CONTRADICTED
     verdict quoting the top passage (so a correction is attempted), and a correction it declines."""
     if request.schema_name == "claim_extraction":
-        return {"statements": [{"sentence_id": s["id"], "kind": "factual",
-                                "claims": [{"text": s["text"], "source_quote": s["text"]}]}
-                               for s in data_block(request, "content_json")["sentences"]]}
+        return {
+            "statements": [
+                {
+                    "sentence_id": s["id"],
+                    "kind": "factual",
+                    "claims": [{"text": s["text"], "source_quote": s["text"]}],
+                }
+                for s in data_block(request, "content_json")["sentences"]
+            ]
+        }
     if request.schema_name == "claim_verification":
         return valid_quote_always_contradicted(request)
-    return {"status": "needs_human_review", "original_text": "", "replacement_text": "", "citations": [], "reason": "x"}
+    return {
+        "status": "needs_human_review",
+        "original_text": "",
+        "replacement_text": "",
+        "citations": [],
+        "reason": "x",
+    }
 
 
 FAULT_CLAIM = "Lumen Pods offer up to 12 hours of playback per charge."
@@ -173,7 +204,12 @@ FAULT_CLAIM = "Lumen Pods offer up to 12 hours of playback per charge."
 
 def fault_request(document: ReferenceDocument, claim: str = FAULT_CLAIM) -> VerificationRequest:
     """One claim against one document: enough to reach every stage once."""
-    return VerificationRequest(request_id="req-fault", tenant_id="tenant-eval", content={"text": claim}, references=[document])
+    return VerificationRequest(
+        request_id="req-fault",
+        tenant_id="tenant-eval",
+        content={"text": claim},
+        references=[document],
+    )
 
 
 def run_fault_case(case: FaultCase, request: VerificationRequest) -> FaultOutcome:
@@ -185,7 +221,10 @@ def run_fault_case(case: FaultCase, request: VerificationRequest) -> FaultOutcom
 
     report = verify_request(request, ResponderProvider(respond))
     result = report.results[0] if report.results else None
-    observed: dict[str, Any] = {"report_status": report.status.value, "claim_verdict": result.verdict.value if result else None}
+    observed: dict[str, Any] = {
+        "report_status": report.status.value,
+        "claim_verdict": result.verdict.value if result else None,
+    }
     codes = [e.code.value for e in report.errors]
     if result is not None and result.error is not None:
         codes.append(result.error.code.value)
@@ -197,8 +236,14 @@ def run_fault_case(case: FaultCase, request: VerificationRequest) -> FaultOutcom
     passed = (
         observed["report_status"] == case.expect_report_status
         and case.expect_error_code in codes
-        and (case.expect_claim_verdict is None or observed["claim_verdict"] == case.expect_claim_verdict)
-        and (case.expect_correction_status is None or observed.get("correction_status") == case.expect_correction_status)
+        and (
+            case.expect_claim_verdict is None
+            or observed["claim_verdict"] == case.expect_claim_verdict
+        )
+        and (
+            case.expect_correction_status is None
+            or observed.get("correction_status") == case.expect_correction_status
+        )
     )
     return FaultOutcome(name=case.name, passed=passed, observed=observed)
 
@@ -228,13 +273,26 @@ class _PipelineAdversary:
 
     def complete_json(self, request: JsonCompletionRequest) -> JsonCompletion:
         if request.schema_name == "claim_extraction":
-            data = {"statements": [{"sentence_id": s["id"], "kind": "factual", "claims": [{"text": s["text"], "source_quote": s["text"]}]}
-                                   for s in data_block(request, "content_json")["sentences"]]}
+            data = {
+                "statements": [
+                    {
+                        "sentence_id": s["id"],
+                        "kind": "factual",
+                        "claims": [{"text": s["text"], "source_quote": s["text"]}],
+                    }
+                    for s in data_block(request, "content_json")["sentences"]
+                ]
+            }
         elif request.schema_name == "claim_verification":
             data = self.adversary(request)
         else:
-            data = {"status": "needs_human_review", "original_text": "", "replacement_text": "", "citations": [],
-                    "reason": "Scripted adversary."}
+            data = {
+                "status": "needs_human_review",
+                "original_text": "",
+                "replacement_text": "",
+                "citations": [],
+                "reason": "Scripted adversary.",
+            }
         return JsonCompletion(data=data, model="scripted/adversary", attempts=1)
 
 

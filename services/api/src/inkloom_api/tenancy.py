@@ -21,7 +21,9 @@ def not_found(detail: str = "not found") -> HTTPException:
     return HTTPException(status.HTTP_404_NOT_FOUND, detail)
 
 
-def get_brand_profile_or_404(db: Session, organisation_id: uuid.UUID, brand_profile_id: uuid.UUID) -> BrandProfile:
+def get_brand_profile_or_404(
+    db: Session, organisation_id: uuid.UUID, brand_profile_id: uuid.UUID
+) -> BrandProfile:
     profile = db.get(BrandProfile, brand_profile_id)
     if profile is None or profile.organisation_id != organisation_id:
         raise not_found("brand not found")
@@ -40,7 +42,9 @@ def get_brand_source_or_404(
     return source
 
 
-def get_content_item_or_404(db: Session, organisation_id: uuid.UUID, content_item_id: uuid.UUID) -> ContentItem:
+def get_content_item_or_404(
+    db: Session, organisation_id: uuid.UUID, content_item_id: uuid.UUID
+) -> ContentItem:
     item = db.get(ContentItem, content_item_id)
     if item is None or item.organisation_id != organisation_id:
         raise not_found("content not found")
@@ -64,7 +68,9 @@ def get_review_or_404(db: Session, organisation_id: uuid.UUID, review_id: uuid.U
     if review is None:
         raise not_found("review not found")
     try:
-        get_content_version_or_404(db, organisation_id, review.content_version_id)  # raises if cross-tenant
+        get_content_version_or_404(
+            db, organisation_id, review.content_version_id
+        )  # raises if cross-tenant
     except HTTPException:
         # Same message as a review that doesn't exist: "content version not found" here would
         # tell the caller that this review id is real, just in another account (task 7).
