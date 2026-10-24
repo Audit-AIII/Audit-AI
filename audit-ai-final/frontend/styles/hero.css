@@ -94,6 +94,9 @@
   padding: .07em .2em .02em .18em;
   font-size: min(var(--hero-cap), calc(var(--hero-room-raised) / (var(--len) * .64)));
   animation: hero-sway-raised var(--dur-slow) ease-in-out infinite alternate;
+  /* Own compositing layer: the 16s shadow sway then repaints just the word, not the whole hero
+     board with its grain behind it (idle raster work down ~63%). Pixel-identical at rest. */
+  will-change: transform;
 }
 .hero__line--cut .hero__word {
   padding: 0;

@@ -27,6 +27,17 @@ export function Statement() {
       const words = lines.current;
       const stmt = words[0]?.parentElement;
       words.forEach((w) => w.setAttribute("data-pressed", "0"));
+      const pressed = words.map(() => "0");
+      let shown = "";
+      const geom = { first: 0, last: 0, marks: [] as number[] };
+      const measure = () => {
+        if (!words.length) return;
+        const end = words[words.length - 1];
+        geom.first = words[0].offsetTop - 20;
+        geom.last = end.offsetTop + end.offsetHeight + 20;
+        geom.marks = words.map((w) => w.offsetTop + w.offsetHeight * 0.6);
+      };
+      measure();
 
       gsap.fromTo(
         flap.current,
@@ -39,15 +50,21 @@ export function Statement() {
         start: "top top",
         end: "bottom bottom",
         scrub: true,
+        // Line positions are measured once per refresh (load / resize), not on every scroll frame:
+        // reading offsetTop right after the style writes below forced a layout each frame.
+        onRefresh: measure,
         onUpdate: (self) => {
           if (!stmt || !roller.current) return;
           // Roller sweeps from just above the first line to just below the last.
-          const first = words[0].offsetTop - 20;
-          const last = words[words.length - 1].offsetTop + words[words.length - 1].offsetHeight + 20;
-          const y = first + (last - first) * Math.min(1, self.progress * 1.15);
+          const y = geom.first + (geom.last - geom.first) * Math.min(1, self.progress * 1.15);
           roller.current.style.transform = `translateY(${y}px)`;
-          roller.current.style.opacity = self.progress > 0 && self.progress < 0.9 ? "1" : "0";
-          words.forEach((w) => w.setAttribute("data-pressed", y > w.offsetTop + w.offsetHeight * 0.6 ? "1" : "0"));
+          const opacity = self.progress > 0 && self.progress < 0.9 ? "1" : "0";
+          if (opacity !== shown) roller.current.style.opacity = shown = opacity;
+          // Only touch a line when its state flips (each write re-styles the statement).
+          words.forEach((w, i) => {
+            const v = y > geom.marks[i] ? "1" : "0";
+            if (v !== pressed[i]) w.setAttribute("data-pressed", (pressed[i] = v));
+          });
         },
       });
 

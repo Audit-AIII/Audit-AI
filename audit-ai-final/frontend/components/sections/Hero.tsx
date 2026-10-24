@@ -46,6 +46,7 @@ export function Hero() {
     if (!el) return;
     const mm = gsap.matchMedia();
     mm.add("(prefers-reduced-motion: no-preference)", () => {
+      let sinking = false;
       gsap
         .timeline({
           scrollTrigger: {
@@ -53,7 +54,10 @@ export function Hero() {
             start: "top top",
             end: "bottom top",
             scrub: true,
-            onUpdate: (self) => el.toggleAttribute("data-sinking", self.progress > 0.01),
+            onUpdate: (self) => {
+              const s = self.progress > 0.01;
+              if (s !== sinking) el.toggleAttribute("data-sinking", (sinking = s)); // only on change
+            },
           },
         })
         .to(flap.current, { y: () => el.offsetHeight, scale: 0.86, ease: "none" }, 0)
