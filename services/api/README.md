@@ -14,7 +14,7 @@ architecture and commands; API.md goes deep on the HTTP contract.
 **Status** (2026-10-24; see [`../../member3_backend/STATUS.md`](../../member3_backend/STATUS.md)):
 individual-user mode - one email = one private account owning several brands; roles no longer gate
 anything and the user approves their own content. Every route is live and verified against a real
-Postgres database (182 tests, see "Test") and over real HTTP with a real AI provider
+Postgres database (288 tests, see "Test") and over real HTTP with a real AI provider
 (`scripts/smoke_test.py`). New this round: real AI findings (verified model ids), finding categories,
 suggested rewrites for contradicted claims, the review-queue list, Insights analytics and the Trust
 Scorecard evaluation. Not deployed yet.
@@ -24,8 +24,9 @@ Scorecard evaluation. Not deployed yet.
 ```sh
 cd services/api
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"          # on macOS/Linux: .venv/bin/python
-.venv/Scripts/python -m pip install -e ../verification    # Member 2's engine, editable
+# Exact tested versions (constraints.txt), with Member 2's engine editable. Re-run after every pull:
+# an older venv can keep stale, vulnerable packages (pip-audit found pypdf 5.9.0 in one on 2026-10-24).
+.venv/Scripts/python -m pip install -e ".[dev]" -e ../verification -c constraints.txt   # macOS/Linux: .venv/bin/python
 
 docker compose up -d                                       # local Postgres (needs Docker Desktop running)
 
@@ -77,7 +78,9 @@ reverse cleanly), not a bug, but it means demo data doesn't survive a full `pyte
 ```
 
 Runs the whole suite against the real database at `DATABASE_URL` (DB-backed tests skip
-automatically if it isn't reachable). 182 tests, ~45s. Offline: every test that runs a review uses the
+automatically if it isn't reachable - CI fails on any skip). 288 tests, ~85s.
+`.venv/Scripts/python -m alembic check` confirms the models match the migrations.
+CI (`.github/workflows/repo-integrity.yml`, job 3) runs both on every push and pull request. Offline: every test that runs a review uses the
 stub or the scripted provider (`src/inkloom_api/engine/scripted_provider.py`), never a real model.
 
 ## Smoke test

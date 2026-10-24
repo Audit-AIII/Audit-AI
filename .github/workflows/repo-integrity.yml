@@ -11,6 +11,11 @@
 #                         (src, tests, migrations, scripts) and imports the FastAPI app.
 #                         No database and no secret: DATABASE_URL is a placeholder (importing the
 #                         app does not connect), AUTH_SECRET_KEY is left unset.
+#   3. api-tests        - the full backend suite against a real PostgreSQL (same image as
+#                         services/api/docker-compose.yml), after `alembic check` confirms the models
+#                         match the migrations. Offline: no provider key, so every review is stub or
+#                         scripted. Fails if any test is skipped - the database tests skip when no
+#                         database is reachable, which must never pass as green here.
 name: repo-integrity
 
 on:
@@ -53,3 +58,46 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://ci:ci@localhost:5432/ci-import-check-only
         run: python -c "import inkloom_api.main as m; print('inkloom_api imports;', len(m.app.routes), 'routes')"
+
+  api-tests:
+    name: 3. Backend test suite (real PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: inkloom
+          POSTGRES_PASSWORD: inkloom
+          POSTGRES_DB: inkloom
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inkloom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      DATABASE_URL: postgresql+psycopg://inkloom:inkloom@localhost:5432/inkloom
+      AUTH_SECRET_KEY: ci-only-throwaway-signing-key-not-a-secret-0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install services/api and the engine (exact versions from services/api/constraints.txt)
+        run: python -m pip install -e ".[dev]" -e ../verification -c constraints.txt
+      - name: Migrate, and check the models match the migrations
+        run: |
+          python -m alembic upgrade head
+          python -m alembic check
+      - name: Full backend test suite (fails on any skipped test)
+        run: |
+          set -o pipefail
+          python -m pytest -q -rs -p no:cacheprovider | tee pytest-output.txt
+          if grep -qE "[0-9]+ skipped" pytest-output.txt; then
+            echo "::error::Tests were skipped (is the database reachable?). Skips are not allowed in CI."
+            exit 1
+          fi
