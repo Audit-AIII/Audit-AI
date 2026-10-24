@@ -182,25 +182,57 @@ class ReferenceDescriptor(_Contract):
 
 
 # --- Brand rules (deterministic checks; rules.py) ------------------------------------------------
+#
+# Terminology, brand-compliance and accessibility rules. No model is involved. The entry point for
+# the backend is rules.evaluate_rules (findings plus a per-rule check record); the engine pipeline
+# applies VerificationRequest.rules through rules.check_rules. See RULES_HANDOFF.md.
 
 MAX_RULES_PER_TYPE = 100
 MAX_RULE_TEXT_CHARS = 500
 MAX_RULE_FINDINGS = 200
+MAX_METADATA_ITEMS = 500
 RuleText = _text(MAX_RULE_TEXT_CHARS)
 RuleId = Annotated[str, Field(pattern=_EXTERNAL_ID_PATTERN)]
+# A colour as written in CSS: #rgb, #rrggbb or rgb(r, g, b). Named colours are not accepted.
+CssColor = Annotated[str, Field(pattern=r"^\s*(#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\))\s*$")]
 
 
 class RuleType(str, Enum):
+    # Terminology (category "terminology")
     REQUIRED_TERM = "required_term"  # the content must contain this term
     PROHIBITED_TERM = "prohibited_term"  # the content must not contain this term
     PRODUCT_NAMING = "product_naming"  # a product is written only as its approved name
+    PREFERRED_TERM = "preferred_term"  # use the preferred term instead of the discouraged ones
+    SPELLING = "spelling"  # a configured spelling convention ("e-mail" -> "email")
+    TERMINOLOGY_CONSISTENCY = "terminology_consistency"  # one of several accepted forms, used consistently
+    # Brand compliance (category "brand_compliance")
     REQUIRED_DISCLAIMER = "required_disclaimer"  # this text must appear (always, or when a trigger term does)
     NUMERIC_LIMIT = "numeric_limit"  # a figure about a subject stays within a range
-    # Accessibility and tone (StyleRules): not brand-specific, no source document.
+    # Accessibility and tone (category "accessibility"; StyleRules, not brand-specific)
     ALL_CAPS_RUN = "all_caps_run"  # several shouted words in a row
     EMOJI_RUN = "emoji_run"  # more emoji in a row than allowed
     VAGUE_LINK_TEXT = "vague_link_text"  # "click here" and other link text that says nothing out of context
     MISSING_ALT_TEXT = "missing_alt_text"  # an image without a text alternative
+    HEADING_STRUCTURE = "heading_structure"  # skipped heading levels, empty headings, several H1
+    MISSING_CAPTIONS = "missing_captions"  # video without captions, audio without a transcript
+    LOW_CONTRAST = "low_contrast"  # text colour against its background below the WCAG ratio
+
+
+class RuleCategory(str, Enum):
+    TERMINOLOGY = "terminology"
+    BRAND_COMPLIANCE = "brand_compliance"
+    ACCESSIBILITY = "accessibility"
+
+
+RULE_CATEGORY: dict[RuleType, RuleCategory] = {
+    **{t: RuleCategory.TERMINOLOGY for t in (
+        RuleType.REQUIRED_TERM, RuleType.PROHIBITED_TERM, RuleType.PRODUCT_NAMING, RuleType.PREFERRED_TERM,
+        RuleType.SPELLING, RuleType.TERMINOLOGY_CONSISTENCY)},
+    **{t: RuleCategory.BRAND_COMPLIANCE for t in (RuleType.REQUIRED_DISCLAIMER, RuleType.NUMERIC_LIMIT)},
+    **{t: RuleCategory.ACCESSIBILITY for t in (
+        RuleType.ALL_CAPS_RUN, RuleType.EMOJI_RUN, RuleType.VAGUE_LINK_TEXT, RuleType.MISSING_ALT_TEXT,
+        RuleType.HEADING_STRUCTURE, RuleType.MISSING_CAPTIONS, RuleType.LOW_CONTRAST)},
+}
 
 
 class RuleSeverity(str, Enum):  # the shared finding contract's values
@@ -225,13 +257,27 @@ class _Rule(_Contract):
     source: RuleSource | None = None
 
 
-class RequiredTermRule(_Rule):
+class _MatchOptions(_Contract):
+    """How a rule's terms are matched (rules.term_pattern). Defaults: case-insensitive, whole
+    words. Whitespace runs, straight and curly apostrophes, and hyphen variants always match each
+    other; text and terms are compared in Unicode NFC, so "é" matches "e" + combining accent."""
+
+    case_sensitive: bool = False
+    whole_word: bool = True
+
+
+def _same(a: str, b: str, case_sensitive: bool) -> bool:
+    fold = (lambda s: " ".join(s.split())) if case_sensitive else (lambda s: " ".join(s.split()).casefold())
+    return fold(a) == fold(b)
+
+
+class RequiredTermRule(_Rule, _MatchOptions):
     term: RuleText
 
 
-class ProhibitedTermRule(_Rule):
+class ProhibitedTermRule(_Rule, _MatchOptions):
     term: RuleText
-    # A brand-approved alternative. Offered as a correction only when the rule has a source.
+    # A brand-approved alternative, offered as the suggested correction for each match.
     approved_alternative: RuleText | None = None
 
 
@@ -240,6 +286,49 @@ class ProductNamingRule(_Rule):
     # Other spellings to flag. Any case-insensitive match of the approved name that is not
     # written exactly as approved is flagged too.
     variants: Annotated[list[RuleText], Field(max_length=MAX_RULES_PER_TYPE)] = []
+
+
+class PreferredTermRule(_Rule, _MatchOptions):
+    """Each occurrence of a discouraged term is flagged; the preferred term is the suggestion."""
+
+    preferred: RuleText
+    discouraged: Annotated[list[RuleText], Field(min_length=1, max_length=MAX_RULES_PER_TYPE)]
+
+    @model_validator(mode="after")
+    def _check_terms(self) -> PreferredTermRule:
+        if any(_same(d, self.preferred, self.case_sensitive) for d in self.discouraged):
+            raise ValueError("the preferred term must not also be discouraged")
+        return self
+
+
+class SpellingRule(_Rule, _MatchOptions):
+    """A configured spelling convention: each incorrect form is flagged with the correct one."""
+
+    correct: RuleText
+    incorrect: Annotated[list[RuleText], Field(min_length=1, max_length=MAX_RULES_PER_TYPE)]
+
+    @model_validator(mode="after")
+    def _check_terms(self) -> SpellingRule:
+        if any(_same(i, self.correct, self.case_sensitive) for i in self.incorrect):
+            raise ValueError("the correct spelling must not also be listed as incorrect")
+        return self
+
+
+class ConsistencyRule(_Rule, _MatchOptions):
+    """Several accepted forms of one term ("email", "e-mail"); a document should use only one.
+    When more than one is used, every occurrence of the less frequent forms is flagged. No
+    correction is suggested: none of the forms is wrong, the brand has not picked one."""
+
+    variants: Annotated[list[RuleText], Field(min_length=2, max_length=20)]
+
+    @model_validator(mode="after")
+    def _check_variants(self) -> ConsistencyRule:
+        seen: list[str] = []
+        for v in self.variants:
+            if any(_same(v, s, self.case_sensitive) for s in seen):
+                raise ValueError("consistency variants must be distinct")
+            seen.append(v)
+        return self
 
 
 class RequiredDisclaimerRule(_Rule):
@@ -285,32 +374,108 @@ class StyleRules(_Contract):
     vague_link_phrases: Annotated[list[RuleText], Field(min_length=1, max_length=MAX_RULES_PER_TYPE)] = [
         "click here", "here", "read more", "learn more", "more", "this link", "link", "this page",
     ]
-    # Images: Markdown ![](...) with empty alt text, and HTML <img> with no alt attribute.
+    # Images: Markdown ![](...) with empty alt text, HTML <img> with no alt attribute, and
+    # ContentMetadata.images with alt_text None.
     alt_text: bool = True
+    # Headings (Markdown "#" and HTML <h1>-<h6>): skipped levels, empty headings, more than one H1.
+    heading_structure: bool = True
+    # <video> without a captions/subtitles <track>; audio without a transcript (metadata only).
+    media_captions: bool = True
+    # Inline style colour pairs and ContentMetadata.colors below this ratio (WCAG 2 AA: 4.5, large text 3).
+    color_contrast: bool = True
+    min_contrast_ratio: Annotated[float, Field(ge=1.0, le=21.0)] = 4.5
+    min_contrast_ratio_large_text: Annotated[float, Field(ge=1.0, le=21.0)] = 3.0
+
+
+class ImageMetadata(_Contract):
+    """An image the submitted text does not show (e.g. one in an uploaded file). alt_text None:
+    no text alternative; "" : marked decorative (not flagged)."""
+
+    ref: RuleText  # how a person finds it: a file name, "page 3, figure 2"
+    alt_text: Annotated[str, Field(max_length=2_000)] | None = None
+
+
+class MediaMetadata(_Contract):
+    ref: RuleText
+    kind: Literal["video", "audio"]
+    captions: bool | None = None  # None: unknown
+    transcript: bool | None = None  # None: unknown
+
+
+class ColorPairMetadata(_Contract):
+    ref: RuleText
+    foreground: CssColor
+    background: CssColor
+    large_text: bool = False  # WCAG large text: at least 18 pt, or 14 pt bold
+
+
+class ContentMetadata(_Contract):
+    """Optional facts about content that plain text cannot carry (images, media and colours from
+    an uploaded file). Each list is checked by the matching accessibility rule; an empty list is
+    "nothing known", never "nothing there"."""
+
+    images: Annotated[list[ImageMetadata], Field(max_length=MAX_METADATA_ITEMS)] = []
+    media: Annotated[list[MediaMetadata], Field(max_length=MAX_METADATA_ITEMS)] = []
+    colors: Annotated[list[ColorPairMetadata], Field(max_length=MAX_METADATA_ITEMS)] = []
 
 
 class BrandRules(_Contract):
-    """Explicit brand rules for one request, applied deterministically before claim extraction."""
+    """Explicit brand rules for one request, applied deterministically before claim extraction.
+
+    Contradictory rules are refused when the rules are loaded, never resolved silently: a term
+    both required and prohibited; a preferred, correct or approved term that is also prohibited;
+    one discouraged/incorrect term mapped to two different replacements."""
 
     rule_set_id: RuleId
     version: Label | None = None
     required_terms: Annotated[list[RequiredTermRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
     prohibited_terms: Annotated[list[ProhibitedTermRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
     product_names: Annotated[list[ProductNamingRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+    preferred_terms: Annotated[list[PreferredTermRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+    spelling: Annotated[list[SpellingRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+    consistency: Annotated[list[ConsistencyRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
     disclaimers: Annotated[list[RequiredDisclaimerRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
     numeric_limits: Annotated[list[NumericLimitRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
-    # Accessibility and tone checks; None means they are not run.
+    # Accessibility and tone checks; None means they are not run by the pipeline (evaluate_rules
+    # runs them with the defaults unless told not to).
     style: StyleRules | None = None
 
     def all_rules(self) -> list[_Rule]:
-        return [*self.required_terms, *self.prohibited_terms, *self.product_names, *self.disclaimers, *self.numeric_limits]
+        return [*self.required_terms, *self.prohibited_terms, *self.product_names, *self.preferred_terms,
+                *self.spelling, *self.consistency, *self.disclaimers, *self.numeric_limits]
 
     @model_validator(mode="after")
     def _check_ids(self) -> BrandRules:
         duplicates = sorted(r for r, n in Counter(rule.rule_id for rule in self.all_rules()).items() if n > 1)
         if duplicates:
             raise ValueError(f"duplicate rule_id: {', '.join(duplicates)}")
+        self._check_conflicts()
         return self
+
+    def _check_conflicts(self) -> None:
+        fold = lambda s: " ".join(s.split()).casefold()  # noqa: E731
+        prohibited = {fold(r.term): r.rule_id for r in self.prohibited_terms}
+        problems = []
+        for rule in self.required_terms:
+            if fold(rule.term) in prohibited:
+                problems.append(f"{rule.rule_id} requires a term that {prohibited[fold(rule.term)]} prohibits")
+        replacements: dict[str, tuple[str, str]] = {}  # discouraged -> (replacement, rule id)
+        for rule, wanted, unwanted in (
+            *((r, r.preferred, r.discouraged) for r in self.preferred_terms),
+            *((r, r.correct, r.incorrect) for r in self.spelling),
+        ):
+            if fold(wanted) in prohibited:
+                problems.append(f"{rule.rule_id} recommends a term that {prohibited[fold(wanted)]} prohibits")
+            for term in unwanted:
+                earlier = replacements.get(fold(term))
+                if earlier and fold(earlier[0]) != fold(wanted):
+                    problems.append(f"{rule.rule_id} and {earlier[1]} map the same term to different replacements")
+                replacements.setdefault(fold(term), (wanted, rule.rule_id))
+        for rule in self.product_names:
+            if fold(rule.approved_name) in prohibited:
+                problems.append(f"{rule.rule_id} approves a name that {prohibited[fold(rule.approved_name)]} prohibits")
+        if problems:
+            raise ValueError("conflicting rules: " + "; ".join(problems))
 
 
 class RuleEvidence(_Contract):
@@ -324,38 +489,103 @@ class RuleEvidence(_Contract):
 class RuleFinding(_Contract):
     """One rule violation, in the shared finding contract's shape (check_type "rule").
 
-    ``verification_status`` is always ``not_applicable``: a rule check is not a claim checked
-    against evidence. ``requires_human_review`` is always true: a person decides. A suggested
-    correction exists only when the rule is quoted from an approved document (``evidence``) and
-    names the approved wording (product naming, a prohibited term's approved alternative)."""
+    * ``span`` is always a non-empty range into the content (the backend stores span_end >
+      span_start). ``scope`` "text": the span is the offending text. ``scope`` "document":
+      something is missing (a required term, a disclaimer, an image's alt text known only from
+      metadata), and the span anchors the finding on the content's first line.
+    * ``verification_status`` is always ``not_applicable``: a rule check is not a claim checked
+      against evidence. ``requires_human_review`` is always true: a person decides.
+    * ``suggested_correction`` replaces ``original_text`` and exists only for terminology rules
+      that name the wording to use. ``suggestion_basis`` says why it may be offered: the rule is
+      quoted from an approved document ("approved_document", with evidence) or configured by
+      the brand ("brand_rule"). Accessibility and compliance findings never carry one.
+    """
 
     finding_id: Annotated[str, Field(pattern=r"^rul_[A-Za-z0-9_.:-]{1,160}$")]
     rule_id: RuleId
     rule_type: RuleType
     check_type: Literal["rule"] = "rule"
-    category: Literal["rule_violation"] = "rule_violation"
+    category: RuleCategory
     severity: RuleSeverity
-    original_text: Annotated[str, Field(max_length=MAX_RULE_TEXT_CHARS)]  # "" when something is missing
-    span: SourceSpan | None = None  # None when something is missing
+    scope: Literal["text", "document"] = "text"
+    original_text: Annotated[str, Field(min_length=1, max_length=MAX_RULE_TEXT_CHARS)]
+    span: SourceSpan
     explanation: RuleText
     verification_status: Literal["not_applicable"] = "not_applicable"
     source_ids: Annotated[list[DocumentId], Field(max_length=1)] = []
     evidence: Annotated[list[RuleEvidence], Field(max_length=1)] = []
     suggested_correction: RuleText | None = None
+    suggestion_basis: Literal["approved_document", "brand_rule"] | None = None
     requires_human_review: Literal[True] = True
 
     @model_validator(mode="after")
     def _check(self) -> RuleFinding:
-        if (self.span is None) != (self.original_text == ""):
-            raise ValueError("a rule finding has a span exactly when it quotes original_text")
-        if self.span is not None and self.span.length != len(self.original_text):
+        if self.category is not RULE_CATEGORY[self.rule_type]:
+            raise ValueError(f"category must be {RULE_CATEGORY[self.rule_type].value} for {self.rule_type.value}")
+        if self.span.length != len(self.original_text):
             raise ValueError("original_text does not match the span length")
         if [e.source_id for e in self.evidence] != self.source_ids:
             raise ValueError("source_ids must list the evidence's source ids")
-        if self.suggested_correction is not None and not self.evidence:
-            raise ValueError("a suggested_correction needs evidence: an approved, quoted rule")
-        if self.suggested_correction is not None and self.span is None:
-            raise ValueError("a suggested_correction replaces quoted text; nothing is quoted")
+        if (self.suggested_correction is None) != (self.suggestion_basis is None):
+            raise ValueError("a suggested_correction needs a suggestion_basis, and only then")
+        if self.suggested_correction is not None:
+            if self.category is not RuleCategory.TERMINOLOGY:
+                raise ValueError("only terminology findings may suggest a correction")
+            if self.scope != "text":
+                raise ValueError("a suggested_correction replaces quoted text; a document-level finding has none")
+            if self.suggestion_basis == "approved_document" and not self.evidence:
+                raise ValueError("an approved_document suggestion needs the quoted rule as evidence")
+        return self
+
+
+class RuleCheckStatus(str, Enum):
+    PASSED = "passed"  # the check ran and found nothing
+    VIOLATED = "violated"  # the check ran and produced findings
+    NOT_CHECKABLE = "not_checkable"  # the input lacks what the check needs (no markup, no metadata)
+    ERROR = "error"  # the check failed to run; never counted as passed
+
+
+class RuleCheck(_Contract):
+    """What happened to one rule, so "no finding" is never mistaken for "checked and fine"."""
+
+    rule_id: RuleId
+    rule_type: RuleType
+    category: RuleCategory
+    status: RuleCheckStatus
+    findings: Annotated[int, Field(strict=True, ge=0)] = 0
+    reason: Annotated[str, Field(max_length=300)] | None = None  # why not checkable / what failed; never content
+
+    @model_validator(mode="after")
+    def _check(self) -> RuleCheck:
+        if self.category is not RULE_CATEGORY[self.rule_type]:
+            raise ValueError("category does not match rule_type")
+        if (self.status is RuleCheckStatus.VIOLATED) != (self.findings > 0):
+            raise ValueError("a violated check has findings and only a violated check has findings")
+        if self.status in (RuleCheckStatus.NOT_CHECKABLE, RuleCheckStatus.ERROR) and not self.reason:
+            raise ValueError("a not_checkable or error check must say why")
+        return self
+
+
+class RuleEvaluation(_Contract):
+    """The result of rules.evaluate_rules: every finding, and one check record per rule run.
+
+    ``complete`` is false when any check ended in ERROR; ``truncated`` is true when more findings
+    existed than MAX_RULE_FINDINGS (the checks still count them all)."""
+
+    findings: Annotated[list[RuleFinding], Field(max_length=MAX_RULE_FINDINGS)] = []
+    checks: list[RuleCheck] = []
+    complete: Annotated[bool, Field(strict=True)]
+    truncated: Annotated[bool, Field(strict=True)] = False
+
+    @model_validator(mode="after")
+    def _check(self) -> RuleEvaluation:
+        if self.complete is any(c.status is RuleCheckStatus.ERROR for c in self.checks):
+            raise ValueError("complete must be false exactly when a check ended in error")
+        counted = sum(c.findings for c in self.checks)
+        if (counted > len(self.findings)) is not self.truncated or counted < len(self.findings):
+            raise ValueError("findings must match the checks' counts (truncated only when some were dropped)")
+        if len({f.finding_id for f in self.findings}) != len(self.findings):
+            raise ValueError("duplicate rule finding_id")
         return self
 
 

@@ -1,0 +1,315 @@
+{
+  "$defs": {
+    "RuleCategory": {
+      "enum": [
+        "terminology",
+        "brand_compliance",
+        "accessibility"
+      ],
+      "title": "RuleCategory",
+      "type": "string"
+    },
+    "RuleCheck": {
+      "additionalProperties": false,
+      "description": "What happened to one rule, so \"no finding\" is never mistaken for \"checked and fine\".",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/RuleCategory"
+        },
+        "findings": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Findings",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "rule_type": {
+          "$ref": "#/$defs/RuleType"
+        },
+        "status": {
+          "$ref": "#/$defs/RuleCheckStatus"
+        }
+      },
+      "required": [
+        "rule_id",
+        "rule_type",
+        "category",
+        "status"
+      ],
+      "title": "RuleCheck",
+      "type": "object"
+    },
+    "RuleCheckStatus": {
+      "enum": [
+        "passed",
+        "violated",
+        "not_checkable",
+        "error"
+      ],
+      "title": "RuleCheckStatus",
+      "type": "string"
+    },
+    "RuleEvidence": {
+      "additionalProperties": false,
+      "description": "The shared contract's evidence item: a source id, the exact quote, and its relation.",
+      "properties": {
+        "quote": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "relation": {
+          "const": "contradicts",
+          "default": "contradicts",
+          "title": "Relation",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "quote"
+      ],
+      "title": "RuleEvidence",
+      "type": "object"
+    },
+    "RuleFinding": {
+      "additionalProperties": false,
+      "description": "One rule violation, in the shared finding contract's shape (check_type \"rule\").\n\n* ``span`` is always a non-empty range into the content (the backend stores span_end >\n  span_start). ``scope`` \"text\": the span is the offending text. ``scope`` \"document\":\n  something is missing (a required term, a disclaimer, an image's alt text known only from\n  metadata), and the span anchors the finding on the content's first line.\n* ``verification_status`` is always ``not_applicable``: a rule check is not a claim checked\n  against evidence. ``requires_human_review`` is always true: a person decides.\n* ``suggested_correction`` replaces ``original_text`` and exists only for terminology rules\n  that name the wording to use. ``suggestion_basis`` says why it may be offered: the rule is\n  quoted from an approved document (\"approved_document\", with evidence) or configured by\n  the brand (\"brand_rule\"). Accessibility and compliance findings never carry one.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/RuleCategory"
+        },
+        "check_type": {
+          "const": "rule",
+          "default": "rule",
+          "title": "Check Type",
+          "type": "string"
+        },
+        "evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RuleEvidence"
+          },
+          "maxItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "explanation": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "finding_id": {
+          "pattern": "^rul_[A-Za-z0-9_.:-]{1,160}$",
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "original_text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "requires_human_review": {
+          "const": true,
+          "default": true,
+          "title": "Requires Human Review",
+          "type": "boolean"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "rule_type": {
+          "$ref": "#/$defs/RuleType"
+        },
+        "scope": {
+          "default": "text",
+          "enum": [
+            "text",
+            "document"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity"
+        },
+        "source_ids": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 1,
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "span": {
+          "$ref": "#/$defs/SourceSpan"
+        },
+        "suggested_correction": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Correction"
+        },
+        "suggestion_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "approved_document",
+                "brand_rule"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggestion Basis"
+        },
+        "verification_status": {
+          "const": "not_applicable",
+          "default": "not_applicable",
+          "title": "Verification Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "rule_id",
+        "rule_type",
+        "category",
+        "severity",
+        "original_text",
+        "span",
+        "explanation"
+      ],
+      "title": "RuleFinding",
+      "type": "object"
+    },
+    "RuleSeverity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "RuleSeverity",
+      "type": "string"
+    },
+    "RuleType": {
+      "enum": [
+        "required_term",
+        "prohibited_term",
+        "product_naming",
+        "preferred_term",
+        "spelling",
+        "terminology_consistency",
+        "required_disclaimer",
+        "numeric_limit",
+        "all_caps_run",
+        "emoji_run",
+        "vague_link_text",
+        "missing_alt_text",
+        "heading_structure",
+        "missing_captions",
+        "low_contrast"
+      ],
+      "title": "RuleType",
+      "type": "string"
+    },
+    "SourceSpan": {
+      "additionalProperties": false,
+      "description": "A half-open ``[start, end)`` range of code points in one specific text.",
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "SourceSpan",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The result of rules.evaluate_rules: every finding, and one check record per rule run.\n\n``complete`` is false when any check ended in ERROR; ``truncated`` is true when more findings\nexisted than MAX_RULE_FINDINGS (the checks still count them all).",
+  "properties": {
+    "checks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RuleCheck"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "complete": {
+      "title": "Complete",
+      "type": "boolean"
+    },
+    "findings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RuleFinding"
+      },
+      "maxItems": 200,
+      "title": "Findings",
+      "type": "array"
+    },
+    "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "complete"
+  ],
+  "title": "RuleEvaluation",
+  "type": "object"
+}

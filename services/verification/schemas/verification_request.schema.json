@@ -2,8 +2,17 @@
   "$defs": {
     "BrandRules": {
       "additionalProperties": false,
-      "description": "Explicit brand rules for one request, applied deterministically before claim extraction.",
+      "description": "Explicit brand rules for one request, applied deterministically before claim extraction.\n\nContradictory rules are refused when the rules are loaded, never resolved silently: a term\nboth required and prohibited; a preferred, correct or approved term that is also prohibited;\none discouraged/incorrect term mapped to two different replacements.",
       "properties": {
+        "consistency": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ConsistencyRule"
+          },
+          "maxItems": 100,
+          "title": "Consistency",
+          "type": "array"
+        },
         "disclaimers": {
           "default": [],
           "items": {
@@ -20,6 +29,15 @@
           },
           "maxItems": 100,
           "title": "Numeric Limits",
+          "type": "array"
+        },
+        "preferred_terms": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PreferredTermRule"
+          },
+          "maxItems": 100,
+          "title": "Preferred Terms",
           "type": "array"
         },
         "product_names": {
@@ -54,6 +72,15 @@
           "title": "Rule Set Id",
           "type": "string"
         },
+        "spelling": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SpellingRule"
+          },
+          "maxItems": 100,
+          "title": "Spelling",
+          "type": "array"
+        },
         "style": {
           "anyOf": [
             {
@@ -84,6 +111,59 @@
         "rule_set_id"
       ],
       "title": "BrandRules",
+      "type": "object"
+    },
+    "ConsistencyRule": {
+      "additionalProperties": false,
+      "description": "Several accepted forms of one term (\"email\", \"e-mail\"); a document should use only one.\nWhen more than one is used, every occurrence of the less frequent forms is flagged. No\ncorrection is suggested: none of the forms is wrong, the brand has not picked one.",
+      "properties": {
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "medium"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "variants": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 2,
+          "title": "Variants",
+          "type": "array"
+        },
+        "whole_word": {
+          "default": true,
+          "title": "Whole Word",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rule_id",
+        "variants"
+      ],
+      "title": "ConsistencyRule",
       "type": "object"
     },
     "InputContent": {
@@ -195,6 +275,66 @@
       "title": "NumericLimitRule",
       "type": "object"
     },
+    "PreferredTermRule": {
+      "additionalProperties": false,
+      "description": "Each occurrence of a discouraged term is flagged; the preferred term is the suggestion.",
+      "properties": {
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
+        "discouraged": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Discouraged",
+          "type": "array"
+        },
+        "preferred": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Preferred",
+          "type": "string"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "medium"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "whole_word": {
+          "default": true,
+          "title": "Whole Word",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rule_id",
+        "preferred",
+        "discouraged"
+      ],
+      "title": "PreferredTermRule",
+      "type": "object"
+    },
     "ProductNamingRule": {
       "additionalProperties": false,
       "properties": {
@@ -260,6 +400,11 @@
           "default": null,
           "title": "Approved Alternative"
         },
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
         "rule_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
           "title": "Rule Id",
@@ -285,6 +430,11 @@
           "minLength": 1,
           "title": "Term",
           "type": "string"
+        },
+        "whole_word": {
+          "default": true,
+          "title": "Whole Word",
+          "type": "boolean"
         }
       },
       "required": [
@@ -400,6 +550,11 @@
     "RequiredTermRule": {
       "additionalProperties": false,
       "properties": {
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
         "rule_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
           "title": "Rule Id",
@@ -425,6 +580,11 @@
           "minLength": 1,
           "title": "Term",
           "type": "string"
+        },
+        "whole_word": {
+          "default": true,
+          "title": "Whole Word",
+          "type": "boolean"
         }
       },
       "required": [
@@ -467,6 +627,66 @@
       "title": "RuleSource",
       "type": "object"
     },
+    "SpellingRule": {
+      "additionalProperties": false,
+      "description": "A configured spelling convention: each incorrect form is flagged with the correct one.",
+      "properties": {
+        "case_sensitive": {
+          "default": false,
+          "title": "Case Sensitive",
+          "type": "boolean"
+        },
+        "correct": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Correct",
+          "type": "string"
+        },
+        "incorrect": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Incorrect",
+          "type": "array"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "medium"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "whole_word": {
+          "default": true,
+          "title": "Whole Word",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rule_id",
+        "correct",
+        "incorrect"
+      ],
+      "title": "SpellingRule",
+      "type": "object"
+    },
     "StyleRules": {
       "additionalProperties": false,
       "description": "Deterministic accessibility and tone checks (rules.py). Every check is on unless switched\noff; the thresholds are the defaults below. No model is involved and no source document is\nneeded, so these findings carry no evidence and never a suggested correction.",
@@ -499,6 +719,11 @@
           "title": "Alt Text",
           "type": "boolean"
         },
+        "color_contrast": {
+          "default": true,
+          "title": "Color Contrast",
+          "type": "boolean"
+        },
         "emoji": {
           "default": true,
           "title": "Emoji",
@@ -510,6 +735,30 @@
           "minimum": 1,
           "title": "Emoji Max Run",
           "type": "integer"
+        },
+        "heading_structure": {
+          "default": true,
+          "title": "Heading Structure",
+          "type": "boolean"
+        },
+        "media_captions": {
+          "default": true,
+          "title": "Media Captions",
+          "type": "boolean"
+        },
+        "min_contrast_ratio": {
+          "default": 4.5,
+          "maximum": 21.0,
+          "minimum": 1.0,
+          "title": "Min Contrast Ratio",
+          "type": "number"
+        },
+        "min_contrast_ratio_large_text": {
+          "default": 3.0,
+          "maximum": 21.0,
+          "minimum": 1.0,
+          "title": "Min Contrast Ratio Large Text",
+          "type": "number"
         },
         "severity": {
           "$ref": "#/$defs/RuleSeverity",

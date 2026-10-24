@@ -19,7 +19,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Annotated, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from inkloom_verify import __version__
 from inkloom_verify.chunking import ChunkingConfig
@@ -64,6 +64,18 @@ class EvalPrediction(_Model):
     citations: list[PredictedCitation] = []
     model_id: str | None = None
     prompt_version: str | None = None
+    # Why an ERROR prediction has no verdict: the engine's error code (PROVIDER_QUOTA_EXCEEDED,
+    # PROVIDER_TIMEOUT, ...) and its fixed, client-safe message (never provider text or content).
+    # Only on ERROR, so a failure is never mistaken for a model decision. Optional, so prediction
+    # files written before 2026-10-24 still load.
+    error_code: str | None = Field(default=None, max_length=64)
+    error_message: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _error_fields_only_on_error(self) -> EvalPrediction:
+        if self.verdict is not Verdict.ERROR and (self.error_code or self.error_message):
+            raise ValueError("error_code and error_message are only allowed on an ERROR prediction")
+        return self
 
 
 class Predictor(Protocol):
@@ -134,6 +146,8 @@ class EngineVerifierPredictor:
             ],
             model_id=",".join(sorted(verifier.models_used)) or None,
             prompt_version=verifier.prompt.version if verifier.prompt_sent else None,  # the version actually sent
+            error_code=result.error.code.value if result.error else None,
+            error_message=result.error.message if result.error else None,
         )
 
 

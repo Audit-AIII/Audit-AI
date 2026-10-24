@@ -1,0 +1,149 @@
+{
+  "$defs": {
+    "ColorPairMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "pattern": "^\\s*(#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6}|rgb\\(\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*\\))\\s*$",
+          "title": "Background",
+          "type": "string"
+        },
+        "foreground": {
+          "pattern": "^\\s*(#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6}|rgb\\(\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*\\))\\s*$",
+          "title": "Foreground",
+          "type": "string"
+        },
+        "large_text": {
+          "default": false,
+          "title": "Large Text",
+          "type": "boolean"
+        },
+        "ref": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "foreground",
+        "background"
+      ],
+      "title": "ColorPairMetadata",
+      "type": "object"
+    },
+    "ImageMetadata": {
+      "additionalProperties": false,
+      "description": "An image the submitted text does not show (e.g. one in an uploaded file). alt_text None:\nno text alternative; \"\" : marked decorative (not flagged).",
+      "properties": {
+        "alt_text": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alt Text"
+        },
+        "ref": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "title": "ImageMetadata",
+      "type": "object"
+    },
+    "MediaMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "captions": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Captions"
+        },
+        "kind": {
+          "enum": [
+            "video",
+            "audio"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "ref": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Ref",
+          "type": "string"
+        },
+        "transcript": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transcript"
+        }
+      },
+      "required": [
+        "ref",
+        "kind"
+      ],
+      "title": "MediaMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Optional facts about content that plain text cannot carry (images, media and colours from\nan uploaded file). Each list is checked by the matching accessibility rule; an empty list is\n\"nothing known\", never \"nothing there\".",
+  "properties": {
+    "colors": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ColorPairMetadata"
+      },
+      "maxItems": 500,
+      "title": "Colors",
+      "type": "array"
+    },
+    "images": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ImageMetadata"
+      },
+      "maxItems": 500,
+      "title": "Images",
+      "type": "array"
+    },
+    "media": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/MediaMetadata"
+      },
+      "maxItems": 500,
+      "title": "Media",
+      "type": "array"
+    }
+  },
+  "title": "ContentMetadata",
+  "type": "object"
+}
