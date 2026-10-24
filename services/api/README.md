@@ -73,12 +73,19 @@ reverse cleanly), not a bug, but it means demo data doesn't survive a full `pyte
 
 ## Test
 
+**Never run the suite against a database you care about:** `test_migrations.py` downgrades to
+`base`, which drops every table (it once wiped the dev seed data). Use a throwaway schema in the
+same database instead; it needs no extra privileges:
+
 ```sh
+set -a; source .env; set +a                                      # DATABASE_URL = your dev database
+python -c "import os; from sqlalchemy import create_engine, text; e = create_engine(os.environ['DATABASE_URL']); c = e.connect(); c.execute(text('CREATE SCHEMA IF NOT EXISTS inkloom_test')); c.commit()"
+export DATABASE_URL="${DATABASE_URL}?options=-csearch_path%3Dinkloom_test"   # tests only see this schema
+.venv/Scripts/python -m alembic upgrade head
 .venv/Scripts/python -m pytest -q
 ```
 
-Runs the whole suite against the real database at `DATABASE_URL` (DB-backed tests skip
-automatically if it isn't reachable - CI fails on any skip). 288 tests, ~85s.
+DB-backed tests skip automatically if the database isn't reachable (CI fails on any skip).
 `.venv/Scripts/python -m alembic check` confirms the models match the migrations.
 CI (`.github/workflows/repo-integrity.yml`, job 3) runs both on every push and pull request. Offline: every test that runs a review uses the
 stub or the scripted provider (`src/inkloom_api/engine/scripted_provider.py`), never a real model.
