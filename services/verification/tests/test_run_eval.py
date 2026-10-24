@@ -269,3 +269,39 @@ def test_repair_calls_and_provider_errors_are_counted_per_stage():
         counting.complete_json(first.model_copy(update={"user": "u\n\n" + run_eval.REPAIR_MARKER + " x"}))
     assert counting.stats["claim_verification"] == {"calls": 2, "repair_calls": 1, "input_chars": 2 + (1 + 3 + len(run_eval.REPAIR_MARKER) + 2),
                                                     "errors": {"MALFORMED_MODEL_OUTPUT": 1}}
+
+
+# --- Provider failure rate gate (added 2026-10-24: a 78/80-ERROR live run reported PASSED) ---------
+
+FAILURE_GATE = gate("required_metrics/provider_failure_rate", "<=", 0.2, "model_run")
+
+
+def errors_for_first(n):
+    ids = [r.record_id for r in load_records(ROOT / "eval" / "dataset.jsonl")][:n]
+
+    def change(record, p):
+        if record.record_id in ids:
+            p.update(verdict="ERROR", citations=[])
+    return change
+
+
+def test_a_live_run_where_almost_every_record_failed_does_not_pass(tmp_path):
+    baseline = write_baseline(tmp_path, [FAILURE_GATE])
+    outage = predictions(tmp_path, "outage.jsonl", errors_for_first(78))  # what the live run of 2026-10-24 produced
+    assert run_eval.main(["--predictions", str(outage), "--out", str(tmp_path / "o"), "--check-baseline", str(baseline)]) == 1
+    report = json.loads((tmp_path / "o" / "report.json").read_text(encoding="utf-8"))
+    [entry] = [g for g in report["gates"] if g["name"] == FAILURE_GATE["name"]]
+    assert entry["status"] == "FAIL" and entry["measured"] == pytest.approx(78 / 80)
+
+
+@pytest.mark.parametrize(("failed", "code"), [(0, 0), (16, 0), (17, 1)])  # 16/80 = 20% is the limit
+def test_the_failure_gate_boundary(tmp_path, failed, code):
+    baseline = write_baseline(tmp_path, [FAILURE_GATE])
+    run = predictions(tmp_path, f"f{failed}.jsonl", errors_for_first(failed))
+    assert run_eval.main(["--predictions", str(run), "--out", str(tmp_path / "o"), "--check-baseline", str(baseline)]) == code
+
+
+def test_the_committed_baseline_enforces_the_failure_gate_on_live_runs_only():
+    gates = json.loads((ROOT / "eval" / "baseline.json").read_text(encoding="utf-8"))["gates"]
+    [entry] = [g for g in gates if g["metric"] == "required_metrics/provider_failure_rate"]
+    assert (entry["op"], entry["value"], entry["applies_to"]) == ("<=", 0.2, "model_run")

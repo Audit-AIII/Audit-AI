@@ -106,6 +106,11 @@ class RequiredMetrics(_Model):
     # Wall-clock seconds per case from the full pipeline (cases.jsonl): n, mean, p50, p95, max.
     # It includes provider time only when a live provider answered; scripted runs time local code.
     latency: dict[str, Any] = {}
+    # ERROR predictions (no verdict) by cause, and how many of them the confusion counts above hold:
+    # an ERROR on a CONTRADICTED record counts as FN (it was not flagged) and on any other record as
+    # TN (nothing was wrongly flagged). These are failures, not model decisions; reported so a run
+    # full of errors cannot look like a model with a perfect false-positive rate.
+    errors: dict[str, Any] = {}
 
 
 def _rate(numerator: int, denominator: int, name: str, unavailable: dict[str, str], why: str) -> Ratio | None:
@@ -155,6 +160,9 @@ def compute(
     counts = Counter({"evaluated": 0, "tp": 0, "fp": 0, "fn": 0, "tn": 0, "missing_predictions": 0,
                       "error_predictions": 0, "invalid_labels": 0})
     citation_fail = Counter()
+    error_codes: Counter[str] = Counter()
+    error_examples: dict[str, str] = {}
+    errors_in = Counter()
     valid = resolved = total_citations = 0
     evaluated: list[EvalRecord] = []
     for record in records:
@@ -168,6 +176,12 @@ def compute(
             counts["missing_predictions"] += 1
         predicted = prediction.verdict if prediction else Verdict.ERROR
         counts["error_predictions"] += predicted is Verdict.ERROR
+        if predicted is Verdict.ERROR:
+            code = "MISSING_PREDICTION" if prediction is None else (prediction.error_code or "UNSPECIFIED")
+            error_codes[code] += 1
+            if prediction is not None and prediction.error_message and code not in error_examples:
+                error_examples[code] = prediction.error_message[:200]
+            errors_in["fn" if record.expected_verdict is POSITIVE else "tn"] += 1
         positive_label, positive_prediction = record.expected_verdict is POSITIVE, predicted is POSITIVE
         counts["tp" if positive_label and positive_prediction else "fn" if positive_label else
                "fp" if positive_prediction else "tn"] += 1
@@ -281,8 +295,11 @@ def compute(
         latency = {}
         unavailable["latency"] = "no per-case timings (only full-pipeline runs record them, in cases.jsonl)"
 
+    errors_info = {"by_code": dict(error_codes.most_common()), "example_messages": error_examples,
+                   "counted_as_fn": errors_in["fn"], "counted_as_tn": errors_in["tn"]} if error_codes else {}
+
     return RequiredMetrics(
-        provider_failure_rate=failure_rate, latency=latency,
+        provider_failure_rate=failure_rate, latency=latency, errors=errors_info,
         counts=dict(counts), contradicted_precision=precision, contradicted_recall=recall, false_positive_rate=fpr,
         false_negative_rate=fnr, citation_validity=validity, citation_resolution=resolution,
         citation_failures={"citations": total_citations, "valid": valid, "resolved": resolved, **dict(citation_fail)},
@@ -327,6 +344,9 @@ def markdown(m: RequiredMetrics) -> str:
              f"invalid labels {c['invalid_labels']} · unexpected predictions {c['unexpected_predictions']}", "",
              "| Metric | Formula | Value |", "|---|---|---|"]
     lines += [f"| {name} | {formula} | {_fmt(r, key, m)} |" for name, formula, r, key in rows]
+    if m.errors:
+        lines += ["", f"No verdict (ERROR) by cause: {m.errors['by_code']}. Of these, {m.errors['counted_as_fn']} are inside FN "
+                  f"and {m.errors['counted_as_tn']} inside TN: failures, not model decisions."]
     lat = m.latency
     lines += ["", ("Latency per case (wall clock, seconds; includes provider time only for live runs): "
                    f"n {lat['n']} · mean {lat['mean_seconds']} · p50 {lat['p50_seconds']} · p95 {lat['p95_seconds']} · "

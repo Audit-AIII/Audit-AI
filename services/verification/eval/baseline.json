@@ -240,6 +240,14 @@
       "note": "NOT SET: see 'CONTRADICTED recall (model run)'"
     },
     {
+      "name": "model run: provider failure rate",
+      "metric": "required_metrics/provider_failure_rate",
+      "op": "<=",
+      "value": 0.2,
+      "applies_to": "model_run",
+      "note": "requirement, not a measurement: a live run where more than 20% of records got no verdict (provider errors, refused routing, invalid output) describes the outage, not the model, and must not pass. Same limit as services/api eval_max_provider_failure_rate. Added 2026-10-24 after a live run with 78/80 ERROR records reported PASSED."
+    },
+    {
       "name": "pipeline safety: non-SUPPORTED records auto-cleared (fabricator)",
       "metric": "pipeline_safety/fabricator/auto_cleared_not_supported",
       "op": "<=",

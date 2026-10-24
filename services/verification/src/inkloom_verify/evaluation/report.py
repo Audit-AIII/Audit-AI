@@ -218,6 +218,14 @@ def render_markdown(report: dict[str, Any], max_cases: int = 25) -> str:
               "| Citations that quote the reference exactly. |",
               f"| Provider failure rate | {_ratio(m.get('provider_failure_rate'), m['unavailable'].get('provider_failure_rate'))} "
               "| Records whose answer was ERROR (provider failure, invalid output, budget refusal, missing). |"]
+    errors = m.get("errors") or {}
+    if errors:
+        lines += ["", f"**No verdict (ERROR): {sum(errors['by_code'].values())} records**, by cause: "
+                      + ", ".join(f"{code} {n}" for code, n in errors["by_code"].items())
+                      + f". {errors['counted_as_fn']} of them are counted inside FN and {errors['counted_as_tn']} inside TN "
+                      "above: these are failures, not model decisions, so the rates above overstate what the model did."]
+        for code, message in (errors.get("example_messages") or {}).items():
+            lines.append(f"- {code}: {message}")
     latency = m.get("latency") or {}
     lines += ["", (f"Latency per case (wall clock, seconds; includes provider time only for live runs): n {latency['n']} · "
                    f"mean {latency['mean_seconds']} · p50 {latency['p50_seconds']} · p95 {latency['p95_seconds']} · "

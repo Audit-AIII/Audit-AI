@@ -15,7 +15,15 @@ from pydantic import BaseModel
 from inkloom_verify.api_contract import Report as PublicReport
 from inkloom_verify.api_contract import VerifyRequest as PublicVerifyRequest
 from inkloom_verify.evaluation.summary import EvaluationSummary, IncompleteEvaluation, NoEvaluation
-from inkloom_verify.schemas import ClaimVerificationInput, EvalRecord, VerificationReport, VerificationRequest
+from inkloom_verify.schemas import (
+    BrandRules,
+    ClaimVerificationInput,
+    ContentMetadata,
+    EvalRecord,
+    RuleEvaluation,
+    VerificationReport,
+    VerificationRequest,
+)
 
 EXPORTED_MODELS: dict[str, type[BaseModel]] = {
     "verification_request": VerificationRequest,
@@ -28,6 +36,10 @@ EXPORTED_MODELS: dict[str, type[BaseModel]] = {
     "evaluation_summary": EvaluationSummary,
     "evaluation_incomplete": IncompleteEvaluation,
     "evaluation_none": NoEvaluation,
+    # The rules module (rules.evaluate_rules; RULES_HANDOFF.md): its input and its result
+    "brand_rules": BrandRules,
+    "content_metadata": ContentMetadata,
+    "rule_evaluation": RuleEvaluation,
 }
 
 DEFAULT_OUT_DIR = Path(__file__).resolve().parents[2] / "schemas"

@@ -337,3 +337,88 @@ def test_in_json_object_mode_a_no_endpoints_404_is_not_retried():
         adapter.complete_json(REQUEST)
     assert len(seen) == 2  # one call per model, no extra fallback
     assert "No endpoints" not in str(info.value)  # the provider's text is never echoed
+
+
+# --- INKLOOM_LLM_MODELS format (comma-separated ids; no JSON, quotes or mappings) ----------------
+
+NEMOTRON = "nvidia/nemotron-3.5-super-vl:free"
+
+
+def test_the_requested_model_id_is_accepted_and_sent_unchanged():
+    settings = OpenRouterSettings.from_env({"OPENROUTER_API_KEY": KEY, "INKLOOM_LLM_MODELS": NEMOTRON})
+    assert settings.models == [NEMOTRON]
+    adapter, seen, _ = provider(lambda r, n: ok({"x": 1}, model=NEMOTRON), models=(NEMOTRON,))
+    assert adapter.complete_json(REQUEST).model == NEMOTRON
+    assert body(seen[0])["model"] == NEMOTRON  # the id goes to OpenRouter exactly as configured
+
+
+def test_several_models_keep_their_order_and_spaces_after_commas_are_fine():
+    value = f"{NEMOTRON}, meta-llama/llama-3.3-70b-instruct:free ,google/gemini-flash"
+    settings = OpenRouterSettings.from_env({"OPENROUTER_API_KEY": KEY, "INKLOOM_LLM_MODELS": value})
+    assert settings.models == [NEMOTRON, "meta-llama/llama-3.3-70b-instruct:free", "google/gemini-flash"]
+
+
+@pytest.mark.parametrize(("value", "hint"), [
+    (f'"{NEMOTRON}"', "quote characters"),  # cmd: set INKLOOM_LLM_MODELS="..." keeps the quotes
+    (f"'{NEMOTRON}'", "quote characters"),
+    (f'["{NEMOTRON}"]', "brackets"),  # JSON list
+    (f'{{"verifier": "{NEMOTRON}"}}', "brackets"),  # JSON mapping
+    (f"verifier={NEMOTRON}", "'='"),
+    (f"{NEMOTRON};google/gemini-flash", "other than commas"),
+    (f"{NEMOTRON} google/gemini-flash", "other than commas"),
+    (f"https://openrouter.ai/{NEMOTRON}", "URL"),
+    (",".join([NEMOTRON] * 6), "6 models"),
+])
+def test_wrong_formats_are_refused_with_the_expected_format_and_a_hint(value, hint):
+    with pytest.raises(ProviderNotConfiguredError) as caught:
+        OpenRouterSettings.from_env({"OPENROUTER_API_KEY": KEY, "INKLOOM_LLM_MODELS": value})
+    message = str(caught.value)
+    assert "invalid INKLOOM_LLM_MODELS" in message and "comma-separated list of 1 to 5 OpenRouter model ids" in message
+    assert hint in message
+    assert value not in message and KEY not in message
+
+
+def test_a_key_pasted_into_the_models_variable_is_never_echoed():
+    with pytest.raises(ProviderNotConfiguredError) as caught:
+        OpenRouterSettings.from_env({"OPENROUTER_API_KEY": KEY, "INKLOOM_LLM_MODELS": f'"{KEY}"'})
+    assert KEY not in str(caught.value)
+
+
+@pytest.mark.parametrize("value", ["", "   ", ",", " , "])
+def test_empty_or_blank_models_are_missing_or_invalid_never_accepted(value):
+    with pytest.raises(ProviderNotConfiguredError, match="INKLOOM_LLM_MODELS"):
+        OpenRouterSettings.from_env({"OPENROUTER_API_KEY": KEY, "INKLOOM_LLM_MODELS": value})
+
+
+def test_model_ids_need_one_provider_slash_and_at_most_one_variant():
+    for bad in ("gemini-flash", "a//b", "a/b/c", "a/b:free:extra", "/model", "provider/"):
+        with pytest.raises(ValueError):
+            OpenRouterSettings(api_key=KEY, models=[bad])
+    for good in ("a/b", "openrouter/auto", NEMOTRON, "meta-llama/llama-3.3-70b-instruct:free"):
+        assert OpenRouterSettings(api_key=KEY, models=[good]).models == [good]
+
+
+# --- Data-policy 404 (seen live 2026-10-24 with nvidia/nemotron-3.5-super-vl:free) ---------------
+
+DATA_POLICY_404 = httpx.Response(404, json={"error": {"code": 404, "message": (
+    "No endpoints found matching your data policy (Free model training). Configure: https://openrouter.ai/settings/privacy")}})
+
+
+def test_a_data_policy_404_is_not_mistaken_for_unsupported_parameters_and_gets_no_fallback():
+    adapter, seen, sleeps = provider(lambda r, n: DATA_POLICY_404, models=(NEMOTRON,))
+    with pytest.raises(ProviderRequestError) as info:
+        adapter.complete_json(REQUEST)
+    assert len(seen) == 1 and sleeps == []  # no json_object retry: the mode cannot change the data policy
+    assert body(seen[0])["provider"]["data_collection"] == "deny"  # the privacy setting is never relaxed
+    message = str(info.value)
+    assert "data policy" in message and "INKLOOM_LLM_DATA_COLLECTION=deny" in message
+    assert "Free model training" not in message  # the provider's own text is not echoed
+
+
+def test_a_data_policy_404_moves_on_to_the_next_model():
+    def handler(request, n):
+        return DATA_POLICY_404 if body(request)["model"] == NEMOTRON else ok({"x": 1}, model="google/gemini-flash")
+
+    adapter, seen, _ = provider(handler, models=(NEMOTRON, "google/gemini-flash"))
+    assert adapter.complete_json(REQUEST).model == "google/gemini-flash"
+    assert [body(r)["model"] for r in seen] == [NEMOTRON, "google/gemini-flash"]
