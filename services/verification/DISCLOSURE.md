@@ -47,9 +47,13 @@ Provenance is recorded in `EVAL.md`.
 
 - It checks claims against **approved reference text it is given**. It does not know whether a
   claim is true in the world, and `NOT_ENOUGH_EVIDENCE` is the default when evidence is missing.
-- Rules (required and prohibited terms, product names, disclaimers, numeric limits) and the
-  accessibility and tone checks (ALL-CAPS runs, emoji runs, vague link text, missing alt text)
-  are deterministic, need no model, and never auto-approve: every finding asks for human review.
+- Rules are deterministic, need no model, and never auto-approve: every finding asks for human
+  review (RULES_HANDOFF.md). They cover terminology (required, prohibited, preferred terms,
+  spelling, product names, consistency), brand compliance (disclaimers, numeric limits), and
+  accessibility and tone (alt text, link text, headings, captions, colour contrast, ALL-CAPS and
+  emoji runs). Checks that lack data report "not checkable", never "passed".
+- Intent-lock is enforced by code, not by prompt wording: a suggested correction or safer wording
+  that would remove a locked phrase is refused (`intent_lock.py`).
 - **Measured accuracy of a live model has not been established yet.** The default evaluation is
   an always-abstain floor and the scripted adversaries test what the code enforces, not model
   quality. Any live-model number must be reported with its sample size and what it covers (see

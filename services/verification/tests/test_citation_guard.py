@@ -335,3 +335,17 @@ def test_no_conflict(claim, documents, why):
 def test_a_different_value_inside_the_same_document_is_not_a_cross_source_conflict():
     both = ReferenceDocument(doc_id="pods-faq", text="Battery: up to 12 hours of playback per charge. With ANC on, up to 9 hours of playback per charge.")
     assert conflicting_passage("Lumen Pods offer up to 12 hours of playback per charge.", evidence(both)) is None
+
+
+def test_regression_live_run_a_seconds_claim_is_not_supported_by_a_minutes_quote():
+    """Found by the live evaluation of 2026-10-24 (record v3-012, xingchen-agi/xing4.0-29b-a4b:free):
+    "second" was not a known unit, so "10-second" matched the quote's "10-minute"."""
+    from inkloom_verify.citation_guard import quantities, support_problems
+
+    assert ("10", "second") in quantities("A 10-second charge gives up to 2 hours")
+    claim = "A 10-second charge gives Lumen Pods up to 2 hours of playback."
+    quote = "A 10-minute charge gives up to 2 hours of playback."
+    passage = "Lumen Pods - Product Fact Sheet. Charging: USB-C. " + quote
+    assert support_problems(claim, [quote], [passage]) == [GuardRejectionReason.UNSUPPORTED_QUANTITY]
+    same = "A 10-minute charge gives Lumen Pods up to 2 hours of playback."
+    assert support_problems(same, [quote], [passage]) == []

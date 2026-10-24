@@ -871,6 +871,55 @@ Every report includes a `manifest` recording:
 The metrics are deterministic. Only `created_at` changes between runs, and a test checks that
 two runs give identical results.
 
+## Live evaluation status (2026-10-24, Step 6)
+
+**Result: genuine but incomplete; the run FAILED its gates.** Fewer than half the records got a
+model verdict, so **no model accuracy is established**. The numbers below describe 30 answered
+records and are reported only with that caveat.
+
+| | |
+|---|---|
+| Command | `run_eval.py --verdicts openrouter --record eval/run4.jsonl --pipeline verifier --check-baseline` |
+| Report | `eval/reports/20261024T125130Z.md` (+ `.json`), recording `eval/run4.jsonl` |
+| Model | `xingchen-agi/xing4.0-29b-a4b:free`, the only free OpenRouter model found that answered with `data_collection: deny` |
+| Prompt | `verify-claim-v1` (verifier pipeline: retrieval → verifier → citation guard; no extraction or corrections) |
+| Privacy | `data_collection: deny`, unchanged; the data is synthetic |
+| Records | 80 (55 dev, 25 held-out); **30 answered, 50 ERROR** (`PROVIDER_RATE_LIMITED`: the free model's upstream provider kept returning 429) |
+| Gates | **FAILED** on `model run: provider failure rate` (62.5% > 20%); exit code 1 |
+
+Among the **30 answered records** (derived from the report's confusion matrix):
+
+| Label | Answered | Correct | Predicted SUPPORTED (wrong approval) |
+|---|---|---|---|
+| SUPPORTED | 8 | 8 | n/a |
+| CONTRADICTED | 11 | 7 | 2 |
+| NOT_ENOUGH_EVIDENCE | 11 | 10 | 1 |
+
+- CONTRADICTED precision 7/7. Recall can't be read from this run: 21 of the 32 contradicted records
+  got no answer.
+- Citation resolution 18/18 (every quote verbatim); citation validity 15/18.
+- Retrieval recall@5: 57/57 (deterministic).
+- Not measured here: human-review routing and correction traceability, because those need
+  `--pipeline full`.
+
+**Live-observed guard failures (the 3 wrong approvals):**
+1. **v3-012** "10-second charge" accepted on a "10-minute charge" quote. **Fixed:** "second" was
+   not a known unit (REG-013). Re-scored offline from the recorded answers
+   (`eval/reports/20261024T130826Z.md`, a replay, not a new model run), it's now
+   NOT_ENOUGH_EVIDENCE, so wrong approvals go from 3 to 2.
+2. **v1-036** "cold for up to 12 hours" accepted on "cold for up to 24 hours and hot for up to 12
+   hours". The figure is present but belongs to another property. **Open:** the guard checks that
+   figures are present, not what they attach to.
+3. **v1-045** "USB-C and a wireless charging pad" accepted on a quote covering only USB-C. **Open:**
+   a compound claim is supported by half its evidence. In the full pipeline, extraction splits
+   compound sentences; the verifier-only run skips extraction.
+
+**To complete the measurement:** a compliant model with capacity. Either a paid OpenRouter model
+whose endpoints pass `data_collection: deny`, which costs about $0.01–0.02 for one 80-record
+verifier run (measured prompt sizes) and needs account credit and approval, or this free model when
+its provider isn't rate-limiting. Rerun the command above, and use `--pipeline full` to measure
+routing and corrections.
+
 ## Results so far (actual output, 2026-10-22)
 
 Command: `--baseline abstain --split all`. Dataset sha256 `f1c54642ccbc…`, engine 0.1.0, run

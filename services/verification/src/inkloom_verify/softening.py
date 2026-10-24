@@ -28,12 +28,14 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Sequence
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inkloom_verify.correction import NEUTRAL_WORDS, words
 from inkloom_verify.extraction import describe_validation_error, locate
+from inkloom_verify.intent_lock import check_replacement, validate_locks
 from inkloom_verify.prompts import softening as prompt
 from inkloom_verify.prompts.loader import load_prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
@@ -178,10 +180,12 @@ class ClaimSoftener:
         self.models_used: set[str] = set()
         self.last_issues: list[str] = []  # why the last proposal was refused (codes only; for logs and tests)
 
-    def soften(self, result: ClaimResult, content: InputContent) -> SoftenedWording | None:
+    def soften(self, result: ClaimResult, content: InputContent, locked_phrases: Sequence[str] = ()) -> SoftenedWording | None:
         """For a NOT_ENOUGH_EVIDENCE result only (anything else -> None, no model call).
-        Returns None when the model declines or any check fails."""
+        Returns None when the model declines or any check fails, including Intent-lock: a wording
+        that would remove a ``locked_phrases`` entry is refused (``last_issues`` = intent_lock)."""
         self.last_issues = []
+        locks = validate_locks(locked_phrases)
         if result.verdict is not Verdict.NOT_ENOUGH_EVIDENCE or result.error is not None:
             return None
         claim = result.claim
@@ -218,6 +222,8 @@ class ClaimSoftener:
         replacement = output.replacement_text.strip()
         rewritten = sentence[: located[0]] + replacement + sentence[located[1] :]
         issues = softening_issues(sentence, rewritten, original, replacement)
+        if not issues and check_replacement(content.text, target.start, target.end, replacement, locks):
+            issues = ["intent_lock"]
         if issues:
             self.last_issues = issues
             logger.info("softening claim=%s refused: %s", claim.claim_id, ",".join(i.split(":")[0] for i in issues))

@@ -169,6 +169,7 @@ _UNITS = {
     "mg": "milligram", "ml": "millilitre", "millilitre": "millilitre", "millilitres": "millilitre",
     "l": "litre", "litre": "litre", "litres": "litre", "liter": "litre", "liters": "litre",
     "h": "hour", "hr": "hour", "hrs": "hour", "hour": "hour", "hours": "hour",
+    "sec": "second", "secs": "second", "second": "second", "seconds": "second",
     "min": "minute", "mins": "minute", "minute": "minute", "minutes": "minute",
     "day": "day", "days": "day", "week": "week", "weeks": "week", "month": "month", "months": "month",
     "year": "year", "years": "year", "mm": "millimetre", "cm": "centimetre", "km": "kilometre",

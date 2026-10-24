@@ -26,12 +26,14 @@ import logging
 import math
 import re
 import unicodedata
+from collections.abc import Sequence
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inkloom_verify.citation_guard import full_dates, quantities
 from inkloom_verify.extraction import _ATTRIBUTION, QUALIFIERS, describe_validation_error, locate
+from inkloom_verify.intent_lock import check_replacement, validate_locks
 from inkloom_verify.prompts import correction as prompt
 from inkloom_verify.prompts.loader import load_prompt
 from inkloom_verify.providers.base import JsonCompletionRequest, LLMProvider, MalformedOutputError, ProviderError
@@ -185,8 +187,12 @@ class ClaimCorrector:
         if self.config.recheck and verifier is None:
             raise ValueError("re-checking corrections needs a ClaimVerifier for the same request")
 
-    def correct(self, result: ClaimResult, content: InputContent) -> ClaimResult:
-        """``result`` with a correction attempt added, or unchanged if no correction applies."""
+    def correct(self, result: ClaimResult, content: InputContent, locked_phrases: Sequence[str] = ()) -> ClaimResult:
+        """``result`` with a correction attempt added, or unchanged if no correction applies.
+
+        ``locked_phrases`` (Intent-lock): a proposal that would remove locked text is refused with
+        issue ``intent_lock`` before the re-check, whatever the evidence says; a person decides."""
+        locks = validate_locks(locked_phrases)
         if result.verdict is not Verdict.CONTRADICTED or not result.citations or result.correction_attempt is not None:
             return result
         claim = result.claim
@@ -237,6 +243,10 @@ class ClaimCorrector:
         )
         if issues:
             return _review(result, issues)
+        broken = check_replacement(content.text, target.start, target.end, replacement, locks)
+        if broken:
+            return _review(result, [CorrectionIssue(code=CorrectionIssueCode.INTENT_LOCK,
+                                                    detail=f"would remove {len(broken)} locked phrase(s)")])
         try:
             correction = Correction(target_span=target, original_text=original, replacement_text=replacement, citations=cited)
         except ValidationError as error:
