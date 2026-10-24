@@ -1,5 +1,5 @@
 // Guidelines page actions against the REAL backend: upload, new version, withdraw (with confirm),
-// unsupported / image-only files, and a role that can't manage documents.
+// unsupported and image-only files.
 // AUDIT_PASSWORD=... node qa/guidelines-live.mjs   (seeded users <role>@seed.inkloom.demo)
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -65,13 +65,7 @@ await p.waitForFunction((t) => [...document.querySelectorAll(".add-doc")].some((
 console.log("ok  withdraw -> Withdrawn; requests:", net.join(" | "));
 await p.close();
 
-// reviewer: no manage actions
-const r = await as("reviewer");
-assert.equal(await r.locator(".add-drop").count(), 0);
-assert.equal(await r.locator(".add-doc__actions").count(), 0);
-assert.match(await r.locator(".app-alert").first().innerText(), /can’t add or change documents/);
-console.log("ok  reviewer sees documents but no upload/approve/withdraw");
-
+// (Role checks removed: accounts are single-user, see DECISIONS.md.)
 assert.deepEqual(errors, []);
 console.log("ok  no page errors");
 await b.close();
