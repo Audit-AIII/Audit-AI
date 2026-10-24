@@ -224,6 +224,16 @@
           }
         }
       }
+    },
+    "locked_phrases": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "Intent-lock: the reviewed version's must-keep phrases (exact, case-sensitive). No suggestion that removes one is offered."
     }
   }
 }

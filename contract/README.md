@@ -115,6 +115,18 @@ review. Full shapes: `services/api/API.md` ("Brand rules" and "Rule findings"). 
   `incomplete` / `not_applied` mean the draft must not be shown as rule-clean.
 - `GET` / `PUT /api/brands/{id}/rules` to view and edit a brand's rules (a rules editor is new UI).
 
+## Intent-lock, Dismiss and comments (2026-10-24, additive)
+
+For Member 1 (Chahit). Full shapes: `services/api/API.md`.
+
+- **Intent-lock:** read and write locks with `GET` / `PUT /api/content-versions/{id}/locks` instead of
+  `localStorage` (`lib/additions/locks.ts`). The review has `locked_phrases`. A finding with
+  `withheld_by_intent_lock: true` had a suggestion that would break a lock: say "Suggestion hidden: it
+  would change locked text. Re-check to get a new one."
+- **Dismiss:** `POST /api/findings/{id}/dismiss` and `.../restore`. Show `dismissal` as "Dismissed by
+  you" with the note; never as supported or verified. The review's status doesn't change.
+- **Comments:** `GET` / `POST /api/findings/{id}/comments`; `comment_count` on each finding.
+
 ## Routes for the new UI pages (2026-10-24)
 
 Full shapes and example JSON: `services/api/API.md`.

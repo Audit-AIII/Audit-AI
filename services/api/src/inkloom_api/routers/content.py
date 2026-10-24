@@ -64,6 +64,8 @@ def create_version(
         text_sha256=hashlib.sha256(body.text.encode("utf-8")).hexdigest(),
         is_current=True,
         created_by=auth.user_id,
+        # The writer's Intent-lock list carries over to the edit; change it with PUT .../locks.
+        locked_phrases=list(previous_current.locked_phrases or []) if previous_current is not None else [],
     )
     db.add(new_version)
     db.flush()

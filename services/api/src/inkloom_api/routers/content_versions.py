@@ -19,6 +19,7 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from inkloom_verify.intent_lock import IntentLockError, validate_locks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -29,11 +30,12 @@ from ..approval_rules import (
     ensure_decidable,
 )
 from ..approval_service import check_approve_guards, record_decision
-from ..auth.dependencies import AuthContext, require_permission
+from ..audit import log_audit_event
+from ..auth.dependencies import AuthContext, get_current_membership, require_permission
 from ..auth.permissions import Permission
 from ..db import get_db
 from ..models import Review
-from ..request_text import StoredText
+from ..request_text import NUL, StoredText
 from ..schemas import ApprovalEventOut
 from ..statuses import ApprovalAction
 from ..tenancy import get_content_version_or_404, not_found
@@ -112,3 +114,57 @@ def request_changes(
     event = record_decision(db, review, content_version, auth.organisation_id, auth.user_id, action, body.note)
     db.commit()
     return ApprovalEventOut.from_model(event, content_version.version_number)
+
+
+# --- Intent-lock (Phase 7) ---------------------------------------------------------------------
+
+
+class LocksBody(BaseModel):
+    locked_phrases: list[str]
+
+
+class LocksOut(BaseModel):
+    content_version_id: uuid.UUID
+    locked_phrases: list[str]
+
+
+@router.get("/{content_version_id}/locks", response_model=LocksOut)
+def get_locks(
+    content_version_id: uuid.UUID,
+    auth: AuthContext = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> LocksOut:
+    version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
+    return LocksOut(content_version_id=version.id, locked_phrases=list(version.locked_phrases or []))
+
+
+@router.put("/{content_version_id}/locks", response_model=LocksOut)
+def put_locks(
+    content_version_id: uuid.UUID,
+    body: LocksBody,
+    auth: AuthContext = Depends(require_permission(Permission.SUBMIT)),
+    db: Session = Depends(get_db),
+) -> LocksOut:
+    """The writer's must-keep phrases for this version (exact, case-sensitive; the engine's
+    `validate_locks` rules: at most 50, each 1-200 characters, duplicates dropped). Replaces the
+    list. Reviews that run afterwards never get a suggestion that removes one, and a stored
+    suggestion that would is withheld when read (`withheld_by_intent_lock`)."""
+    version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
+    if any(NUL in phrase for phrase in body.locked_phrases):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "locked phrases must not contain NUL (0x00) characters")
+    try:
+        locks = validate_locks(body.locked_phrases)
+    except IntentLockError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from None
+    version.locked_phrases = locks
+    log_audit_event(
+        db,
+        organisation_id=auth.organisation_id,
+        actor_user_id=auth.user_id,
+        event_type="content_version.locks_updated",
+        entity_type="content_version",
+        entity_id=version.id,
+        details={"count": len(locks)},  # never the phrases themselves
+    )
+    db.commit()
+    return LocksOut(content_version_id=version.id, locked_phrases=locks)

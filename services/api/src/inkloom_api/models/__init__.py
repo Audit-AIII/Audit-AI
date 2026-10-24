@@ -7,7 +7,7 @@ from .evaluation import EvaluationRun
 from .governance import ApprovalEvent, AuditEvent
 from .ops import ExternalCallLog, IdempotencyKey, ResultCache
 from .organisations import Membership, Organisation, User
-from .review import EvidenceLink, Finding, Review
+from .review import EvidenceLink, Finding, FindingComment, FindingDecision, Review
 
 __all__ = [
     "Base",
@@ -22,6 +22,8 @@ __all__ = [
     "Review",
     "Finding",
     "EvidenceLink",
+    "FindingDecision",
+    "FindingComment",
     "ApprovalEvent",
     "AuditEvent",
     "ExternalCallLog",

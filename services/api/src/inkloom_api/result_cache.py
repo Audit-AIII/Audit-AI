@@ -38,6 +38,10 @@ def compute_cache_key(
         "sources": source_fingerprints,
         "engine_contract_version": CONTRACT_VERSION,
     }
+    if content_version.locked_phrases:
+        # Locks change which suggestions the engine may offer. Only added when there are some, so
+        # entries cached before Intent-lock existed keep their keys.
+        payload["locked_phrases"] = sorted(content_version.locked_phrases)
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

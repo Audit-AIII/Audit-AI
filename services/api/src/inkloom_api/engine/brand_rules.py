@@ -29,6 +29,7 @@ from inkloom_verify.schemas import RuleEvidence, RuleFinding, SourceSpan
 from sqlalchemy.orm import Session
 
 from ..models import ContentVersion, EvidenceLink, Finding, Review
+from ..intent_lock_guard import breaks_locks
 from ..section_diff import section_hash_for_span
 from ..statuses import CheckType, EvidenceRelation, RulesStatus, VerificationStatus
 from .corpus import CorpusEntry
@@ -45,7 +46,8 @@ class RulesOutcome:
 
 
 def apply_brand_rules(
-    db: Session, review: Review, content_version: ContentVersion, brand_rules: dict | None, corpus: list[CorpusEntry]
+    db: Session, review: Review, content_version: ContentVersion, brand_rules: dict | None, corpus: list[CorpusEntry],
+    locks: list[str] = (),
 ) -> RulesOutcome:
     try:
         evaluation = evaluate_rules(content_version.text, brand_rules)
@@ -62,7 +64,7 @@ def apply_brand_rules(
 
     documents = {entry.document.doc_id: entry for entry in corpus}
     for finding in evaluation.findings:
-        _write_rule_finding(db, review, finding, documents)
+        _write_rule_finding(db, review, finding, documents, content_version.text, locks)
     review.rule_checks = [check.model_dump(mode="json") for check in evaluation.checks]
     review.rules_status = (RulesStatus.COMPLETE if evaluation.complete else RulesStatus.INCOMPLETE).value
 
@@ -82,7 +84,9 @@ def _resolve(evidence: RuleEvidence, documents: dict[str, CorpusEntry]) -> tuple
     return entry, SourceSpan(start=start, end=start + len(evidence.quote))
 
 
-def _write_rule_finding(db: Session, review: Review, finding: RuleFinding, documents: dict[str, CorpusEntry]) -> None:
+def _write_rule_finding(
+    db: Session, review: Review, finding: RuleFinding, documents: dict[str, CorpusEntry], text: str, locks: list[str]
+) -> None:
     fields = rule_finding_fields(finding)
     extra = proposed_rule_finding_fields(finding)
     resolved = [(e, r) for e in finding.evidence if (r := _resolve(e, documents)) is not None]
@@ -92,6 +96,8 @@ def _write_rule_finding(db: Session, review: Review, finding: RuleFinding, docum
                        review.id, finding.rule_id, len(finding.evidence) - len(resolved))
         if basis == "approved_document":
             suggestion = basis = None  # its stated basis is gone
+    if breaks_locks(text, finding.span.start, finding.span.end, suggestion, locks):
+        suggestion = basis = None  # Intent-lock: would remove a must-keep phrase
 
     row = Finding(
         review_id=review.id,

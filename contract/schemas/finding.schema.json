@@ -141,6 +141,47 @@
         "null"
       ],
       "description": "Unverified claims only: a softened wording that is NOT evidence-backed (label it so). The whole original_text rewritten, like suggested_correction, which stays evidence-backed only."
+    },
+    "withheld_by_intent_lock": {
+      "type": "boolean",
+      "description": "True when a stored suggestion (suggested_correction or safer_wording) would remove a locked phrase set after the review ran: it is withheld (null). Re-run for one that keeps the locks."
+    },
+    "dismissal": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "by_user_id",
+        "at",
+        "note"
+      ],
+      "properties": {
+        "by_user_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "Set while the finding is dismissed by the user. Dismissed is NOT supported/verified: verification_status and evidence are unchanged."
+    },
+    "comment_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Comments on this finding (GET /api/findings/{id}/comments)."
     }
   },
   "definitions": {

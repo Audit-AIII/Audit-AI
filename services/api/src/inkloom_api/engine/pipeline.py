@@ -35,6 +35,7 @@ from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, 
 from ..config import get_settings
 from ..result_cache import compute_cache_key, get_cached_report, materialize_cached_report, serialize_review_outcome, store_report
 from ..section_diff import section_hash_for_span
+from ..intent_lock_guard import breaks_locks
 from ..softening_guard import softening_issues
 from ..statuses import (
     CheckType,
@@ -117,7 +118,8 @@ def run_review(
     external_call_log exactly like a real provider's."""
     review.status = ReviewState.ANALYSING.value
     review.started_at = datetime.now(timezone.utc)
-    rules = apply_brand_rules(db, review, content_version, brand_rules, corpus)
+    locks = list(content_version.locked_phrases or [])  # Intent-lock: passed to the engine, re-checked here
+    rules = apply_brand_rules(db, review, content_version, brand_rules, corpus, locks)
 
     def finish(state: ReviewState, summary: str | None = None) -> None:
         # A rule finding, or rules that could not (fully) run, also needs a person; a failed
@@ -218,10 +220,10 @@ def run_review(
         partial = partial or result.verdict is Verdict.ERROR
         softening = None
         if result.verdict is Verdict.CONTRADICTED:
-            result = _propose_correction(corrector, result, content, review)
+            result = _propose_correction(corrector, result, content, review, locks)
         elif result.verdict is Verdict.NOT_ENOUGH_EVIDENCE and softener is not None:
-            softening = _propose_softening(softener, result, content, review)
-        _write_finding(db, review, content_version, claim, result, lookup, organisation_id, softening)
+            softening = _propose_softening(softener, result, content, review, locks)
+        _write_finding(db, review, content_version, claim, result, lookup, organisation_id, softening, locks)
 
     summary = "; ".join(e.message for e in extraction.errors)[:500] or None
     finish(ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED, summary)
@@ -231,12 +233,15 @@ def run_review(
         store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
 
 
-def _propose_correction(corrector: ClaimCorrector, result: ClaimResult, content: InputContent, review: Review) -> ClaimResult:
+def _propose_correction(
+    corrector: ClaimCorrector, result: ClaimResult, content: InputContent, review: Review, locks: list[str]
+) -> ClaimResult:
     """The engine's corrector on one CONTRADICTED result. It already turns provider failures and
     every rejected proposal into a correction attempt with no correction; anything unexpected is
-    caught here too, so a correction problem can never change or drop the verdict itself."""
+    caught here too, so a correction problem can never change or drop the verdict itself. Locks
+    are passed only when there are some, so an engine without Intent-lock support still works."""
     try:
-        return corrector.correct(result, content)
+        return corrector.correct(result, content, locks) if locks else corrector.correct(result, content)
     except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
         logger.error("review=%s claim=%s correction failed unexpectedly: %s",
                      review.id, result.claim.claim_id, type(error).__name__)
@@ -258,9 +263,9 @@ def load_softener_class():
     return ClaimSoftener
 
 
-def _propose_softening(softener, result: ClaimResult, content: InputContent, review: Review):
+def _propose_softening(softener, result: ClaimResult, content: InputContent, review: Review, locks: list[str]):
     try:
-        return softener.soften(result, content)
+        return softener.soften(result, content, locks) if locks else softener.soften(result, content)
     except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
         logger.error("review=%s claim=%s softening failed unexpectedly: %s",
                      review.id, result.claim.claim_id, type(error).__name__)
@@ -371,6 +376,7 @@ def _write_finding(
     lookup: dict[tuple[str, str], CorpusEntry],
     organisation_id: uuid.UUID,
     softening=None,
+    locks: list[str] = (),
 ) -> None:
     verdict = result.verdict
     explanation = result.error.message if result.error else result.model_rationale
@@ -401,6 +407,14 @@ def _write_finding(
             verdict = Verdict.NOT_ENOUGH_EVIDENCE
             explanation = INTEGRITY_REJECTED_EXPLANATION
             suggested_correction = None
+
+    # Intent-lock, enforced here whatever the engine did: never store a suggestion that would
+    # remove one of the writer's must-keep phrases.
+    span = claim.source_span
+    if breaks_locks(content_version.text, span.start, span.end, suggested_correction, locks):
+        suggested_correction = None
+    if breaks_locks(content_version.text, span.start, span.end, safer_wording, locks):
+        safer_wording = None
 
     status = _STATUS_FOR_VERDICT[verdict]
     if verdict is Verdict.NOT_ENOUGH_EVIDENCE and result.conflicting_sources:

@@ -8,6 +8,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from .intent_lock_guard import breaks_locks
+
 
 class _Out(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -120,6 +122,14 @@ class EvidenceLinkOut(BaseModel):
         )
 
 
+class DismissalOut(BaseModel):
+    """Set while a finding is dismissed. Dismissed is not "supported": the verdict is unchanged."""
+
+    by_user_id: uuid.UUID | None
+    at: datetime
+    note: str | None
+
+
 class FindingOut(BaseModel):
     finding_id: uuid.UUID
     category: str | None
@@ -142,9 +152,21 @@ class FindingOut(BaseModel):
     scope: str | None = None  # "text": the span is the offending text; "document": something is missing
     suggestion_basis: str | None = None  # "brand_rule" | "approved_document"
     source_ids: list[uuid.UUID] | None = None  # the approved documents a rule is quoted from
+    # Phase 7 (all additive). True when a stored suggestion would remove a phrase the writer locked
+    # after the review ran: it is withheld (re-run to get one that keeps the locks).
+    withheld_by_intent_lock: bool = False
+    dismissal: DismissalOut | None = None
+    comment_count: int = 0
 
     @classmethod
-    def from_model(cls, finding) -> "FindingOut":
+    def from_model(cls, finding, text: str | None = None, locks: list[str] | None = None) -> "FindingOut":
+        suggested, safer, withheld = finding.suggested_correction, finding.safer_wording, False
+        if text is not None and locks:
+            if breaks_locks(text, finding.span_start, finding.span_end, suggested, locks):
+                suggested, withheld = None, True
+            if breaks_locks(text, finding.span_start, finding.span_end, safer, locks):
+                safer, withheld = None, True
+        latest = finding.decisions[-1] if finding.decisions else None
         return cls(
             finding_id=finding.finding_id,
             category=finding.category,
@@ -154,10 +176,16 @@ class FindingOut(BaseModel):
             check_type=finding.check_type,
             explanation=finding.explanation,
             verification_status=finding.verification_status,
-            suggested_correction=finding.suggested_correction,
+            suggested_correction=suggested,
             requires_human_review=finding.requires_human_review,
             evidence=[EvidenceLinkOut.from_model(e) for e in finding.evidence],
-            safer_wording=finding.safer_wording,
+            safer_wording=safer,
+            withheld_by_intent_lock=withheld,
+            dismissal=(
+                DismissalOut(by_user_id=latest.actor_user_id, at=latest.created_at, note=latest.note)
+                if latest is not None and latest.action == "dismissed" else None
+            ),
+            comment_count=len(finding.comments),
             rule_id=finding.rule_id,
             rule_type=finding.rule_type,
             scope=finding.scope,
@@ -219,6 +247,7 @@ class ReviewOut(BaseModel):
     # and one check record per rule (null when the rules did not run).
     rules_status: str | None = None
     rule_checks: list[RuleCheckOut] | None = None
+    locked_phrases: list[str] | None = None  # Intent-lock list of the reviewed content version
 
     @classmethod
     def from_model(cls, review) -> "ReviewOut":
@@ -234,6 +263,7 @@ class ReviewOut(BaseModel):
         )
         content_version = review.content_version
         content_item = content_version.content_item if content_version is not None else None
+        locks = list(content_version.locked_phrases or []) if content_version is not None else []
         return cls(
             id=review.id,
             content_version_id=review.content_version_id,
@@ -246,7 +276,10 @@ class ReviewOut(BaseModel):
             completed_at=review.completed_at,
             created_at=review.created_at,
             updated_at=review.updated_at,
-            findings=[FindingOut.from_model(f) for f in review.findings],
+            findings=[
+                FindingOut.from_model(f, content_version.text if content_version is not None else None, locks)
+                for f in review.findings
+            ],
             required_reviewer_role=review.required_reviewer_role,
             content_item_id=content_version.content_item_id if content_version is not None else None,
             brand_id=content_item.brand_profile_id if content_item is not None else None,
@@ -260,6 +293,7 @@ class ReviewOut(BaseModel):
             ),
             rules_status=review.rules_status,
             rule_checks=review.rule_checks,
+            locked_phrases=locks if content_version is not None else None,
         )
 
 

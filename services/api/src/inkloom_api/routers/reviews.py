@@ -214,6 +214,8 @@ def list_reviews(
             selectinload(Review.content_version).selectinload(ContentVersion.content_item).selectinload(ContentItem.brand_profile),
             selectinload(Review.findings).selectinload(Finding.evidence).selectinload(EvidenceLink.source),
             selectinload(Review.findings).selectinload(Finding.evidence).selectinload(EvidenceLink.source_version),
+            selectinload(Review.findings).selectinload(Finding.decisions),
+            selectinload(Review.findings).selectinload(Finding.comments),
         )
     )
     return [ReviewOut.from_model(review) for review in db.scalars(query).all()]

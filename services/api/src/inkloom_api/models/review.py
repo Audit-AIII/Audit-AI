@@ -113,6 +113,8 @@ class Finding(Base):
 
     review: Mapped[Review] = relationship(back_populates="findings")
     evidence: Mapped[list["EvidenceLink"]] = relationship(back_populates="finding")
+    decisions: Mapped[list["FindingDecision"]] = relationship(order_by="FindingDecision.created_at", viewonly=True)
+    comments: Mapped[list["FindingComment"]] = relationship(order_by="FindingComment.created_at", viewonly=True)
 
 
 class EvidenceLink(Base):
@@ -151,3 +153,35 @@ class EvidenceLink(Base):
     # None if the source row is ever gone (the FKs are ON DELETE SET NULL).
     source: Mapped["BrandSource | None"] = relationship("BrandSource", viewonly=True)
     source_version: Mapped["SourceVersion | None"] = relationship("SourceVersion", viewonly=True)
+
+
+class FindingDecision(Base):
+    """Per-finding Dismiss / restore (migration 0012). A separate row: the finding's verdict,
+    evidence and explanation are never changed by a decision, and a dismissed finding is not
+    "supported" - it was set aside by a person. The latest row says whether it is dismissed now."""
+
+    __tablename__ = "finding_decisions"
+    __table_args__ = (CheckConstraint("action IN ('dismissed', 'restored')", name="ck_finding_decision_action"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = created_at_column()
+
+
+class FindingComment(Base):
+    """A comment on a finding (migration 0012)."""
+
+    __tablename__ = "finding_comments"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = created_at_column()

@@ -145,6 +145,9 @@ current one, and no cited source may have been withdrawn or replaced since the r
 | `GET /api/content/{content_item_id}/history` | Versions, reviews and decisions |
 | `POST /api/content-versions/{content_version_id}/approve` | Mark ready to publish |
 | `POST /api/content-versions/{content_version_id}/request-changes` | Send back (`changes_requested` / `rejected`) |
+| `GET` / `PUT /api/content-versions/{content_version_id}/locks` | **New.** Intent-lock: the writer's must-keep phrases |
+| `POST /api/findings/{finding_id}/dismiss` · `.../restore` | **New.** Dismiss a finding / undo it |
+| `GET` / `POST /api/findings/{finding_id}/comments` | **New.** Comments on a finding |
 | `GET /api/analytics/brand-risk` | **New.** Insights numbers |
 | `GET /api/evaluations/latest` | **New.** Latest Trust Scorecard run |
 | `POST /api/evaluations` | **New.** Run the labelled evaluation |
@@ -378,6 +381,36 @@ GET /api/reviews?status=needs_human_review&status=completed&limit=20
   409 if not decidable, stale, or a cited document was withdrawn/replaced ("rerun the review first").
 - `POST /api/content-versions/{id}/request-changes` body `{"decision": "changes_requested" | "rejected",
   "note"?}` → 201 ApprovalEvent. 409 only if the review is not decidable.
+
+### Intent-lock — `GET` / `PUT /api/content-versions/{id}/locks`
+
+`PUT` body `{"locked_phrases": ["₹2,499", "Lumen Pods"]}` replaces the version's list → `{"content_version_id",
+"locked_phrases"}`. Exact, case-sensitive phrases (the engine's rules: at most 50, each 1–200
+characters, duplicates dropped; anything else → 422). A phrase that occurs n times must still occur
+n times.
+- **Enforced on the server, whatever the engine does:** the corrector and softener get the locks, and
+  the backend re-checks every suggestion (claim corrections, safer wording, rule suggestions) before
+  storing it. A lock-breaking suggestion is never stored or offered.
+- Locks set **after** a review ran: a stored suggestion that would break them is withheld when read
+  (`suggested_correction` / `safer_wording` `null`, `withheld_by_intent_lock: true`). Re-run for a
+  suggestion that keeps them. Locks are part of the result-cache key.
+- A new version (`POST /api/content/{id}/versions`) inherits the current version's locks. The
+  user's own edits are not blocked when they drop a locked phrase.
+- The review shape carries `locked_phrases`. Audited as `content_version.locks_updated` (count only).
+
+### Dismiss and comments — `/api/findings/{finding_id}/...`
+
+- `POST .../dismiss` (optional body `{"note"}`) → 201 `{"id", "finding_id", "action": "dismissed", "note",
+  "actor_user_id", "created_at"}`; already dismissed → 409. `POST .../restore` undoes it; not dismissed
+  → 409. While dismissed, the finding has `"dismissal": {"by_user_id", "at", "note"}` (else `null`).
+- **Dismissing never changes the finding** (verdict, evidence, explanation, suggestions) or the
+  review's status. Dismissed is **not** "supported": show "Dismissed by you", never "verified".
+  A re-run creates new findings; dismissals don't carry over.
+- `GET .../comments` → oldest first `[{"id", "finding_id", "author_user_id", "body", "created_at"}]`;
+  `POST .../comments` `{"body"}` (1–2000 characters, not blank) → 201 one comment. Each finding
+  has `comment_count`.
+- Audited as `finding.dismissed` / `finding.restored` / `finding.commented` (the comment text is
+  never in the audit log). Another account's finding → 404 like a random id.
 
 ### `GET /api/analytics/brand-risk` — Insights
 

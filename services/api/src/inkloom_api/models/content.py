@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, created_at_column, updated_at_column, uuid_pk
@@ -42,8 +42,9 @@ class ContentItem(Base):
 
 
 class ContentVersion(Base):
-    """Immutable: no `updated_at`. `text_sha256` names match
-    `inkloom_verify.schemas.InputContent` (CONTRACTS.md, "Text hashes")."""
+    """The text is immutable: no `updated_at`. `text_sha256` names match
+    `inkloom_verify.schemas.InputContent` (CONTRACTS.md, "Text hashes"). `locked_phrases` (the
+    writer's Intent-lock list, migration 0012) is the one field that can change after creation."""
 
     __tablename__ = "content_versions"
     __table_args__ = (
@@ -61,6 +62,9 @@ class ContentVersion(Base):
     # Creating a new version flips the previous one to False in the same transaction. This is
     # what "the old approval becomes historical only" means at the data level.
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Intent-lock: exact must-keep phrases (validated by inkloom_verify.intent_lock.validate_locks).
+    # No suggestion that would remove one is ever offered (intent_lock_guard.py).
+    locked_phrases: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = created_at_column()
 
