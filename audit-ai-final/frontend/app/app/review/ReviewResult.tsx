@@ -379,6 +379,13 @@ function FindingDetail({ f }: { f: FindingOut }) {
 /** The suggestion for a finding with its label (never applied for you). */
 function Suggestion({ f }: { f: FindingOut }) {
   const sg = suggestionFor(f);
+  if (!sg && f.withheld_by_intent_lock)
+    return (
+      <p className="t-body panel__note">
+        <span aria-hidden="true">🔒</span> A suggestion was hidden because it would remove a protected phrase. Check again (in “Fix the wording”)
+        to get one that keeps it.
+      </p>
+    );
   if (!sg) return null;
   return (
     <p className="t-body panel__note">
