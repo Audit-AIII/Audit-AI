@@ -23,6 +23,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 
 from inkloom_verify.correction import ClaimCorrector
+from inkloom_verify.decision_policy import DecisionPolicy, apply_policy
 from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig
 from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
@@ -216,14 +217,17 @@ def run_review(
             needs_human_review = partial = True
             _write_unexpected_error_finding(db, review, content_version, claim, error)
             continue
-        needs_human_review = needs_human_review or result.verdict is not Verdict.SUPPORTED
         partial = partial or result.verdict is Verdict.ERROR
         softening = None
         if result.verdict is Verdict.CONTRADICTED:
             result = _propose_correction(corrector, result, content, review, locks)
         elif result.verdict is Verdict.NOT_ENOUGH_EVIDENCE and softener is not None:
             softening = _propose_softening(softener, result, content, review, locks)
-        _write_finding(db, review, content_version, claim, result, lookup, organisation_id, softening, locks)
+        result = _with_decision_policy(result, review)
+        finding_needs_review = _write_finding(
+            db, review, content_version, claim, result, lookup, organisation_id, softening, locks
+        )
+        needs_human_review = needs_human_review or finding_needs_review
 
     summary = "; ".join(e.message for e in extraction.errors)[:500] or None
     finish(ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED, summary)
@@ -261,6 +265,23 @@ def load_softener_class():
     except ImportError:
         return None
     return ClaimSoftener
+
+
+def _with_decision_policy(result: ClaimResult, review: Review) -> ClaimResult:
+    """The engine's decision policy (inkloom_verify.decision_policy, the same call
+    verify_request makes): which claims a person must review. Beyond the fixed floor
+    (contradicted / unverified / error, and SUPPORTED on weak evidence), a SUPPORTED claim on
+    less than strong evidence, or a compound claim on one quote, also goes to a person. It can
+    only add review reasons, never remove one; if it fails, the claim is reviewed."""
+    try:
+        return apply_policy(result, _DECISION_POLICY)
+    except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
+        logger.error("review=%s claim=%s decision policy failed unexpectedly: %s",
+                     review.id, result.claim.claim_id, type(error).__name__)
+        return result.model_copy(update={"requires_human_review": True})
+
+
+_DECISION_POLICY = DecisionPolicy()  # engine defaults (decision-policy-v1)
 
 
 def _propose_softening(softener, result: ClaimResult, content: InputContent, review: Review, locks: list[str]):
@@ -377,7 +398,8 @@ def _write_finding(
     organisation_id: uuid.UUID,
     softening=None,
     locks: list[str] = (),
-) -> None:
+) -> bool:
+    """Adds the finding (and its evidence) and returns whether it needs a person's review."""
     verdict = result.verdict
     explanation = result.error.message if result.error else result.model_rationale
     suggested_correction = claim_level_correction(content_version.text, claim, result.correction)
@@ -438,7 +460,9 @@ def _write_finding(
         verification_status=status.value,
         suggested_correction=suggested_correction,
         safer_wording=safer_wording,
-        requires_human_review=verdict is not Verdict.SUPPORTED,
+        # The engine's decision (floor + policy, _with_decision_policy), and always for anything
+        # this backend downgraded or could not confirm.
+        requires_human_review=verdict is not Verdict.SUPPORTED or result.requires_human_review,
         engine_claim_id=claim.claim_id,
     )
     db.add(finding)
@@ -446,7 +470,7 @@ def _write_finding(
 
     relation = _RELATION_FOR_VERDICT.get(verdict)
     if relation is None:
-        return  # NOT_ENOUGH_EVIDENCE / ERROR never carry citations (engine contract)
+        return finding.requires_human_review  # NOT_ENOUGH_EVIDENCE / ERROR never carry citations
     for citation, entry in zip(result.citations, valid_entries):
         db.add(
             EvidenceLink(
@@ -460,6 +484,7 @@ def _write_finding(
                 cited_section_hash=section_hash_for_span(entry.document, citation.quote_span),
             )
         )
+    return finding.requires_human_review
 
 
 def _log_integrity_rejection(

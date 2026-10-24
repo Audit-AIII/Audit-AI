@@ -1,5 +1,8 @@
-"""GET /api/evaluations/latest and POST /api/evaluations - the Trust Scorecard page (frontend
-lib/additions/analytics.ts, `Evaluation`).
+"""GET /api/evaluations/latest and POST /api/evaluations - the Trust Scorecard.
+
+Contract note (2026-10-24): the frontend's Scorecard (lib/additions/analytics.ts) currently accepts
+only the engine's file-based "evaluation-summary-v1", not this response; which one the page uses is
+an open team decision (member3_backend/HANDOFF_scorecard_contract.md).
 
 `latest` answers 404 until the account has run one: the Scorecard page treats 404 as "not
 available yet", whereas a 200 with missing numbers would render "undefined" / "Invalid Date".
@@ -63,7 +66,7 @@ class SplitOut(BaseModel):
 
 
 class EvaluationOut(BaseModel):
-    # The Scorecard page's `Evaluation` type, exactly:
+    # The original Scorecard `Evaluation` fields (see the contract note at the top):
     catch_rate: float | None
     false_positive_rate: float | None
     per_check: list[PerCheckOut]
