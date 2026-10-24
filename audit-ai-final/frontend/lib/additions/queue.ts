@@ -12,7 +12,6 @@ export type QueueRow = {
   title: string;
   brandId: string | null;
   risk: "high" | "medium" | "low" | "none";
-  requiredRole: string | null;
   createdAt: string;
   status: string;
   placeholder: boolean;
@@ -27,7 +26,6 @@ export function toRow(r: ReviewOut): QueueRow {
     title: r.title ?? "Untitled draft",
     brandId: r.brand_id ?? null,
     risk: (["none", "low", "medium", "high"] as const)[top],
-    requiredRole: r.required_reviewer_role,
     createdAt: r.created_at,
     status: r.status,
     placeholder: r.findings.some((f) => f.category === "stub") || /^stub/i.test(r.engine?.provider ?? ""),

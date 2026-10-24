@@ -12,10 +12,10 @@ export function Oversight() {
       <div className="oversight__panel">
         <div className="oversight__grid">
           <Heading id="oversight-title" relief="raised" className="oversight__title" data-r="up">
-            People stay in charge
+            You stay in charge
           </Heading>
           <p className="t-lead oversight__intro" data-r="up">
-            Audit AI only suggests. A person approves it, sends it back with a note, or rejects it.
+            Audit AI only suggests. You approve it, send it back with a note, or reject it.
           </p>
 
           <figure className="oversight__quote" data-r="up">

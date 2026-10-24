@@ -1,14 +1,13 @@
-/** Mirrors services/api auth/permissions.py. The server still enforces every rule; this only
- * decides which buttons to offer and how to explain a disabled one. */
-const APPROVERS = new Set(["approver", "legal_reviewer", "brand_manager", "admin"]);
-const REVIEWERS = new Set(["reviewer", ...APPROVERS]);
-
-/** POST /api/reviews needs the `submit` permission (submitter, admin), confirmed live. */
-export const canSubmit = (role: string) => role === "submitter" || role === "admin";
-/** Upload / approve brand documents needs `manage_sources`: source_manager and admin. */
-export const canManageSources = (role: string) => role === "source_manager" || role === "admin";
-export const canApprove = (role: string) => APPROVERS.has(role);
-export const canReview = (role: string) => REVIEWERS.has(role);
+/**
+ * Single-user accounts (DECISIONS.md, decision 1): the signed-in owner can do everything in their
+ * own account, so no button is hidden or disabled because of a role. The server still refuses for
+ * other reasons (a stale version, a cited source that changed) and the UI shows its message.
+ * Kept as functions so call sites stay readable if roles return later.
+ */
+export const canSubmit = () => true;
+export const canManageSources = () => true;
+export const canApprove = () => true;
+export const canReview = () => true;
 export const roleName = (role: string) => role.replace(/_/g, " ");
 
 /** States a decision can be made from (approval_rules.DECIDABLE_STATES). */

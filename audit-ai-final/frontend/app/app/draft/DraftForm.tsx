@@ -5,10 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Dropzone, Option, Panel, Panels } from "@/components/app/Stage";
-import { canSubmit, roleName } from "@/components/app/roles";
 import { ACCEPTED_FILE_TYPES, ApiError, MAX_UPLOAD_BYTES, api } from "@/lib/api/client";
 import { useActiveBrand } from "@/lib/brand";
-import { useSession } from "@/lib/session";
 import { rememberReviewText } from "@/lib/workspace";
 
 const MAX = 100_000; // backend limit, in characters (code points)
@@ -20,8 +18,6 @@ const PLACES = ["Website", "Social media", "Email", "Product page", "Other"];
 /** New review: pasted text -> POST /api/reviews, or a file -> POST /api/reviews/upload. */
 export function DraftForm() {
   const router = useRouter();
-  const role = useSession()?.role ?? "";
-  const allowed = canSubmit(role);
   const active = useActiveBrand();
   const brand = active.state === "ready" ? active.brand : null;
 
@@ -161,18 +157,12 @@ export function DraftForm() {
             This can take up to a minute. Each problem we find shows the reason and the document it came from. Nothing is
             changed for you.
           </p>
-          {!allowed && (
-            <p className="app-alert" role="note">
-              Your role ({roleName(role)}) can’t send drafts for checking. A submitter or admin needs to do this. You can still
-              review and decide on drafts others send.
-            </p>
-          )}
           {error && (
             <p className="app-alert app-alert--bad" role="alert">
               {error}
             </p>
           )}
-          <Button type="submit" disabled={busy || !allowed || !brand} aria-busy={busy}>
+          <Button type="submit" disabled={busy || !brand} aria-busy={busy}>
             {busy ? "Checking…" : "Check my draft →"}
           </Button>
         </Panel>

@@ -2,11 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/additions/States";
-import { canReview, roleName } from "@/components/app/roles";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { useBrands } from "@/lib/additions/brands";
 import { loadQueue, type QueueLoad, type QueueRow } from "@/lib/additions/queue";
-import { useSession } from "@/lib/session";
 
 type Load = { state: "loading" } | { state: "ok"; data: QueueLoad } | { state: "error"; error: unknown };
 
@@ -17,7 +15,7 @@ const RISK_LOOK: Record<QueueRow["risk"], { glyph: string; label: string; tone: 
   none: { glyph: "○○○", label: "None found", tone: "none" },
 };
 const STATUS_LABEL: Record<string, string> = {
-  needs_human_review: "Waiting for a reviewer",
+  needs_human_review: "Waiting for your decision",
   completed: "Checked, nothing flagged",
   approved: "Approved",
   changes_requested: "Sent back",
@@ -35,7 +33,6 @@ function age(iso: string) {
 }
 
 export function Queue() {
-  const role = useSession()?.role ?? "";
   const { value: brands } = useBrands();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [tick, setTick] = useState(0);
@@ -61,11 +58,6 @@ export function Queue() {
   return (
     <>
       <StageHead title="Queue" status={load.state === "ok" ? `${waiting.length} waiting` : undefined} />
-      {!canReview(role) && (
-        <p className="app-alert" role="note">
-          ⊘ Your role ({roleName(role)}) can see the queue but can’t decide on drafts. A reviewer or approver does that.
-        </p>
-      )}
 
       <Panels cols="wide">
         <Panel n="01" label="Waiting for review" title="Waiting for review">
@@ -96,7 +88,6 @@ function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: str
             <th scope="col">Draft</th>
             <th scope="col">Brand</th>
             <th scope="col">Risk</th>
-            <th scope="col">Needs</th>
             <th scope="col">Age</th>
             <th scope="col">Status</th>
           </tr>
@@ -118,7 +109,6 @@ function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: str
                     <span aria-hidden="true">{risk.glyph}</span> {risk.label}
                   </span>
                 </td>
-                <td>{r.requiredRole ? roleName(r.requiredRole) : "–"}</td>
                 <td>{age(r.createdAt)}</td>
                 <td>{STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " ")}</td>
               </tr>

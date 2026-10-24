@@ -17,7 +17,7 @@ const STEPS = [
     copy: "Each problem comes with the reason, the document it is based on and a suggested fix.",
     visual: "review",
   },
-  { title: "Approve and keep a record", copy: "A person signs it off, and every decision is saved so you can show it later.", visual: "approve" },
+  { title: "Approve and keep a record", copy: "You sign it off, and every decision is saved so you can show it later.", visual: "approve" },
 ] as const;
 
 function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {

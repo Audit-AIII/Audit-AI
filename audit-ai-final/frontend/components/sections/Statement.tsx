@@ -81,7 +81,7 @@ export function Statement() {
           {/* COPY TO REVIEW: §15 gives no text for this note. */}
           <div className="statement__note">
             <p className="t-lead">Every flag points to the document behind it.</p>
-            <p className="t-body">If nothing proves a line, it is marked “not proven yet”, never “wrong”, until a person decides.</p>
+            <p className="t-body">If nothing proves a line, it is marked “not proven yet”, never “wrong”, until you decide.</p>
           </div>
         </div>
       </div>

@@ -86,7 +86,7 @@ function Result({ data }: { data: EvaluationResponse }) {
     // TODO: add a "Run evaluation" button once the backend design for POST /api/evaluations is agreed.
     return (
       <EmptyState title="No evaluation yet">
-        <p className="add-note">Results appear here after the team runs one. These are benchmark results, not live statistics.</p>
+        <p className="add-note">Results appear here after an evaluation is run. These are benchmark results, not live statistics.</p>
         {data.how_to_run && <code className="add-mono">{data.how_to_run}</code>}
       </EmptyState>
     );

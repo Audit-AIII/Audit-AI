@@ -245,7 +245,7 @@ function FindingDetail({ f }: { f: FindingOut }) {
           <b>We suggest:</b> “{f.suggested_correction}”
         </p>
       )}
-      {f.requires_human_review && <p className="t-caption">A person needs to decide on this one.</p>}
+      {f.requires_human_review && <p className="t-caption">You need to decide on this one.</p>}
     </div>
   );
 }

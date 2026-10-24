@@ -7,7 +7,7 @@ const FAQ = [
   {
     id: "faq-rewrite",
     q: "Does Audit AI rewrite my content?",
-    a: "No. It suggests changes, and nothing changes until a person accepts it. In the editor you can mark prices, dates or product names as must-keep, and suggestions that would change them are blocked.",
+    a: "No. It suggests changes, and nothing changes until you accept it. In the editor you can mark prices, dates or product names as must-keep, and suggestions that would change them are blocked.",
   },
   {
     id: "faq-data",
@@ -17,7 +17,7 @@ const FAQ = [
   {
     id: "faq-evidence",
     q: "What if there is no proof?",
-    a: "The line is marked “not proven yet”, never “wrong”. A person decides whether to add proof, soften the wording or remove it.",
+    a: "The line is marked “not proven yet”, never “wrong”. You decide whether to add proof, soften the wording or remove it.",
   },
   {
     id: "faq-confidential",
@@ -27,7 +27,7 @@ const FAQ = [
   {
     id: "faq-legal",
     q: "Is this legal advice?",
-    a: "No. Audit AI compares your text with the documents you approved. Your legal team still makes the final call.",
+    a: "No. Audit AI compares your text with the documents you approved. The final call, and any legal advice, is yours to get.",
   },
 ];
 

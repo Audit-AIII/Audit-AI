@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { canApprove, canManageSources, canReview } from "@/components/app/roles";
 import { Button } from "@/components/primitives/Button";
 import { signOut, useSession } from "@/lib/session";
 import { sandNavigate } from "@/lib/sandWave";
 
-/** Extra workspace pages for the account menu's "More" group, each shown only to roles that can use it. */
-const MORE: { href: string; label: string; show: (role: string) => boolean }[] = [
-  { href: "/app/queue", label: "Review queue", show: canReview },
-  { href: "/app/guidelines", label: "Guidelines", show: canManageSources },
-  { href: "/app/insights", label: "Insights", show: canApprove },
-  { href: "/app/scorecard", label: "Trust Scorecard", show: () => true },
+/** Extra workspace pages for the account menu's "More" group (single-user: shown to every owner). */
+const MORE: { href: string; label: string }[] = [
+  { href: "/app/queue", label: "Review queue" },
+  { href: "/app/guidelines", label: "Guidelines" },
+  { href: "/app/insights", label: "Insights" },
+  { href: "/app/scorecard", label: "Trust Scorecard" },
 ];
 
 /**
@@ -73,10 +72,10 @@ export function AccountNav({ onNavigate, inApp = false }: { onNavigate?: () => v
         <div id={menuId} className={`account__menu card${open ? " is-open" : ""}`}>
           <p className="t-caption account__menu-label">Signed in as</p>
           <p className="account__menu-email">{session.email}</p>
-          {MORE.some((m) => m.show(session.role)) && (
+          {(
             <nav aria-label="More pages" style={{ display: "grid", gap: 6, marginBottom: 6 }}>
               <p className="t-caption account__menu-label">More</p>
-              {MORE.filter((m) => m.show(session.role)).map((m) => (
+              {MORE.map((m) => (
                 <Link
                   key={m.href}
                   className="link link--tap"

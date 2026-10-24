@@ -3,7 +3,6 @@
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { isStub, isStubReview } from "@/components/app/reviewLabels";
-import { roleName } from "@/components/app/roles";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import type { ReviewOut } from "@/lib/api/types";
 import { useSession } from "@/lib/session";
@@ -66,7 +65,7 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
   const byYou = localDecision && session && localDecision.actor_user_id === session.userId;
 
   const steps: Step[] = [
-    { at: review.created_at, who: "Writer", what: "Sent the draft for checking" },
+    { at: review.created_at, who: "You", what: "Sent the draft for checking" },
     {
       at: review.completed_at ?? review.started_at,
       who: "Audit AI",
@@ -80,7 +79,7 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
   if (outcome) {
     steps.push({
       at: localDecision?.created_at ?? review.updated_at,
-      who: byYou ? "You" : "A reviewer",
+      who: byYou ? "You" : "This account",
       what: `${outcome}${localDecision?.note ? `: “${localDecision.note}”` : ""}`,
       local: !!localDecision,
     });
@@ -142,10 +141,6 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
               <dd>
                 <code className="request-id">{review.id}</code>
               </dd>
-            </div>
-            <div className="spec__row">
-              <dt>Approver needed</dt>
-              <dd>{review.required_reviewer_role ? roleName(review.required_reviewer_role) : "–"}</dd>
             </div>
             <div className="spec__row">
               <dt>Checks version</dt>
