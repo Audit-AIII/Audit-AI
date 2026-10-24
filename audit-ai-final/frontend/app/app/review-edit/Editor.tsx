@@ -195,6 +195,7 @@ function EditorView({ review }: { review: ReviewOut }) {
                 🔒 Mark must-keep text
               </button>
               <span className="add-note add-muted">Select words in the box above first.</span>
+              <span className="add-note add-muted">Saved in this browser only. The server does not enforce this yet.</span>
             </div>
             {locks.length > 0 && (
               <ul className="add-locks" aria-label="Must-keep text">
