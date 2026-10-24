@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/primitives/Button";
+import { FindingComments } from "@/components/additions/FindingComments";
 import { FindingDismiss } from "@/components/additions/FindingDismiss";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import {
@@ -23,7 +24,7 @@ import {
 } from "@/components/app/reviewLabels";
 import { ApiError, api } from "@/lib/api/client";
 import type { FindingOut, ReviewOut, RuleCheck } from "@/lib/api/types";
-import { applyDecision, DISMISSED, isDismissed } from "@/lib/additions/findingState";
+import { applyComment, applyDecision, commentCountText, DISMISSED, isDismissed } from "@/lib/additions/findingState";
 import { segment } from "@/lib/text/codepoints";
 import { getReviewText, setLastReviewId } from "@/lib/workspace";
 
@@ -236,6 +237,7 @@ function ReviewView({
                               {sev.marks} {sev.word}
                             </span>
                           )}
+                          {(f.comment_count ?? 0) > 0 && <span className="add-count t-caption"> · {commentCountText(f.comment_count ?? 0)}</span>}
                         </span>
                       </span>
                     </button>
@@ -249,7 +251,10 @@ function ReviewView({
         <Panel n="03" label="Why it was flagged" title={current ? (isStub(current) ? "Placeholder" : findingChip(current).label) : "–"}>
           {current ? <FindingDetail f={current} /> : <p className="t-body panel__note">Pick a problem to see why.</p>}
           {current && !isStub(current) && (
-            <FindingDismiss key={current.finding_id} f={current} onDecided={(d) => onReview((r) => applyDecision(r, d))} />
+            <>
+              <FindingDismiss key={current.finding_id} f={current} onDecided={(d) => onReview((r) => applyDecision(r, d))} />
+              <FindingComments key={`c-${current.finding_id}`} findingId={current.finding_id} onAdded={(c) => onReview((r) => applyComment(r, c))} />
+            </>
           )}
           <EngineNote review={review} stub={stub} />
           <a className="link" href={`/app/review-edit?id=${review.id}`}>Fix the wording →</a>
