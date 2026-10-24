@@ -5,9 +5,10 @@ code and external services must be disclosed.
 
 ## AI assistance
 
-This service (`services/api`) was built with Claude Code (Anthropic), working from the phase
-instructions in [`../../member3_backend/`](../../member3_backend). Claude Code wrote the project
-skeleton, SQLAlchemy models, Alembic migrations, structured logging/error handling, the shared
+This service (`services/api`) was built with Claude Code (Anthropic), working from phase
+instructions that were kept in `member3_backend/` (removed from the tree; still in git history,
+and their lasting decisions are in [`../../docs/backend.md`](../../docs/backend.md)). Claude Code
+wrote the project skeleton, SQLAlchemy models, Alembic migrations, structured logging/error handling, the shared
 `contract/` files, the LLM provider fallback adapter (`engine/providers/`), the result cache,
 idempotency and rate-limiting layers, the approval/versioning/audit state machine, and the
 source-lifecycle (withdraw/new-version/section-diff) logic — under this member's direction and

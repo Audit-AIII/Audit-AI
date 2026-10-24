@@ -1,6 +1,6 @@
 """Approval decisions and the tenant-wide audit trail.
 
-Governance invariant (00_CONTEXT.md): `if current_version_id != reviewed_version_id: reject
+Governance invariant (docs/backend.md): `if current_version_id != reviewed_version_id: reject
 stale approval`. `ApprovalEvent` records both the version acted on and the review it was judged
 against, so that check can be made without re-deriving it from other tables.
 """

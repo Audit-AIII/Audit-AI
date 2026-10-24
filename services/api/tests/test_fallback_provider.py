@@ -1,6 +1,5 @@
-"""Phase 5 required tests (member3_backend/phase5_provider_adapter_cache_idempotency.md,
-"Tests (write now)") for the provider interface and failure behaviour specifically — cache,
-idempotency and rate limits are later steps, not covered here.
+"""The provider interface and its failure behaviour (docs/backend.md, "Provider adapter, cache
+and idempotency"). Cache, idempotency and rate limits are tested in their own modules.
 
 1. Provider returns 429: adapter falls back.   -> test_falls_through_on_rate_limit_to_next_provider
 2. Timeout -> fallback (bounded retry is retry.py's own job, tested there; this proves

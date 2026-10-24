@@ -1,5 +1,5 @@
-"""Assembles the Phase 5 provider fallback chain: Gemini Flash, Groq, OpenRouter `:free`, local
-Ollama, in that order (member3_backend/phase5_provider_adapter_cache_idempotency.md task 1).
+"""Assembles the provider fallback chain: Gemini Flash, Groq, OpenRouter `:free`, local
+Ollama, in that order (docs/backend.md, "Provider adapter, cache and idempotency").
 
 If none of the four are configured, `build_provider()` still returns a usable `FallbackProvider`
 — it simply has an empty `configured_providers` list. The caller (pipeline.py) checks that and

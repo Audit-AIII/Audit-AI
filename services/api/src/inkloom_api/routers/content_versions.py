@@ -1,5 +1,4 @@
-"""POST /api/content-versions/{id}/approve, POST /api/content-versions/{id}/request-changes
-(phase6_versioning_approval_audit.md tasks 4-5).
+"""POST /api/content-versions/{id}/approve, POST /api/content-versions/{id}/request-changes.
 
 Individual-user mode: the account owner marks their own content "ready to publish" (approve) or
 sends it back (request-changes / reject). Both routes keep their `require_permission(...)`

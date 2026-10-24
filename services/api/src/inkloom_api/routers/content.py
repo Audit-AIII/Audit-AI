@@ -1,5 +1,4 @@
-"""POST /api/content/{id}/versions, GET /api/content/{id}/history
-(phase6_versioning_approval_audit.md tasks 1 and 8).
+"""POST /api/content/{id}/versions, GET /api/content/{id}/history.
 
 Creating a version also runs a review on it synchronously (confirmed with the team) — one call,
 one result, same pattern as `POST /api/reviews`.

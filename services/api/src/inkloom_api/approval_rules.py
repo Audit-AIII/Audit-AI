@@ -1,4 +1,4 @@
-"""Review decision state machine (phase6_versioning_approval_audit.md task 3).
+"""Review decision state machine.
 
 A review may be decided (approved / rejected / changes_requested) only from `completed` or
 `needs_human_review`. Every other state is either not finished yet (draft/queued/analysing),
@@ -35,7 +35,7 @@ class InvalidReviewTransitionError(Exception):
 
 class StaleApprovalError(Exception):
     """The content has moved on to a newer version since this review ran
-    (00_CONTEXT.md governance invariant: `current_version_id != reviewed_version_id`)."""
+    (governance invariant, docs/backend.md: `current_version_id != reviewed_version_id`)."""
 
 
 class SupersededSourceError(Exception):

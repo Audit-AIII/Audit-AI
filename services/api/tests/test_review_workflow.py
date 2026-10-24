@@ -1,6 +1,6 @@
 """Phase 5: the review decision state machine, end to end through the API.
 
-The rules are the existing ones (approval_rules.py, 00_CONTEXT.md "Governance invariants",
+The rules are the existing ones (approval_rules.py, docs/backend.md "Governance invariants",
 DECISIONS.md decision 1) - these tests pin them over every route, they add none:
 
 1. a review is decided only from completed / needs_human_review: every decision on an already

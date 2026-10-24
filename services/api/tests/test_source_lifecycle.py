@@ -1,4 +1,4 @@
-"""Phase 7 required tests (phase7_source_lifecycle_inkwatch.md, "Tests (write now)"):
+"""Source lifecycle and InkWatch (docs/backend.md):
 
 1. Withdrawing a source flips every dependent approved item to source_changed.
    -> test_withdraw_flips_every_approved_dependent

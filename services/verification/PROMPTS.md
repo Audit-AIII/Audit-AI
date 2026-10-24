@@ -557,7 +557,8 @@ correction.
 ## Prompt: `soften-claim-v1`
 
 **What it's for:** a suggested safer wording for a NOT_ENOUGH_EVIDENCE (unverified) claim.
-Requested by Member 3 in `member3_backend/HANDOFF_unverified_suggestions.md`. Code:
+Requested by the backend (product rules: [`docs/backend.md`](../../docs/backend.md), "Safer wording for
+unverified claims"). Code:
 [`softening.py`](src/inkloom_verify/softening.py) (`ClaimSoftener.soften(result, content)` returns
 a `SoftenedWording` or None) and [`prompts/softening.py`](src/inkloom_verify/prompts/softening.py).
 

@@ -1,5 +1,5 @@
-"""Suggested safer wording for unverified claims (softening.py; Member 3's handoff,
-member3_backend/HANDOFF_unverified_suggestions.md). Scripted provider only, no real model.
+"""Suggested safer wording for unverified claims (softening.py; product rules in
+docs/backend.md). Scripted provider only, no real model.
 
 One test (or more) per product rule:
 1. never invent facts;  2. remove or soften the unsupported part;  3. never swap one ranking for

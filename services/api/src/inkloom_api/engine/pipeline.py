@@ -6,13 +6,13 @@ yet (checked before writing this: `inkloom_verify` exposes `ClaimExtractor`, `BM
 module is the integration that was missing, built from those pieces directly. If Member 2 later
 publishes a single pipeline function, this module narrows to a thin call into it.
 
-Rule (00_CONTEXT.md): `completed` means analysis finished, never approved, and a finding with no
+Rule (docs/backend.md): `completed` means analysis finished, never approved, and a finding with no
 evidence is `unverified`, never `false`. Never fail open — an engine or provider failure becomes
 `failed` or a per-claim `ERROR` finding, never a silently-dropped claim.
 
 Phase 4 adds: every citation is independently re-validated against this backend's own copy of
 the source text before being saved (evidence_validator.py) — "the backend never trusts the
-engine" (00_CONTEXT.md).
+engine" (docs/backend.md).
 """
 
 from __future__ import annotations
@@ -255,7 +255,7 @@ def _propose_correction(
 def load_softener_class():
     """The engine's softening step for UNVERIFIED claims, if this engine version has one.
 
-    Member 2 shipped it as proposed in member3_backend/HANDOFF_unverified_suggestions.md:
+    The interface (product rules: docs/backend.md, "Safer wording for unverified claims"):
     `inkloom_verify.softening.ClaimSoftener(provider).soften(result, content)` returning an object
     with `target_span` / `original_text` / `replacement_text`, or None. Suggestions stay behind
     softening_guard.py and never change the verdict. An older engine without the module makes

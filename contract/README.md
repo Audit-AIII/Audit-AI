@@ -14,7 +14,7 @@ under [Open decisions](#open-decisions) are this member's proposal, not yet conf
 
 ## Status strings
 
-These come from `00_CONTEXT.md`'s shared contract values and are enforced as Postgres CHECK
+These come from the shared contract values ([`docs/backend.md`](../docs/backend.md)) and are enforced as Postgres CHECK
 constraints in [`services/api/src/inkloom_api/statuses.py`](../services/api/src/inkloom_api/statuses.py),
 which is the single source of truth. This file is hand-maintained to match it — there is no
 generator (unlike Member 2's `json_schema.py`) — so if a value changes there, update it here too.
@@ -32,7 +32,7 @@ generator (unlike Member 2's `json_schema.py`) — so if a value changes there, 
 
 **`completed` never means approved.** A review reaching `completed` only means the engine
 finished; a human must still act via `approve` / `request-changes` to reach `approved` /
-`changes_requested`. See the governance invariants in `00_CONTEXT.md`.
+`changes_requested`. See the governance invariants in [`docs/backend.md`](../docs/backend.md).
 
 **Missing evidence means `unverified`, never `false`.** A finding with no supporting or
 contradicting evidence must use `verification_status = unverified`, not `contradicted`.
@@ -69,8 +69,8 @@ JSON Schema: [`schemas/finding.schema.json`](schemas/finding.schema.json),
 [`schemas/review.schema.json`](schemas/review.schema.json). A `Review` embeds its `findings`;
 each `Finding` embeds its `evidence`. These describe the response body of `GET /api/reviews/{id}`.
 
-Field names match the backend's `findings`/`evidence_links` tables (`member3_backend/00_CONTEXT.md`
-task 3) exactly: `finding_id`, `category`, `severity`, `original_text`, `span` (`{start, end}`,
+Field names match the backend's `findings`/`evidence_links` tables ([`docs/backend.md`](../docs/backend.md),
+"Shared contract values") exactly: `finding_id`, `category`, `severity`, `original_text`, `span` (`{start, end}`,
 not separate `span_start`/`span_end` — collapsed into one object for the API response, same shape
 as the engine's `SourceSpan`), `check_type`, `explanation`, `verification_status`,
 `suggested_correction`, `requires_human_review`. Evidence: `source_id`, `source_version_id`,

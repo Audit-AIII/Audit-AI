@@ -1,5 +1,5 @@
 """Backend check on a suggested safer wording for an UNVERIFIED claim ("the backend never trusts
-the engine"). See member3_backend/HANDOFF_unverified_suggestions.md.
+the engine"). Product rules: docs/backend.md, "Safer wording for unverified claims".
 
 An unverified claim has no evidence, so - unlike a contradicted claim's correction - a softened
 wording can't be checked against a quote. What CAN be checked deterministically is enforced here,

@@ -1,4 +1,4 @@
-"""Phase 2 required tests (phase2_auth_and_tenant_scoping.md, "Tests (write now)"), against a
+"""Account isolation, against a
 real Postgres and the real /api/auth/login + /api/brands/{id}/sources routes.
 
 1. Org A cannot read org B's records.                -> test_org_a_cannot_read_org_bs_brand

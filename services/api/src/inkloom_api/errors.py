@@ -1,6 +1,6 @@
 """Safe error responses.
 
-Per 00_CONTEXT.md: every error is a stable error code, a message with no internals, and the
+Per docs/backend.md: every error is a stable error code, a message with no internals, and the
 request ID — never a stack trace or a raw provider error. This also answers Member 2's
 integration question 7 (CONTRACTS.md): FastAPI's default 422 handler echoes the offending input,
 which can carry submitted content or brand-confidential source text, so it is replaced here with

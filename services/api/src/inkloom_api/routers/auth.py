@@ -1,8 +1,8 @@
-"""Login, self-serve registration, and session introspection. Not in 00_CONTEXT.md's route map
-(that table starts after auth), but Member 1's frontend needs a real endpoint to replace its
-placeholder localStorage session — see contract/README.md for the behaviour this gives them.
+"""Login, self-serve registration, and session introspection. The frontend needs a real
+endpoint to replace its placeholder localStorage session — see contract/README.md for the
+behaviour this gives it.
 
-Registration (member3_backend/HANDOFF_self_serve_onboarding.md) is the self-serve onboarding
+Registration (docs/backend.md, "Self-serve onboarding") is the self-serve onboarding
 entry point: a visitor signs up with any email and gets a private account (an organisation only
 they belong to), an `admin` membership - which now just means "account owner" - and a starter
 brand, all in one transaction, with no brand id or invite needed.

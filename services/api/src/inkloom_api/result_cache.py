@@ -1,6 +1,6 @@
 """Phase 5 task 5: result cache keyed by content hash + source versions + engine config +
 organisation ID. Organisation ID is mandatory in the key so tenants never share a cache entry,
-even for byte-identical content checked against byte-identical sources (00_CONTEXT.md: tenant
+even for byte-identical content checked against byte-identical sources (docs/backend.md: tenant
 isolation is never optional, not even as a cache optimisation).
 
 "Engine config" here means the engine's own contract version (the input/output schema this

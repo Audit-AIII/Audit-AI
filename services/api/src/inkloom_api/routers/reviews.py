@@ -1,7 +1,5 @@
-"""POST /api/reviews, POST /api/reviews/upload, GET /api/reviews/{id}
-(phase3_vertical_slice.md; upload added for self-serve onboarding, see
-member3_backend/HANDOFF_self_serve_onboarding.md). POST /api/reviews/{id}/rerun
-(phase6_versioning_approval_audit.md task 2). GET /api/reviews: the Review queue page's list.
+"""POST /api/reviews, POST /api/reviews/upload (self-serve onboarding, see docs/backend.md),
+GET /api/reviews/{id}, POST /api/reviews/{id}/rerun. GET /api/reviews: the Review queue page's list.
 
 Analysis runs synchronously (confirmed with the team): the request blocks until the engine
 finishes, and the response already carries the final findings. No polling in this phase.

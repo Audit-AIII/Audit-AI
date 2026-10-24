@@ -2,8 +2,8 @@
 
 Member 3's service: database, auth, tenant isolation, API, orchestration, versioning, approval
 state machine, audit, failure handling, and the LLM provider adapter. See
-[`../../member3_backend/00_CONTEXT.md`](../../member3_backend/00_CONTEXT.md) for the product
-context and the shared contract this backend enforces, and
+[`../../docs/backend.md`](../../docs/backend.md) for the product
+context, design decisions and the shared contract this backend enforces, and
 [`../../contract/README.md`](../../contract/README.md) for the status strings, role names and
 example payloads shared with Members 1 and 2.
 
@@ -11,7 +11,7 @@ example payloads shared with Members 1 and 2.
 keys and all)? See [`API.md`](API.md)** — this file is the project overview, current status,
 architecture and commands; API.md goes deep on the HTTP contract.
 
-**Status** (2026-10-24; see [`../../member3_backend/STATUS.md`](../../member3_backend/STATUS.md)):
+**Status** (2026-10-24; see [`../../docs/backend.md`](../../docs/backend.md)):
 individual-user mode - one email = one private account owning several brands; roles no longer gate
 anything and the user approves their own content. Every route is live and verified against a real
 Postgres database (288 tests, see "Test") and over real HTTP with a real AI provider
@@ -196,8 +196,8 @@ real AI output.
 11. **Decide:** mark a draft ready to publish (`POST /api/content-versions/{id}/approve`) and show
     the history.
 
-Left for people: record the fallback demo video (in case the live provider is down), and send
-Chahit and Krish their items (STATUS.md).
+Left for people: record the fallback demo video (in case the live provider is down); see
+[`docs/backend.md`](../../docs/backend.md), "Pending actions".
 
 ## Architecture
 

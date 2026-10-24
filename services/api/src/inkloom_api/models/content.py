@@ -1,7 +1,7 @@
 """Content submitted for review, and its immutable versions.
 
 `ContentVersion` is never updated after creation: a correction creates a new version instead
-(see `POST /api/content/{id}/versions` in 00_CONTEXT.md's route map). This is what lets an
+(see `POST /api/content/{id}/versions` in API.md). This is what lets an
 approval be checked against a specific version and rejected as stale if the content has moved on
 (governance invariant: `current_version_id != reviewed_version_id`).
 """

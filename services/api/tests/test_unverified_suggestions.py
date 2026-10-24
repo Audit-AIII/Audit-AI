@@ -1,7 +1,8 @@
 """Safer-wording suggestions for UNVERIFIED claims - backend side (step 4b, handoff route).
 
-The engine's softening step (inkloom_verify.softening.ClaimSoftener, built by Member 2 from
-member3_backend/HANDOFF_unverified_suggestions.md) is now present. These tests pin the backend side:
+The engine's softening step (inkloom_verify.softening.ClaimSoftener; product rules in
+docs/backend.md, "Safer wording for unverified claims") is present. These tests pin the
+backend side:
 
 1. the engine's real softener is loaded, and end to end through it (scripted model, real engine
    checks, real backend guard) the handoff example is offered and the "leading" swap is not;

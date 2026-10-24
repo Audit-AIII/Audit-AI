@@ -1,8 +1,7 @@
 """Password hashing and access tokens.
 
-Chosen for Phase 2 (member3_backend/phase2_auth_and_tenant_scoping.md task 1): email + password,
-bcrypt-hashed, a signed JWT bearer token. No refresh tokens, no magic links, no OAuth — the
-simplest thing that fits a hackathon demo; revisit if the team needs SSO later.
+Email + password, bcrypt-hashed, a signed JWT bearer token. No refresh tokens, no magic links,
+no OAuth — the simplest thing that fits a hackathon demo; revisit if the team needs SSO later.
 
 A token is scoped to exactly one (user_id, organisation_id) pair, decided once at login
 (`create_access_token`). It carries no role and no permissions: every request re-reads the

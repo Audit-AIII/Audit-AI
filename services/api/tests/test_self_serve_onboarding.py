@@ -1,4 +1,4 @@
-"""Self-serve onboarding (member3_backend/HANDOFF_self_serve_onboarding.md): a visitor signs up
+"""Self-serve onboarding (docs/backend.md, "Self-serve onboarding"): a visitor signs up
 with any email, gets a private organisation + `admin` membership + a starter brand in one
 transaction, uploads one PDF (approved in the same step), then checks a draft against it - no
 brand id ever needed by hand.

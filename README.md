@@ -182,7 +182,7 @@ code or brand assets were copied.
 
 ## Known limitations
 
-From `member3_backend/STATUS.md` §10, plus two frontend notes:
+From [`docs/backend.md`](docs/backend.md) ("Known limitations"), plus two frontend notes:
 
 - The rate limiter and idempotency replay live in process memory (single worker only). The
   evaluation's 10-minute limit is stored in the database.

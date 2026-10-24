@@ -417,7 +417,7 @@ There are no other thresholds.
 
 ## Mapping to Member 3's shared values
 
-Member 3's planning notes (`member3_backend/00_CONTEXT.md`) define the verification statuses
+Member 3's planning notes ([`docs/backend.md`](../../docs/backend.md)) define the verification statuses
 `supported | contradicted | unverified | conflicting_sources | not_applicable`, and a findings
 table with `suggested_correction` and `requires_human_review`. The proposed mapping isn't agreed
 yet:

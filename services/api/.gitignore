@@ -9,6 +9,6 @@ dist/
 .env.*
 !.env.example
 
-# Uploaded brand source files. May include confidential material (00_CONTEXT.md: "Never commit
-# ... confidential source material"). Never a public/static path either way.
+# Uploaded brand source files. May include confidential material (never commit
+# confidential source material, SECURITY.md). Never a public/static path either way.
 var/

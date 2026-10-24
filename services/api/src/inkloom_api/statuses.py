@@ -12,7 +12,7 @@ from enum import Enum
 
 
 class VerificationStatus(str, Enum):
-    """Shared contract value (00_CONTEXT.md). Missing evidence means UNVERIFIED, never FALSE."""
+    """Shared contract value (docs/backend.md). Missing evidence means UNVERIFIED, never FALSE."""
 
     SUPPORTED = "supported"
     CONTRADICTED = "contradicted"
@@ -35,7 +35,7 @@ class EvidenceRelation(str, Enum):
 
 
 class ReviewState(str, Enum):
-    """`completed` never means approved. See 00_CONTEXT.md governance invariants."""
+    """`completed` never means approved. See the governance invariants in docs/backend.md."""
 
     DRAFT = "draft"
     QUEUED = "queued"
@@ -100,9 +100,9 @@ class SourceFileType(str, Enum):
 
 
 class MembershipRole(str, Enum):
-    """Confirmed with the team for Phase 2 (member3_backend/phase2_auth_and_tenant_scoping.md
-    task 3). Permissions for each role live in `auth/permissions.py`, not here — this module is
-    only the stable set of names enforced by the `memberships.role` CHECK constraint.
+    """Role names agreed with the team. Permissions for each role live in `auth/permissions.py`,
+    not here — this module is only the stable set of names enforced by the `memberships.role`
+    CHECK constraint.
 
     `LEGAL_REVIEWER` and `BRAND_MANAGER` added for Phase 9 stretch item 1 (risk-based approval
     routing, see `reviews.required_reviewer_role` and `approval_rules.ensure_role_matches_

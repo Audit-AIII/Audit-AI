@@ -39,7 +39,7 @@ class Review(Base):
         UUID(as_uuid=True), ForeignKey("content_versions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     status: Mapped[str] = mapped_column(String(30), nullable=False, default=ReviewState.DRAFT.value)
-    # Engine config, carried with the review so a result is always reproducible (00_CONTEXT.md task 2).
+    # Engine config, carried with the review so a result is always reproducible (docs/backend.md).
     engine_provider: Mapped[str | None] = mapped_column(String(100))
     engine_model_id: Mapped[str | None] = mapped_column(String(100))
     prompt_version: Mapped[str | None] = mapped_column(String(50))
@@ -72,7 +72,7 @@ class Review(Base):
 
 
 class Finding(Base):
-    """One finding from a review. Column names match 00_CONTEXT.md task 3 exactly."""
+    """One finding from a review. Column names match the shared contract (docs/backend.md)."""
 
     __tablename__ = "findings"
     __table_args__ = (
@@ -121,7 +121,7 @@ class Finding(Base):
 
 
 class EvidenceLink(Base):
-    """Evidence for one finding. Column names match 00_CONTEXT.md task 3 exactly."""
+    """Evidence for one finding. Column names match the shared contract (docs/backend.md)."""
 
     __tablename__ = "evidence_links"
     __table_args__ = (

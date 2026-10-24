@@ -11,7 +11,7 @@ brands, and the owner writes, checks and approves their own content.
 
 - It is the simplest honest fit for the people we are building for: freelancers and small brands
   who check their own content before it goes out.
-- The backend is already built this way (`member3_backend/STATUS.md`, section 0): every membership
+- The backend is already built this way ([`docs/backend.md`](docs/backend.md), "Product model"): every membership
   holds every permission, risk routing is off, and `required_reviewer_role` is always empty.
 - It avoids shipping half-built role workflows before the deadline. A screen that talks about
   reviewers and managers who do not exist would be a claim the product cannot back up.

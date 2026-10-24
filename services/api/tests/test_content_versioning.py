@@ -1,4 +1,4 @@
-"""Phase 6 required tests (phase6_versioning_approval_audit.md, "Tests (write now)"):
+"""Versioning, approval and audit (docs/backend.md):
 
 1. (Individual-user mode, 2026-10-24) roles no longer gate decisions: a member with the legacy
    "reviewer" role is the account owner too and may approve; each decision writes exactly one

@@ -1,6 +1,6 @@
 """Suggested safer wording for NOT_ENOUGH_EVIDENCE (unverified) claims.
 
-Requested by Member 3 in member3_backend/HANDOFF_unverified_suggestions.md. An unverified claim
+Product rules: docs/backend.md, "Safer wording for unverified claims". An unverified claim
 has no evidence, so unlike a correction nothing can be checked against a quote: the suggestion may
 only **remove or soften** what the claim already says. The model proposes; deterministic code
 decides whether the proposal may be offered (``softening_issues``):

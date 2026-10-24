@@ -1,4 +1,4 @@
-"""Tenant-scoped lookups (phase2_auth_and_tenant_scoping.md task 5).
+"""Tenant-scoped lookups.
 
 Every read and write must filter by organisation, directly or through a verified parent. The
 pattern here is: fetch by primary key, then check the row's own `organisation_id` — or, for a

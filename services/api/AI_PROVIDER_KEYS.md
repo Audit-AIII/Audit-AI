@@ -32,7 +32,7 @@ provider's model list (`services/api/.env.example` has the notes from the last c
 
 ## Free keys: what we found on 2026-10-24
 
-Checked live (STATUS.md, Phase 6), with the privacy defaults kept:
+Checked live, with the privacy defaults kept:
 - **Gemini free key:** refused by the privacy rule (by design).
 - **OpenRouter free key:** about 50 free requests per day without credits. One evaluation needs
   80+ calls, so it can't finish. `nvidia/nemotron-3.5-super-vl:free` refuses `deny` (it requires

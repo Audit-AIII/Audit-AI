@@ -167,7 +167,7 @@ characters, ≤ 72 bytes). **201**:
 }
 ```
 409 duplicate email (case-insensitive), 422 bad input, 429 more than 5 sign-ups per IP per 10 minutes.
-Detail: `member3_backend/HANDOFF_self_serve_onboarding.md`.
+Detail: [`docs/backend.md`](../../docs/backend.md), "Self-serve onboarding".
 
 ### `POST /api/auth/login` · `GET /api/auth/me`
 

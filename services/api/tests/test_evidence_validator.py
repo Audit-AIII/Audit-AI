@@ -1,4 +1,4 @@
-"""Phase 4 required tests (phase4_evidence_validation_and_sources.md, "Tests (write now)"):
+"""Evidence validation (the backend never trusts the engine's citations):
 
 1. Unknown source ID is rejected.                    -> test_unknown_source_is_rejected
 2. Wrong-brand and cross-tenant source IDs rejected.  -> test_source_from_a_different_corpus_is_rejected

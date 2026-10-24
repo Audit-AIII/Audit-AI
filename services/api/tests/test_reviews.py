@@ -1,4 +1,4 @@
-"""Phase 3 smoke test (phase3_vertical_slice.md task 6): create a review, fetch it, see
+"""Smoke test: create a review, fetch it, see
 findings. Analysis is synchronous, so there is nothing to poll — the POST response already
 carries the final state, and a follow-up GET proves it was actually persisted, not just echoed.
 
