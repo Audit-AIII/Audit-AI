@@ -446,6 +446,10 @@ shared contract has today (it validates against `contract/schemas/finding.schema
   before extraction by `rules.py`. Types: `required_terms`, `prohibited_terms`, `product_names`,
   `disclaimers`, `numeric_limits`. A rule's `source` must be one of the request's references,
   with its quote found verbatim in that document.
+- `BrandRules.style` (`StyleRules`, optional): deterministic accessibility and tone checks:
+  ALL-CAPS runs, emoji runs, vague link text ("click here"), missing image alt text. Rule types
+  `all_caps_run`, `emoji_run`, `vague_link_text`, `missing_alt_text`; rule ids `style.*`; no
+  evidence and never a suggested correction.
 - `VerificationReport.rule_findings` (`RuleFinding`): the shared finding shape. A suggested
   correction exists only for a sourced rule naming the approved wording.
 - `ReportScore.rule_violations` and review reason `rule_violations`.
