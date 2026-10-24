@@ -193,8 +193,6 @@ def test_one_failing_claim_leaves_the_other_claims_intact(client, monkeypatch, a
 # --- Contract gaps owned by the backend (strict expected failures) -----------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="backend gap 1: conflicting_sources is mapped to 'unverified' (engine sets "
-                   "ClaimResult.conflicting_sources; CONTRACTS.md 'Mapping to Member 3's shared values')")
 @requires_db
 def test_gap1_conflicting_approved_sources_are_reported_as_conflicting_sources(client, monkeypatch, account_factory):
     use_scripted_provider(monkeypatch, [ScriptedRule("12 hours", "SUPPORTED", "up to 12 hours of playback per charge")])
@@ -205,8 +203,6 @@ def test_gap1_conflicting_approved_sources_are_reported_as_conflicting_sources(c
     assert finding["verification_status"] == "conflicting_sources"  # fails today: "unverified"
 
 
-@pytest.mark.xfail(strict=True, reason="backend gap 2: the engine's safer wording (not evidence-backed) is stored in "
-                   "suggested_correction instead of a separate safer_wording field (contract decision 2026-10-24)")
 @requires_db
 def test_gap2_safer_wording_is_kept_out_of_suggested_correction(client, monkeypatch, account_factory):
     claim = "The Lumen Pods are India's number one earbuds."

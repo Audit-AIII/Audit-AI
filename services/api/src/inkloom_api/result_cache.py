@@ -77,6 +77,7 @@ def serialize_review_outcome(db: Session, review: Review) -> dict:
                 "explanation": f.explanation,
                 "verification_status": f.verification_status,
                 "suggested_correction": f.suggested_correction,
+                "safer_wording": f.safer_wording,
                 "requires_human_review": f.requires_human_review,
                 "engine_claim_id": f.engine_claim_id,
                 "evidence": [
@@ -116,6 +117,7 @@ def materialize_cached_report(db: Session, review: Review, report: dict) -> None
             explanation=f["explanation"],
             verification_status=f["verification_status"],
             suggested_correction=f["suggested_correction"],
+            safer_wording=f.get("safer_wording"),  # absent in reports cached before migration 0011
             requires_human_review=f["requires_human_review"],
             engine_claim_id=f["engine_claim_id"],
         )

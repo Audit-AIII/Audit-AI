@@ -134,6 +134,13 @@
         "format": "uuid"
       },
       "description": "Rule findings only: the approved documents the rule is quoted from (also in evidence)."
+    },
+    "safer_wording": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Unverified claims only: a softened wording that is NOT evidence-backed (label it so). The whole original_text rewritten, like suggested_correction, which stays evidence-backed only."
     }
   },
   "definitions": {

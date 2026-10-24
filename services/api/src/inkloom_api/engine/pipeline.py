@@ -65,6 +65,11 @@ _EXTERNAL_CALL_STATUS_FOR_ERROR_CODE = {
     "PROVIDER_RATE_LIMITED": ExternalCallStatus.RATE_LIMITED,
 }
 
+CONFLICTING_SOURCES_EXPLANATION = (
+    "The brand's approved documents disagree about this claim, so it was not decided either way. "
+    "Check which document is correct; the claim needs a person's review."
+)
+
 INTEGRITY_REJECTED_EXPLANATION = (
     "The engine cited evidence that failed this backend's own independent check (wrong source, "
     "or a quote not actually present in that source's approved text). The citation was "
@@ -370,15 +375,18 @@ def _write_finding(
     verdict = result.verdict
     explanation = result.error.message if result.error else result.model_rationale
     suggested_correction = claim_level_correction(content_version.text, claim, result.correction)
+    safer_wording = None
     if verdict is Verdict.NOT_ENOUGH_EVIDENCE:
         # A safer wording for an unverified claim: from the engine's softening step, or a
         # correction the engine attached to an unverified result (both are only proposals; the
-        # finding stays unverified). No evidence exists to check it against, so it must pass the
-        # backend's own deterministic rules (softening_guard.py) or it is dropped.
+        # finding stays unverified). Not evidence-backed, so it goes in safer_wording, never
+        # suggested_correction (engine CONTRACTS.md mapping). No evidence exists to check it
+        # against, so it must pass the backend's own deterministic rules (softening_guard.py).
         proposal = softening if softening is not None else result.correction
         rewritten = claim_level_correction(content_version.text, claim, proposal)
         original = claim.source_span.slice(content_version.text)
-        suggested_correction = rewritten if rewritten is not None and not softening_issues(original, rewritten) else None
+        safer_wording = rewritten if rewritten is not None and not softening_issues(original, rewritten) else None
+        suggested_correction = None
     elif verdict is Verdict.ERROR:
         suggested_correction = None
 
@@ -394,6 +402,14 @@ def _write_finding(
             explanation = INTEGRITY_REJECTED_EXPLANATION
             suggested_correction = None
 
+    status = _STATUS_FOR_VERDICT[verdict]
+    if verdict is Verdict.NOT_ENOUGH_EVIDENCE and result.conflicting_sources:
+        # The engine's citation guard found approved documents that disagree (its answer became
+        # NOT_ENOUGH_EVIDENCE): reported as conflicting_sources, not plain unverified. The model's
+        # own rationale argued for the answer the guard overruled, so it is not shown.
+        status = VerificationStatus.CONFLICTING_SOURCES
+        explanation = CONFLICTING_SOURCES_EXPLANATION
+
     finding = Finding(
         review_id=review.id,
         # From the verdict AFTER backend validation: a citation that failed our own check was
@@ -405,8 +421,9 @@ def _write_finding(
         span_end=claim.source_span.end,
         check_type=CheckType.RETRIEVAL.value,
         explanation=explanation,
-        verification_status=_STATUS_FOR_VERDICT[verdict].value,
+        verification_status=status.value,
         suggested_correction=suggested_correction,
+        safer_wording=safer_wording,
         requires_human_review=verdict is not Verdict.SUPPORTED,
         engine_claim_id=claim.claim_id,
     )

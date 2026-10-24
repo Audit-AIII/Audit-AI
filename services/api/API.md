@@ -306,11 +306,16 @@ account.
 - **`suggested_correction`**: the **whole `original_text` rewritten**, so the UI can do
   `draft.replace(original_text, suggested_correction)`. For contradicted claims it comes from the
   engine's corrector, is backed by the cited quote and re-verified as supported, and is dropped if
-  this backend's evidence validation downgrades the finding. For unverified claims it is the
-  engine's softened wording (`inkloom_verify.softening.ClaimSoftener`), kept only if it passes this
+  this backend's evidence validation downgrades the finding. It is **evidence-backed only**: always
+  `null` on unverified claims. A suggestion is only ever offered — nothing is applied automatically.
+- **`safer_wording`** (unverified claims only): the engine's softened wording
+  (`inkloom_verify.softening.ClaimSoftener`), also the whole `original_text` rewritten. **Not
+  evidence-backed** — label it "Safer wording, not evidence-backed". Kept only if it passes this
   backend's rule check (`softening_guard.py`: no new numbers, no unproven rankings, names, prices and
-  dates unchanged), else `null`; the finding stays `unverified`. A suggestion is only ever offered
-  — nothing is applied automatically.
+  dates unchanged), else `null`; the finding stays `unverified`.
+- **`verification_status: "conflicting_sources"`**: the brand's approved documents disagree about
+  the claim (the engine's citation guard caught it), so it was not decided either way; the
+  explanation says so and it always needs a person. Category stays `unsupported_claim`.
 - **`evidence[].source_title` / `source_version_number`**: the document and the version the quote was
   actually taken from (still the old number after the document gets a new version).
 - `brand_name`, `content_item_id`, `title`, `version_number`, `text`: `null` only on very old rows.

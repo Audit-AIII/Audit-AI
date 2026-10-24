@@ -97,7 +97,10 @@ class Finding(Base):
     check_type: Mapped[str] = mapped_column(String(20), nullable=False)
     explanation: Mapped[str | None] = mapped_column(Text)
     verification_status: Mapped[str] = mapped_column(String(30), nullable=False)
-    suggested_correction: Mapped[str | None] = mapped_column(Text)
+    suggested_correction: Mapped[str | None] = mapped_column(Text)  # evidence-backed corrections only
+    # A softened wording for an unverified claim (migration 0011): not evidence-backed, so never in
+    # suggested_correction (engine CONTRACTS.md, "Mapping to Member 3's shared values").
+    safer_wording: Mapped[str | None] = mapped_column(Text)
     requires_human_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # The engine's claim_id (inkloom_verify.schemas.ClaimId), kept for traceability. Opaque here.
     engine_claim_id: Mapped[str | None] = mapped_column(String(80))

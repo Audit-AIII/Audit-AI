@@ -132,6 +132,9 @@ class FindingOut(BaseModel):
     suggested_correction: str | None
     requires_human_review: bool
     evidence: list[EvidenceLinkOut]
+    # Unverified claims only: a softened wording, NOT evidence-backed (UI: "Safer wording, not
+    # evidence-backed"). Kept apart from suggested_correction, which is evidence-backed only.
+    safer_wording: str | None = None
     # Rule findings only (check_type "rule"; services/verification/RULES_HANDOFF.md section 7),
     # null on claim findings. Defaults keep older idempotency replays parsing.
     rule_id: str | None = None
@@ -154,6 +157,7 @@ class FindingOut(BaseModel):
             suggested_correction=finding.suggested_correction,
             requires_human_review=finding.requires_human_review,
             evidence=[EvidenceLinkOut.from_model(e) for e in finding.evidence],
+            safer_wording=finding.safer_wording,
             rule_id=finding.rule_id,
             rule_type=finding.rule_type,
             scope=finding.scope,

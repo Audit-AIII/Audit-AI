@@ -90,9 +90,10 @@ quote was taken from). `category` is now filled on real runs: `contradicted_clai
 `unsupported_claim` (unverified - no evidence either way), `supported_claim`, `engine_error` (that
 claim could not be checked); `stub` still marks the no-provider placeholder. `suggested_correction`
 is the **whole `original_text` rewritten** (swap it in with `draft.replace(original_text,
-suggested_correction)`); it is an evidence-backed, re-verified fix for contradicted claims, and for
-unverified claims the engine's softened wording when it passes the backend's rule check (else
-`null`; the finding stays `unverified`). It is only ever a suggestion.
+suggested_correction)`); it is an evidence-backed, re-verified fix for contradicted claims only. An
+unverified claim's softened wording is in the separate **`safer_wording`** field (not evidence-backed:
+label it so; `null` when the backend's rule check refuses it). Both are only ever suggestions.
+`verification_status` `conflicting_sources` (approved documents disagree) is now used.
 `BrandOut` (`GET /api/brands`) gained `review_count`, `open_review_count` (reviews waiting for the
 user's decision) and `last_review_at`.
 

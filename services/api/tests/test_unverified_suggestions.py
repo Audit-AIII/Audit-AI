@@ -63,7 +63,8 @@ def test_real_engine_softener_end_to_end(client, monkeypatch, db_session, accoun
     review = owner.submit(CLAIM)
     [finding] = review["findings"]
     assert finding["verification_status"] == "unverified" and finding["evidence"] == []
-    assert finding["suggested_correction"] == expected
+    assert finding["safer_wording"] == expected
+    assert finding["suggested_correction"] is None  # evidence-backed corrections only
     db_session.expire_all()
     calls = db_session.query(ExternalCallLog).filter_by(review_id=uuid.UUID(review["id"])).count()
     assert calls == 3  # extraction + verification + softening, all logged
@@ -145,7 +146,8 @@ def test_softener_suggestion_is_stored_and_finding_stays_unverified(client, monk
     [finding] = review["findings"]
     assert finding["verification_status"] == "unverified"  # a suggestion never verifies the claim
     assert finding["category"] == "unsupported_claim"
-    assert finding["suggested_correction"] == "The Kora X2 is a smartphone sold in India."
+    assert finding["safer_wording"] == "The Kora X2 is a smartphone sold in India."
+    assert finding["suggested_correction"] is None  # evidence-backed corrections only
     assert finding["evidence"] == []
     db_session.expire_all()
     calls = db_session.query(ExternalCallLog).filter_by(review_id=uuid.UUID(review["id"])).count()
@@ -162,7 +164,7 @@ def test_rule_breaking_softener_suggestion_is_dropped(client, monkeypatch, accou
     owner.upload_source(KORA_FACTS)
     [finding] = owner.submit(CLAIM)["findings"]
     assert finding["verification_status"] == "unverified"
-    assert finding["suggested_correction"] is None
+    assert finding["suggested_correction"] is None and finding["safer_wording"] is None
 
 
 @requires_db
@@ -181,4 +183,4 @@ def test_softener_crash_keeps_review_intact(client, monkeypatch, account_factory
     review = owner.submit(CLAIM)
     assert review["status"] == "needs_human_review"
     [finding] = review["findings"]
-    assert (finding["verification_status"], finding["suggested_correction"]) == ("unverified", None)
+    assert (finding["verification_status"], finding["suggested_correction"], finding["safer_wording"]) == ("unverified", None, None)
