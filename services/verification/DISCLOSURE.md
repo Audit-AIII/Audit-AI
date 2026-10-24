@@ -63,9 +63,12 @@ Provenance is recorded in `EVAL.md`.
   `allowed_caps` lists them.
 - Input is plain text. Parsing uploads and images is outside this module.
 
-## Contribution (draft for Krish to confirm)
+## Contribution (Krish: read, correct, then delete the DRAFT line at the top)
 
-From the commit history, Krish owns `services/verification`: the engine, its tests and CI
-(`.github/workflows/verification-engine.yml`), the synthetic evaluation datasets and harness
-(`eval/`), the rules and softening modules, and the repo integrity check added in PR #1. Krish
-should rewrite this paragraph in his own words, with anything the history does not show.
+I (Krish, Member 2) own `services/verification`: the verification engine, its tests and CI,
+the synthetic evaluation data and harness in `eval/`, the rules and softening modules, and the
+repo integrity check. I directed Claude Code phase by phase, reviewed what it produced, ran the
+tests and the evaluation myself, and fixed the failures that came up (a broken backend test, CI,
+and the live-model evaluation setup). Not finished: no live-model evaluation has been completed
+(free models were rate-limited), and all 80 evaluation labels are AI-written and not yet reviewed
+by a person. The backend (Darsh) and frontend (Chahit) are their own work.
