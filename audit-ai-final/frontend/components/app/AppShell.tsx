@@ -9,6 +9,16 @@ import { getSession, signIn, useSession } from "@/lib/session";
 import { isSandTransitioning } from "@/lib/sandWave";
 import { STAGES } from "./stages";
 
+/** Second, smaller row: workspace pages outside the five review stages. */
+const WORKSPACE = [
+  { href: "/app/insights", label: "Dashboard", hint: "Your brand at a glance: what gets flagged and how reviews move." },
+  { href: "/app/queue", label: "Queue", hint: "Reviews waiting for a decision. Open one to decide on it." },
+  { href: "/app/guidelines", label: "Guidelines", hint: "Upload, update or withdraw the documents drafts are checked against." },
+  { href: "/app/scorecard", label: "Scorecard", hint: "How well the checker does on a benchmark test set." },
+];
+/** Exact segment match, so /app/review-edit does not light up the "Review" stage. */
+const inSection = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
+
 /**
  * Workspace frame: wordmark · numbered stage bar (same on every stage page) · account,
  * then the stage page, then a one-line status bar. Signed-out visitors are sent to sign in.
@@ -17,7 +27,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const session = useSession();
-  const current = STAGES.find((s) => pathname.startsWith(`/app/${s.slug}`));
+  const current = STAGES.find((s) => inSection(pathname, `/app/${s.slug}`));
+  const page = WORKSPACE.find((w) => inSection(pathname, w.href));
 
   const [offline, setOffline] = useState(false);
 
@@ -75,6 +86,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </ol>
         </nav>
+        <nav className="app__more" aria-label="Workspace">
+          <ul className="app__more-list">
+            {WORKSPACE.map((w) => (
+              <li key={w.href}>
+                <Link className="app__more-link" href={w.href} aria-current={page?.href === w.href ? "page" : undefined}>
+                  {w.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
         <div className="app__account">
           <AccountNav inApp />
         </div>
@@ -87,7 +109,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <footer className="app__status board" aria-live="polite">
         <span className="app__status-dot" aria-hidden="true" />
         <p>
-          {offline ? "Can’t reach the Audit AI server. Check that it is running." : (current?.hint ?? "Pick a stage to begin.")}
+          {offline ? "Can’t reach the Audit AI server. Check that it is running." : (current?.hint ?? page?.hint ?? "Use the stages above to check a draft, or the workspace links for everything else.")}
         </p>
         <span className="t-caption app__status-sample">{session.organisation.name} · {session.role.replace(/_/g, " ")}</span>
       </footer>
