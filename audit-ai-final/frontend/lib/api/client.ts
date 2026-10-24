@@ -50,7 +50,7 @@ export class ApiError extends Error {
       case 401:
         return "Your session has ended. Please sign in again.";
       case 403:
-        return "Your role doesn't allow this. Ask an admin for access.";
+        return "That action isn't allowed on this account.";
       case 404:
         return "We couldn't find that. It may not exist, or it belongs to another organisation.";
       case 409:

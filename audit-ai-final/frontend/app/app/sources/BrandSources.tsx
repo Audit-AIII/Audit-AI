@@ -3,11 +3,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Dropzone, Panel, Panels } from "@/components/app/Stage";
-import { canManageSources, roleName } from "@/components/app/roles";
 import { ACCEPTED_FILE_TYPES, ApiError, MAX_UPLOAD_BYTES, api } from "@/lib/api/client";
 import type { BrandSourceOut } from "@/lib/api/types";
 import { useActiveBrand } from "@/lib/brand";
-import { useSession } from "@/lib/session";
 
 const STATUS: Record<string, string> = { approved: "Approved", draft: "Waiting for approval", superseded: "Replaced", archived: "Withdrawn" };
 const TYPE: Record<string, string> = { txt: "Text file", pdf: "PDF", docx: "Word file" };
@@ -35,8 +33,6 @@ export function unreadableFile(err: ApiError) {
 
 /** Sources stage: upload the brand's documents and see which are approved for checks. */
 export function BrandSources() {
-  const role = useSession()?.role ?? "";
-  const manager = canManageSources(role);
   const active = useActiveBrand();
   const brandId = active.state === "ready" ? active.brand.id : null;
 
@@ -86,13 +82,13 @@ export function BrandSources() {
     setError(null);
     setNotice(null);
     try {
-      let source = await api.uploadBrandSource(brandId, file, { title: title.trim() || baseName(file.name), approve: manager, confidential });
+      let source = await api.uploadBrandSource(brandId, file, { title: title.trim() || baseName(file.name), approve: true, confidential });
       // A backend that ignores `approve` saves a draft: approve it explicitly so it is usable.
-      if (manager && source.status === "draft") source = await api.approveBrandSource(brandId, source.id);
+      if (source.status === "draft") source = await api.approveBrandSource(brandId, source.id);
       setNotice(
         source.status === "approved"
           ? `“${source.title}” is saved and approved. New drafts are checked against it.`
-          : `“${source.title}” is saved. It is used for checks once a manager approves it.`,
+          : `“${source.title}” is saved. It is used for checks once you approve it.`,
       );
       setFile(null);
       setTitle("");
@@ -165,48 +161,42 @@ export function BrandSources() {
             </select>
           </label>
         )}
-        {manager ? (
-          <form className="upload-form" onSubmit={onUpload}>
-            <Dropzone
-              title="Drag your document here"
-              hint="PDF, Word (.docx) or text file · up to 10 MB"
-              accept={ACCEPTED_FILE_TYPES}
-              onFile={pick}
-              fileName={file ? `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB` : null}
-              disabled={busy}
-            />
-            {file && (
-              <label className="field">
-                <span className="field__label">Document name</span>
-                <input className="field__input" value={title} maxLength={300} onChange={(e) => setTitle(e.target.value)} />
-              </label>
-            )}
-            <label className="option">
-              <input type="checkbox" className="tick tick--checkbox" checked={confidential} onChange={(e) => setConfidential(e.target.checked)} />
-              <span className="option__text">
-                <span className="option__label">Keep this document private</span>
-                <span className="option__help">Marked confidential: checked only with a local AI, never sent to an outside service.</span>
-              </span>
+        <form className="upload-form" onSubmit={onUpload}>
+          <Dropzone
+            title="Drag your document here"
+            hint="PDF, Word (.docx) or text file · up to 10 MB"
+            accept={ACCEPTED_FILE_TYPES}
+            onFile={pick}
+            fileName={file ? `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB` : null}
+            disabled={busy}
+          />
+          {file && (
+            <label className="field">
+              <span className="field__label">Document name</span>
+              <input className="field__input" value={title} maxLength={300} onChange={(e) => setTitle(e.target.value)} />
             </label>
-            {error && (
-              <p className="app-alert app-alert--bad" role="alert">
-                {error}
-              </p>
-            )}
-            {notice && (
-              <p className="app-alert app-alert--ok" role="status">
-                {notice}
-              </p>
-            )}
-            <Button type="submit" disabled={!file || busy} aria-busy={busy}>
-              {busy ? "Uploading…" : "Upload"}
-            </Button>
-          </form>
-        ) : (
-          <p className="app-alert" role="note">
-            Your role ({roleName(role)}) can’t upload documents. An admin or source manager adds them.
-          </p>
-        )}
+          )}
+          <label className="option">
+            <input type="checkbox" className="tick tick--checkbox" checked={confidential} onChange={(e) => setConfidential(e.target.checked)} />
+            <span className="option__text">
+              <span className="option__label">Keep this document private</span>
+              <span className="option__help">Marked confidential: checked only with a local AI, never sent to an outside service.</span>
+            </span>
+          </label>
+          {error && (
+            <p className="app-alert app-alert--bad" role="alert">
+              {error}
+            </p>
+          )}
+          {notice && (
+            <p className="app-alert app-alert--ok" role="status">
+              {notice}
+            </p>
+          )}
+          <Button type="submit" disabled={!file || busy} aria-busy={busy}>
+            {busy ? "Uploading…" : "Upload"}
+          </Button>
+        </form>
       </Panel>
 
       <Panel n="02" label="Your documents" title={active.brand.name}>
@@ -242,7 +232,7 @@ export function BrandSources() {
                   <span className={`tag${d.sensitivity === "confidential" ? " tag--private" : ""}`}>
                     {d.sensitivity === "confidential" ? "Private" : "Team only"}
                   </span>
-                  {manager && d.status === "draft" && (
+                  {d.status === "draft" && (
                     <button type="button" className="decision decision--small" onClick={() => approve(d.id)} disabled={approving === d.id}>
                       {approving === d.id ? "Approving…" : "Approve"}
                     </button>

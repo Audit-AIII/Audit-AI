@@ -6,7 +6,6 @@ import { SourceStatusBadge } from "@/components/additions/Badges";
 import { ConfirmDialog } from "@/components/additions/ConfirmDialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/additions/States";
 import { UploadDropzone, checkFile } from "@/components/additions/UploadDropzone";
-import { canManageSources, roleName } from "@/components/app/roles";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { Button } from "@/components/primitives/Button";
 import { useBrands } from "@/lib/additions/brands";
@@ -14,7 +13,6 @@ import { errorText } from "@/lib/additions/http";
 import { approveSource, listSources, uploadSource, uploadSourceVersion, withdrawSource, type FlippedDependent } from "@/lib/additions/sources";
 import { ApiError } from "@/lib/api/client";
 import type { BrandSourceOut } from "@/lib/api/types";
-import { useSession } from "@/lib/session";
 
 const TYPE: Record<string, string> = { pdf: "PDF", docx: "Word file", txt: "Text file" };
 const baseName = (n: string) => n.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
@@ -41,8 +39,6 @@ function uploadError(err: unknown) {
 }
 
 export function Guidelines() {
-  const role = useSession()?.role ?? "";
-  const manager = canManageSources(role);
   const { value: brands, refresh: refreshBrands, choose } = useBrands();
   const brandId = brands.state === "ready" ? brands.brand.id : null;
 
@@ -90,8 +86,8 @@ export function Guidelines() {
     setBusy(true);
     setMsg(null);
     try {
-      let s = await uploadSource(brandId, file, { title: title.trim() || baseName(file.name), confidential, approve: manager });
-      if (manager && s.status === "draft") s = await approveSource(brandId, s.id); // backends that ignore `approve`
+      let s = await uploadSource(brandId, file, { title: title.trim() || baseName(file.name), confidential, approve: true });
+      if (s.status === "draft") s = await approveSource(brandId, s.id); // backends that ignore `approve`
       setMsg({ ok: true, text: s.status === "approved" ? `“${s.title}” is uploaded and approved. New checks use it.` : `“${s.title}” is uploaded as a draft. It isn’t used for checks until approved.` });
       setFile(null);
       setTitle("");
@@ -212,31 +208,25 @@ export function Guidelines() {
             Brand guides, product facts, approved claims. <b>Only approved documents are used for checks.</b> Drafts and withdrawn
             documents are ignored.
           </p>
-          {manager ? (
-            <form className="add-stack" onSubmit={onUpload}>
-              <UploadDropzone file={file} onFile={pick} busy={busy} />
-              {file && (
-                <label className="field">
-                  <span className="field__label">Document name</span>
-                  <input className="field__input" value={title} maxLength={300} onChange={(e) => setTitle(e.target.value)} />
-                </label>
-              )}
-              <label className="option">
-                <input type="checkbox" className="tick tick--checkbox" checked={confidential} onChange={(e) => setConfidential(e.target.checked)} />
-                <span className="option__text">
-                  <span className="option__label">Private</span>
-                  <span className="option__help">Checked only with a local AI, never sent to an outside service.</span>
-                </span>
+          <form className="add-stack" onSubmit={onUpload}>
+            <UploadDropzone file={file} onFile={pick} busy={busy} />
+            {file && (
+              <label className="field">
+                <span className="field__label">Document name</span>
+                <input className="field__input" value={title} maxLength={300} onChange={(e) => setTitle(e.target.value)} />
               </label>
-              <Button type="submit" disabled={!file || busy} aria-busy={busy}>
-                {busy ? "Uploading…" : "Upload and approve"}
-              </Button>
-            </form>
-          ) : (
-            <p className="app-alert" role="note">
-              ⊘ Your role ({roleName(role)}) can’t add or change documents. An admin or source manager does this.
-            </p>
-          )}
+            )}
+            <label className="option">
+              <input type="checkbox" className="tick tick--checkbox" checked={confidential} onChange={(e) => setConfidential(e.target.checked)} />
+              <span className="option__text">
+                <span className="option__label">Private</span>
+                <span className="option__help">Checked only with a local AI, never sent to an outside service.</span>
+              </span>
+            </label>
+            <Button type="submit" disabled={!file || busy} aria-busy={busy}>
+              {busy ? "Uploading…" : "Upload and approve"}
+            </Button>
+          </form>
         </Panel>
 
         <Panel n="02" label="Documents" title={brands.brand.name}>
@@ -266,7 +256,7 @@ export function Guidelines() {
                       </div>
                     </div>
                     {d.status === "draft" && <p className="add-note add-muted">Not used for checks until approved.</p>}
-                    {manager && !off && (
+                    {!off && (
                       <div className="add-doc__actions">
                         {d.status === "draft" && (
                           <button type="button" className="add-btn-small" onClick={() => approve(d)} disabled={rowBusy === d.id}>

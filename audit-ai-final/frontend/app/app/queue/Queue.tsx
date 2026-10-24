@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/additions/States";
-import { canReview, roleName } from "@/components/app/roles";
+import { roleName } from "@/components/app/roles";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { useBrands } from "@/lib/additions/brands";
 import { loadQueue, type QueueLoad, type QueueRow } from "@/lib/additions/queue";
-import { useSession } from "@/lib/session";
 
 type Load = { state: "loading" } | { state: "ok"; data: QueueLoad } | { state: "error"; error: unknown };
 
@@ -35,7 +34,6 @@ function age(iso: string) {
 }
 
 export function Queue() {
-  const role = useSession()?.role ?? "";
   const { value: brands } = useBrands();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [tick, setTick] = useState(0);
@@ -61,11 +59,6 @@ export function Queue() {
   return (
     <>
       <StageHead title="Queue" status={load.state === "ok" ? `${waiting.length} waiting` : undefined} />
-      {!canReview(role) && (
-        <p className="app-alert" role="note">
-          ⊘ Your role ({roleName(role)}) can see the queue but can’t decide on drafts. A reviewer or approver does that.
-        </p>
-      )}
 
       <Panels cols="wide">
         <Panel n="01" label="Waiting for review" title="Waiting for review">

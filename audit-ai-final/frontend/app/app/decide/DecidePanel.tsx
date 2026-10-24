@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { isStub, isStubReview, verdict } from "@/components/app/reviewLabels";
-import { canApprove, canReview, isDecidable, roleName } from "@/components/app/roles";
+import { isDecidable, roleName } from "@/components/app/roles";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import { history, itemIdOf } from "@/lib/additions/content";
 import { ApiError, api } from "@/lib/api/client";
@@ -88,23 +88,16 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
   const stub = isStubReview(review);
   const decidable = isDecidable(review.status);
   const required = review.required_reviewer_role;
-  // Admin bypasses routing (approval_rules). The server re-checks everything.
-  const routingBlocks = !!required && role !== "admin" && role !== required;
   const open = review.findings.filter((f) => !isStub(f) && f.verification_status !== "supported");
   const fixes = review.findings.filter((f) => f.suggested_correction);
 
   const approveBlock = !decidable
     ? null // the outcome banner explains
-    : !canApprove(role)
-      ? `Your role (${roleName(role)}) can’t approve. An approver needs to do this.`
-      : newerVersion !== null
-        ? "A newer version of this draft exists, so this one can’t be approved."
-        : routingBlocks
-        ? `This review needs a ${roleName(required!)} (or an admin) to approve it.`
-        : stub && !stubAck
+    : newerVersion !== null
+      ? "A newer version of this draft exists, so this one can’t be approved."
+      : stub && !stubAck
           ? "Tick the box above first: nothing was really checked."
           : null;
-  const changesBlock = !decidable ? null : !canReview(role) ? `Your role (${roleName(role)}) can’t send it back. A reviewer needs to do this.` : null;
 
   const decide = async (kind: "approve" | "changes_requested" | "rejected") => {
     if (busy) return;
@@ -245,13 +238,12 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
                 {approveBlock}
               </p>
             )}
-            <button type="button" className="decision" onClick={() => decide("changes_requested")} disabled={!decidable || !!done || !!busy || !!changesBlock}>
+            <button type="button" className="decision" onClick={() => decide("changes_requested")} disabled={!decidable || !!done || !!busy}>
               {busy === "changes_requested" ? "Sending…" : "Send back for changes"}
             </button>
-            <button type="button" className="decision" onClick={() => decide("rejected")} disabled={!decidable || !!done || !!busy || !!changesBlock}>
+            <button type="button" className="decision" onClick={() => decide("rejected")} disabled={!decidable || !!done || !!busy}>
               {busy === "rejected" ? "Rejecting…" : "Reject"}
             </button>
-            {changesBlock && decidable && !done && <p className="t-caption decide__why">{changesBlock}</p>}
           </div>
         </Panel>
 

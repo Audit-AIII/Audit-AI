@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { SeverityBadge, StatusBadge, verdictOf } from "@/components/additions/Badges";
 import { EmptyState, ErrorState, LoadingState, NeedsBackend } from "@/components/additions/States";
 import { isStub, isStubReview } from "@/components/app/reviewLabels";
-import { canSubmit, roleName } from "@/components/app/roles";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { Button } from "@/components/primitives/Button";
 import { history, itemIdOf, rerun, saveNewVersion, type NewVersionOut } from "@/lib/additions/content";
@@ -14,7 +13,6 @@ import { errorText } from "@/lib/additions/http";
 import { brokenBy, loadLocks, missingIn, saveLocks } from "@/lib/additions/locks";
 import { textOf, useReviewData, useReviewParam } from "@/lib/additions/review";
 import type { FindingOut, ReviewOut } from "@/lib/api/types";
-import { useSession } from "@/lib/session";
 import { segment } from "@/lib/text/codepoints";
 
 const ORDER: Record<string, number> = { contradicted: 0, conflicting_sources: 1, unverified: 2, not_applicable: 3, supported: 4 };
@@ -49,9 +47,7 @@ export function Editor() {
 }
 
 function EditorView({ review }: { review: ReviewOut }) {
-  const role = useSession()?.role ?? "";
   const router = useRouter();
-  const mayEdit = canSubmit(role);
   const original = textOf(review);
   const stub = isStubReview(review);
   const itemId = itemIdOf(review);
@@ -188,10 +184,10 @@ function EditorView({ review }: { review: ReviewOut }) {
             <MarkedText text={original} findings={findings} locks={locks} current={current} onPick={setCurrent} />
             <label className="add-field-row">
               <span className="field__label">Your new version</span>
-              <textarea ref={area} className="add-editor__text" value={draft} onChange={(e) => setDraft(e.target.value)} disabled={!mayEdit || saving} />
+              <textarea ref={area} className="add-editor__text" value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} />
             </label>
             <div className="add-row">
-              <button type="button" className="add-btn-small" onClick={markSelection} disabled={!mayEdit}>
+              <button type="button" className="add-btn-small" onClick={markSelection}>
                 🔒 Mark must-keep text
               </button>
               <span className="add-note add-muted">Select words in the box above first.</span>
@@ -238,7 +234,7 @@ function EditorView({ review }: { review: ReviewOut }) {
               </li>
             ))}
           </ul>
-          {selected && <FindingDetail f={selected} locks={locks} canApply={mayEdit} onApply={() => apply(selected)} />}
+          {selected && <FindingDetail f={selected} locks={locks} canApply onApply={() => apply(selected)} />}
         </Panel>
       </Panels>
 
@@ -247,8 +243,6 @@ function EditorView({ review }: { review: ReviewOut }) {
           <NeedsBackend>
             this server doesn’t return <code className="add-mono">content_item_id</code> on reviews, so a new version can’t be saved from here.
           </NeedsBackend>
-        ) : !mayEdit ? (
-          <p className="add-note">⊘ Your role ({roleName(role)}) can’t save new versions. A submitter or admin does this.</p>
         ) : (
           <>
             <Button type="button" onClick={save} disabled={saving || !changed(diff) || !draft.trim()} aria-busy={saving}>
@@ -261,11 +255,9 @@ function EditorView({ review }: { review: ReviewOut }) {
             )}
           </>
         )}
-        {mayEdit && (
-          <button type="button" className="add-btn-small" onClick={recheck} disabled={rechecking}>
-            {rechecking ? "Checking…" : saved ? `↻ Check version ${saved.version_number} again` : "↻ Check again"}
-          </button>
-        )}
+        <button type="button" className="add-btn-small" onClick={recheck} disabled={rechecking}>
+          {rechecking ? "Checking…" : saved ? `↻ Check version ${saved.version_number} again` : "↻ Check again"}
+        </button>
         <span className="add-note add-muted">Saving creates a new version; nothing is changed in the old one.</span>
       </div>
     </>
