@@ -1,4 +1,10 @@
-# Trust Scorecard: two contracts that don't match (decision needed)
+# Trust Scorecard: two contracts that didn't match (resolved: option A)
+
+> **Update, same day:** Chahit's PR #9 (`fix/scorecard-real-contract`, merged into main) did
+> option A: the page now parses the backend's `EvaluationOut` and has the "Run evaluation"
+> button; `evaluation-summary-v1` parsing is kept but unused. The problem described below is
+> fixed. Still worth keeping in mind: the backend's and the engine's `false_positive_rate` are
+> defined differently (see the table).
 
 **From:** Darsh (backend) · **To:** Chahit (frontend), Krish (engine) · 2026-10-24
 
@@ -68,4 +74,4 @@ What each one measures:
 and keeps the engine's report where Krish wants it. Whichever we pick, the two
 `false_positive_rate`s must never be shown side by side under the same label.
 
-Decision: _pending (Darsh / team)_.
+Decision: **A**, implemented by the frontend in PR #9 (2026-10-24). No backend change was needed.
