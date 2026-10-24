@@ -464,3 +464,139 @@ select.field__input { cursor: pointer; }
 .rule-checks { display: grid; gap: 14px; margin-top: 22px; padding: 22px; }
 .rule-checks .panel__title { margin: 0; }
 .rule-checks__group h3 { margin: 6px 0 0; color: var(--surface); }
+
+/* ==========================================================================
+   Workspace atmosphere (landing-page kit, app-sized). Everything below is decorative or a
+   micro-interaction; each has a reduced-motion fallback at the end of this block.
+   ========================================================================== */
+/* Backdrop behind the panels: drifting warm sheen (hero light) + two blind-embossed discs */
+.app__main { position: relative; isolation: isolate; }
+.app__ambient { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.app__light-frame { position: absolute; inset: 0; transform: translate(calc(var(--px, 0) * 3vw), calc(var(--py, 0) * 3vh)); }
+.app__light {
+  position: absolute;
+  left: 30%;
+  top: 34%;
+  width: 70vmax;
+  height: 70vmax;
+  margin: -35vmax 0 0 -35vmax;
+  border-radius: var(--r-round);
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--paper-hi) 34%, transparent),
+    color-mix(in srgb, var(--paper-hi) 10%, transparent) 60%,
+    transparent
+  );
+  animation: app-light var(--dur-slow) ease-in-out infinite alternate;
+}
+.app__disc { position: absolute; width: 34vmax; aspect-ratio: 1; border-radius: var(--r-round); opacity: .55; }
+.app__disc--raised { right: -12vmax; bottom: -14vmax; box-shadow: var(--rim-hi), 10px 16px 30px color-mix(in srgb, var(--deep) 18%, transparent); }
+.app__disc--pressed { left: -16vmax; top: 18vh; box-shadow: var(--shadow-well); opacity: .4; }
+@keyframes app-light { from { translate: -14vw -8vh; } to { translate: 30vw 14vh; } }
+
+/* Page title presses into the board on arrival; its status pill slides in after it */
+.stage-head__title { animation: app-sink 900ms var(--ease-hero) backwards; }
+.stage-head__status { animation: app-shift 700ms var(--ease-hero) 140ms backwards; }
+@keyframes app-sink { from { opacity: 0; transform: translate(5px, -10px) scale(1.02); } }
+@keyframes app-shift { from { opacity: 0; transform: translateY(10px); } }
+
+/* Boxes: a deeper soft drop under every raised card, dealt in on arrival, lifting 2px on hover */
+.app__main .card {
+  box-shadow: var(--shadow-raised), 0 28px 54px -26px color-mix(in srgb, var(--deep) 48%, transparent);
+  transition: box-shadow var(--dur-mid) var(--ease-ui), translate var(--dur-mid) var(--ease-ui);
+}
+.app__main .card:hover {
+  translate: 0 -2px;
+  box-shadow: var(--shadow-raised), 0 38px 64px -26px color-mix(in srgb, var(--deep) 54%, transparent);
+}
+.app__main .panel { animation: app-deal var(--dur-mid) var(--ease-enter) backwards; }
+.app__main .panels > :nth-child(2) { animation-delay: 70ms; }
+.app__main .panels > :nth-child(3) { animation-delay: 140ms; }
+@keyframes app-deal { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+/* Panel tab number presses in when its panel is hovered */
+.panel__n { transition: box-shadow var(--dur-base) var(--ease-ui), translate var(--dur-base) var(--ease-ui); }
+.app__main .panel:hover .panel__n { box-shadow: var(--shadow-window); translate: 1px 1px; }
+/* List rows press in a pixel under the pointer */
+button.rows__item:hover { translate: 1px 1px; }
+button.rows__item { transition: background-color var(--dur-base), translate var(--dur-base) var(--ease-ui); }
+
+/* "AI is working": lines on a small sheet pressed in by a passing roller */
+.thinking { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: var(--r-ui); box-shadow: var(--shadow-well); }
+.thinking__sheet {
+  position: relative;
+  flex: none;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  width: 64px;
+  height: 52px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-radius: var(--r-tag);
+  background-color: var(--canvas);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-press), inset 1px 1px 0 color-mix(in srgb, var(--paper-hi) 80%, transparent);
+}
+.thinking__line { height: 4px; border-radius: 2px; background: var(--ink-2); opacity: .22; animation: thinking-press 2.4s linear infinite; }
+.thinking__line:nth-child(2) { width: 80%; animation-delay: .35s; }
+.thinking__line:nth-child(3) { width: 60%; animation-delay: .7s; }
+.thinking__roller {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--deep) 55%, transparent) 0 50%, color-mix(in srgb, var(--paper-hi) 85%, transparent) 50% 100%);
+  animation: thinking-roll 2.4s linear infinite;
+}
+.thinking__text { display: grid; gap: 3px; }
+.thinking__label { font-weight: 600; font-size: 17px; }
+.thinking__detail { color: var(--surface); font-size: 15px; line-height: 1.4; }
+.thinking__dots span { animation: thinking-dot 1.2s ease-in-out infinite; }
+.thinking__dots span:nth-child(2) { animation-delay: .2s; }
+.thinking__dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes thinking-roll { 0% { translate: 0 -6px; opacity: 0; } 8% { opacity: 1; } 70% { translate: 0 54px; opacity: 1; } 78%, 100% { translate: 0 54px; opacity: 0; } }
+@keyframes thinking-press { 0%, 12% { opacity: .22; box-shadow: none; } 30%, 80% { opacity: 1; box-shadow: inset 1px 1px 1px color-mix(in srgb, var(--deep) 60%, transparent); } 100% { opacity: .22; } }
+@keyframes thinking-dot { 0%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .app__light, .stage-head__title, .stage-head__status, .app__main .panel { animation: none; }
+  .app__light-frame { transform: none; }
+  .app__main .card, .panel__n, button.rows__item { transition: none; }
+  .app__main .card:hover, .app__main .panel:hover .panel__n, button.rows__item:hover { translate: none; }
+  .thinking__roller { display: none; }
+  .thinking__line, .thinking__dots span { animation: none; opacity: 1; }
+}
+
+/* Review: "what the checker found" tally - raised tiles, count in display type, chip words below */
+.tally { display: grid; gap: 8px; margin: -6px 0 22px; }
+.tally__list { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.tally__tile {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-width: 132px;
+  padding: 10px 14px 12px;
+  border: 0;
+  border-radius: var(--r-ui);
+  background-color: var(--canvas);
+  background-image: var(--grain);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: app-deal var(--dur-mid) var(--ease-enter) backwards;
+  transition: box-shadow var(--dur-base) var(--ease-ui), translate var(--dur-base) var(--ease-ui);
+}
+.tally__list > li:nth-child(2) .tally__tile { animation-delay: 50ms; }
+.tally__list > li:nth-child(3) .tally__tile { animation-delay: 100ms; }
+.tally__list > li:nth-child(4) .tally__tile { animation-delay: 150ms; }
+.tally__list > li:nth-child(5) .tally__tile { animation-delay: 200ms; }
+.tally__tile:hover { box-shadow: var(--shadow-press); translate: 1px 2px; }
+.tally__tile.is-on { box-shadow: var(--shadow-well); background-image: none; background-color: transparent; translate: none; }
+.tally__tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tally__count { font: 700 30px / 1 var(--font-display); text-shadow: var(--text-etched); }
+.tally__note { margin: 0; color: var(--ink); }
+@media (max-width: 767px) { .tally__list > li { display: flex; flex: 1 1 140px; } .tally__tile { flex: 1; min-width: 0; } }
+@media (prefers-reduced-motion: reduce) { .tally__tile { animation: none; transition: none; } .tally__tile:hover { translate: none; } }

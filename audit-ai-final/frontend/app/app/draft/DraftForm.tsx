@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Dropzone, Option, Panel, Panels } from "@/components/app/Stage";
+import { Thinking } from "@/components/app/Thinking";
 import { ACCEPTED_FILE_TYPES, ApiError, MAX_UPLOAD_BYTES, api } from "@/lib/api/client";
 import { useActiveBrand } from "@/lib/brand";
 import { rememberReviewText } from "@/lib/workspace";
@@ -165,6 +166,7 @@ export function DraftForm() {
           <Button type="submit" disabled={busy || !brand} aria-busy={busy}>
             {busy ? "Checking…" : "Check my draft →"}
           </Button>
+          {busy && <Thinking label="Checking your draft" detail="Reading each claim and looking for it in your approved documents." />}
         </Panel>
       </Panels>
     </form>

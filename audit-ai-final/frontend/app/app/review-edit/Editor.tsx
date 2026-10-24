@@ -6,6 +6,7 @@ import { FindingBadge, SeverityBadge, verdictOf } from "@/components/additions/B
 import { EmptyState, ErrorState, LoadingState, NeedsBackend } from "@/components/additions/States";
 import { findingChip, isRule, isStub, isStubReview, isWholeDraft, suggestionFor } from "@/components/app/reviewLabels";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
+import { Thinking } from "@/components/app/Thinking";
 import { Button } from "@/components/primitives/Button";
 import { history, itemIdOf, rerun, saveNewVersion, type NewVersionOut } from "@/lib/additions/content";
 import { wordDiff, changed } from "@/lib/additions/diff";
@@ -217,6 +218,12 @@ function EditorView({ review }: { review: ReviewOut }) {
         <div className="app-alert app-alert--bad" role="alert">
           <b>The check didn’t run.</b> {review.error_summary ?? "No reason given."} This is not an approval. Use “Check again”.
         </div>
+      )}
+      {(saving || rechecking) && (
+        <Thinking
+          label={saving ? "Saving your new version and checking it" : "Checking the draft again"}
+          detail="Each claim is looked up in your approved documents. Nothing is changed for you."
+        />
       )}
       {notice && (
         <p className={`app-alert ${notice.ok ? "app-alert--ok" : "app-alert--bad"}`} role={notice.ok ? "status" : "alert"}>

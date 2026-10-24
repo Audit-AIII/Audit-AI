@@ -8,6 +8,7 @@ import { ApiError, api } from "@/lib/api/client";
 import { getSession, signIn, useSession } from "@/lib/session";
 import { isSandTransitioning } from "@/lib/sandWave";
 import { STAGES } from "./stages";
+import { AppAmbient } from "./AppAmbient";
 import { StageTrack, WorkspaceMenu, type WorkspacePage } from "./WorkspaceNav";
 
 /** Workspace pages outside the five review stages (the "Workspace" menu in the bar). */
@@ -81,6 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main id="main" className="app__main" tabIndex={-1}>
+        <AppAmbient />
         {children}
       </main>
 
