@@ -23,6 +23,9 @@
   border-radius: var(--r-panel) var(--r-panel) 0 0;
   box-shadow: var(--shadow-flap);
   transform-origin: 50% 0;
+  /* Own layer: it scales .94 -> 1 with scroll, which otherwise repaints the sheet every frame
+     (pixel-identical at rest). */
+  will-change: transform;
 }
 
 .statement__lines {
