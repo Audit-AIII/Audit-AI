@@ -111,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <p>
           {offline ? "Can’t reach the Audit AI server. Check that it is running." : (current?.hint ?? page?.hint ?? "Use the stages above to check a draft, or the workspace links for everything else.")}
         </p>
-        <span className="t-caption app__status-sample">{session.organisation.name} · {session.role.replace(/_/g, " ")}</span>
+        <span className="t-caption app__status-sample">{session.organisation.name}</span>
       </footer>
     </div>
   );

@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { isStub, isStubReview, verdict } from "@/components/app/reviewLabels";
-import { isDecidable, roleName } from "@/components/app/roles";
+import { isDecidable } from "@/components/app/roles";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import { history, itemIdOf } from "@/lib/additions/content";
 import { ApiError, api } from "@/lib/api/client";
 import type { ApprovalEventOut, ReviewOut } from "@/lib/api/types";
-import { useSession } from "@/lib/session";
 import { saveDecision } from "@/lib/workspace";
 
 const NOTE_MAX = 2000; // backend limit for request-changes notes
@@ -58,8 +57,6 @@ function Empty({ title, body, bad = false }: { title: string; body: string; bad?
 }
 
 function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => void }) {
-  const session = useSession();
-  const role = session?.role ?? "";
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState<null | "approve" | "changes_requested" | "rejected">(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +84,6 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
 
   const stub = isStubReview(review);
   const decidable = isDecidable(review.status);
-  const required = review.required_reviewer_role;
   const open = review.findings.filter((f) => !isStub(f) && f.verification_status !== "supported");
   const fixes = review.findings.filter((f) => f.suggested_correction);
 
@@ -213,7 +209,7 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
             </label>
           )}
           <label className="field">
-            <span className="field__label">Note for the writer (optional)</span>
+            <span className="field__label">Note (optional, saved with your decision)</span>
             <textarea
               className="field__input decide__note"
               value={note}
@@ -247,23 +243,23 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
           </div>
         </Panel>
 
-        <Panel n="03" label="Who approves" title="Approval rules">
+        <Panel n="03" label="How this works" title="How this works">
           <dl className="spec">
             <div className="spec__row">
-              <dt>You are</dt>
-              <dd>{roleName(role)}</dd>
+              <dt>Who decides</dt>
+              <dd>You decide on your own content.</dd>
             </div>
             <div className="spec__row">
-              <dt>Must be approved by</dt>
-              <dd>{required ? `${roleName(required)} (or admin)` : "Any approver"}</dd>
+              <dt>Approve</dt>
+              <dd>Saves this exact version as approved. A newer version needs its own decision.</dd>
             </div>
             <div className="spec__row">
-              <dt>Why</dt>
-              <dd>{required === "legal_reviewer" ? "A high-risk problem was found." : required === "brand_manager" ? "No high-risk problems were found." : "–"}</dd>
+              <dt>Send back</dt>
+              <dd>Keeps your note with the decision, so you know what to fix.</dd>
             </div>
             <div className="spec__row">
-              <dt>Send back / reject</dt>
-              <dd>Any reviewer or approver</dd>
+              <dt>What changes</dt>
+              <dd>Nothing is published or changed for you.</dd>
             </div>
           </dl>
         </Panel>

@@ -135,7 +135,7 @@ export function BrandSources() {
   if (active.state === "none")
     return (
       <div className="app-empty card">
-        <p className="t-body">Your organisation has no brand yet. Ask your admin to set one up.</p>
+        <p className="t-body">This account has no brand yet.</p>
       </div>
     );
 
@@ -230,7 +230,7 @@ export function BrandSources() {
                 </div>
                 <div className="rows__side">
                   <span className={`tag${d.sensitivity === "confidential" ? " tag--private" : ""}`}>
-                    {d.sensitivity === "confidential" ? "Private" : "Team only"}
+                    {d.sensitivity === "confidential" ? "Private" : "Not private"}
                   </span>
                   {d.status === "draft" && (
                     <button type="button" className="decision decision--small" onClick={() => approve(d.id)} disabled={approving === d.id}>

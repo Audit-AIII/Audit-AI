@@ -38,7 +38,7 @@ export function Insights() {
 
   if (brands.state === "loading") return (<><StageHead title="Dashboard" /><LoadingState /></>);
   if (brands.state === "error") return (<><StageHead title="Dashboard" /><ErrorState message={brands.message} onRetry={refresh} /></>);
-  if (brands.state === "none") return (<><StageHead title="Dashboard" /><EmptyState title="No brand yet">Ask your admin to create one.</EmptyState></>);
+  if (brands.state === "none") return (<><StageHead title="Dashboard" /><EmptyState title="No brand yet">This account has no brand yet.</EmptyState></>);
 
   const data = load.state === "ok" && load.result.available ? load.result.data : null;
 

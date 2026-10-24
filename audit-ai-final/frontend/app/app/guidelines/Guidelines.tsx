@@ -167,7 +167,7 @@ export function Guidelines() {
     return (
       <>
         <StageHead title="Guidelines" />
-        <EmptyState title="No brand yet">Your organisation has no brand. Ask your admin to create one.</EmptyState>
+        <EmptyState title="No brand yet">This account has no brand yet.</EmptyState>
       </>
     );
 
@@ -252,7 +252,7 @@ export function Guidelines() {
                       </div>
                       <div className="add-row">
                         <SourceStatusBadge status={d.status} />
-                        <span className={`tag${d.sensitivity === "confidential" ? " tag--private" : ""}`}>{d.sensitivity === "confidential" ? "Private" : "Team only"}</span>
+                        <span className={`tag${d.sensitivity === "confidential" ? " tag--private" : ""}`}>{d.sensitivity === "confidential" ? "Private" : "Not private"}</span>
                       </div>
                     </div>
                     {d.status === "draft" && <p className="add-note add-muted">Not used for checks until approved.</p>}
