@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/primitives/Button";
+import { FindingComments } from "@/components/additions/FindingComments";
+import { FindingDismiss } from "@/components/additions/FindingDismiss";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import {
   checkName,
@@ -22,6 +24,7 @@ import {
 } from "@/components/app/reviewLabels";
 import { ApiError, api } from "@/lib/api/client";
 import type { FindingOut, ReviewOut, RuleCheck } from "@/lib/api/types";
+import { applyComment, applyDecision, commentCountText, DISMISSED, isDismissed } from "@/lib/additions/findingState";
 import { segment } from "@/lib/text/codepoints";
 import { getReviewText, setLastReviewId } from "@/lib/workspace";
 
@@ -106,7 +109,9 @@ function ReviewLoader({ id }: { id: string }) {
       </>
     );
   }
-  return <ReviewView review={load.review} savedText={text} selected={selected} onSelect={setSelected} />;
+  // Only ever called with a backend response (dismiss / restore / comment), never optimistically.
+  const onReview = (update: (r: ReviewOut) => ReviewOut) => setLoad((l) => (l.state === "ok" ? { ...l, review: update(l.review) } : l));
+  return <ReviewView review={load.review} savedText={text} selected={selected} onSelect={setSelected} onReview={onReview} />;
 }
 
 function ReviewView({
@@ -114,11 +119,13 @@ function ReviewView({
   savedText,
   selected,
   onSelect,
+  onReview,
 }: {
   review: ReviewOut;
   savedText: string | null;
   selected: string | null;
   onSelect: (id: string) => void;
+  onReview: (update: (r: ReviewOut) => ReviewOut) => void;
 }) {
   const stub = isStubReview(review);
   const findings = useMemo(
@@ -220,11 +227,17 @@ function ReviewView({
                               {v.glyph} {v.label}
                             </span>
                           )}{" "}
+                          {isDismissed(f) && (
+                            <span className="chip add-dismissed">
+                              <span aria-hidden="true">{DISMISSED.glyph}</span> {DISMISSED.label}
+                            </span>
+                          )}{" "}
                           {!isStub(f) && (
                             <span className="sev" aria-label={`${sev.word} severity`}>
                               {sev.marks} {sev.word}
                             </span>
                           )}
+                          {(f.comment_count ?? 0) > 0 && <span className="add-count t-caption"> · {commentCountText(f.comment_count ?? 0)}</span>}
                         </span>
                       </span>
                     </button>
@@ -237,6 +250,12 @@ function ReviewView({
 
         <Panel n="03" label="Why it was flagged" title={current ? (isStub(current) ? "Placeholder" : findingChip(current).label) : "–"}>
           {current ? <FindingDetail f={current} /> : <p className="t-body panel__note">Pick a problem to see why.</p>}
+          {current && !isStub(current) && (
+            <>
+              <FindingDismiss key={current.finding_id} f={current} onDecided={(d) => onReview((r) => applyDecision(r, d))} />
+              <FindingComments key={`c-${current.finding_id}`} findingId={current.finding_id} onAdded={(c) => onReview((r) => applyComment(r, c))} />
+            </>
+          )}
           <EngineNote review={review} stub={stub} />
           <a className="link" href={`/app/review-edit?id=${review.id}`}>Fix the wording →</a>
           <a className="link" href={`/app/coverage?id=${review.id}`}>See evidence coverage →</a>
@@ -360,6 +379,13 @@ function FindingDetail({ f }: { f: FindingOut }) {
 /** The suggestion for a finding with its label (never applied for you). */
 function Suggestion({ f }: { f: FindingOut }) {
   const sg = suggestionFor(f);
+  if (!sg && f.withheld_by_intent_lock)
+    return (
+      <p className="t-body panel__note">
+        <span aria-hidden="true">🔒</span> A suggestion was hidden because it would remove a protected phrase. Check again (in “Fix the wording”)
+        to get one that keeps it.
+      </p>
+    );
   if (!sg) return null;
   return (
     <p className="t-body panel__note">
@@ -401,24 +427,31 @@ function HeatText({
         const top = [...p.marks].sort((a, b) => rank(a) - rank(b))[0];
         const tone = isStub(top) ? "placeholder" : isRule(top) ? "rule" : ({ supported: "ok", contradicted: "bad" }[top.verification_status as string] ?? "warn");
         const on = p.marks.some((m) => m.finding_id === current);
+        const dismissed = !isStub(top) && isDismissed(top);
+        // <mark> (not <button>) so the highlight wraps inline with the sentence; still a keyboard stop.
         return (
-          // <mark> (not <button>) so the highlight wraps inline with the sentence; still a keyboard stop.
-          <mark
-            key={i}
-            role="button"
-            tabIndex={0}
-            className={`heat__mark heat__${tone}${on ? " is-current" : ""}`}
-            onClick={() => onSelect(top.finding_id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onSelect(top.finding_id);
-              }
-            }}
-            aria-label={`${p.text}: ${isStub(top) ? "placeholder" : findingChip(top).label}`}
-          >
-            {p.text}
-          </mark>
+          <Fragment key={i}>
+            <mark
+              role="button"
+              tabIndex={0}
+              className={`heat__mark heat__${tone}${on ? " is-current" : ""}`}
+              onClick={() => onSelect(top.finding_id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect(top.finding_id);
+                }
+              }}
+              aria-label={`${p.text}: ${isStub(top) ? "placeholder" : findingChip(top).label}${dismissed ? ", dismissed by you" : ""}`}
+            >
+              {p.text}
+            </mark>
+            {dismissed && (
+              <span className="add-heat-dismissed" aria-hidden="true">
+                {DISMISSED.glyph} {DISMISSED.label}
+              </span>
+            )}
+          </Fragment>
         );
       })}
     </p>

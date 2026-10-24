@@ -10,10 +10,16 @@ import { Button } from "@/components/primitives/Button";
 import { history, itemIdOf, rerun, saveNewVersion, type NewVersionOut } from "@/lib/additions/content";
 import { wordDiff, changed } from "@/lib/additions/diff";
 import { errorText } from "@/lib/additions/http";
-import { brokenBy, loadLocks, missingIn, saveLocks } from "@/lib/additions/locks";
+import { brokenBy, missingIn } from "@/lib/additions/locks";
 import { textOf, useReviewData, useReviewParam } from "@/lib/additions/review";
+import { api, backendMessage } from "@/lib/api/client";
 import type { FindingOut, ReviewOut } from "@/lib/api/types";
 import { segment } from "@/lib/text/codepoints";
+
+/** Must-keep phrases of the version being edited, as the server has them. "error": they couldn't be
+ * read, so none are shown (never a local-only guess). */
+type Locks = { state: "loading" } | { state: "ok"; phrases: string[] } | { state: "error"; message: string };
+const WITHHELD = "A suggestion was hidden because it would remove a protected phrase. Check again to get one that keeps it.";
 
 const ORDER: Record<string, number> = { contradicted: 0, conflicting_sources: 1, unverified: 2, not_applicable: 3, supported: 4 };
 
@@ -58,7 +64,11 @@ function EditorView({ review }: { review: ReviewOut }) {
 
   const [draft, setDraft] = useState(original ?? "");
   const [current, setCurrent] = useState<string | null>(findings[0]?.finding_id ?? null);
-  const [locks, setLocks] = useState<string[]>(() => loadLocks(review.id));
+  const [lockState, setLockState] = useState<Locks>(() =>
+    Array.isArray(review.locked_phrases) ? { state: "ok", phrases: review.locked_phrases } : { state: "loading" },
+  );
+  const [lockBusy, setLockBusy] = useState(false);
+  const [lockError, setLockError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<NewVersionOut | null>(null);
@@ -66,7 +76,41 @@ function EditorView({ review }: { review: ReviewOut }) {
   const [newer, setNewer] = useState<number | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => saveLocks(review.id, locks), [review.id, locks]);
+  // After "Save as new version" the editor works on that version: its locks (inherited) come from the response.
+  const versionId = saved?.content_version_id ?? review.content_version_id;
+  const locks = lockState.state === "ok" ? lockState.phrases : [];
+
+  // Older backends don't put locked_phrases on the review: read them from the locks route instead.
+  const needsFetch = lockState.state === "loading";
+  useEffect(() => {
+    if (!needsFetch) return;
+    let live = true;
+    api
+      .getLocks(versionId)
+      .then((r) => live && setLockState({ state: "ok", phrases: r.locked_phrases }))
+      .catch((err) => live && setLockState({ state: "error", message: backendMessage(err) }));
+    return () => {
+      live = false;
+    };
+  }, [needsFetch, versionId]);
+
+  /** PUT the full new list; the screen shows only what the server saved. On error the old list stays. */
+  const writeLocks = async (next: string[], done: string) => {
+    if (lockBusy) return false;
+    setLockBusy(true);
+    setLockError(null);
+    try {
+      const r = await api.putLocks(versionId, next);
+      setLockState({ state: "ok", phrases: r.locked_phrases });
+      setNotice({ ok: true, text: done });
+      return true;
+    } catch (err) {
+      setLockError(backendMessage(err));
+      return false;
+    } finally {
+      setLockBusy(false);
+    }
+  };
 
   // Is there a version newer than the one this review checked? Then its approval doesn't apply here.
   useEffect(() => {
@@ -87,7 +131,7 @@ function EditorView({ review }: { review: ReviewOut }) {
 
   const selected = findings.find((f) => f.finding_id === current) ?? null;
   const diff = useMemo(() => (original === null ? [] : wordDiff(original, draft)), [original, draft]);
-  const lost = missingIn(draft, locks);
+  const lost = missingIn(original ?? "", draft, locks);
 
   const markSelection = () => {
     const el = area.current;
@@ -95,9 +139,9 @@ function EditorView({ review }: { review: ReviewOut }) {
     const phrase = el.value.slice(el.selectionStart, el.selectionEnd).trim();
     if (!phrase) return setNotice({ ok: false, text: "Select the words to keep in the text box first (a price, a date, a product name)." });
     if (locks.includes(phrase)) return;
-    setLocks([...locks, phrase]);
-    setNotice({ ok: true, text: `“${phrase}” is marked must-keep. Suggestions that would change it are blocked.` });
+    void writeLocks([...locks, phrase], `“${phrase}” is marked must-keep and saved to your account.`);
   };
+  const unlock = (phrase: string) => void writeLocks(locks.filter((x) => x !== phrase), `“${phrase}” is no longer protected.`);
 
   const apply = (f: FindingOut) => {
     const sg = suggestionFor(f);
@@ -117,6 +161,8 @@ function EditorView({ review }: { review: ReviewOut }) {
     try {
       const r = await saveNewVersion(itemId, draft);
       setSaved(r);
+      // The new version inherits the locks on the server: show what its review says it has.
+      setLockState(Array.isArray(r.review.locked_phrases) ? { state: "ok", phrases: r.review.locked_phrases } : { state: "loading" });
       setNotice({ ok: true, text: `Saved as version ${r.version_number} and checked again. The earlier version’s review or approval does not apply to it.` });
     } catch (err) {
       setNotice({ ok: false, text: errorText(err) });
@@ -188,19 +234,30 @@ function EditorView({ review }: { review: ReviewOut }) {
               <textarea ref={area} className="add-editor__text" value={draft} onChange={(e) => setDraft(e.target.value)} disabled={saving} />
             </label>
             <div className="add-row">
-              <button type="button" className="add-btn-small" onClick={markSelection}>
-                🔒 Mark must-keep text
+              <button type="button" className="add-btn-small" onClick={markSelection} disabled={lockBusy || lockState.state !== "ok"} aria-busy={lockBusy}>
+                {lockBusy ? "Saving…" : "🔒 Mark must-keep text"}
               </button>
               <span className="add-note add-muted">Select words in the box above first.</span>
-              <span className="add-note add-muted">Saved in this browser only. The server does not enforce this yet.</span>
+              <span className="add-note add-muted">Saved to your account. Suggested wording that would remove a protected phrase is never offered.</span>
             </div>
+            {lockState.state === "loading" && <LoadingState label="Loading must-keep text…" />}
+            {lockState.state === "error" && (
+              <p className="app-alert app-alert--bad" role="alert">
+                Couldn’t load the must-keep text: {lockState.message}
+              </p>
+            )}
+            {lockError && (
+              <p className="app-alert app-alert--bad" role="alert">
+                Not saved: {lockError}
+              </p>
+            )}
             {locks.length > 0 && (
               <ul className="add-locks" aria-label="Must-keep text">
                 {locks.map((l) => (
                   <li key={l} className="add-lock">
                     <span aria-hidden="true">🔒</span> {l}
                     {lost.includes(l) && <b> (missing)</b>}
-                    <button type="button" aria-label={`Unlock ${l}`} onClick={() => setLocks(locks.filter((x) => x !== l))}>
+                    <button type="button" aria-label={`Unlock ${l}`} onClick={() => unlock(l)} disabled={lockBusy}>
                       ×
                     </button>
                   </li>
@@ -235,7 +292,9 @@ function EditorView({ review }: { review: ReviewOut }) {
               </li>
             ))}
           </ul>
-          {selected && <FindingDetail f={selected} locks={locks} canApply onApply={() => apply(selected)} />}
+          {selected && (
+            <FindingDetail f={selected} locks={locks} canApply onApply={() => apply(selected)} onRecheck={recheck} rechecking={rechecking} />
+          )}
         </Panel>
       </Panels>
 
@@ -265,7 +324,21 @@ function EditorView({ review }: { review: ReviewOut }) {
   );
 }
 
-function FindingDetail({ f, locks, canApply, onApply }: { f: FindingOut; locks: string[]; canApply: boolean; onApply: () => void }) {
+function FindingDetail({
+  f,
+  locks,
+  canApply,
+  onApply,
+  onRecheck,
+  rechecking,
+}: {
+  f: FindingOut;
+  locks: string[];
+  canApply: boolean;
+  onApply: () => void;
+  onRecheck: () => void;
+  rechecking: boolean;
+}) {
   const sg = suggestionFor(f);
   const broken = sg ? brokenBy(f.original_text, sg.text, locks) : [];
   return (
@@ -298,6 +371,13 @@ function FindingDetail({ f, locks, canApply, onApply }: { f: FindingOut; locks: 
           {broken.length > 0 && <p className="add-note">🔒 Blocked: would change {broken.map((b) => `“${b}”`).join(", ")}.</p>}
           <button type="button" className="add-btn-small" onClick={onApply} disabled={!canApply || broken.length > 0}>
             Apply suggestion to my draft
+          </button>
+        </div>
+      ) : f.withheld_by_intent_lock ? (
+        <div className="add-suggest">
+          <p className="add-note">🔒 {WITHHELD}</p>
+          <button type="button" className="add-btn-small" onClick={onRecheck} disabled={rechecking}>
+            {rechecking ? "Checking…" : "↻ Check again"}
           </button>
         </div>
       ) : (
