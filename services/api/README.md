@@ -11,12 +11,13 @@ example payloads shared with Members 1 and 2.
 keys and all)? See [`API.md`](API.md)** — this file is the project overview, current status,
 architecture and commands; API.md goes deep on the HTTP contract.
 
-**Status** (see [`../../member3_backend/STATUS.md`](../../member3_backend/STATUS.md) for the
-full phase-by-phase detail): Phases 1-7 are built and verified against a real Postgres database,
-including live end-to-end runs through real HTTP calls. Phase 8 task 1 (the required test
-checklist) is fully done — 84 tests pass in one command (see "Test" below). The rest of Phase 8
-(this README, the seed script, the smoke test script, deploy) is in progress; deploy has not
-happened yet.
+**Status** (2026-10-24; see [`../../member3_backend/STATUS.md`](../../member3_backend/STATUS.md)):
+individual-user mode - one email = one private account owning several brands; roles no longer gate
+anything and the user approves their own content. Every route is live and verified against a real
+Postgres database (182 tests, see "Test") and over real HTTP with a real AI provider
+(`scripts/smoke_test.py`). New this round: real AI findings (verified model ids), finding categories,
+suggested rewrites for contradicted claims, the review-queue list, Insights analytics and the Trust
+Scorecard evaluation. Not deployed yet.
 
 ## Setup
 
@@ -59,16 +60,15 @@ Never commit a filled-in `.env` — only `.env.example` is tracked (`.gitignore`
 .venv/Scripts/python scripts/seed.py
 ```
 
-Creates one demo organisation, a brand with two approved sources, five users (one per
-membership role, same password — printed at the end), and four demo content items each run
-through a real review: a terminology violation, a contradicted claim, an unsupported promise
-and a prompt-injection sample. Synthetic data only, clearly labelled `[SEEDED]`. Idempotent —
-safe to re-run; delete the organisation first (cascades) to reseed from scratch. Prints the
-`BRAND_ID` the smoke test below needs.
+Creates two individual demo users, each with their own private account, two brands, approved
+brand documents and demo content checked against them (see the script's docstring). Demo reviews
+run through the offline scripted provider (`src/inkloom_api/engine/scripted_provider.py`, model
+id `scripted/demo-v1`), so no API key is needed. Synthetic data only, clearly labelled
+`[SEEDED]`. Idempotent per user (`--reset` deletes and reseeds both demo accounts). Prints each brand id.
 
 **Reseed after running the full test suite.** `test_migrations.py`'s downgrade-to-`base`-then-
 upgrade cycle wipes all data, seeded or not — this is deliberate (it proves migrations actually
-reverse cleanly), not a bug, but it means demo data doesn't survive a full `pytest` run.
+reverse cleanly), not a bug, but it means demo data doesn't survive a full `pytest` run - run `scripts/seed.py --reset` after it.
 
 ## Test
 
@@ -77,20 +77,21 @@ reverse cleanly), not a bug, but it means demo data doesn't survive a full `pyte
 ```
 
 Runs the whole suite against the real database at `DATABASE_URL` (DB-backed tests skip
-automatically if it isn't reachable). 84 tests, ~25s.
+automatically if it isn't reachable). 182 tests, ~45s. Offline: every test that runs a review uses the
+stub or the scripted provider (`src/inkloom_api/engine/scripted_provider.py`), never a real model.
 
 ## Smoke test
 
-With the server running (see "Run" below) and `scripts/seed.py` already run for its `BRAND_ID`:
+With the server running (see "Run" below) - no seed data needed:
 
 ```sh
-BRAND_ID=<id from seed.py> .venv/Scripts/python scripts/smoke_test.py
+.venv/Scripts/python scripts/smoke_test.py        # BASE_URL=http://host:port to point elsewhere
 ```
 
-Drives the full demo path over real HTTP: create review → fetch findings → request changes →
-create new version → approve → inspect audit history. See the script's own docstring for one
-real pre-existing contract gap it had to work around (`ReviewOut` never exposes
-`content_item_id`).
+As a brand-new user, over real HTTP: register -> upload an approved document -> review a draft ->
+list reviews -> fetch the review -> brand stats + analytics -> latest evaluation (404 before any
+run) -> approve -> history. With a provider configured the review is real; without one the script
+says it ran in stub mode.
 
 ## Run
 
@@ -116,7 +117,11 @@ final state (confirmed with the team) — no polling or background jobs in this 
 | `src/inkloom_api/schemas.py` | API response DTOs (never return a SQLAlchemy model directly) |
 | `src/inkloom_api/auth/` | Password hashing/JWT (`security.py`), the role → permission table (`permissions.py`), the `get_current_membership`/`require_permission(...)` dependency every protected route uses (`dependencies.py`) |
 | `src/inkloom_api/tenancy.py` | "Fetch by id, then check it resolves to this organisation" helpers — the thing that makes cross-tenant access structurally impossible rather than merely checked |
-| `src/inkloom_api/routers/` | Route modules: `auth`, `brands` (sources), `reviews`, `content` (new versions, history), `content_versions` (approve/request-changes) |
+| `src/inkloom_api/routers/` | Route modules: `auth`, `brands` (brands, sources), `reviews` (submit, upload, list, get, rerun), `content` (new versions, history), `content_versions` (approve/request-changes), `analytics` (brand-risk), `evaluations` (Trust Scorecard) |
+| `src/inkloom_api/review_queries.py` | Tenant-scoped review queries; the one definition of "waiting for the user's decision" |
+| `src/inkloom_api/evaluation_runner.py` | Runs the engine's labelled evaluation through the provider chain, within the engine's call budget |
+| `src/inkloom_api/softening_guard.py` | Backend rules check on any suggested wording for an unverified claim |
+| `src/inkloom_api/engine/scripted_provider.py` | Offline, deterministic stand-in for a model (seed + tests only; model id `scripted/demo-v1`) |
 | `src/inkloom_api/engine/provider.py` | `build_provider(confidential=...)`: picks the real fallback chain or signals "use the stub"; never even constructs a cloud provider when `confidential=True` |
 | `src/inkloom_api/engine/providers/` | `gemini.py`/`groq.py`/`ollama.py` (one `LLMProvider` each), `retry.py` (shared bounded retry), `fallback.py` (`FallbackProvider`: tries each in order, falls through on any failure) |
 | `src/inkloom_api/engine/pipeline.py` | Extraction → retrieval → verification → `Finding`/`EvidenceLink` rows; the stub fallback |
@@ -154,13 +159,11 @@ service generates `request_id` and owns validation-error handling).
 
 ## Frontend integration (Member 1)
 
-Every route in `00_CONTEXT.md`'s route map is live. Auth: `POST /api/auth/login`,
-`GET /api/auth/me`. A token is scoped to one organisation, decided at login (a user in more
-than one organisation gets whichever membership was created first — no org switcher). `span`
-offsets in findings are Unicode **code points**, not UTF-16 code units — a JS client
-highlighting that range must convert (e.g. `Array.from(text).slice(start, end).join("")`)
-whenever the text may contain characters outside the Basic Multilingual Plane. Full request/
-response shapes and the error-code table are in `API.md`.
+Every route the frontend calls is live; full shapes and example JSON in `API.md`. A token is scoped
+to the user's own account. `ReviewOut` carries `content_item_id`, `brand_id`, `brand_name`, `title`,
+`version_number` and `text`, so no screen needs a second lookup. `span` offsets are Unicode **code
+points**, not UTF-16 code units - a JS client highlighting that range must convert (e.g.
+`Array.from(text).slice(start, end).join("")`).
 
 ## Known limitations
 
@@ -174,12 +177,8 @@ response shapes and the error-code table are in `API.md`.
   grained diff is Phase 7's `section_diff.py`, which only decides whether a *dependent content
   version* flips to `source_changed`, not what the approval guard itself reports).
 - Source conflict detection (Phase 7 task 7, marked optional in the phase doc) is not built.
-- `GEMINI_MODEL` has no verified-working default in `.env.example` — free-tier model ids change
-  often enough that even two concrete guesses during this build were already retired; pick a
-  current one from the provider's own model list.
-- `ReviewOut` never exposes `content_item_id`, only `content_version_id` — creating a new
-  version of existing content currently requires knowing the content item id by some other
-  means (the test suite and `scripts/smoke_test.py` both fetch it via a direct DB query,
-  documented at the call site). This is a real, pre-existing contract gap, not a new one — worth
-  raising with the team if Member 1 hits the same wall.
+- Free-tier model ids change; the ids in `.env.example` were verified against the providers' live
+  lists and real calls on 2026-10-24. Re-check them there if calls start failing.
+- Suggested wording for *unverified* claims waits on the engine's softening step
+  (`member3_backend/HANDOFF_unverified_suggestions.md`); the backend side is built.
 - No deploy yet.

@@ -2,13 +2,26 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://inkloom.ai/contract/review.schema.json",
   "title": "Review",
-  "description": "Response body of GET /api/reviews/{id}.",
+  "description": "Response body of GET /api/reviews/{id}, POST /api/reviews, POST /api/reviews/upload, POST /api/reviews/{id}/rerun, and each item of GET /api/reviews.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "content_version_id", "status", "created_at", "updated_at", "findings"],
+  "required": [
+    "id",
+    "content_version_id",
+    "status",
+    "created_at",
+    "updated_at",
+    "findings"
+  ],
   "properties": {
-    "id": { "type": "string", "format": "uuid" },
-    "content_version_id": { "type": "string", "format": "uuid" },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "content_version_id": {
+      "type": "string",
+      "format": "uuid"
+    },
     "status": {
       "enum": [
         "draft",
@@ -25,30 +38,131 @@
       "description": "'completed' means the engine finished, never that a human approved it."
     },
     "report_status": {
-      "enum": ["COMPLETED", "PARTIAL", "FAILED", null],
+      "enum": [
+        "COMPLETED",
+        "PARTIAL",
+        "FAILED",
+        null
+      ],
       "description": "The engine's own report status, once a report has been received."
     },
     "engine": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
       "properties": {
-        "provider": { "type": ["string", "null"] },
-        "model_id": { "type": ["string", "null"] },
-        "prompt_version": { "type": ["string", "null"] },
-        "contract_version": { "type": ["string", "null"] }
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contract_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     },
     "error_summary": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Safe message only; never a raw provider error or stack trace."
     },
-    "started_at": { "type": ["string", "null"], "format": "date-time" },
-    "completed_at": { "type": ["string", "null"], "format": "date-time" },
-    "created_at": { "type": "string", "format": "date-time" },
-    "updated_at": { "type": "string", "format": "date-time" },
+    "started_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "served_from_cache": {
+      "type": "boolean",
+      "description": "True when the findings were replayed from the per-account result cache."
+    },
+    "required_reviewer_role": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Always null on new reviews (individual-user mode: routing is off). Older rows may hold a role name; it no longer restricts approval."
+    },
+    "content_item_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "brand_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "brand_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version_number": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The content version's text; finding spans are code-point offsets into it."
+    },
     "findings": {
       "type": "array",
-      "items": { "$ref": "finding.schema.json" }
+      "items": {
+        "$ref": "finding.schema.json"
+      }
     }
   }
 }

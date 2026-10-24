@@ -48,9 +48,9 @@ class Review(Base):
     # Phase 5 task 5: true when this review's findings were replayed from result_cache rather
     # than actually sent to any provider.
     served_from_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # Phase 9 stretch item 1: deterministic risk-based routing, computed once findings exist
-    # (engine/pipeline.py's _compute_required_reviewer_role) - NULL until then (draft/queued/
-    # analysing/failed have nothing to route) and for reviews written before this column existed.
+    # Phase 9 stretch item 1 (migration 0008). Individual-user mode turned routing off: every new
+    # review writes NULL here (engine/pipeline.py's _finish). Older rows may still hold a role
+    # name; it is kept for history and no longer gates approval.
     required_reviewer_role: Mapped[str | None] = mapped_column(String(20))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -131,3 +131,7 @@ class EvidenceLink(Base):
     created_at: Mapped[datetime] = created_at_column()
 
     finding: Mapped[Finding] = relationship(back_populates="evidence")
+    # Read-only: EvidenceLinkOut shows the cited document's title and version number. Both stay
+    # None if the source row is ever gone (the FKs are ON DELETE SET NULL).
+    source: Mapped["BrandSource | None"] = relationship("BrandSource", viewonly=True)
+    source_version: Mapped["SourceVersion | None"] = relationship("SourceVersion", viewonly=True)

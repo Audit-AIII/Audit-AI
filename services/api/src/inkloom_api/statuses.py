@@ -49,6 +49,18 @@ class ReviewState(str, Enum):
     SOURCE_CHANGED = "source_changed"
 
 
+class FindingCategory(str, Enum):
+    """`findings.category` for engine findings (free-form column, no CHECK constraint). The
+    Insights page groups by this. `STUB` marks the placeholder written when no provider is
+    configured; every real run sets one of the other four from the claim's verdict."""
+
+    STUB = "stub"
+    CONTRADICTED_CLAIM = "contradicted_claim"
+    UNSUPPORTED_CLAIM = "unsupported_claim"  # unverified: no evidence either way
+    SUPPORTED_CLAIM = "supported_claim"
+    ENGINE_ERROR = "engine_error"  # this one claim could not be checked (provider/engine failure)
+
+
 class CheckType(str, Enum):
     RULE = "rule"
     RETRIEVAL = "retrieval"
@@ -84,7 +96,12 @@ class MembershipRole(str, Enum):
     `LEGAL_REVIEWER` and `BRAND_MANAGER` added for Phase 9 stretch item 1 (risk-based approval
     routing, see `reviews.required_reviewer_role` and `approval_rules.ensure_role_matches_
     routing`) — a real contract change (new role names), confirmed with the team before adding,
-    not assumed."""
+    not assumed.
+
+    Individual-user mode (2026-10-24): roles no longer grant or restrict anything - every active
+    membership is the account owner and holds every permission (auth/permissions.py). New
+    accounts get `ADMIN`, meaning "account owner". The other names stay valid only so existing
+    rows and the CHECK constraint need no migration."""
 
     SUBMITTER = "submitter"
     SOURCE_MANAGER = "source_manager"
@@ -99,6 +116,14 @@ class ApprovalAction(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     CHANGES_REQUESTED = "changes_requested"
+
+
+class EvaluationRunStatus(str, Enum):
+    """`evaluation_runs.status` (migration 0009). PARTIAL: some claims got no verdict (a provider
+    failure or the run's call budget) - they count as "not flagged" and the note says so."""
+
+    COMPLETED = "completed"
+    PARTIAL = "partial"
 
 
 class ExternalCallStatus(str, Enum):

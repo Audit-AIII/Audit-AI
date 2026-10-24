@@ -2,25 +2,36 @@
   "id": "6f1e9a2e-2d2b-4e34-9a5a-2e4f2d2c9c11",
   "content_version_id": "b2a1f3c4-5d6e-4f70-8a9b-0c1d2e3f4a5b",
   "status": "needs_human_review",
-  "report_status": "COMPLETED",
+  "report_status": null,
   "engine": {
-    "provider": "openrouter",
-    "model_id": "google/gemini-2.5-flash",
-    "prompt_version": "verify-v1",
-    "contract_version": "0.1.0"
+    "provider": "fallback",
+    "model_id": "gemini:gemini-3.5-flash-lite",
+    "prompt_version": "extract-claims-v1",
+    "contract_version": "0.2.0"
   },
   "error_summary": null,
   "started_at": "2026-10-22T10:15:00Z",
   "completed_at": "2026-10-22T10:15:04Z",
   "created_at": "2026-10-22T10:14:58Z",
   "updated_at": "2026-10-22T10:15:04Z",
+  "served_from_cache": false,
+  "required_reviewer_role": null,
+  "content_item_id": "f0e1d2c3-7777-4a2b-8c3d-4e5f60718293",
+  "brand_id": "a1b2c3d4-8888-4a2b-8c3d-4e5f60718293",
+  "brand_name": "Lumen Goods",
+  "title": "Lumen Bottle product page",
+  "version_number": 1,
+  "text": "The Lumen Bottle keeps drinks cold for up to 24 hours. It is made from 90% recycled steel. Lumen was founded in 2015.",
   "findings": [
     {
       "finding_id": "a7b5c9d1-1111-4a2b-8c3d-4e5f60718293",
-      "category": "product_claim",
+      "category": "supported_claim",
       "severity": "low",
       "original_text": "The Lumen Bottle keeps drinks cold for up to 24 hours.",
-      "span": { "start": 0, "end": 54 },
+      "span": {
+        "start": 0,
+        "end": 54
+      },
       "check_type": "retrieval",
       "explanation": "Matches the insulation claim in the product specification exactly.",
       "verification_status": "supported",
@@ -32,16 +43,21 @@
           "source_id": "c3d4e5f6-3333-4a2b-8c3d-4e5f60718293",
           "source_version_id": "d4e5f6a7-4444-4a2b-8c3d-4e5f60718293",
           "quote": "keeps drinks cold for up to 24 hours",
-          "relation": "supports"
+          "relation": "supports",
+          "source_title": "Lumen Bottle Product Specification",
+          "source_version_number": 1
         }
       ]
     },
     {
       "finding_id": "a7b5c9d1-5555-4a2b-8c3d-4e5f60718293",
-      "category": "product_claim",
+      "category": "contradicted_claim",
       "severity": "high",
       "original_text": "It is made from 90% recycled steel.",
-      "span": { "start": 55, "end": 90 },
+      "span": {
+        "start": 55,
+        "end": 90
+      },
       "check_type": "retrieval",
       "explanation": "The specification states 70% recycled content, not 90%.",
       "verification_status": "contradicted",
@@ -53,16 +69,21 @@
           "source_id": "c3d4e5f6-3333-4a2b-8c3d-4e5f60718293",
           "source_version_id": "d4e5f6a7-4444-4a2b-8c3d-4e5f60718293",
           "quote": "70% recycled content",
-          "relation": "contradicts"
+          "relation": "contradicts",
+          "source_title": "Lumen Bottle Product Specification",
+          "source_version_number": 1
         }
       ]
     },
     {
       "finding_id": "a7b5c9d1-7777-4a2b-8c3d-4e5f60718293",
-      "category": "company_fact",
+      "category": "unsupported_claim",
       "severity": "medium",
       "original_text": "Lumen was founded in 2015.",
-      "span": { "start": 91, "end": 117 },
+      "span": {
+        "start": 91,
+        "end": 117
+      },
       "check_type": "retrieval",
       "explanation": "No approved source covers the founding year.",
       "verification_status": "unverified",

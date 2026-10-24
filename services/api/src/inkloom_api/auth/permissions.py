@@ -1,7 +1,17 @@
-"""The permission table from phase2_auth_and_tenant_scoping.md task 3, confirmed with the team.
+"""Permission names, and the rule that decides who holds them.
 
-One role per permission; `admin` holds every permission so one person can run a brand-new
-organisation alone. See contract/README.md, "Role names", for the same table in doc form.
+Individual-user mode (product decision, 2026-10-24): InkLoom is a one-person-per-account app.
+Every organisation is one user's private account, and that user owns everything in it - there
+are no teammates, reviewer tiers or admins-vs-others. So a role no longer gates anything: every
+active membership holds every permission. Registration still writes `role="admin"`, which now
+simply means "account owner"; the other role names stay valid (the `memberships.role` CHECK
+constraint and migration 0008 are unchanged) so no data or migration has to move, but they grant
+exactly the same as `admin`.
+
+What still protects data is unchanged and is not a role check: the membership must be active
+(auth/dependencies.py) and every lookup is scoped to the membership's own organisation
+(tenancy.py). `Permission` and `require_permission(...)` stay on every route so the intent of each
+route is still readable, and so a future multi-user mode has one place to change.
 """
 
 from __future__ import annotations
@@ -19,24 +29,10 @@ class Permission(str, Enum):
     ADMINISTER = "administer"
 
 
-ROLE_PERMISSIONS: dict[MembershipRole, frozenset[Permission]] = {
-    MembershipRole.SUBMITTER: frozenset({Permission.SUBMIT}),
-    MembershipRole.SOURCE_MANAGER: frozenset({Permission.MANAGE_SOURCES}),
-    MembershipRole.REVIEWER: frozenset({Permission.REVIEW}),
-    MembershipRole.APPROVER: frozenset({Permission.REVIEW, Permission.APPROVE}),
-    MembershipRole.ADMIN: frozenset(Permission),
-    # Phase 9 stretch item 1: same raw permissions as APPROVER (review + approve) - what
-    # actually restricts each to its own risk tier is approval_rules.ensure_role_matches_routing,
-    # not this table. This table only answers "can this role ever approve anything" (yes); the
-    # routing guard answers "can this role approve THIS review."
-    MembershipRole.LEGAL_REVIEWER: frozenset({Permission.REVIEW, Permission.APPROVE}),
-    MembershipRole.BRAND_MANAGER: frozenset({Permission.REVIEW, Permission.APPROVE}),
-}
+_KNOWN_ROLES = frozenset(role.value for role in MembershipRole)
 
 
 def role_has_permission(role: str, permission: Permission) -> bool:
-    try:
-        role_enum = MembershipRole(role)
-    except ValueError:
-        return False
-    return permission in ROLE_PERMISSIONS.get(role_enum, frozenset())
+    """True for every known role: the member is the account owner. An unknown role string (which
+    the database CHECK constraint already prevents) is still refused, as a defensive default."""
+    return role in _KNOWN_ROLES and isinstance(permission, Permission)

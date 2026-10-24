@@ -17,13 +17,17 @@ engine" (00_CONTEXT.md).
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 
+from inkloom_verify.correction import ClaimCorrector
 from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig
+from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
 from inkloom_verify.retrieval import BM25Retriever
-from inkloom_verify.schemas import Claim, ClaimResult, Verdict
+from inkloom_verify.schemas import Claim, ClaimResult, Correction, InputContent, Verdict
 from inkloom_verify.verification import ClaimVerifier, verify_claim
 from sqlalchemy.orm import Session
 
@@ -31,11 +35,12 @@ from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, 
 from ..config import get_settings
 from ..result_cache import compute_cache_key, get_cached_report, materialize_cached_report, serialize_review_outcome, store_report
 from ..section_diff import section_hash_for_span
+from ..softening_guard import softening_issues
 from ..statuses import (
     CheckType,
     EvidenceRelation,
     ExternalCallStatus,
-    MembershipRole,
+    FindingCategory,
     ReviewState,
     Severity,
     VerificationStatus,
@@ -43,6 +48,9 @@ from ..statuses import (
 from .corpus import CorpusEntry, build_corpus, corpus_lookup  # noqa: F401 (build_corpus re-exported for routers)
 from .evidence_validator import EvidenceIntegrityError, validate_all
 from .provider import build_provider
+from .providers.fallback import FallbackProvider
+
+logger = logging.getLogger(__name__)
 
 STUB_EXPLANATION = (
     "[STUB OUTPUT] No LLM provider is configured for this backend (none of GEMINI_API_KEY, "
@@ -74,6 +82,12 @@ _SEVERITY_FOR_VERDICT = {
     Verdict.NOT_ENOUGH_EVIDENCE: Severity.MEDIUM,
     Verdict.ERROR: Severity.MEDIUM,
 }
+_CATEGORY_FOR_VERDICT = {
+    Verdict.SUPPORTED: FindingCategory.SUPPORTED_CLAIM,
+    Verdict.CONTRADICTED: FindingCategory.CONTRADICTED_CLAIM,
+    Verdict.NOT_ENOUGH_EVIDENCE: FindingCategory.UNSUPPORTED_CLAIM,
+    Verdict.ERROR: FindingCategory.ENGINE_ERROR,
+}
 _RELATION_FOR_VERDICT = {
     Verdict.SUPPORTED: EvidenceRelation.SUPPORTS,
     Verdict.CONTRADICTED: EvidenceRelation.CONTRADICTS,
@@ -83,8 +97,14 @@ _RELATION_FOR_VERDICT = {
 def run_review(
     db: Session, review: Review, content_version: ContentVersion, corpus: list[CorpusEntry],
     confidential: bool = False,
+    provider_builders: list[tuple[str, Callable[[], LLMProvider]]] | None = None,
 ) -> None:
-    """Mutates `review` and adds `Finding`/`EvidenceLink` rows to `db`. Caller commits."""
+    """Mutates `review` and adds `Finding`/`EvidenceLink` rows to `db`. Caller commits.
+
+    `provider_builders` replaces the configured fallback chain (engine/provider.py) for this one
+    review - used only by `scripts/seed.py` to run demo reviews through the offline scripted
+    provider (engine/scripted_provider.py) with no API key. Every call is still logged to
+    external_call_log exactly like a real provider's."""
     review.status = ReviewState.ANALYSING.value
     review.started_at = datetime.now(timezone.utc)
 
@@ -98,14 +118,21 @@ def run_review(
     # rows, and (combined with task 8 below) a confidential source cached from an earlier
     # Ollama-only run stays confidential; nothing here re-routes it to the cloud.
     cache_key = compute_cache_key(organisation_id, content_version, corpus)
-    cached = get_cached_report(db, cache_key)
+    # A provider override (seed script) never reads or writes the cache: a scripted demo result
+    # must not be replayed later as if it were a real model's answer to the same text.
+    cached = get_cached_report(db, cache_key) if provider_builders is None else None
     if cached is not None:
         materialize_cached_report(db, review, cached)
         needs_review = any(f["requires_human_review"] for f in cached["findings"])
         _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_review else ReviewState.COMPLETED)
         return
 
-    provider = build_provider(confidential=confidential, on_attempt=_make_external_call_logger(db, review, organisation_id))
+    on_attempt = _make_external_call_logger(db, review, organisation_id)
+    provider = (
+        FallbackProvider(provider_builders, on_attempt=on_attempt)
+        if provider_builders is not None
+        else build_provider(confidential=confidential, on_attempt=on_attempt)
+    )
     if not provider.configured_providers:
         review.engine_provider = "stub-unconfigured"
         if confidential:
@@ -141,6 +168,13 @@ def run_review(
     try:
         retriever = BM25Retriever(documents)
         verifier = ClaimVerifier(provider, documents)
+        # Same construction as the engine's own pipeline (inkloom_verify.pipeline._run): the
+        # corrector shares the provider (so its calls are logged to external_call_log like every
+        # other call) and re-checks each proposal with the same verifier (recheck=True default).
+        corrector = ClaimCorrector(provider, verifier)
+        softener_class = load_softener_class()
+        softener = softener_class(provider) if softener_class is not None else None
+        content = InputContent(text=content_version.text)
     except Exception as error:  # e.g. RetrievalError/RetrievalLimitError on a malformed corpus
         _finish(db, review, ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
         return
@@ -164,19 +198,80 @@ def run_review(
             continue
         needs_human_review = needs_human_review or result.verdict is not Verdict.SUPPORTED
         partial = partial or result.verdict is Verdict.ERROR
-        _write_finding(db, review, content_version, claim, result, lookup, organisation_id)
+        softening = None
+        if result.verdict is Verdict.CONTRADICTED:
+            result = _propose_correction(corrector, result, content, review)
+        elif result.verdict is Verdict.NOT_ENOUGH_EVIDENCE and softener is not None:
+            softening = _propose_softening(softener, result, content, review)
+        _write_finding(db, review, content_version, claim, result, lookup, organisation_id, softening)
 
     summary = "; ".join(e.message for e in extraction.errors)[:500] or None
     _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED, summary)
     # Only a genuine completed analysis is cached - never a stub result or a provider/corpus
     # failure (both returned early above, before reaching here), nor a partial one.
-    if not partial:
+    if not partial and provider_builders is None:
         store_report(db, cache_key, review.id, serialize_review_outcome(db, review))
 
 
+def _propose_correction(corrector: ClaimCorrector, result: ClaimResult, content: InputContent, review: Review) -> ClaimResult:
+    """The engine's corrector on one CONTRADICTED result. It already turns provider failures and
+    every rejected proposal into a correction attempt with no correction; anything unexpected is
+    caught here too, so a correction problem can never change or drop the verdict itself."""
+    try:
+        return corrector.correct(result, content)
+    except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
+        logger.error("review=%s claim=%s correction failed unexpectedly: %s",
+                     review.id, result.claim.claim_id, type(error).__name__)
+        return result
+
+
+def load_softener_class():
+    """The engine's softening step for UNVERIFIED claims, if this engine version has one.
+
+    Not built yet: it needs a change in Member 2's engine, proposed in
+    member3_backend/HANDOFF_unverified_suggestions.md as
+    `inkloom_verify.softening.ClaimSoftener(provider).soften(result, content)` returning an object
+    with `target_span` / `original_text` / `replacement_text`, or None. Until that module exists
+    this returns None and nothing changes; once it ships, suggestions appear with no backend
+    change - still behind softening_guard.py and never changing the verdict."""
+    try:
+        from inkloom_verify.softening import ClaimSoftener  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+    return ClaimSoftener
+
+
+def _propose_softening(softener, result: ClaimResult, content: InputContent, review: Review):
+    try:
+        return softener.soften(result, content)
+    except Exception as error:  # noqa: BLE001 - only the type name is logged, never content
+        logger.error("review=%s claim=%s softening failed unexpectedly: %s",
+                     review.id, result.claim.claim_id, type(error).__name__)
+        return None
+
+
+def claim_level_correction(text: str, claim: Claim, correction: Correction | None) -> str | None:
+    """The engine proposes a targeted edit (e.g. "24 hours" -> "12 hours"); the UI replaces the
+    finding's whole `original_text` with `suggested_correction`, so store the claim span with the
+    edit applied. None if there is no correction or its target is not inside the claim's span.
+    Also used for an unverified claim's softened wording (any object with `target_span` and
+    `replacement_text`)."""
+    if correction is None:
+        return None
+    span, target = claim.source_span, correction.target_span
+    if not (span.start <= target.start <= target.end <= span.end):
+        return None
+    return text[span.start : target.start] + correction.replacement_text + text[target.end : span.end]
+
+
 def _make_external_call_logger(db: Session, review: Review, organisation_id: uuid.UUID):
+    return external_call_logger(db, organisation_id, review.request_id or "", review_id=review.id)
+
+
+def external_call_logger(db: Session, organisation_id: uuid.UUID, request_id: str, review_id: uuid.UUID | None = None):
     """Phase 5 task 9: every external call, logged with provider/model/latency/error code
-    only — never prompt or reply content, never credentials, never a raw provider error."""
+    only — never prompt or reply content, never credentials, never a raw provider error. Also
+    used by the Trust Scorecard's evaluation runs (review_id None, request_id "eval-<run id>")."""
 
     def on_attempt(*, provider: str, model: str | None, status: str, latency_ms: int, error_code: str | None) -> None:
         call_status = (
@@ -187,10 +282,10 @@ def _make_external_call_logger(db: Session, review: Review, organisation_id: uui
         db.add(
             ExternalCallLog(
                 organisation_id=organisation_id,
-                review_id=review.id,
+                review_id=review_id,
                 provider=provider,
                 model_id=model,
-                request_id=review.request_id or "",
+                request_id=request_id,
                 status=call_status.value,
                 latency_ms=latency_ms,
                 error_code=error_code,
@@ -204,30 +299,17 @@ def _finish(db: Session, review: Review, state: ReviewState, error_summary: str 
     review.status = state.value
     review.error_summary = error_summary
     review.completed_at = datetime.now(timezone.utc)
-    if state in (ReviewState.COMPLETED, ReviewState.NEEDS_HUMAN_REVIEW):
-        # Phase 9 stretch item 1: only a decidable outcome has findings worth routing on - a
-        # FAILED review (no corpus, extraction failure, etc.) never reaches here with any.
-        review.required_reviewer_role = _compute_required_reviewer_role(db, review)
-
-
-_HIGH_RISK_SEVERITIES = frozenset({Severity.HIGH.value, Severity.CRITICAL.value})
-
-
-def _compute_required_reviewer_role(db: Session, review: Review) -> str:
-    """Deterministic risk-based routing (Phase 9 stretch item 1): any high/critical finding
-    routes to the legal reviewer; everything else (including zero findings) is a clean item for
-    the brand manager's one-click sign-off. Queried directly rather than via `review.findings`
-    so it sees exactly what was just flushed, regardless of how those rows were added."""
-    severities = db.query(Finding.severity).filter_by(review_id=review.id).all()
-    high_risk = any(severity in _HIGH_RISK_SEVERITIES for (severity,) in severities)
-    return (MembershipRole.LEGAL_REVIEWER if high_risk else MembershipRole.BRAND_MANAGER).value
+    # Individual-user mode: risk-based routing (Phase 9 stretch item 1) is off. The account owner
+    # approves their own content, so no review is routed to a reviewer role. The column stays
+    # (migration 0008) and is always written as NULL, which the UI shows as "Any approver".
+    review.required_reviewer_role = None
 
 
 def _write_stub_finding(db: Session, review: Review, content_version: ContentVersion, reason: str | None) -> None:
     db.add(
         Finding(
             review_id=review.id,
-            category="stub",
+            category=FindingCategory.STUB.value,
             severity=Severity.MEDIUM.value,
             original_text=content_version.text,
             span_start=0,
@@ -246,6 +328,7 @@ def _write_unexpected_error_finding(
     db.add(
         Finding(
             review_id=review.id,
+            category=FindingCategory.ENGINE_ERROR.value,
             severity=Severity.MEDIUM.value,
             original_text=claim.source_span.slice(content_version.text),
             span_start=claim.source_span.start,
@@ -270,10 +353,22 @@ def _write_finding(
     result: ClaimResult,
     lookup: dict[tuple[str, str], CorpusEntry],
     organisation_id: uuid.UUID,
+    softening=None,
 ) -> None:
     verdict = result.verdict
     explanation = result.error.message if result.error else result.model_rationale
-    suggested_correction = result.correction.replacement_text if result.correction else None
+    suggested_correction = claim_level_correction(content_version.text, claim, result.correction)
+    if verdict is Verdict.NOT_ENOUGH_EVIDENCE:
+        # A safer wording for an unverified claim: from the engine's softening step, or a
+        # correction the engine attached to an unverified result (both are only proposals; the
+        # finding stays unverified). No evidence exists to check it against, so it must pass the
+        # backend's own deterministic rules (softening_guard.py) or it is dropped.
+        proposal = softening if softening is not None else result.correction
+        rewritten = claim_level_correction(content_version.text, claim, proposal)
+        original = claim.source_span.slice(content_version.text)
+        suggested_correction = rewritten if rewritten is not None and not softening_issues(original, rewritten) else None
+    elif verdict is Verdict.ERROR:
+        suggested_correction = None
 
     valid_entries: list[CorpusEntry] = []
     if verdict in (Verdict.SUPPORTED, Verdict.CONTRADICTED):
@@ -289,6 +384,9 @@ def _write_finding(
 
     finding = Finding(
         review_id=review.id,
+        # From the verdict AFTER backend validation: a citation that failed our own check was
+        # downgraded above, so it is counted as an unsupported claim, not a contradicted one.
+        category=_CATEGORY_FOR_VERDICT[verdict].value,
         severity=_SEVERITY_FOR_VERDICT[verdict].value,
         original_text=claim.source_span.slice(content_version.text),
         span_start=claim.source_span.start,

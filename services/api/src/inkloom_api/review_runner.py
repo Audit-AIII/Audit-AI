@@ -7,7 +7,9 @@ sources, build the corpus, run the pipeline, synchronously, against one content 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 
+from inkloom_verify.providers.base import LLMProvider
 from inkloom_verify.schemas import CONTRACT_VERSION
 from sqlalchemy.orm import Session
 
@@ -39,11 +41,15 @@ def latest_approved_sources(db: Session, brand_profile_id: uuid.UUID) -> list[tu
 
 
 def start_review(
-    db: Session, content_version: ContentVersion, brand_profile_id: uuid.UUID | None
+    db: Session,
+    content_version: ContentVersion,
+    brand_profile_id: uuid.UUID | None,
+    provider_builders: list[tuple[str, Callable[[], LLMProvider]]] | None = None,
 ) -> Review:
     """Creates and runs a new `Review` row. Caller commits. `brand_profile_id` may be `None`
     for a content item created before Phase 6 (no brand recorded) - treated the same as a brand
-    with zero approved sources: the review fails cleanly rather than crashing."""
+    with zero approved sources: the review fails cleanly rather than crashing.
+    `provider_builders`: see `engine.pipeline.run_review` (seed script only)."""
     review = Review(
         content_version_id=content_version.id,
         status=ReviewState.QUEUED.value,
@@ -59,5 +65,5 @@ def start_review(
     # confidential - a mixed-sensitivity corpus must not let the content touch a cloud provider
     # just because some of its other sources are normal.
     confidential = any(source.sensitivity == BrandSourceSensitivity.CONFIDENTIAL.value for source, _ in entries)
-    run_review(db, review, content_version, corpus, confidential=confidential)
+    run_review(db, review, content_version, corpus, confidential=confidential, provider_builders=provider_builders)
     return review

@@ -3,6 +3,7 @@
 from .base import Base
 from .brand import BrandProfile, BrandSource, SourceVersion
 from .content import ContentItem, ContentVersion
+from .evaluation import EvaluationRun
 from .governance import ApprovalEvent, AuditEvent
 from .ops import ExternalCallLog, IdempotencyKey, ResultCache
 from .organisations import Membership, Organisation, User
@@ -26,4 +27,5 @@ __all__ = [
     "ExternalCallLog",
     "IdempotencyKey",
     "ResultCache",
+    "EvaluationRun",
 ]

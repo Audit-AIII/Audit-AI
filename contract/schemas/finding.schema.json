@@ -15,43 +15,138 @@
     "evidence"
   ],
   "properties": {
-    "finding_id": { "type": "string", "format": "uuid" },
-    "category": { "type": ["string", "null"] },
-    "severity": { "enum": ["low", "medium", "high", "critical"] },
-    "original_text": { "type": "string" },
+    "finding_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "category": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Real runs: contradicted_claim | unsupported_claim | supported_claim | engine_error. 'stub' marks the no-provider placeholder. Null only on findings written before categories were filled."
+    },
+    "severity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "original_text": {
+      "type": "string"
+    },
     "span": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["start", "end"],
+      "required": [
+        "start",
+        "end"
+      ],
       "properties": {
-        "start": { "type": "integer", "minimum": 0 },
-        "end": { "type": "integer", "minimum": 0 }
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
       },
       "description": "Half-open [start, end) Unicode code point offsets into the content version's text."
     },
-    "check_type": { "enum": ["rule", "retrieval", "semantic"] },
-    "explanation": { "type": ["string", "null"] },
-    "verification_status": {
-      "enum": ["supported", "contradicted", "unverified", "conflicting_sources", "not_applicable"]
+    "check_type": {
+      "enum": [
+        "rule",
+        "retrieval",
+        "semantic"
+      ]
     },
-    "suggested_correction": { "type": ["string", "null"] },
-    "requires_human_review": { "type": "boolean" },
+    "explanation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verification_status": {
+      "enum": [
+        "supported",
+        "contradicted",
+        "unverified",
+        "conflicting_sources",
+        "not_applicable"
+      ]
+    },
+    "suggested_correction": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The whole original_text rewritten (the UI swaps it in with draft.replace). Only ever a suggestion; never applied automatically and never changes verification_status."
+    },
+    "requires_human_review": {
+      "type": "boolean"
+    },
     "evidence": {
       "type": "array",
-      "items": { "$ref": "#/definitions/EvidenceLink" }
+      "items": {
+        "$ref": "#/definitions/EvidenceLink"
+      }
     }
   },
   "definitions": {
     "EvidenceLink": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "quote", "relation"],
+      "required": [
+        "id",
+        "quote",
+        "relation"
+      ],
       "properties": {
-        "id": { "type": "string", "format": "uuid" },
-        "source_id": { "type": ["string", "null"], "format": "uuid" },
-        "source_version_id": { "type": ["string", "null"], "format": "uuid" },
-        "quote": { "type": "string" },
-        "relation": { "enum": ["supports", "contradicts", "context"] }
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "source_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "source_version_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "quote": {
+          "type": "string"
+        },
+        "relation": {
+          "enum": [
+            "supports",
+            "contradicts",
+            "context"
+          ]
+        },
+        "source_title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Title of the cited brand document."
+        },
+        "source_version_number": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Version of that document the quote was taken from."
+        }
       }
     }
   }

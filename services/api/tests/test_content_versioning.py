@@ -1,7 +1,9 @@
 """Phase 6 required tests (phase6_versioning_approval_audit.md, "Tests (write now)"):
 
-1. Non-approver gets a safe 403 or 409, with an audit event where appropriate.
-   -> test_reviewer_cannot_approve_but_can_request_changes
+1. (Individual-user mode, 2026-10-24) roles no longer gate decisions: a member with the legacy
+   "reviewer" role is the account owner too and may approve; each decision writes exactly one
+   audit event. Replaces the old "non-approver gets a safe 403" test.
+   -> test_legacy_reviewer_role_decides_as_account_owner
 2. Stale approval rejected.                        -> test_approval_rejected_when_stale
 3. Approval blocked when analysis failed.          -> test_approval_blocked_when_review_failed
 4. Edit after approval creates a new version that is not approved.
@@ -35,7 +37,7 @@ PASSWORD = "correct-horse-battery-staple"
 class Fixture:
     org: Organisation
     admin: User  # holds every permission - submits, approves
-    reviewer: User  # review only, not approve
+    reviewer: User  # legacy 'reviewer' role - still the account owner in individual-user mode
     brand: BrandProfile
 
 
@@ -91,54 +93,39 @@ def _submit(client, token: str, brand_id, text: str = "Some content.") -> dict:
 
 
 @requires_db
-def test_reviewer_cannot_approve_but_can_request_changes(client, force_stub_mode, fixture: Fixture) -> None:
+def test_legacy_reviewer_role_decides_as_account_owner(client, force_stub_mode, fixture: Fixture) -> None:
     admin_token = _login(client, fixture.admin.email)
     reviewer_token = _login(client, fixture.reviewer.email)
-    review = _submit(client, admin_token, fixture.brand.id)
-    content_version_id = review["content_version_id"]
-    assert review["status"] == "needs_human_review"  # stub mode always needs a human look
+    first = _submit(client, admin_token, fixture.brand.id)
+    assert first["status"] == "needs_human_review"  # stub mode always needs a human look
 
-    denied = client.post(
-        f"/api/content-versions/{content_version_id}/approve", headers=_auth(reviewer_token)
+    changes = client.post(
+        f"/api/content-versions/{first['content_version_id']}/request-changes",
+        json={"decision": "changes_requested", "note": "fix the terminology"},
+        headers=_auth(reviewer_token),
     )
-    assert denied.status_code == 403
-    assert denied.json()["error"]["code"] == "FORBIDDEN"
+    assert changes.status_code == 201, changes.text
+    assert changes.json()["action"] == "changes_requested"
+
+    second = _submit(client, admin_token, fixture.brand.id, text="Other content.")
+    approved = client.post(
+        f"/api/content-versions/{second['content_version_id']}/approve", headers=_auth(reviewer_token)
+    )
+    assert approved.status_code == 201, approved.text  # was 403 FORBIDDEN under team roles
 
     from inkloom_api.db import get_session_factory
     from inkloom_api.models import AuditEvent
 
     db = get_session_factory()()
-    denied_audit_events = (
-        db.query(AuditEvent)
-        .filter_by(entity_type="content_version", entity_id=content_version_id)
-        .all()
-    )
-    db.close()
-    # A permission denial is stopped by auth before any state change is attempted, so it is not
-    # itself audited - only actual decisions (below) are. Pinned here so this is a documented,
-    # tested choice rather than the open question STATUS.md flagged ("have not specifically
-    # verified an audit event is (or isn't) written on a rejected approval attempt").
-    assert denied_audit_events == []
-
-    allowed = client.post(
-        f"/api/content-versions/{content_version_id}/request-changes",
-        json={"decision": "changes_requested", "note": "fix the terminology"},
-        headers=_auth(reviewer_token),
-    )
-    assert allowed.status_code == 201, allowed.text
-    body = allowed.json()
-    assert body["action"] == "changes_requested"
-    assert body["note"] == "fix the terminology"
-
-    db = get_session_factory()()
-    recorded_audit_events = (
-        db.query(AuditEvent)
-        .filter_by(entity_type="content_version", entity_id=content_version_id)
-        .all()
-    )
-    db.close()
-    assert len(recorded_audit_events) == 1  # the actual decision IS audited
-    assert recorded_audit_events[0].event_type == "content_version.changes_requested"
+    try:
+        for content_version_id, event_type in (
+            (first["content_version_id"], "content_version.changes_requested"),
+            (second["content_version_id"], "content_version.approved"),
+        ):
+            events = db.query(AuditEvent).filter_by(entity_type="content_version", entity_id=content_version_id).all()
+            assert [e.event_type for e in events] == [event_type]  # exactly one per decision
+    finally:
+        db.close()
 
 
 @requires_db
@@ -306,7 +293,7 @@ def test_truly_concurrent_decisions_the_db_lock_serializes_them(
                 # Mirrors the two routes exactly: approve runs the full guard set,
                 # request-changes/reject only checks decidability.
                 if action is ApprovalAction.APPROVED:
-                    check_approve_guards(db, locked_review, content_version.content_item_id, "admin")
+                    check_approve_guards(db, locked_review, content_version.content_item_id)
                 else:
                     ensure_decidable(locked_review.status)
                 event = record_decision(

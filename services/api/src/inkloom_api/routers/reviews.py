@@ -1,7 +1,7 @@
 """POST /api/reviews, POST /api/reviews/upload, GET /api/reviews/{id}
 (phase3_vertical_slice.md; upload added for self-serve onboarding, see
 member3_backend/HANDOFF_self_serve_onboarding.md). POST /api/reviews/{id}/rerun
-(phase6_versioning_approval_audit.md task 2).
+(phase6_versioning_approval_audit.md task 2). GET /api/reviews: the Review queue page's list.
 
 Analysis runs synchronously (confirmed with the team): the request blocks until the engine
 finishes, and the response already carries the final findings. No polling in this phase.
@@ -17,10 +17,10 @@ import hashlib
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, status
 from inkloom_verify.schemas import MAX_CONTENT_CHARS
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..audit import log_audit_event
 from ..auth.dependencies import AuthContext, get_current_membership, require_permission
@@ -28,11 +28,13 @@ from ..auth.permissions import Permission
 from ..config import Settings, get_settings
 from ..db import get_db
 from ..idempotency import find_replay, hash_request_body, record
-from ..models import ContentItem, ContentVersion
+from ..models import ContentItem, ContentVersion, EvidenceLink, Finding, Review
 from ..rate_limit import rate_limited_submit_permission
+from ..review_queries import reviews_in_organisation
 from ..review_runner import start_review
 from ..schemas import ReviewOut
 from ..source_upload import extract_text, file_type_from_name, read_limited
+from ..statuses import ReviewState
 from ..tenancy import get_brand_profile_or_404, get_review_or_404
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
@@ -179,6 +181,42 @@ def create_review_from_upload(
         text=text,
         audit_details_extra={"source_file_type": file_type.value},
     )
+
+
+@router.get("", response_model=list[ReviewOut])
+def list_reviews(
+    statuses: list[ReviewState] | None = Query(default=None, alias="status"),
+    brand_id: uuid.UUID | None = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    auth: AuthContext = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> list[ReviewOut]:
+    """The caller's own reviews as a plain JSON array of full `ReviewOut` objects (findings and
+    evidence included), newest first. `?status=` may repeat (any of them matches); `brand_id`
+    narrows to one of the caller's brands - another account's brand is a 404, exactly like a
+    brand that doesn't exist. Scope comes only from the authenticated membership."""
+    if brand_id is not None:
+        get_brand_profile_or_404(db, auth.organisation_id, brand_id)
+
+    query = reviews_in_organisation(auth.organisation_id)
+    if brand_id is not None:
+        query = query.where(ContentItem.brand_profile_id == brand_id)
+    if statuses:
+        query = query.where(Review.status.in_([s.value for s in statuses]))
+    query = (
+        query.order_by(Review.created_at.desc(), Review.id.desc())
+        .limit(limit)
+        .offset(offset)
+        # Everything ReviewOut.from_model touches, loaded in a fixed number of queries rather
+        # than a few per review.
+        .options(
+            selectinload(Review.content_version).selectinload(ContentVersion.content_item).selectinload(ContentItem.brand_profile),
+            selectinload(Review.findings).selectinload(Finding.evidence).selectinload(EvidenceLink.source),
+            selectinload(Review.findings).selectinload(Finding.evidence).selectinload(EvidenceLink.source_version),
+        )
+    )
+    return [ReviewOut.from_model(review) for review in db.scalars(query).all()]
 
 
 @router.get("/{review_id}", response_model=ReviewOut)

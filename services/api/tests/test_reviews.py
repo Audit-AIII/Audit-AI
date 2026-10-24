@@ -33,7 +33,7 @@ class ReviewFixture:
     org_a: Organisation
     org_b: Organisation
     user_a: User
-    user_reviewer: User  # active member of org_a, but no `submit` permission
+    user_reviewer: User  # active member of org_a with the legacy `reviewer` role
     brand_with_source: BrandProfile
     brand_without_source: BrandProfile
     brand_b: BrandProfile
@@ -175,25 +175,22 @@ def test_get_review_is_scoped_to_organisation(client, force_stub_mode, review_fi
 
 
 @requires_db
-def test_post_reviews_requires_submit_permission(client, review_fixture: ReviewFixture) -> None:
-    """Phase 3 verification small fix: POST /api/reviews is gated on the `submit` permission,
-    which `reviewer` does not hold (contract/README.md's role table)."""
+def test_legacy_reviewer_role_can_submit(client, force_stub_mode, review_fixture: ReviewFixture) -> None:
+    """Individual-user mode (2026-10-24): roles no longer gate anything, so a member with the
+    legacy `reviewer` role (which used to get 403 here, lacking `submit`) is the account owner and
+    may submit. Replaces test_post_reviews_requires_submit_permission."""
     token = _login(client, review_fixture.user_reviewer.email)
     response = client.post(
         "/api/reviews",
         json={"brand_id": str(review_fixture.brand_with_source.id), "text": "Some content."},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 403
-    body = response.json()
-    assert body["error"]["code"] == "FORBIDDEN"
-    assert "submit" in body["error"]["message"]
+    assert response.status_code == 201, response.text
 
 
 @requires_db
 def test_get_brand_sources_allows_any_active_role(client, review_fixture: ReviewFixture) -> None:
-    """Companion to the fix above: the read route must keep allowing any active member,
-    `reviewer` included, even though that role holds neither `submit` nor `manage_sources`."""
+    """The read route allows any active member, whatever (legacy) role string it carries."""
     token = _login(client, review_fixture.user_reviewer.email)
     response = client.get(
         f"/api/brands/{review_fixture.brand_with_source.id}/sources",

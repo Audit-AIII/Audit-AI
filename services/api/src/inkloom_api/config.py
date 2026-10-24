@@ -65,6 +65,18 @@ class Settings(BaseSettings):
             raise RuntimeError("insecure configuration: " + "; ".join(problems))
         return problems
 
+    # Trust Scorecard (POST /api/evaluations): runs synchronously, bounded by the engine's own
+    # call budget; at most one run per user per eval_min_interval_seconds.
+    eval_max_calls: int = 150
+    eval_deadline_seconds: float = 300.0
+    eval_min_interval_seconds: float = 600.0
+    # A run where more than this share of claims got no verdict (provider failures / budget) is
+    # not stored: its numbers would describe the provider's outage, not the checker.
+    eval_max_provider_failure_rate: float = 0.2
+    # Override only for tests / a different labelled set; default is the engine's locked
+    # services/verification/eval/dataset.jsonl.
+    eval_dataset_path: str | None = None
+
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]

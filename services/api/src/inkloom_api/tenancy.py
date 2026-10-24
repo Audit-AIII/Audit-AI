@@ -63,5 +63,10 @@ def get_review_or_404(db: Session, organisation_id: uuid.UUID, review_id: uuid.U
     review = db.get(Review, review_id)
     if review is None:
         raise not_found("review not found")
-    get_content_version_or_404(db, organisation_id, review.content_version_id)  # raises if cross-tenant
+    try:
+        get_content_version_or_404(db, organisation_id, review.content_version_id)  # raises if cross-tenant
+    except HTTPException:
+        # Same message as a review that doesn't exist: "content version not found" here would
+        # tell the caller that this review id is real, just in another account (task 7).
+        raise not_found("review not found") from None
     return review
