@@ -600,6 +600,9 @@ class VerificationRequest(_Contract):
     references: Annotated[list[ReferenceDocument], Field(min_length=1, max_length=MAX_REFERENCE_DOCS)]
     # Explicit brand rules, checked deterministically before extraction (rules.py). Optional.
     rules: BrandRules | None = None
+    # Intent-lock: exact phrases the writer marked as must-keep; no suggested correction or safer
+    # wording may remove them (intent_lock.py). Optional.
+    locked_phrases: Annotated[list[Annotated[str, Field(min_length=1, max_length=200)]], Field(max_length=50)] = []
 
     @model_validator(mode="after")
     def _check_references(self) -> VerificationRequest:
@@ -609,6 +612,8 @@ class VerificationRequest(_Contract):
         total = sum(len(r.text) for r in self.references)
         if total > MAX_TOTAL_REFERENCE_CHARS:
             raise ValueError(f"reference documents exceed {MAX_TOTAL_REFERENCE_CHARS} characters in total")
+        if any(not phrase.strip() for phrase in self.locked_phrases):
+            raise ValueError("locked phrases must be non-blank")
         if self.rules is not None:
             # A rule's source must be one of this request's references, quoted verbatim: rule
             # evidence comes only from the authorised set, like claim evidence.
@@ -864,6 +869,7 @@ class CorrectionIssueCode(str, Enum):
     RECHECK_NOT_SUPPORTED = "recheck_not_supported"  # the corrected claim did not verify as SUPPORTED
     RECHECK_UNAVAILABLE = "recheck_unavailable"  # the re-check could not run
     INVALID_CORRECTION = "invalid_correction"  # the proposal broke the Correction contract
+    INTENT_LOCK = "intent_lock"  # the proposal would remove text the writer locked (intent_lock.py)
 
 
 class CorrectionIssue(_Contract):

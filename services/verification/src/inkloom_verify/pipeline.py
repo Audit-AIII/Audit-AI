@@ -143,7 +143,7 @@ def _run(
             result = _claim_error(claim, PipelineStage.VERIFICATION)
         if corrector is not None and result.verdict is Verdict.CONTRADICTED:
             try:
-                result = corrector.correct(result, request.content)
+                result = corrector.correct(result, request.content, request.locked_phrases)
             except Exception as error:  # noqa: BLE001
                 logger.error("pipeline request=%s claim=%s correction failed unexpectedly: %s",
                              request.request_id, claim.claim_id, type(error).__name__)
@@ -175,7 +175,7 @@ def _with_safer_wording(softener: ClaimSoftener, result: ClaimResult, request: V
     or drops the verdict: the softener returns None on any failure, and anything unexpected is
     caught here."""
     try:
-        wording = softener.soften(result, request.content)
+        wording = softener.soften(result, request.content, request.locked_phrases)
     except Exception as error:  # noqa: BLE001 - the type name is safe to log, the message may hold content
         logger.error("pipeline request=%s claim=%s softening failed unexpectedly: %s",
                      request.request_id, result.claim.claim_id, type(error).__name__)

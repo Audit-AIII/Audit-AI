@@ -807,6 +807,17 @@
       "title": "Contract Version",
       "type": "string"
     },
+    "locked_phrases": {
+      "default": [],
+      "items": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Locked Phrases",
+      "type": "array"
+    },
     "reference_set_id": {
       "anyOf": [
         {

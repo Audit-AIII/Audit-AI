@@ -364,7 +364,8 @@
         "drops_attribution",
         "recheck_not_supported",
         "recheck_unavailable",
-        "invalid_correction"
+        "invalid_correction",
+        "intent_lock"
       ],
       "title": "CorrectionIssueCode",
       "type": "string"
