@@ -14,12 +14,16 @@ handled by other members.
 - claim verification with the citation guard;
 - evidence-backed corrections and the report score;
 - engine-side security ([SECURITY.md](SECURITY.md));
-- the end-to-end pipeline.
+- the end-to-end pipeline;
+- deterministic brand rules and accessibility/tone checks (`rules.py`) and unverified-claim
+  softening (`softening.py`).
 
 **The engine has not yet been evaluated against a live model**, so Phase 8 remains incomplete
 (see [INTEGRATION.md](INTEGRATION.md), "What has been measured").
 
-To integrate the engine, start with [INTEGRATION.md](INTEGRATION.md). Also see
+To integrate the engine, start with [INTEGRATION.md](INTEGRATION.md) and
+[HANDOFF_backend_entry_point.md](HANDOFF_backend_entry_point.md). What was used and by whom:
+[DISCLOSURE.md](DISCLOSURE.md). Also see
 [CONTRACTS.md](CONTRACTS.md), [EVAL.md](EVAL.md) and [PROMPTS.md](PROMPTS.md).
 
 ## Setup
