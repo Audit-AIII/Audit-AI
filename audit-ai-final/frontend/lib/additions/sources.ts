@@ -10,15 +10,20 @@ import { request } from "./http";
  *   POST /api/brands/{id}/sources/{sid}/versions       file
  *   POST /api/brands/{id}/sources/{sid}/approve        (no body)
  *   POST /api/brands/{id}/sources/{sid}/withdraw       JSON {status: "superseded"|"archived", reason}
+ *   DELETE /api/brands/{id}/sources/{sid}                -> {id, title, deleted: true}; never-approved only (else 409)
  * Upload/approve/withdraw/new version need manage_sources (source_manager, admin).
  */
 export type FlippedDependent = { content_version_id: string; review_id: string };
 export type WithdrawResult = { source: BrandSourceOut; reason: string; flipped: FlippedDependent[] };
 export type NewVersionResult = { source: BrandSourceOut; version_number: number; flipped: FlippedDependent[] };
+export type DeletedSource = { id: string; title: string; deleted: true };
 
 const base = (brandId: string) => `/api/brands/${encodeURIComponent(brandId)}/sources`;
 
 export const listSources = (brandId: string) => request<BrandSourceOut[]>(base(brandId));
+/** Deletes a document that was never approved (draft). Approved / withdrawn ones are kept for the record (409). */
+export const deleteSource = (brandId: string, sourceId: string) =>
+  request<DeletedSource>(`${base(brandId)}/${encodeURIComponent(sourceId)}`, { method: "DELETE" });
 
 export function uploadSource(brandId: string, file: File, opts: { title: string; confidential: boolean; approve: boolean }) {
   const form = new FormData();
