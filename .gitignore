@@ -17,3 +17,6 @@ node_modules/
 # Playwright output
 playwright-report/
 test-results/
+# Personal editor settings and local start helpers
+.vscode/
+/start-local.ps1
