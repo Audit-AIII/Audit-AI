@@ -25,6 +25,7 @@ export function ApprovalSeal() {
 
     const mm = gsap.matchMedia();
     mm.add("(prefers-reduced-motion: no-preference)", () => {
+      let sealed = false;
       sheet.setAttribute("data-seal-anim", "");
       const centre = (n: HTMLElement) => {
         const r = n.getBoundingClientRect();
@@ -47,7 +48,10 @@ export function ApprovalSeal() {
           scrub: 0.6,
           invalidateOnRefresh: true,
           onRefreshInit: place,
-          onUpdate: (self) => step.classList.toggle("is-sealed", self.progress > 0.97),
+          onUpdate: (self) => {
+            const s = self.progress > 0.97;
+            if (s !== sealed) step.classList.toggle("is-sealed", (sealed = s)); // only on change
+          },
         },
       });
       tl.fromTo(el, { "--lift": 0 }, { "--lift": 1, duration: 0.12, ease: "power1.out" }, 0)
