@@ -363,6 +363,10 @@ textarea.field__input { min-height: 150px; resize: vertical; }
 .disclosure[open] .disclosure__answer { animation: drop-in var(--dur-mid) var(--ease-enter) both; }
 @keyframes drop-in { from { opacity: 0; translate: 0 -10px; } }
 
+/* In-page link target: a dashed outline that fades out, so the reader sees where the link landed */
+.is-targeted { outline: 2px dashed transparent; outline-offset: 12px; border-radius: 4px; animation: target-flash 1.8s var(--ease-enter) both; }
+@keyframes target-flash { 0%, 40% { outline-color: currentColor; } }
+
 @media (max-width: 767px) {
   .disclosure__summary { padding: 22px 0; gap: 16px; }
   .disclosure__question { font-size: 19px; }
@@ -373,6 +377,7 @@ textarea.field__input { min-height: 150px; resize: vertical; }
   .btn, .btn::after, .icon-btn, .icon-btn::after, .icon-btn__glyph, .icon-btn__glyph::before, .icon-btn__glyph::after,
   .link, .link-arrow__glyph, .disclosure__mark, .disclosure__mark::before, .disclosure__mark::after, .disclosure::details-content { transition: none; }
   .disclosure[open] .disclosure__answer { animation: none; }
+  .is-targeted { animation: none; outline-color: currentColor; }
   .btn:hover, .btn:active, .link:active, .link-arrow:hover .link-arrow__glyph { transform: none; }
 }
 

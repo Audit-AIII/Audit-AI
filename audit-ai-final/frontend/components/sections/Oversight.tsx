@@ -8,7 +8,7 @@ const PASSPORT = [
 /** Dark inset panel: who decides, the core principle, and the Data Passport. */
 export function Oversight() {
   return (
-    <section className="oversight" aria-labelledby="oversight-title">
+    <section id="data-passport" className="oversight" aria-labelledby="oversight-title">
       <div className="oversight__panel">
         <div className="oversight__grid">
           <Heading id="oversight-title" relief="raised" className="oversight__title" data-r="up">

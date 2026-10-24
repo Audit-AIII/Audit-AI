@@ -27,6 +27,7 @@ html {
   background-image: var(--grain-dark);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  scroll-padding-top: 88px; /* in-page links land below the fixed 68px header */
 }
 
 body {

@@ -7,7 +7,7 @@ const PRODUCT = [
   { href: "/#sources", label: "What we check" },
 ];
 const TRUST = [
-  { href: "#faq-data", label: "Data Passport" },
+  { href: "#data-passport", label: "Data Passport" },
   { href: "#ai-services", label: "AI & services" },
   { href: "#faq-legal", label: "Limitations" },
 ];
