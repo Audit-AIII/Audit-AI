@@ -29,7 +29,7 @@ from ..config import Settings, get_settings
 from ..db import get_db
 from ..engine.pipeline import external_call_logger
 from ..engine.provider import build_provider
-from ..evaluation_runner import EvaluationUnavailableError, run_evaluation
+from ..evaluation_runner import COVERAGE_VERIFIER_ONLY, EvaluationUnavailableError, provider_mode, run_evaluation
 from ..models import AuditEvent, EvaluationRun
 
 router = APIRouter(prefix="/api/evaluations", tags=["evaluations"])
@@ -50,6 +50,18 @@ class PerCheckOut(BaseModel):
     n: int
 
 
+class RatioOut(BaseModel):
+    numerator: int
+    denominator: int
+    value: float | None
+
+
+class SplitOut(BaseModel):
+    n: int
+    catch_rate: RatioOut
+    false_positive_rate: RatioOut
+
+
 class EvaluationOut(BaseModel):
     # The Scorecard page's `Evaluation` type, exactly:
     catch_rate: float | None
@@ -65,6 +77,9 @@ class EvaluationOut(BaseModel):
     limits_note: str
     latency_ms_p50: float | None
     provider_failure_rate: float | None
+    coverage: str
+    by_split: dict[str, SplitOut] | None  # null for runs stored before per-split metrics existed
+    provider_mode: str | None
 
     @classmethod
     def from_model(cls, run: EvaluationRun) -> "EvaluationOut":
@@ -82,6 +97,9 @@ class EvaluationOut(BaseModel):
             limits_note=run.limits_note,
             latency_ms_p50=m.get("latency_ms_p50"),
             provider_failure_rate=m.get("provider_failure_rate"),
+            coverage=m.get("coverage", COVERAGE_VERIFIER_ONLY),
+            by_split=m.get("by_split"),
+            provider_mode=provider_mode(m.get("model_ids", [])),
         )
 
 

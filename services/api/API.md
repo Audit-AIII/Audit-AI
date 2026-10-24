@@ -358,7 +358,21 @@ backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
   "dataset_version": "dataset.jsonl@0516b9b8ce5b",
   "limits_note": "Measured on 80 labelled claims from the engine's own test set (...). This is a small test set: it shows the checker was tested, not a universal accuracy figure, ...",
   "latency_ms_p50": 1098.0,
-  "provider_failure_rate": 0.0364
+  "provider_failure_rate": 0.0364,
+  "coverage": "verifier_only",
+  "by_split": {
+    "dev": {
+      "n": 55,
+      "catch_rate": {"numerator": 37, "denominator": 37, "value": 1.0},
+      "false_positive_rate": {"numerator": 0, "denominator": 18, "value": 0.0}
+    },
+    "heldout": {
+      "n": 25,
+      "catch_rate": {"numerator": 18, "denominator": 18, "value": 1.0},
+      "false_positive_rate": {"numerator": 0, "denominator": 7, "value": 0.0}
+    }
+  },
+  "provider_mode": "live"
 }
 ```
 - `catch_rate` = claims labelled contradicted or no-evidence that were flagged (contradicted or
@@ -369,6 +383,29 @@ backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
 - `per_check`: `verification` overall, then one entry per labelled kind of hard case (numeric, date,
   named_entity, prompt_injection, …), largest first.
 - Model-reported confidence is never used.
+
+Additive fields (the Scorecard's `Evaluation` type is unchanged):
+
+- `coverage`: what the numbers measure. Always `"verifier_only"` today: each labelled claim goes
+  through BM25 retrieval over its reference documents, the verifier and the engine's citation guard
+  (`run_eval.py --pipeline verifier`). **Not** covered: claim extraction from a draft, suggested
+  corrections, this backend's own citation re-validation, or the human-review decision.
+  `"full_pipeline"` is reserved for a run that goes through the whole review path. Runs stored
+  before this field existed are reported as `"verifier_only"`, which is correct, because the runner
+  has never measured anything else.
+- `by_split`: the same `catch_rate` and `false_positive_rate` for the dataset's `dev` and
+  `heldout` records, each with its own `numerator` / `denominator` (`null` value = zero
+  denominator), plus `n` = records in that split. Held-out records are never used to choose the
+  engine's thresholds, so **held-out is the figure to quote**; the pooled top-level numbers mix in
+  the dev records the engine was tuned on. Held-out is small (25 claims: 18 to flag, 7 supported),
+  so one claim moves its catch rate by ~6 points and its false-positive rate by ~14. `null` for runs stored before this field existed (their per-claim
+  results were not kept, so the split cannot be recomputed).
+- `provider_mode`: who answered, from the model ids that actually replied. `"live"` = only real
+  models, `"scripted"` = only the offline scripted provider (tests / demo seed, model ids
+  `scripted/…`), `"mixed"` = both, `null` = no model answered.
+
+The engine's own full report (all metrics, per split, both pipeline modes) is a CLI / CI artifact
+from `services/verification/eval/run_eval.py`, not an endpoint.
 
 Errors: `GET .../latest` with no run yet → **404** `no evaluation has been run yet`. `POST` with no
 provider configured → **409**, nothing stored. `POST` where more than 20% of claims got no verdict

@@ -17,6 +17,13 @@ its Trust Scorecard metrics. Definitions are the engine's (inkloom_verify/evalua
 
 Every number has a real denominator; a rate whose denominator is zero is null, never 0 or 1.
 Model-reported confidence is never used (the verifier's schema doesn't even have one).
+
+What the numbers cover is stated with them (`coverage`): this is run_eval.py's `--pipeline
+verifier` mode - retrieval, the verifier and the citation guard on each labelled claim - not the
+full review pipeline (extraction, correction, this backend's citation re-validation). The same
+metrics are also given per dataset split (`by_split`, dev and held-out, each with its own
+denominators), and the run says whether a live model or the offline scripted provider answered
+(`provider_mode`, from the model ids that actually answered).
 """
 
 from __future__ import annotations
@@ -41,6 +48,10 @@ from inkloom_verify.schemas import EvalRecord, Verdict
 from .config import Settings
 
 DATASET_RELATIVE = "eval/dataset.jsonl"
+# EngineVerifierPredictor is the only predictor this runner has ever used, so every stored run -
+# including ones from before this field existed - is verifier-only.
+COVERAGE_VERIFIER_ONLY = "verifier_only"
+SCRIPTED_MODEL_PREFIX = "scripted/"  # engine/scripted_provider.py: every scripted model id has it
 
 
 class EvaluationUnavailableError(Exception):
@@ -116,6 +127,39 @@ def _per_check(records: list[EvalRecord], predictions: dict[str, EvalPrediction]
     return [entry("verification", records)] + [entry(name, subset) for name, subset in ordered]
 
 
+def _by_split(records: list[EvalRecord], predictions: dict[str, EvalPrediction]) -> dict[str, dict]:
+    """The headline metrics per dataset split (dev, heldout), each with its own numerators and
+    denominators. Held-out records are never used to choose the engine's thresholds (EVAL.md,
+    calibrate.py refuses them), so they are the figure to quote; dev and pooled numbers include
+    records the engine was tuned on."""
+    by_split: dict[str, list[EvalRecord]] = {}
+    for record in records:
+        by_split.setdefault(record.split.value, []).append(record)
+    result = {}
+    for split, subset in sorted(by_split.items()):
+        confusion = metrics.confusion_matrix(
+            (r.expected_verdict, predictions[r.record_id].verdict if r.record_id in predictions else Verdict.ERROR)
+            for r in subset
+        )
+        result[split] = {
+            "n": len(subset),
+            "catch_rate": _ratio_dict(metrics.catch_rate(confusion)),
+            "false_positive_rate": _ratio_dict(metrics.false_positive_rate(confusion)),
+        }
+    return result
+
+
+def provider_mode(model_ids: list[str]) -> str | None:
+    """"live" if only real models answered, "scripted" if only the offline scripted provider did,
+    "mixed" if both, None if no model answered at all."""
+    scripted = {m.startswith(SCRIPTED_MODEL_PREFIX) for m in model_ids}
+    if not scripted:
+        return None
+    if scripted == {True}:
+        return "scripted"
+    return "live" if scripted == {False} else "mixed"
+
+
 def _limits_note(records: list[EvalRecord], errors: int) -> str:
     labels = {v: sum(r.expected_verdict is v for r in records) for v in (Verdict.SUPPORTED, Verdict.CONTRADICTED, Verdict.NOT_ENOUGH_EVIDENCE)}
     note = (
@@ -165,6 +209,8 @@ def run_evaluation(
         "catch_rate": _ratio_dict(scorecard.catch_rate),
         "false_positive_rate": _ratio_dict(scorecard.false_positive_rate),
         "per_check": _per_check(records, predictions),
+        "by_split": _by_split(records, predictions),
+        "coverage": COVERAGE_VERIFIER_ONLY,
         "latency_ms_p50": round(statistics.median(latencies_ms), 1) if latencies_ms else None,
         "provider_failure_rate": round(errors / len(records), 4) if records else None,
         "verdict_accuracy": _rate(results.verdict.accuracy),

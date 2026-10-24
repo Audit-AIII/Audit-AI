@@ -14,7 +14,10 @@ Runs use the engine's real labelled dataset (services/verification/eval/dataset.
 5. a run dominated by provider failures is not stored (409), its calls are still logged, and it
    still counts against the rate limit;
    -> test_failure_dominated_run_is_discarded
-6. once per 10 minutes per user -> 429; another account never sees this account's run.
+6. once per 10 minutes per user -> 429; another account never sees this account's run;
+7. every run says what it covers (verifier only), gives dev and held-out metrics with their own
+   denominators, and whether a live model or the scripted provider answered; runs stored before
+   those fields existed still render.
    -> test_rate_limited_and_account_scoped
 """
 
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 import inkloom_verify
@@ -29,10 +33,12 @@ import pytest
 
 from conftest import requires_db
 from inkloom_api.config import get_settings
+from inkloom_api.evaluation_runner import provider_mode
 from inkloom_api.models import EvaluationRun, ExternalCallLog
 
 DATASET = Path(inkloom_verify.__file__).resolve().parents[2] / "eval" / "dataset.jsonl"
-LABELS = [json.loads(line)["expected_verdict"] for line in DATASET.read_text(encoding="utf-8").splitlines() if line.strip()]
+RECORDS = [json.loads(line) for line in DATASET.read_text(encoding="utf-8").splitlines() if line.strip()]
+LABELS = [r["expected_verdict"] for r in RECORDS]
 N = len(LABELS)
 N_SUPPORTED = LABELS.count("SUPPORTED")
 N_FLAGGABLE = N - N_SUPPORTED  # CONTRADICTED + NOT_ENOUGH_EVIDENCE
@@ -101,6 +107,19 @@ def test_run_returns_evaluation_shape_and_is_stored(client, scripted_eval, db_se
     assert "small test set" in body["limits_note"] and "not a universal accuracy" in body["limits_note"]
     assert body["run_at"]
 
+    assert body["coverage"] == "verifier_only"
+    assert body["provider_mode"] == "scripted"
+    splits = {r["split"] for r in RECORDS}
+    assert set(body["by_split"]) == splits == {"dev", "heldout"}
+    for split, entry in body["by_split"].items():
+        subset = [r["expected_verdict"] for r in RECORDS if r["split"] == split]
+        supported = subset.count("SUPPORTED")
+        assert entry == {
+            "n": len(subset),
+            "catch_rate": {"numerator": len(subset) - supported, "denominator": len(subset) - supported, "value": 1.0},
+            "false_positive_rate": {"numerator": supported, "denominator": supported, "value": 1.0},
+        }
+
     assert client.get("/api/evaluations/latest", headers=owner.headers).json() == body
     db_session.expire_all()
     calls = db_session.query(ExternalCallLog).filter_by(request_id=f"eval-{body['id']}").all()
@@ -132,6 +151,10 @@ def test_call_budget_bounds_the_run(client, scripted_eval, monkeypatch, db_sessi
     flagged = run.metrics["catch_rate"]["numerator"] + run.metrics["false_positive_rate"]["numerator"]
     assert flagged == N - errors  # every answered claim was flagged (always-abstaining checker)
     assert body["catch_rate"] == round(run.metrics["catch_rate"]["numerator"] / N_FLAGGABLE, 4) < 1.0
+    # The per-split numbers partition the pooled ones: nothing counted twice or dropped.
+    for rate in ("catch_rate", "false_positive_rate"):
+        for part in ("numerator", "denominator"):
+            assert sum(s[rate][part] for s in body["by_split"].values()) == run.metrics[rate][part]
     assert "got no verdict" in body["limits_note"]
 
 
@@ -165,3 +188,27 @@ def test_rate_limited_and_account_scoped(client, scripted_eval, account_factory)
     assert client.get("/api/evaluations/latest", headers=other.headers).status_code == 404
     assert client.post("/api/evaluations", headers=other.headers).status_code == 201
     assert client.post("/api/evaluations").status_code == 401
+
+
+@requires_db
+def test_run_stored_before_new_fields_still_renders(client, db_session, account_factory) -> None:
+    owner = account_factory("owner", with_source=False)
+    ratio = {"numerator": 1, "denominator": 1, "value": 1.0}
+    db_session.add(EvaluationRun(
+        organisation_id=uuid.UUID(owner.organisation_id), status="completed", ran_at=datetime.now(timezone.utc),
+        engine_prompt_version="verify-claim-v1", dataset_version="dataset.jsonl@000000000000", sample_size=55,
+        metrics={"catch_rate": ratio, "false_positive_rate": ratio, "per_check": [], "model_ids": ["gemini-3.5-flash-lite"]},
+        limits_note="older run",
+    ))
+    db_session.commit()
+    body = client.get("/api/evaluations/latest", headers=owner.headers).json()
+    assert body["coverage"] == "verifier_only"  # the only thing the runner has ever measured
+    assert body["by_split"] is None  # not recomputed: per-claim predictions were never stored
+    assert body["provider_mode"] == "live"
+
+
+def test_provider_mode_from_answering_models() -> None:
+    assert provider_mode(["gemini-3.5-flash-lite", "nvidia/nemotron-3.5-super-vl:free"]) == "live"
+    assert provider_mode(["scripted/demo-v1"]) == "scripted"
+    assert provider_mode(["scripted/demo-v1", "gemini-3.5-flash-lite"]) == "mixed"
+    assert provider_mode([]) is None
