@@ -113,7 +113,7 @@ export function Scorecard() {
       setLoad({ state: "ok", result: { available: true, data: { kind: "run", run: result } } });
       setRun({ phase: "idle" });
       latestEvaluation() // refresh the latest state quietly; the returned run is already on screen
-        .then((latest) => latest.available && setLoad({ state: "ok", result: latest }))
+        .then((latest) => latest.available && latest.data.kind === "run" && setLoad({ state: "ok", result: latest }))
         .catch(() => {});
     } catch (err) {
       setNow(Date.now());
