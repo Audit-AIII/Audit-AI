@@ -399,6 +399,18 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
         records, predictions, predictor.outcomes if predictor else None,
         pipeline_config.chunking, pipeline_config.retrieval,
     ).model_dump(mode="json")
+    # The same metrics per split, from the same predictions and outcomes (nothing re-run). The
+    # held-out split is never used for calibration (calibrate.py), so its numbers are the ones to
+    # quote; the pooled figures above mix it with the dev records thresholds were chosen on.
+    report["required_metrics_by_split"] = {}
+    for split in sorted({r.split.value for r in records}):
+        subset = [r for r in records if r.split.value == split]
+        ids = {r.record_id for r in subset}
+        outcomes = {k: o for k, o in predictor.outcomes.items() if k in ids} if predictor else None
+        report["required_metrics_by_split"][split] = required_metrics.compute(
+            subset, {k: p for k, p in predictions.items() if k in ids}, outcomes,
+            pipeline_config.chunking, pipeline_config.retrieval,
+        ).model_dump(mode="json")
 
     # 3. Retrieval, separately
     report["retrieval"] = {}

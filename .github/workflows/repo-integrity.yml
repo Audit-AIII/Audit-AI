@@ -1,0 +1,55 @@
+# Repository-wide integrity checks, on every push and pull request (any path).
+#
+# Added after two merges were pushed with unresolved conflict markers (68b9b59 in main.py,
+# routers/evaluations.py and tests/test_evaluations.py) and one with a de-indented line
+# (ab4ce36, services/api/tests/test_evaluations.py), each of which stopped the backend from
+# importing or its tests from being collected.
+#
+#   1. conflict-markers - fails if any tracked file has a line starting with <<<<<<< or >>>>>>>
+#   2. api-import       - installs services/api with the engine (exact pins from
+#                         services/api/constraints.txt), byte-compiles every backend Python file
+#                         (src, tests, migrations, scripts) and imports the FastAPI app.
+#                         No database and no secret: DATABASE_URL is a placeholder (importing the
+#                         app does not connect), AUTH_SECRET_KEY is left unset.
+name: repo-integrity
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  conflict-markers:
+    name: 1. No conflict markers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail on <<<<<<< or >>>>>>> at the start of a line in any tracked file
+        run: |
+          if git grep -nE '^(<<<<<<<|>>>>>>>)'; then
+            echo "::error::Unresolved merge conflict markers (listed above). Resolve them before merging."
+            exit 1
+          fi
+          echo "No conflict markers."
+
+  api-import:
+    name: 2. Backend compiles and imports
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install services/api and the engine (exact versions from services/api/constraints.txt)
+        working-directory: services/api
+        run: python -m pip install -e ".[dev]" -e ../verification -c constraints.txt
+      - name: Byte-compile every backend Python file (syntax and indentation errors)
+        working-directory: services/api
+        run: python -m compileall -q src tests migrations scripts
+      - name: Import the FastAPI app (missing modules, circular imports, bad wiring)
+        working-directory: services/api
+        env:
+          DATABASE_URL: postgresql+psycopg://ci:ci@localhost:5432/ci-import-check-only
+        run: python -c "import inkloom_api.main as m; print('inkloom_api imports;', len(m.app.routes), 'routes')"

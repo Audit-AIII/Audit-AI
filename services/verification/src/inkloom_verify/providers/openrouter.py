@@ -5,6 +5,14 @@ configured order: a model is retried on transient failures (timeout, 429, 5xx, m
 output), then the next model is tried. Account problems (missing or rejected credentials, no
 credit) stop immediately because no other model can fix them.
 
+Structured output: in "json_schema" mode the request carries ``require_parameters: true``, so
+OpenRouter answers 404 "No endpoints found that can handle the requested parameters" for a model
+with no endpoint that supports strict JSON Schema (many ``:free`` models). That model is then
+tried once more, immediately, in "json_object" mode (the documented fallback) instead of being
+skipped; ``data_collection`` and ``require_parameters`` stay as configured, and the reply is
+still parsed strictly and validated by the calling stage. Any other 404 (an unknown model id)
+moves to the next model as before.
+
 Determinism: requests use the configured temperature (default 0) and seed. Providers treat these
 as best effort, so identical requests can still return different outputs.
 """
@@ -41,6 +49,14 @@ from inkloom_verify.providers.base import (
 from inkloom_verify.security import install_redaction, register_secret
 
 logger = logging.getLogger(__name__)
+
+# OpenRouter's message when require_parameters excludes every endpoint of a model. Matched to
+# classify the 404 only; the provider's text is never echoed (see _error).
+_NO_ENDPOINTS = re.compile(r"no endpoints found", re.IGNORECASE)
+
+
+class UnsupportedParametersError(ProviderRequestError):
+    """404: no endpoint of this model supports the requested parameters (require_parameters)."""
 
 API_KEY_VAR = "OPENROUTER_API_KEY"
 MODELS_VAR = "INKLOOM_LLM_MODELS"
@@ -160,13 +176,25 @@ class OpenRouterProvider:
         attempts = 0
         last: ProviderError | None = None
         for model in self.settings.models:
-            for retry in range(self.settings.max_retries + 1):
+            mode = self.settings.structured_output
+            retry = 0
+            while retry <= self.settings.max_retries:
                 attempts += 1
                 try:
-                    data, answered_by = self._call(model, request)
+                    data, answered_by = self._call(model, request, mode)
                     return JsonCompletion(data=data, model=answered_by, attempts=attempts)
                 except ACCOUNT_ERRORS:
                     raise
+                except UnsupportedParametersError as error:
+                    last = error
+                    if mode == "json_schema":
+                        # Same model, schema-less JSON mode; does not use up a retry or wait.
+                        logger.warning("openrouter model=%s has no endpoint for json_schema; retrying with json_object",
+                                       model)
+                        mode = "json_object"
+                        continue
+                    logger.warning("openrouter model=%s rejected the request: %s", model, error)
+                    break
                 except ProviderRequestError as error:
                     last = error
                     logger.warning("openrouter model=%s rejected the request: %s", model, error)
@@ -176,6 +204,7 @@ class OpenRouterProvider:
                     logger.warning("openrouter model=%s attempt=%d failed: %s", model, retry + 1, error)
                     if retry < self.settings.max_retries:
                         self._sleep(self._delay(error, retry))
+                retry += 1
         assert last is not None
         raise last
 
@@ -187,8 +216,8 @@ class OpenRouterProvider:
         step = self.settings.backoff_seconds * (2**retry)
         return min(step * (0.5 + self._jitter() / 2), _MAX_RETRY_AFTER_SECONDS)
 
-    def _body(self, model: str, request: JsonCompletionRequest) -> dict[str, Any]:
-        if self.settings.structured_output == "json_schema":
+    def _body(self, model: str, request: JsonCompletionRequest, mode: str | None = None) -> dict[str, Any]:
+        if (mode or self.settings.structured_output) == "json_schema":
             response_format: dict[str, Any] = {
                 "type": "json_schema",
                 "json_schema": {"name": request.schema_name, "strict": True, "schema": request.json_schema},
@@ -210,12 +239,12 @@ class OpenRouterProvider:
             body["seed"] = self.settings.seed
         return body
 
-    def _call(self, model: str, request: JsonCompletionRequest) -> tuple[dict[str, Any], str]:
+    def _call(self, model: str, request: JsonCompletionRequest, mode: str | None = None) -> tuple[dict[str, Any], str]:
         started = time.monotonic()
         try:
             response = self._client.post(
                 f"{self.settings.base_url}/chat/completions",
-                json=self._body(model, request),
+                json=self._body(model, request, mode),
                 headers={"Authorization": f"Bearer {self._secret}"},
                 timeout=self.settings.timeout_seconds,
                 follow_redirects=False,
@@ -266,6 +295,8 @@ class OpenRouterProvider:
             return ProviderTimeoutError(message)
         if status == 429:
             return ProviderRateLimitError(message, _retry_after(response))
+        if status == 404 and isinstance(error.get("message"), str) and _NO_ENDPOINTS.search(error["message"]):
+            return UnsupportedParametersError(f"{model}: no endpoint supports the requested parameters (404)")
         if status in (400, 404, 413, 422):
             return ProviderRequestError(message)
         return ProviderUnavailableError(message)

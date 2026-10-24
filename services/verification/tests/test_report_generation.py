@@ -245,3 +245,42 @@ def test_latest_summary_states(tmp_path):
     (reports / "20261026T000000Z.summary.json").write_text('{"contract": "evaluation-summary-v1", "state": "available"}', encoding="utf-8")
     with pytest.raises(SummaryInvalid):
         latest_summary(reports)
+
+
+# --- Held-out reported separately (Fix Plan item 5) ----------------------------------------------
+
+
+def _by_split() -> dict:
+    predictions = load_predictions(FIXTURE / "predictions.jsonl")
+    out = {}
+    for split in sorted({r.split.value for r in RECORDS.values()}):
+        subset = [r for r in RECORDS.values() if r.split.value == split]
+        ids = {r.record_id for r in subset}
+        out[split] = rm.compute(subset, {k: p for k, p in predictions.items() if k in ids},
+                                {k: c for k, c in CASES.items() if k in ids}).model_dump(mode="json")
+    return out
+
+
+def test_each_split_is_reported_with_its_own_sample_size_and_metrics():
+    by_split = _by_split()
+    report = fixture_report(required_metrics_by_split=by_split,
+                            verdicts__by_split={s: {"numerator": 1, "denominator": m["counts"]["evaluated"], "value": None}
+                                                for s, m in by_split.items()})
+    text = rep.render_markdown(report)
+    assert "### Per split (thresholds are calibrated on dev only; quote held-out)" in text
+    for split, metrics in by_split.items():
+        row = next(line for line in text.splitlines() if line.startswith(f"| {split} |"))
+        assert f"| {split} | {metrics['counts']['evaluated']} |" in row
+    # Split sizes add up to the pooled run; nothing is dropped or double counted.
+    assert sum(m["counts"]["evaluated"] for m in by_split.values()) == METRICS["counts"]["evaluated"]
+    assert sum(m["counts"]["tp"] for m in by_split.values()) == METRICS["counts"]["tp"]
+
+
+def test_small_splits_are_flagged_as_indications():
+    text = rep.render_markdown(fixture_report(required_metrics_by_split=_by_split()))
+    assert "fewer than 30 records" in text
+
+
+def test_reports_from_before_the_split_table_still_render():
+    text = rep.render_markdown(fixture_report())
+    assert "### Per split" not in text and "## 5. Size and class distribution" in text

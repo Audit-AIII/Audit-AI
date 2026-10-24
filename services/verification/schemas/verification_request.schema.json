@@ -54,6 +54,17 @@
           "title": "Rule Set Id",
           "type": "string"
         },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StyleRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "version": {
           "anyOf": [
             {
@@ -454,6 +465,84 @@
         "quote"
       ],
       "title": "RuleSource",
+      "type": "object"
+    },
+    "StyleRules": {
+      "additionalProperties": false,
+      "description": "Deterministic accessibility and tone checks (rules.py). Every check is on unless switched\noff; the thresholds are the defaults below. No model is involved and no source document is\nneeded, so these findings carry no evidence and never a suggested correction.",
+      "properties": {
+        "all_caps": {
+          "default": true,
+          "title": "All Caps",
+          "type": "boolean"
+        },
+        "all_caps_min_words": {
+          "default": 3,
+          "maximum": 20,
+          "minimum": 2,
+          "title": "All Caps Min Words",
+          "type": "integer"
+        },
+        "allowed_caps": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Allowed Caps",
+          "type": "array"
+        },
+        "alt_text": {
+          "default": true,
+          "title": "Alt Text",
+          "type": "boolean"
+        },
+        "emoji": {
+          "default": true,
+          "title": "Emoji",
+          "type": "boolean"
+        },
+        "emoji_max_run": {
+          "default": 2,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Emoji Max Run",
+          "type": "integer"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "low"
+        },
+        "vague_link_phrases": {
+          "default": [
+            "click here",
+            "here",
+            "read more",
+            "learn more",
+            "more",
+            "this link",
+            "link",
+            "this page"
+          ],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Vague Link Phrases",
+          "type": "array"
+        },
+        "vague_link_text": {
+          "default": true,
+          "title": "Vague Link Text",
+          "type": "boolean"
+        }
+      },
+      "title": "StyleRules",
       "type": "object"
     }
   },

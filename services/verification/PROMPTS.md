@@ -207,6 +207,14 @@ unavailable". Nothing falls back to fake output.
   (honouring `Retry-After`, capped at 20 s), 5xx, a network error, an error reported inside a
   200 response, or a reply that isn't one JSON object. After that, the next model is tried.
 - **400/404/413/422** move straight to the next model; a different model may accept the request.
+  **One exception:** in `json_schema` mode, a 404 "No endpoints found that can handle the requested
+  parameters" means no endpoint of that model supports strict JSON Schema (common for `:free`
+  models). That model is tried once more, at once, in `json_object` mode instead of being skipped.
+  `data_collection` and `require_parameters` are unchanged, and the reply is still parsed strictly
+  and validated by the calling stage. Before 2026-10-24 such a model was skipped, so a list made
+  only of such models failed every call. The report records the configured mode
+  (`structured_output`), not the mode that answered; the fallback is logged per model
+  (`openrouter model=... has no endpoint for json_schema; retrying with json_object`).
 - **401/403 (credentials) and 402 (no credit)** stop immediately; no other model can fix them.
 - **Replies:** a reply wrapped in a ```` ```json ```` fence is unwrapped. A reply cut off at the
   token limit (`finish_reason: length`) counts as malformed.

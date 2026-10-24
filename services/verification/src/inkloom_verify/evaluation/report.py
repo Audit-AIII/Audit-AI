@@ -108,6 +108,30 @@ def describe_source(report: dict[str, Any]) -> str:
     return _SOURCES.get(source, source)
 
 
+def _split_table(report: dict[str, Any]) -> list[str]:
+    """Per-split sample sizes and metrics (dev vs held-out). Empty for reports made before
+    required_metrics_by_split existed."""
+    by_split = report.get("required_metrics_by_split") or {}
+    if not by_split:
+        return []
+    accuracy = report["verdicts"].get("by_split") or {}
+    lines = ["", "### Per split (thresholds are calibrated on dev only; quote held-out)", "",
+             "| Split | Records | Verdict accuracy | Precision (CONTRADICTED) | Recall (CONTRADICTED) | "
+             "False-positive rate | Citation validity | Provider failure rate |",
+             "|---|---|---|---|---|---|---|---|"]
+    for split, sm in by_split.items():
+        u = sm.get("unavailable") or {}
+        cells = [_ratio(sm.get(k), u.get(k)) for k in ("contradicted_precision", "contradicted_recall",
+                                                        "false_positive_rate", "citation_validity", "provider_failure_rate")]
+        lines.append(f"| {split} | {sm['counts'].get('evaluated')} | {_ratio(accuracy.get(split))} | " + " | ".join(cells) + " |")
+    small = [s for s, sm in by_split.items() if (sm["counts"].get("evaluated") or 0) < 30]
+    if small:
+        lines.append("")
+        lines.append(f"Small samples ({', '.join(small)}: fewer than 30 records): one record moves a rate by several "
+                     "points; read these as indications, not precise estimates.")
+    return lines
+
+
 def _ratio(r: dict[str, Any] | None, reason: str | None = None) -> str:
     if r is None or r.get("value") is None:
         return f"unavailable ({reason})" if reason else "unavailable"
@@ -170,6 +194,7 @@ def render_markdown(report: dict[str, Any], max_cases: int = 25) -> str:
         lines.append("- Labels: " + ", ".join(f"{k} {n}" for k, n in labels.items()))
     if ds.get("groups"):
         lines.append("- Groups (EVAL.md mix): " + ", ".join(f"{k} {n}" for k, n in ds["groups"].items()))
+    lines += _split_table(report)
     config = run.get("model_configuration") or {}
     lines += ["", "## 6. Model", "", f"- Model identifiers that answered: {', '.join(v.get('model_ids') or []) or 'not recorded'}",
               f"- Configured models: {_fmt_config(config.get('models'))}", "",

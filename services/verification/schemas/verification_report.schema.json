@@ -1021,7 +1021,11 @@
         "prohibited_term",
         "product_naming",
         "required_disclaimer",
-        "numeric_limit"
+        "numeric_limit",
+        "all_caps_run",
+        "emoji_run",
+        "vague_link_text",
+        "missing_alt_text"
       ],
       "title": "RuleType",
       "type": "string"

@@ -279,3 +279,61 @@ def test_backoff_is_jittered_within_half_to_full_step_and_capped():
         assert sleeps == expected
     adapter = OpenRouterProvider(OpenRouterSettings(api_key=KEY, models=["a/b"], backoff_seconds=30), sleep=lambda s: None, jitter=lambda: 1.0)
     assert adapter._delay(ProviderUnavailableError("x"), 3) == 20.0  # capped
+
+
+# --- require_parameters 404: fall back to json_object on the same model (Fix Plan item 8) ---------
+
+NO_ENDPOINTS = httpx.Response(404, json={"error": {"code": 404, "message": "No endpoints found that can handle the requested parameters."}})
+
+
+def test_no_endpoints_for_json_schema_retries_the_same_model_in_json_object_mode():
+    def handler(request, n):
+        sent = body(request)
+        if sent["response_format"]["type"] == "json_schema":
+            return NO_ENDPOINTS
+        return ok({"x": 1}, model=sent["model"])
+
+    adapter, seen, sleeps = provider(handler)
+    result = adapter.complete_json(REQUEST)
+    sent = [body(r) for r in seen]
+    assert [(s["model"], s["response_format"]["type"]) for s in sent] == [
+        ("google/gemini-flash", "json_schema"), ("google/gemini-flash", "json_object")]
+    assert result.data == {"x": 1} and result.model == "google/gemini-flash" and result.attempts == 2
+    assert sleeps == []  # no backoff: it is a different request, not a retry of a transient failure
+    assert all(s["provider"] == {"data_collection": "deny", "require_parameters": True} for s in sent)  # privacy kept
+
+
+def test_no_endpoints_even_for_json_object_moves_to_the_next_model():
+    def handler(request, n):
+        sent = body(request)
+        if sent["model"] == "google/gemini-flash":
+            return NO_ENDPOINTS
+        return ok({"x": 1}, model=sent["model"])
+
+    adapter, seen, _ = provider(handler)
+    result = adapter.complete_json(REQUEST)
+    assert [(body(r)["model"], body(r)["response_format"]["type"]) for r in seen] == [
+        ("google/gemini-flash", "json_schema"), ("google/gemini-flash", "json_object"), ("meta-llama/llama", "json_schema")]
+    assert result.model == "meta-llama/llama"
+
+
+def test_an_unknown_model_404_does_not_trigger_the_fallback():
+    def handler(request, n):
+        if body(request)["model"] == "google/gemini-flash":
+            return httpx.Response(404, json={"error": {"code": 404, "message": "no such model"}})
+        return ok({"x": 1})
+
+    adapter, seen, _ = provider(handler)
+    adapter.complete_json(REQUEST)
+    assert [body(r)["response_format"]["type"] for r in seen] == ["json_schema", "json_schema"]  # straight to model 2
+
+
+def test_in_json_object_mode_a_no_endpoints_404_is_not_retried():
+    def handler(request, n):
+        return NO_ENDPOINTS
+
+    adapter, seen, _ = provider(handler, structured_output="json_object")
+    with pytest.raises(ProviderRequestError) as info:
+        adapter.complete_json(REQUEST)
+    assert len(seen) == 2  # one call per model, no extra fallback
+    assert "No endpoints" not in str(info.value)  # the provider's text is never echoed

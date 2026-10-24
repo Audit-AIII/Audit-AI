@@ -196,6 +196,11 @@ class RuleType(str, Enum):
     PRODUCT_NAMING = "product_naming"  # a product is written only as its approved name
     REQUIRED_DISCLAIMER = "required_disclaimer"  # this text must appear (always, or when a trigger term does)
     NUMERIC_LIMIT = "numeric_limit"  # a figure about a subject stays within a range
+    # Accessibility and tone (StyleRules): not brand-specific, no source document.
+    ALL_CAPS_RUN = "all_caps_run"  # several shouted words in a row
+    EMOJI_RUN = "emoji_run"  # more emoji in a row than allowed
+    VAGUE_LINK_TEXT = "vague_link_text"  # "click here" and other link text that says nothing out of context
+    MISSING_ALT_TEXT = "missing_alt_text"  # an image without a text alternative
 
 
 class RuleSeverity(str, Enum):  # the shared finding contract's values
@@ -262,6 +267,28 @@ class NumericLimitRule(_Rule):
         return self
 
 
+class StyleRules(_Contract):
+    """Deterministic accessibility and tone checks (rules.py). Every check is on unless switched
+    off; the thresholds are the defaults below. No model is involved and no source document is
+    needed, so these findings carry no evidence and never a suggested correction."""
+
+    severity: RuleSeverity = RuleSeverity.LOW
+    # ALL-CAPS: at least this many consecutive words of two or more letters, all upper case.
+    all_caps: bool = True
+    all_caps_min_words: Annotated[int, Field(strict=True, ge=2, le=20)] = 3
+    allowed_caps: Annotated[list[RuleText], Field(max_length=MAX_RULES_PER_TYPE)] = []  # e.g. "USB-C", "IPX4"
+    # Emoji: a run longer than this (spaces between emoji do not break a run).
+    emoji: bool = True
+    emoji_max_run: Annotated[int, Field(strict=True, ge=1, le=20)] = 2
+    # Link text that says nothing out of context, compared case-insensitively to the whole link text.
+    vague_link_text: bool = True
+    vague_link_phrases: Annotated[list[RuleText], Field(min_length=1, max_length=MAX_RULES_PER_TYPE)] = [
+        "click here", "here", "read more", "learn more", "more", "this link", "link", "this page",
+    ]
+    # Images: Markdown ![](...) with empty alt text, and HTML <img> with no alt attribute.
+    alt_text: bool = True
+
+
 class BrandRules(_Contract):
     """Explicit brand rules for one request, applied deterministically before claim extraction."""
 
@@ -272,6 +299,8 @@ class BrandRules(_Contract):
     product_names: Annotated[list[ProductNamingRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
     disclaimers: Annotated[list[RequiredDisclaimerRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
     numeric_limits: Annotated[list[NumericLimitRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+    # Accessibility and tone checks; None means they are not run.
+    style: StyleRules | None = None
 
     def all_rules(self) -> list[_Rule]:
         return [*self.required_terms, *self.prohibited_terms, *self.product_names, *self.disclaimers, *self.numeric_limits]

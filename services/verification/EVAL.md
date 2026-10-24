@@ -583,6 +583,32 @@ reproduces it (`tests/test_known_limitations.py`):
    held-out records), run the dataset validator, and update `eval/datasets.lock.json` in the same
    reviewed change.
 
+### What a report covers, and what it does not (checked 2026-10-24)
+
+**Covers:**
+- **Every record of `eval/dataset.jsonl` in one run:** 80 records, 55 dev and 25 held-out.
+- **Pooled metrics (section 11):** precision, recall, false-positive rate, citation validity,
+  retrieval, human-review share, correction traceability, provider failure rate and latency.
+- **Per split (section 5, "Per split"), since 2026-10-24:** the same metrics for dev and held-out
+  separately, each with its own record count and verdict accuracy, computed from the same
+  predictions (nothing re-run). Splits under 30 records are flagged as indications. Held-out is
+  never used to choose thresholds (`calibrate.py` refuses it), so **held-out is the figure to
+  quote**. Before this date the split was only in the JSON (`verdicts.by_split`, accuracy only),
+  and every Markdown metric was pooled.
+
+**Does not cover:**
+- **Separate held-out runs from the main script.** `run_eval.py` has no `--split`: dev and
+  held-out are always scored together and then broken down. The verifier-only runner
+  (`python -m inkloom_verify.evaluation --split heldout`) can score one split.
+- **Gates by split.** `eval/baseline.json` gates use the pooled numbers.
+- **Confidence intervals.** None are computed, and held-out has only 25 records, so one record
+  moves a held-out rate by 4 points (10 for a 10-record class).
+- **Live model quality.** No live-model report exists yet. The oracle and abstain runs are
+  benchmarks (`is_model_quality: false`), and all labels are synthetic and not human-reviewed
+  (0/80).
+- **Deterministic rules.** Brand rules and accessibility checks (`rules.py`) have unit tests but
+  are not part of the labelled dataset.
+
 ## Regression testing and CI (EVAL.md Phase 6)
 
 **CI** (`.github/workflows/verification-engine.yml`). The first three stages run on every push and

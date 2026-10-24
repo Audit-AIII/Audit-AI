@@ -109,7 +109,7 @@ def test_run_returns_evaluation_shape_and_is_stored(client, scripted_eval, db_se
     # are none); every one of them is logged.
     assert 0 < len(calls) == run.metrics["calls_used"] <= N
     assert {c.review_id for c in calls} == {None}
-assert run.metrics["catch_rate"] == {"numerator": N_FLAGGABLE, "denominator": N_FLAGGABLE, "value": 1.0}
+    assert run.metrics["catch_rate"] == {"numerator": N_FLAGGABLE, "denominator": N_FLAGGABLE, "value": 1.0}
     assert run.metrics["false_positive_rate"] == {"numerator": N_SUPPORTED, "denominator": N_SUPPORTED, "value": 1.0}
     assert {str(c.organisation_id) for c in calls} == {owner.organisation_id}
 
@@ -128,7 +128,7 @@ def test_call_budget_bounds_the_run(client, scripted_eval, monkeypatch, db_sessi
     assert body["status"] == "partial"
     assert 0 < errors <= N - 10  # claims after the budget ran out got no verdict (a few need no call)
     # ERROR is neither flagged nor cleared: same denominators, fewer flagged.
-assert run.metrics["catch_rate"]["denominator"] == N_FLAGGABLE and run.metrics["false_positive_rate"]["denominator"] == N_SUPPORTED
+    assert run.metrics["catch_rate"]["denominator"] == N_FLAGGABLE and run.metrics["false_positive_rate"]["denominator"] == N_SUPPORTED
     flagged = run.metrics["catch_rate"]["numerator"] + run.metrics["false_positive_rate"]["numerator"]
     assert flagged == N - errors  # every answered claim was flagged (always-abstaining checker)
     assert body["catch_rate"] == round(run.metrics["catch_rate"]["numerator"] / N_FLAGGABLE, 4) < 1.0

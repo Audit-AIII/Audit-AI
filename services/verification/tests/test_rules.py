@@ -239,3 +239,78 @@ def test_rule_finding_spans_point_into_the_request_content():
     report = verify_request(req, RoutedProvider(careful_model))
     for finding in report.rule_findings:
         assert CONTENT[finding.span.start:finding.span.end] == finding.original_text
+
+
+# --- Accessibility and tone (StyleRules) -----------------------------------------------------------
+
+
+def style(text: str, **settings) -> list[RuleFinding]:
+    return check_rules(text, rules(style=settings))
+
+
+def test_all_caps_run_is_flagged_but_short_caps_and_allowed_acronyms_are_not():
+    text = "BUY NOW TODAY. I am OK with USB-C AND IPX4 PODS."
+    finding = only(style(text, allowed_caps=["USB-C", "IPX4"]))
+    assert finding.rule_type is RuleType.ALL_CAPS_RUN and finding.original_text == "BUY NOW TODAY"
+    assert finding.rule_id == "style.all_caps" and "3 words" in finding.explanation
+    assert_contract(finding, text)
+    assert style("NEW Lumen Pods ARE here.") == []  # never three in a row
+    assert only(style("THIS IS LOUD", all_caps_min_words=2)).original_text == "THIS IS LOUD"
+
+
+def test_all_caps_run_does_not_continue_across_lines():
+    assert style("BUY NOW\nTODAY ONLY") == []
+
+
+def test_emoji_run_longer_than_the_limit_is_flagged_with_modifiers_counted_once():
+    text = "Great 😀😀 sound 🔥🔥🔥 and 👍🏽 👍🏽 👍🏽"
+    found = style(text)
+    assert [f.rule_type for f in found] == [RuleType.EMOJI_RUN, RuleType.EMOJI_RUN]
+    assert "3 emoji in a row" in found[0].explanation and "3 emoji in a row" in found[1].explanation
+    for f in found:
+        assert_contract(f, text)
+    assert style(text, emoji_max_run=3) == []
+
+
+def test_vague_link_text_in_markdown_html_and_bare_click_here():
+    text = ("[Click here](https://example.com/a) or [the battery guide](https://example.com/b). "
+            "<a href='/c'>Read more</a>. To order, click here.")
+    found = style(text)
+    assert [f.original_text for f in found] == ["Click here", "Read more", "click here"]
+    assert all(f.rule_type is RuleType.VAGUE_LINK_TEXT and f.rule_id == "style.link_text" for f in found)
+    for f in found:
+        assert_contract(f, text)
+
+
+def test_single_vague_words_are_only_flagged_as_link_text():
+    assert style("Read more about it here.") == []  # ordinary prose, no link
+    assert only(style("Details [here](https://example.com).")).original_text == "here"
+
+
+def test_missing_alt_text_on_markdown_and_html_images_but_not_decorative_alt():
+    text = '![](pods.png) ![Lumen Pods in blue](blue.png) <img src="case.png"> <img src="line.png" alt="">'
+    found = style(text)
+    assert [f.original_text for f in found] == ["![](pods.png)", '<img src="case.png">']
+    assert all(f.rule_type is RuleType.MISSING_ALT_TEXT for f in found)
+    for f in found:
+        assert_contract(f, text)
+
+
+def test_style_findings_have_no_evidence_and_no_correction_and_can_be_switched_off():
+    text = "BUY NOW TODAY 🔥🔥🔥 [click here](x) ![](y.png)"
+    found = style(text, severity="medium")
+    assert {f.rule_type for f in found} == {RuleType.ALL_CAPS_RUN, RuleType.EMOJI_RUN, RuleType.VAGUE_LINK_TEXT,
+                                            RuleType.MISSING_ALT_TEXT}
+    assert all(f.evidence == [] and f.source_ids == [] and f.suggested_correction is None for f in found)
+    assert all(f.severity is RuleSeverity.MEDIUM and f.requires_human_review for f in found)
+    assert style(text, all_caps=False, emoji=False, vague_link_text=False, alt_text=False) == []
+    assert check_rules(text, rules()) == []  # no style block: not run
+
+
+def test_style_findings_reach_the_report_through_the_pipeline():
+    content = "BUY NOW TODAY. Lumen Pods offer up to 12 hours of playback per charge."
+    req = VerificationRequest.model_validate(
+        request(content).model_dump() | {"rules": rules(style={}).model_dump()})
+    report = verify_request(req, RoutedProvider(careful_model))
+    assert [f.rule_type for f in report.rule_findings] == [RuleType.ALL_CAPS_RUN]
+    assert report.score.rule_violations == 1 and ReviewReason.RULE_VIOLATIONS in report.score.review_reasons
