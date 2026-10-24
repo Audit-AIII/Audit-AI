@@ -305,11 +305,22 @@ class ReviewOut(BaseModel):
 # --- Phase 6: versioning, approval, audit --------------------------------------------------
 
 
+class LockWarningOut(BaseModel):
+    """A locked phrase the user's own edit dropped (inkloom_verify.intent_lock): a warning only."""
+
+    phrase: str
+    occurrences_before: int
+    occurrences_after: int
+
+
 class NewVersionResponse(BaseModel):
     content_version_id: uuid.UUID
     version_number: int
     is_current: bool
     review: ReviewOut
+    # Intent-lock, hand-written edits: WARN, never block (HANDOFF_STEPS_6_8.md step 4). Locked
+    # phrases this edit keeps fewer times than the previous version did; the version is saved.
+    lock_warnings: list[LockWarningOut] = []
 
 
 class ApprovalEventOut(BaseModel):

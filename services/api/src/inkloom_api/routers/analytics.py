@@ -16,6 +16,11 @@ Definitions (also in services/api/API.md):
   null if there are no items.
 - queue_age_minutes: now - created, for the period's reviews still waiting for the user's
   decision (review_queries.awaiting_decision_condition). median and oldest; null if none.
+- dismissed_finding_rate (additive): of the period's flagged findings (the same set
+  top_categories counts: every category except "stub" and "supported_claim"), how many the user
+  has dismissed - only each finding's latest decision counts, so dismissed-then-restored is not
+  dismissed. A live false-positive signal from the user's own decisions, not a measured accuracy.
+  value null when there are no flagged findings.
 """
 
 from __future__ import annotations
@@ -31,7 +36,7 @@ from sqlalchemy.orm import Session
 
 from ..auth.dependencies import AuthContext, get_current_membership
 from ..db import get_db
-from ..models import ApprovalEvent, ContentItem, ContentVersion, Finding, Review
+from ..models import ApprovalEvent, ContentItem, ContentVersion, Finding, FindingDecision, Review
 from ..review_queries import awaiting_decision_condition, reviews_in_organisation
 from ..statuses import FindingCategory
 from ..tenancy import get_brand_profile_or_404
@@ -52,12 +57,19 @@ class QueueAge(BaseModel):
     oldest: float | None
 
 
+class Ratio(BaseModel):
+    numerator: int
+    denominator: int
+    value: float | None  # null when denominator is 0
+
+
 class BrandRiskOut(BaseModel):
     top_categories: list[CategoryCount]
     median_turnaround_minutes: float | None
     re_review_rate: float | None
     queue_age_minutes: QueueAge
     sample_size: int
+    dismissed_finding_rate: Ratio  # additive
 
 
 def _minutes(delta: timedelta) -> float:
@@ -120,6 +132,26 @@ def brand_risk(
         round(sum(1 for _, n in version_counts if n >= 2) / len(version_counts), 4) if version_counts else None
     )
 
+    flagged = select(Finding.finding_id).where(
+        Finding.review_id.in_(period_ids),
+        Finding.category.isnot(None),
+        Finding.category.notin_(_EXCLUDED_CATEGORIES),
+    )
+    flagged_count = db.scalar(select(func.count()).select_from(flagged.subquery())) or 0
+    latest_decision = select(
+        FindingDecision.finding_id,
+        FindingDecision.action,
+        func.row_number().over(
+            partition_by=FindingDecision.finding_id,
+            order_by=(FindingDecision.created_at.desc(), FindingDecision.id.desc()),
+        ).label("rank"),
+    ).where(FindingDecision.finding_id.in_(flagged)).subquery()
+    dismissed_count = db.scalar(
+        select(func.count()).select_from(latest_decision).where(
+            latest_decision.c.rank == 1, latest_decision.c.action == "dismissed"
+        )
+    ) or 0
+
     waiting_since = db.scalars(
         period.where(awaiting_decision_condition()).with_only_columns(Review.created_at)
     ).all()
@@ -131,4 +163,9 @@ def brand_risk(
         re_review_rate=re_review_rate,
         queue_age_minutes=QueueAge(median=_median(ages), oldest=round(max(ages), 1) if ages else None),
         sample_size=sample_size,
+        dismissed_finding_rate=Ratio(
+            numerator=dismissed_count,
+            denominator=flagged_count,
+            value=round(dismissed_count / flagged_count, 4) if flagged_count else None,
+        ),
     )

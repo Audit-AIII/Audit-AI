@@ -11,6 +11,7 @@ import hashlib
 import uuid
 
 from fastapi import APIRouter, Depends
+from inkloom_verify.intent_lock import intent_lock_violations
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -25,6 +26,7 @@ from ..schemas import (
     ApprovalEventOut,
     ContentHistoryOut,
     ContentVersionHistoryOut,
+    LockWarningOut,
     NewVersionResponse,
     ReviewOut,
     ReviewSummaryOut,
@@ -85,11 +87,16 @@ def create_version(
     db.commit()
     db.refresh(new_version)
     db.refresh(review)
+    warnings = (
+        intent_lock_violations(previous_current.text, new_version.text, previous_current.locked_phrases or [])
+        if previous_current is not None else []
+    )
     return NewVersionResponse(
         content_version_id=new_version.id,
         version_number=new_version.version_number,
         is_current=new_version.is_current,
         review=ReviewOut.from_model(review),
+        lock_warnings=[LockWarningOut(**w.model_dump()) for w in warnings],
     )
 
 
