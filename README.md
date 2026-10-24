@@ -8,6 +8,13 @@ on every draft.
 
 Built by team **CodeNinjas** for the Inkloom AI hackathon.
 
+## Product decision: single-user accounts
+
+One email is one private account that owns one or more brands. The owner writes, checks and
+approves their own content; nothing is ever approved for them, and every decision is saved with
+who, when and which version. Roles, risk routing and invites are deferred to the roadmap. See
+[DECISIONS.md](DECISIONS.md) for the reasoning.
+
 ## Built today vs planned
 
 | Built today | Planned |
@@ -157,5 +164,7 @@ From `member3_backend/STATUS.md` §10, plus two frontend notes:
 2. A suggested safer rewrite for unverified claims.
 3. Local Ollama set up for confidential documents.
 4. Comments on findings.
-5. Multi-user workspaces with separate reviewer and approver roles.
-6. Deployment.
+5. Multi-user accounts and invites.
+6. Separate reviewer and approver roles, including an "author cannot approve" rule.
+7. Risk-based routing (risky drafts to a reviewer).
+8. Deployment.
