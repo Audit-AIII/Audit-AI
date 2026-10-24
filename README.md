@@ -155,7 +155,9 @@ enforces, not a model. Live runs so far were blocked by provider availability (s
 
 - **Frontend:** written with Claude Code (Anthropic) under the direction of Chahit, who reviewed
   and tested it.
-- **Backend:** TODO: Darsh to fill in.
+- **Backend:** written with Claude Code (Anthropic) under Darsh's direction and review, and tested
+  against a real PostgreSQL database; details and every external service in
+  [`services/api/DISCLOSURE.md`](services/api/DISCLOSURE.md) (Darsh to confirm).
 - **Verification engine:** written with Claude Code (Anthropic) under Krish's direction and review; details,
   libraries and datasets in [`services/verification/DISCLOSURE.md`](services/verification/DISCLOSURE.md)
   (draft: Krish to confirm).
