@@ -15,6 +15,7 @@ from inkloom_verify.pipeline import verify_request
 from inkloom_verify.providers.base import ProviderTimeoutError
 from inkloom_verify.rules import check_rules
 from inkloom_verify.schemas import (
+    RULE_CATEGORY,
     BrandRules,
     ReportStatus,
     ReviewReason,
@@ -44,10 +45,11 @@ def assert_contract(finding: RuleFinding, text: str) -> None:
     for field in ("finding_id", "category", "severity", "original_text", "explanation", "verification_status",
                   "source_ids", "evidence", "suggested_correction", "requires_human_review"):
         assert field in dumped, field
-    assert finding.check_type == "rule" and finding.category == "rule_violation"
+    assert finding.check_type == "rule" and finding.category is RULE_CATEGORY[finding.rule_type]
     assert finding.verification_status == "not_applicable" and finding.requires_human_review is True
-    if finding.span is not None:
-        assert text[finding.span.start:finding.span.end] == finding.original_text
+    # Always a non-empty span into the content (the backend stores span_end > span_start).
+    assert finding.span.end > finding.span.start
+    assert text[finding.span.start:finding.span.end] == finding.original_text
     for item in finding.evidence:
         assert item.relation == "contradicts" and item.source_id in finding.source_ids
 
@@ -55,11 +57,12 @@ def assert_contract(finding: RuleFinding, text: str) -> None:
 # --- 1. Required term ----------------------------------------------------------------------------
 
 
-def test_required_term_missing_is_one_finding_without_a_span():
+def test_required_term_missing_is_one_document_level_finding_anchored_on_the_first_line():
     text = "Lumen Pods sound great."
     finding = only(check_rules(text, rules(required_terms=[{"rule_id": "req-tm", "term": "Lumen Goods™"}])))
-    assert finding.rule_type is RuleType.REQUIRED_TERM and finding.span is None and finding.original_text == ""
-    assert finding.suggested_correction is None
+    assert finding.rule_type is RuleType.REQUIRED_TERM and finding.scope == "document"
+    assert finding.original_text == text and finding.span.start == 0  # the first (only) line
+    assert finding.suggested_correction is None and finding.category.value == "terminology"
     assert_contract(finding, text)
 
 
@@ -84,14 +87,19 @@ def test_prohibited_term_matches_whole_words_only():
     assert check_rules("Unguaranteedly odd.", rules(prohibited_terms=[{"rule_id": "p", "term": "guaranteed"}])) == []
 
 
-def test_prohibited_term_alternative_is_offered_only_for_a_quoted_rule():
+def test_prohibited_term_alternative_is_offered_with_its_basis():
+    """Decision 3 (2026-10-24): a brand-configured alternative is an approved suggestion; it is
+    labelled brand_rule, or approved_document when the rule is quoted from a reference."""
     text = "The best earbuds."
     unsourced = only(check_rules(text, rules(prohibited_terms=[
         {"rule_id": "p", "term": "best", "approved_alternative": "favourite"}])))
-    assert unsourced.suggested_correction is None and unsourced.evidence == [] and unsourced.source_ids == []
+    assert unsourced.suggested_correction == "favourite" and unsourced.suggestion_basis == "brand_rule"
+    assert unsourced.evidence == [] and unsourced.source_ids == []
     sourced = only(check_rules(text, rules(prohibited_terms=[
         {"rule_id": "p", "term": "best", "approved_alternative": "favourite", "source": SOURCE}])))
-    assert sourced.suggested_correction == "favourite"
+    assert sourced.suggested_correction == "favourite" and sourced.suggestion_basis == "approved_document"
+    plain = only(check_rules(text, rules(prohibited_terms=[{"rule_id": "p", "term": "best"}])))
+    assert plain.suggested_correction is None and plain.suggestion_basis is None  # nothing to suggest
     assert sourced.source_ids == [SHEET.doc_id] and sourced.evidence[0].quote == RULE_QUOTE
 
 
@@ -109,9 +117,9 @@ def test_product_naming_flags_wrong_case_and_listed_variants_but_not_the_approve
         assert_contract(f, text)
 
 
-def test_product_naming_without_a_source_gives_no_correction():
+def test_product_naming_without_a_source_suggests_the_configured_name_as_a_brand_rule():
     finding = only(check_rules("lumen pods", rules(product_names=[{"rule_id": "n", "approved_name": "Lumen Pods"}])))
-    assert finding.suggested_correction is None
+    assert finding.suggested_correction == "Lumen Pods" and finding.suggestion_basis == "brand_rule"
 
 
 # --- 4. Required disclaimer ------------------------------------------------------------------------
@@ -121,7 +129,8 @@ def test_disclaimer_required_only_when_triggered():
     rule = {"rule_id": "disc-batt", "disclaimer": "Battery life varies with use.", "trigger_terms": ["battery", "hours"]}
     assert check_rules("Lumen Pods come in blue.", rules(disclaimers=[rule])) == []
     finding = only(check_rules("12 hours of playback.", rules(disclaimers=[rule])))
-    assert finding.rule_type is RuleType.REQUIRED_DISCLAIMER and finding.span is None
+    assert finding.rule_type is RuleType.REQUIRED_DISCLAIMER and finding.scope == "document"
+    assert finding.category.value == "brand_compliance" and finding.suggested_correction is None
     assert check_rules("12 hours of playback. Battery  life varies\nwith use.", rules(disclaimers=[rule])) == []
 
 
@@ -177,12 +186,16 @@ def test_a_rule_source_must_be_a_reference_of_the_request_quoted_verbatim():
 
 
 def test_a_rule_finding_cannot_claim_a_correction_without_evidence_or_skip_review():
-    with pytest.raises(ValidationError, match="needs evidence"):
-        RuleFinding(finding_id="rul_x_1", rule_id="x", rule_type=RuleType.PROHIBITED_TERM, severity=RuleSeverity.LOW,
-                    original_text="best", span={"start": 0, "end": 4}, explanation="e", suggested_correction="good")
+    base = dict(finding_id="rul_x_1", rule_id="x", rule_type=RuleType.PROHIBITED_TERM, category="terminology",
+                severity=RuleSeverity.LOW, original_text="best", span={"start": 0, "end": 4}, explanation="e")
+    with pytest.raises(ValidationError, match="needs the quoted rule as evidence"):
+        RuleFinding(**base, suggested_correction="good", suggestion_basis="approved_document")
+    with pytest.raises(ValidationError, match="needs a suggestion_basis"):
+        RuleFinding(**base, suggested_correction="good")
     with pytest.raises(ValidationError):
-        RuleFinding(finding_id="rul_x_1", rule_id="x", rule_type=RuleType.REQUIRED_TERM, severity=RuleSeverity.LOW,
-                    original_text="", explanation="e", requires_human_review=False)
+        RuleFinding(**base, requires_human_review=False)
+    with pytest.raises(ValidationError, match="category must be terminology"):
+        RuleFinding(**(base | {"category": "accessibility"}))
 
 
 def test_rule_text_is_data_not_instructions_and_is_never_executed():

@@ -865,6 +865,15 @@
       "title": "ReviewReason",
       "type": "string"
     },
+    "RuleCategory": {
+      "enum": [
+        "terminology",
+        "brand_compliance",
+        "accessibility"
+      ],
+      "title": "RuleCategory",
+      "type": "string"
+    },
     "RuleEvidence": {
       "additionalProperties": false,
       "description": "The shared contract's evidence item: a source id, the exact quote, and its relation.",
@@ -896,13 +905,10 @@
     },
     "RuleFinding": {
       "additionalProperties": false,
-      "description": "One rule violation, in the shared finding contract's shape (check_type \"rule\").\n\n``verification_status`` is always ``not_applicable``: a rule check is not a claim checked\nagainst evidence. ``requires_human_review`` is always true: a person decides. A suggested\ncorrection exists only when the rule is quoted from an approved document (``evidence``) and\nnames the approved wording (product naming, a prohibited term's approved alternative).",
+      "description": "One rule violation, in the shared finding contract's shape (check_type \"rule\").\n\n* ``span`` is always a non-empty range into the content (the backend stores span_end >\n  span_start). ``scope`` \"text\": the span is the offending text. ``scope`` \"document\":\n  something is missing (a required term, a disclaimer, an image's alt text known only from\n  metadata), and the span anchors the finding on the content's first line.\n* ``verification_status`` is always ``not_applicable``: a rule check is not a claim checked\n  against evidence. ``requires_human_review`` is always true: a person decides.\n* ``suggested_correction`` replaces ``original_text`` and exists only for terminology rules\n  that name the wording to use. ``suggestion_basis`` says why it may be offered: the rule is\n  quoted from an approved document (\"approved_document\", with evidence) or configured by\n  the brand (\"brand_rule\"). Accessibility and compliance findings never carry one.",
       "properties": {
         "category": {
-          "const": "rule_violation",
-          "default": "rule_violation",
-          "title": "Category",
-          "type": "string"
+          "$ref": "#/$defs/RuleCategory"
         },
         "check_type": {
           "const": "rule",
@@ -932,6 +938,7 @@
         },
         "original_text": {
           "maxLength": 500,
+          "minLength": 1,
           "title": "Original Text",
           "type": "string"
         },
@@ -949,6 +956,15 @@
         "rule_type": {
           "$ref": "#/$defs/RuleType"
         },
+        "scope": {
+          "default": "text",
+          "enum": [
+            "text",
+            "document"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
         "severity": {
           "$ref": "#/$defs/RuleSeverity"
         },
@@ -963,15 +979,7 @@
           "type": "array"
         },
         "span": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SourceSpan"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/SourceSpan"
         },
         "suggested_correction": {
           "anyOf": [
@@ -987,6 +995,22 @@
           "default": null,
           "title": "Suggested Correction"
         },
+        "suggestion_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "approved_document",
+                "brand_rule"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggestion Basis"
+        },
         "verification_status": {
           "const": "not_applicable",
           "default": "not_applicable",
@@ -998,8 +1022,10 @@
         "finding_id",
         "rule_id",
         "rule_type",
+        "category",
         "severity",
         "original_text",
+        "span",
         "explanation"
       ],
       "title": "RuleFinding",
@@ -1020,12 +1046,18 @@
         "required_term",
         "prohibited_term",
         "product_naming",
+        "preferred_term",
+        "spelling",
+        "terminology_consistency",
         "required_disclaimer",
         "numeric_limit",
         "all_caps_run",
         "emoji_run",
         "vague_link_text",
-        "missing_alt_text"
+        "missing_alt_text",
+        "heading_structure",
+        "missing_captions",
+        "low_contrast"
       ],
       "title": "RuleType",
       "type": "string"

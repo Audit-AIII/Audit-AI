@@ -450,8 +450,22 @@ shared contract has today (it validates against `contract/schemas/finding.schema
   ALL-CAPS runs, emoji runs, vague link text ("click here"), missing image alt text. Rule types
   `all_caps_run`, `emoji_run`, `vague_link_text`, `missing_alt_text`; rule ids `style.*`; no
   evidence and never a suggested correction.
-- `VerificationReport.rule_findings` (`RuleFinding`): the shared finding shape. A suggested
-  correction exists only for a sourced rule naming the approved wording.
+- `VerificationReport.rule_findings` (`RuleFinding`): the shared finding shape.
+- **Step 4 (2026-10-24), terminology and accessibility rules** (full contract: [RULES_HANDOFF.md](RULES_HANDOFF.md)):
+  - New terminology rule types `preferred_term`, `spelling` and `terminology_consistency`, and
+    per-rule `case_sensitive`/`whole_word`. Contradictory rule sets are refused.
+  - New accessibility checks `heading_structure`, `missing_captions` and `low_contrast`, and
+    optional `ContentMetadata` (images, media, colours).
+  - `RuleFinding` changes:
+    - `category` is now `terminology`, `brand_compliance` or `accessibility` (was `rule_violation`);
+    - `span` is always present (`scope` `document` anchors a "missing" finding on the first line);
+    - `suggestion_basis` (`approved_document` or `brand_rule`): brand-configured terminology may
+      suggest its replacement without a quoted source; accessibility and compliance findings never
+      suggest one.
+  - New entry point `rules.evaluate_rules` returning `RuleEvaluation`: findings plus one
+    `RuleCheck` (passed, violated, not_checkable or error) per rule.
+  - JSON Schemas: `schemas/brand_rules.schema.json`, `content_metadata.schema.json`,
+    `rule_evaluation.schema.json`.
 - `ReportScore.rule_violations` and review reason `rule_violations`.
 - `ClaimResult.conflicting_sources` (derived from the citation guard; refused when inconsistent).
 - `ClaimResult.safer_wording` (`SaferWording`, labelled `safer_wording`, `evidence_backed: false`;

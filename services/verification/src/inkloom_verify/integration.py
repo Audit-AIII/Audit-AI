@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from inkloom_verify.schemas import ClaimResult, Correction, SaferWording, Verdict
+from inkloom_verify.schemas import ClaimResult, Correction, RuleFinding, SaferWording, Verdict
 
 # contract/README.md, open decision 2: ERROR maps to "unverified", never "contradicted".
 VERIFICATION_STATUS = {
@@ -94,4 +94,39 @@ def proposed_finding_fields(result: ClaimResult, content_text: str) -> dict[str,
         "source_ids": list(dict.fromkeys(item["doc_id"] for item in _evidence(result))),
         "safer_wording": safer_text(result, content_text),
         "safer_wording_evidence_backed": False,
+    }
+
+
+# --- Rule findings (rules.evaluate_rules) ---------------------------------------------------------
+
+# Engine fields of a rule finding that the shared contract does not have yet; Members 1 and 3 add
+# them to contract/schemas/finding.schema.json before the backend stores them (RULES_HANDOFF.md).
+PROPOSED_RULE_FINDING_FIELDS = ("rule_id", "rule_type", "scope", "suggestion_basis", "source_ids")
+
+
+def rule_finding_fields(finding: RuleFinding) -> dict[str, Any]:
+    """The Finding fields for one rule finding; validates against today's shared contract once the
+    backend adds finding_id and evidence ids (and maps evidence doc_id to its source ids)."""
+    return {
+        "category": finding.category.value,
+        "severity": finding.severity.value,
+        "original_text": finding.original_text,
+        "span": {"start": finding.span.start, "end": finding.span.end},
+        "check_type": "rule",
+        "explanation": finding.explanation,
+        "verification_status": "not_applicable",
+        "suggested_correction": finding.suggested_correction,
+        "requires_human_review": True,
+        "evidence": [{"doc_id": e.source_id, "quote": e.quote, "relation": e.relation} for e in finding.evidence],
+    }
+
+
+def proposed_rule_finding_fields(finding: RuleFinding) -> dict[str, Any]:
+    """PROPOSED_RULE_FINDING_FIELDS for one rule finding."""
+    return {
+        "rule_id": finding.rule_id,
+        "rule_type": finding.rule_type.value,
+        "scope": finding.scope,
+        "suggestion_basis": finding.suggestion_basis,
+        "source_ids": list(finding.source_ids),
     }
