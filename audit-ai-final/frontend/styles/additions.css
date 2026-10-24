@@ -260,3 +260,7 @@
   .add-btn-small, .add-btn-danger, .add-drop, .add-drop__btn { transition: none; }
   .add-btn-danger:hover:not(:disabled), .add-drop__btn:hover { translate: none; }
 }
+
+/* Dashboard (Insights): cards size to their content */
+.add-insights .panel { min-height: 0; }
+.add-insights__basis { margin: -10px 0 18px; }

@@ -3,13 +3,23 @@
 import { useEffect, useState } from "react";
 import { BrandBar } from "@/components/additions/BrandBar";
 import { Bars, Metric, duration, pct } from "@/components/additions/Metrics";
-import { EmptyState, ErrorState, LoadingState, NeedsBackend, SampleNotice } from "@/components/additions/States";
+import { EmptyState, ErrorState, LoadingState, NeedsBackend } from "@/components/additions/States";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
-import { SAMPLE_RISK, brandRisk, type BrandRisk, type Maybe } from "@/lib/additions/analytics";
+import { brandRisk, type BrandRisk, type Maybe } from "@/lib/additions/analytics";
 import { useBrands } from "@/lib/additions/brands";
 
 type Load = { state: "loading" } | { state: "ok"; result: Maybe<BrandRisk> } | { state: "error"; error: unknown };
 
+/** Plain words for the backend's category keys; unknown keys fall back to the key with spaces. */
+const CATEGORY: Record<string, string> = {
+  contradicted_claim: "Claims that contradict your documents",
+  unsupported_claim: "Claims with no evidence yet",
+  supported_claim: "Claims that match your documents",
+  engine_error: "Could not be checked",
+};
+const categoryLabel = (key: string) => CATEGORY[key] ?? key.replace(/_/g, " ");
+
+/** Dashboard: what gets flagged for the brand and how reviews move. Every number comes from the API. */
 export function Insights() {
   const { value: brands, refresh, choose } = useBrands();
   const brandId = brands.state === "ready" ? brands.brand.id : null;
@@ -26,56 +36,53 @@ export function Insights() {
     };
   }, [brandId, tick]);
 
-  if (brands.state === "loading") return (<><StageHead title="Insights" /><LoadingState /></>);
-  if (brands.state === "error") return (<><StageHead title="Insights" /><ErrorState message={brands.message} onRetry={refresh} /></>);
-  if (brands.state === "none") return (<><StageHead title="Insights" /><EmptyState title="No brand yet">Ask your admin to create one.</EmptyState></>);
+  if (brands.state === "loading") return (<><StageHead title="Dashboard" /><LoadingState /></>);
+  if (brands.state === "error") return (<><StageHead title="Dashboard" /><ErrorState message={brands.message} onRetry={refresh} /></>);
+  if (brands.state === "none") return (<><StageHead title="Dashboard" /><EmptyState title="No brand yet">Ask your admin to create one.</EmptyState></>);
 
-  const real = load.state === "ok" && load.result.available ? load.result.data : null;
+  const data = load.state === "ok" && load.result.available ? load.result.data : null;
 
   return (
-    <>
-      <StageHead title="Insights" />
+    <div className="add-insights">
+      <StageHead title="Dashboard" />
       <BrandBar brand={brands.brand} brands={brands.brands} fallback={brands.fallback} onChoose={choose} />
 
       {load.state === "loading" && <LoadingState label="Loading insights…" />}
       {load.state === "error" && <ErrorState error={load.error} onRetry={() => setTick((t) => t + 1)} />}
-
-      {real && <RiskPanels data={real} n="01" />}
-
       {load.state === "ok" && !load.result.available && (
+        <NeedsBackend>
+          <code className="add-mono">GET /api/analytics/brand-risk</code> is not on this server, so no numbers are shown for {brands.brand.name}.
+        </NeedsBackend>
+      )}
+
+      {data && (
         <>
-          <Panels cols="wide">
-            <Panel n="01" label="Your numbers" title="Not available yet">
-              <NeedsBackend>
-                <code className="add-mono">GET /api/analytics/brand-risk</code>. The server doesn’t provide insight numbers yet, so none are
-                shown for {brands.brand.name}. Nothing below is about your brand.
-              </NeedsBackend>
-            </Panel>
-          </Panels>
-          <div className="add-stack" style={{ marginTop: 22 }}>
-            <SampleNotice>The panels below are made-up numbers that show what this page will look like. They are not your results.</SampleNotice>
-            <RiskPanels data={SAMPLE_RISK} n="02" sample />
-          </div>
+          <p className="add-note add-muted add-insights__basis">
+            {brands.brand.name} · Based on {data.sample_size} review{data.sample_size === 1 ? "" : "s"}.
+          </p>
+          {data.sample_size === 0 ? (
+            <EmptyState title="No reviews yet">Check a draft and its results will show up here.</EmptyState>
+          ) : (
+            <RiskPanels data={data} />
+          )}
         </>
       )}
-    </>
+    </div>
   );
 }
 
-function RiskPanels({ data, n, sample = false }: { data: BrandRisk; n: string; sample?: boolean }) {
+function RiskPanels({ data }: { data: BrandRisk }) {
   const max = Math.max(1, ...data.top_categories.map((c) => c.count));
-  const tag = sample ? " (sample)" : "";
   return (
     <Panels cols="2">
-      <Panel n={n} label={`Top issues${tag}`} title="What gets flagged most">
+      <Panel n="01" label="Top issues" title="What gets flagged most">
         {data.top_categories.length ? (
-          <Bars items={data.top_categories.map((c) => ({ label: c.category, value: c.count, max }))} format={(v) => String(v)} />
+          <Bars items={data.top_categories.map((c) => ({ label: categoryLabel(c.category), value: c.count, max }))} format={(v) => String(v)} />
         ) : (
-          <EmptyState title="No flagged issues yet" />
+          <EmptyState title="Nothing flagged yet">No checked claim has been flagged for this brand.</EmptyState>
         )}
-        <p className="add-note add-muted">Based on {data.sample_size} review{data.sample_size === 1 ? "" : "s"}.</p>
       </Panel>
-      <Panel n={String(Number(n) + 1).padStart(2, "0")} label={`Speed${tag}`} title="How reviews move">
+      <Panel n="02" label="Speed" title="How reviews move">
         <div className="add-metrics">
           <Metric label="Median turnaround" value={duration(data.median_turnaround_minutes)} />
           <Metric label="Sent back and re-reviewed" value={pct(data.re_review_rate)} />

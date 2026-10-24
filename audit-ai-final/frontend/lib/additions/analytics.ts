@@ -5,7 +5,7 @@ import { isMissingRoute, request } from "./http";
 
 /**
  * Insights + Trust Scorecard adapters.
- *   GET /api/analytics/brand-risk   (not on the backend yet: 404 -> { available: false })
+ *   GET /api/analytics/brand-risk   (backend; a route-missing 404/405 -> { available: false })
  *   GET /api/evaluations/latest     (backend, any signed-in member): the latest evaluation report's
  *                                   summary, contract "evaluation-summary-v1", written by the engine's
  *                                   evaluation runner (services/verification/eval/run_eval.py).
@@ -52,20 +52,6 @@ export async function latestEvaluation(): Promise<Maybe<EvaluationResponse>> {
     throw err;
   }
 }
-
-/** Illustration only; rendered under a "Sample data" notice and never mixed with real numbers. */
-export const SAMPLE_RISK: BrandRisk = {
-  top_categories: [
-    { category: "Product facts", count: 14 },
-    { category: "Green claims", count: 9 },
-    { category: "Tone", count: 6 },
-    { category: "Easy to read", count: 4 },
-  ],
-  median_turnaround_minutes: 95,
-  re_review_rate: 0.22,
-  queue_age_minutes: { median: 180, oldest: 2880 },
-  sample_size: 33,
-};
 
 // --- Evaluation summary contract "evaluation-summary-v1" (mirrors inkloom_verify/evaluation/summary.py) ---
 
