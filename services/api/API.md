@@ -318,6 +318,21 @@ account.
 - **`verification_status: "conflicting_sources"`**: the brand's approved documents disagree about
   the claim (the engine's citation guard caught it), so it was not decided either way; the
   explanation says so and it always needs a person. Category stays `unsupported_claim`.
+- **`review_reasons`** (claim findings; additive): why a person must decide - the engine's own
+  values, `[]` when `requires_human_review` is false, `null` on rule and stub findings and on rows
+  from before this field:
+
+  | Value | Meaning |
+  |---|---|
+  | `contradicted` | an approved document says otherwise |
+  | `not_enough_evidence` | no document backs it, the documents disagree, or this backend's own citation check rejected the engine's quote |
+  | `error` | the claim could not be checked (provider failure, or the decision policy itself failed) |
+  | `weak_evidence` | supported, but not by the best-matching passage |
+  | `below_policy_strength` | supported, but on less than strong evidence |
+  | `compound_under_cited` | supported, but the claim joins several facts and rests on one quote |
+
+  The last three are on **supported** claims: show "supported, but please check: ..." rather than a
+  problem.
 - **`evidence[].source_title` / `source_version_number`**: the document and the version the quote was
   actually taken from (still the old number after the document gets a new version).
 - `brand_name`, `content_item_id`, `title`, `version_number`, `text`: `null` only on very old rows.
@@ -492,6 +507,9 @@ backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
 - `per_check`: `verification` overall, then one entry per labelled kind of hard case (numeric, date,
   named_entity, prompt_injection, …), largest first.
 - Model-reported confidence is never used.
+- **No `contract` key**, ever: the Scorecard page tells this shape from the engine's older
+  `evaluation-summary-v1` by "has `catch_rate` and `per_check`, and no `contract` key". New fields
+  are additive only.
 
 Additive fields (the Scorecard's `Evaluation` type is unchanged):
 

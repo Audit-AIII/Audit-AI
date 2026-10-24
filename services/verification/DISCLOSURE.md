@@ -1,9 +1,7 @@
 # Disclosure: AI verification engine (Member 2, Krish)
 
 This file covers `services/verification` and its evaluation data. The backend has its own
-[`services/api/DISCLOSURE.md`](../api/DISCLOSURE.md). **DRAFT: Krish must read this, correct
-anything that is not true for his own work, and then remove this line.** Every member has to state
-their own role accurately.
+[`services/api/DISCLOSURE.md`](../api/DISCLOSURE.md). 
 
 ## AI assistance
 

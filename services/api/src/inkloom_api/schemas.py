@@ -145,6 +145,10 @@ class FindingOut(BaseModel):
     # Unverified claims only: a softened wording, NOT evidence-backed (UI: "Safer wording, not
     # evidence-backed"). Kept apart from suggested_correction, which is evidence-backed only.
     safer_wording: str | None = None
+    # Claim findings: why a person must decide (the engine's ClaimReviewReason values: contradicted,
+    # not_enough_evidence, error, weak_evidence, below_policy_strength, compound_under_cited);
+    # [] when no review is needed. Null on rule and stub findings and on older rows.
+    review_reasons: list[str] | None = None
     # Rule findings only (check_type "rule"; services/verification/RULES_HANDOFF.md section 7),
     # null on claim findings. Defaults keep older idempotency replays parsing.
     rule_id: str | None = None
@@ -180,6 +184,7 @@ class FindingOut(BaseModel):
             requires_human_review=finding.requires_human_review,
             evidence=[EvidenceLinkOut.from_model(e) for e in finding.evidence],
             safer_wording=safer,
+            review_reasons=finding.review_reasons,
             withheld_by_intent_lock=withheld,
             dismissal=(
                 DismissalOut(by_user_id=latest.actor_user_id, at=latest.created_at, note=latest.note)
