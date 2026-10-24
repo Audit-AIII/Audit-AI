@@ -1,7 +1,10 @@
 "use client";
 
 import { ApiError } from "@/lib/api/client";
+import { looksLikeRunEvaluation, runEvaluationProblem, type RunEvaluation } from "./evaluationRun";
 import { isMissingRoute, request } from "./http";
+
+export type { RunEvaluation } from "./evaluationRun";
 
 /**
  * Insights + Trust Scorecard adapters.
@@ -41,12 +44,30 @@ export const brandRisk = (brandId: string) => optional<BrandRisk>(`/api/analytic
 export const isNoEvaluationYet = (err: unknown) =>
   err instanceof ApiError && err.status === 404 && err.code === "NOT_FOUND" && /no evaluation/i.test(err.message);
 
-export async function latestEvaluation(): Promise<Maybe<EvaluationResponse>> {
+/** The backend's EvaluationOut (routers/evaluations.py), validated; a mismatch is BAD_RESPONSE, never shown as data. */
+export function parseRunEvaluation(x: unknown): RunEvaluation {
+  const problem = runEvaluationProblem(x);
+  if (problem) throw new ApiError(200, "BAD_RESPONSE", `The evaluation report does not match the expected format (${problem}).`, null);
+  return x as RunEvaluation;
+}
+
+/** Latest evaluation: the stored run (EvaluationOut), or the older evaluation-summary-v1 shape. */
+export type LatestEvaluation = { kind: "run"; run: RunEvaluation } | { kind: "summary"; summary: EvaluationResponse };
+
+function parseLatest(x: unknown): LatestEvaluation {
+  if (looksLikeRunEvaluation(x)) return { kind: "run", run: parseRunEvaluation(x) };
+  return { kind: "summary", summary: parseEvaluation(x) }; // evaluation-summary-v1 (kept; unused by the backend today)
+}
+
+/** POST /api/evaluations: synchronous and long (1-4 minutes), so no client timeout. 201 -> the stored run. */
+export const runEvaluation = () => request<unknown>("/api/evaluations", { method: "POST" }).then(parseRunEvaluation);
+
+export async function latestEvaluation(): Promise<Maybe<LatestEvaluation>> {
   try {
-    return { available: true, data: parseEvaluation(await request<unknown>("/api/evaluations/latest")) };
+    return { available: true, data: parseLatest(await request<unknown>("/api/evaluations/latest")) };
   } catch (err) {
     if (isNoEvaluationYet(err)) {
-      return { available: true, data: { contract: "evaluation-summary-v1", state: "none", reason: "", how_to_run: "" } };
+      return { available: true, data: { kind: "summary", summary: { contract: "evaluation-summary-v1", state: "none", reason: "", how_to_run: "" } } };
     }
     if (isMissingRoute(err)) return { available: false };
     throw err;

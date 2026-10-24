@@ -271,6 +271,9 @@
 .add-mark--rule { background: transparent; box-shadow: inset 0 -3px 0 var(--ink); }
 .add-rules-json { min-height: 320px; font: 400 15px / 1.5 ui-monospace, monospace; }
 
+/* Scorecard run report: panels size to their content (the stage panels' min-height leaves gaps) */
+.add-run .panel { min-height: 0; }
+
 /* Per-finding Dismiss and comments. "Dismissed" is a glyph + word with a dotted outline; it never
    takes the supported (ok) look and never replaces the verdict chip. */
 .add-dismissed { outline: 1.5px dotted var(--ink-2); outline-offset: -1px; color: var(--ink); background: transparent; }
