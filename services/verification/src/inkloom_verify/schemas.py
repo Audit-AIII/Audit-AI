@@ -77,7 +77,18 @@ ClaimId = Annotated[str, Field(pattern=r"^clm_[A-Za-z0-9_-]{1,64}$")]
 PassageId = Annotated[str, Field(pattern=r"^psg_[A-Za-z0-9_-]{1,64}$")]
 
 Sha256Hex = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-Label = Annotated[str, Field(min_length=1, max_length=MAX_LABEL_CHARS), AfterValidator(_not_blank)]
+def _single_clean_line(value: str) -> str:
+    """Refuses control characters (NUL, line breaks, tabs), bidi overrides and zero-width
+    characters (security.has_hidden_characters). Short identifiers and rule text are one visible
+    line; NUL in particular cannot be stored by PostgreSQL, so the backend would refuse it later."""
+    if has_hidden_characters(value):
+        raise ValueError("must not contain control characters (including NUL, tabs and line breaks), "
+                         "bidirectional overrides or zero-width characters")
+    return value
+
+
+Label = Annotated[str, Field(min_length=1, max_length=MAX_LABEL_CHARS), AfterValidator(_not_blank),
+                  AfterValidator(_single_clean_line)]
 Offset = Annotated[int, Field(strict=True, ge=0)]
 
 
@@ -191,7 +202,9 @@ MAX_RULES_PER_TYPE = 100
 MAX_RULE_TEXT_CHARS = 500
 MAX_RULE_FINDINGS = 200
 MAX_METADATA_ITEMS = 500
-RuleText = _text(MAX_RULE_TEXT_CHARS)
+# One clean line: rule terms, names, quotes, disclaimers, metadata refs, finding explanations.
+RuleText = Annotated[str, Field(min_length=1, max_length=MAX_RULE_TEXT_CHARS), AfterValidator(_not_blank),
+                     AfterValidator(_single_clean_line)]
 RuleId = Annotated[str, Field(pattern=_EXTERNAL_ID_PATTERN)]
 # A colour as written in CSS: #rgb, #rrggbb or rgb(r, g, b). Named colours are not accepted.
 CssColor = Annotated[str, Field(pattern=r"^\s*(#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\))\s*$")]

@@ -93,9 +93,17 @@ def test_the_frontend_still_renders_the_engine_derived_fields():
     if not (os.path.exists(component) and os.path.exists(types)):
         return  # the frontend may be checked out separately
     rendered = open(component, encoding="utf-8").read()
-    for marker in ("Why it was flagged", "evidence__quote", "We suggest", "suggested_correction",
-                   "requires_human_review", "verification_status"):
+    for marker in ("Why it was flagged", "evidence__quote", "suggestionFor", "requires_human_review", "verification_status"):
         assert marker in rendered, marker
+    # Since Member 1's 53ef611 the suggestion wording lives in components/app/reviewLabels.ts. The
+    # evidence-backed correction and the engine's safer wording must stay apart there: only the
+    # correction may be presented as backed by the brand's documents (contract 2026-10-24).
+    labels = open(os.path.join(frontend, "components", "app", "reviewLabels.ts"), encoding="utf-8").read()
+    suggestion = labels.split("export function suggestionFor", 1)[1].split("\n}\n", 1)[0]
+    assert "suggested_correction" in suggestion and "safer_wording" in suggestion
+    assert "We suggest (backed by your documents)" in suggestion
+    assert 'SAFER_WORDING_LABEL = "Safer wording, not evidence-backed"' in labels
+    assert "label: SAFER_WORDING_LABEL, evidenceBacked: false" in suggestion
     finding = open(types, encoding="utf-8").read().split("export type FindingOut", 1)[1].split("};", 1)[0]
     for field in ("span", "verification_status", "suggested_correction", "requires_human_review", "evidence"):
         assert f"{field}:" in finding, field

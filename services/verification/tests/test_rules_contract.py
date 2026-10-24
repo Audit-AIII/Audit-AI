@@ -240,3 +240,55 @@ def test_regression_a_match_longer_than_the_field_limit_is_clipped_not_a_crash()
     [finding] = evaluate_rules(text).findings
     assert finding.rule_type.value == "all_caps_run" and len(finding.original_text) == MAX_RULE_TEXT_CHARS
     assert text[finding.span.start:finding.span.end] == finding.original_text
+
+
+# --- Control characters in rule text and labels (NUL fix, 2026-10-24) ------------------------------
+
+HIDDEN = {"NUL": "\x00", "tab": "\t", "line break": "\n", "C1 control": "\x85", "zero-width space": "​",
+          "bidi override": "‮"}
+
+
+@pytest.mark.parametrize("name", sorted(HIDDEN))
+@pytest.mark.parametrize("field, build", [
+    ("prohibited_terms.0.term", lambda bad: {"prohibited_terms": [{"rule_id": "p", "term": f"guar{bad}anteed"}]}),
+    ("prohibited_terms.0.approved_alternative", lambda bad: {"prohibited_terms": [{"rule_id": "p", "term": "x", "approved_alternative": f"de{bad}signed"}]}),
+    ("product_names.0.variants.0", lambda bad: {"product_names": [{"rule_id": "n", "approved_name": "Lumen Pods", "variants": [f"Lumen{bad}Pods"]}]}),
+    ("disclaimers.0.disclaimer", lambda bad: {"disclaimers": [{"rule_id": "d", "disclaimer": f"Terms{bad} apply."}]}),
+    ("style.allowed_caps.0", lambda bad: {"style": {"allowed_caps": [f"USB{bad}C"]}}),
+    ("version", lambda bad: {"version": f"v{bad}1"}),
+])
+def test_control_and_invisible_characters_are_refused_in_rule_text_and_labels(field, build, name):
+    with pytest.raises(RuleConfigurationError) as info:
+        evaluate_rules("Some text.", {"rule_set_id": "r", **build(HIDDEN[name])})
+    assert any(p.startswith(field + ":") and "control characters" in p for p in info.value.problems), info.value.problems
+    assert all(HIDDEN[name] not in p for p in info.value.problems)  # the bad value is never echoed
+
+
+def test_control_characters_are_refused_in_content_metadata_refs():
+    with pytest.raises(RuleConfigurationError) as info:
+        evaluate_rules("Copy.", metadata={"images": [{"ref": "page\x002"}]})
+    assert any(p.startswith("images.0.ref:") for p in info.value.problems)
+
+
+def test_ordinary_non_ascii_rule_text_is_still_accepted():
+    rules = {"rule_set_id": "r", "version": "v2 · 2026", "prohibited_terms": [{"rule_id": "p", "term": "garantié"}],
+             "product_names": [{"rule_id": "n", "approved_name": "Kora X2 ₹24,999"}], "disclaimers": [{"rule_id": "d", "disclaimer": "Prix TTC — conditions s’appliquent."}]}
+    assert evaluate_rules("Un produit garantié.", rules, accessibility_defaults=False).findings[0].original_text == "garantié"
+
+
+def test_a_reference_version_with_nul_is_refused_by_the_request_contract():
+    with pytest.raises(ValueError):
+        VerificationRequest.model_validate(request().model_dump() | {
+            "references": [r | {"version": "v\x002"} for r in request().model_dump()["references"]]})
+
+
+def test_regression_explanations_quoting_multi_line_draft_text_stay_valid():
+    """Explanations quote matched draft text; a line break or zero-width character in it must not
+    make the engine's own finding invalid (it would fail the whole evaluation)."""
+    text = 'See <a href="x">click\nhere</a> and the best​ in class guaranteed\nproduct.'
+    evaluation = evaluate_rules(text, {"rule_set_id": "r", "prohibited_terms": [{"rule_id": "p", "term": "guaranteed product"}]})
+    assert evaluation.complete
+    by_rule = {f.rule_id: f for f in evaluation.findings}
+    assert by_rule["style.link_text"].explanation == 'Link text "click here" does not say where the link goes.'
+    assert by_rule["p"].original_text == "guaranteed\nproduct"  # the exact text and span are kept
+    assert by_rule["p"].explanation == '"guaranteed product" is a prohibited term.'
