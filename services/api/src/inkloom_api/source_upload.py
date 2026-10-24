@@ -19,6 +19,7 @@ from inkloom_verify.schemas import MAX_REFERENCE_CHARS
 from pypdf import PdfReader
 
 from .config import Settings
+from .request_text import NUL
 from .statuses import SourceFileType
 
 _EXTENSION_TO_TYPE = {".txt": SourceFileType.TXT, ".pdf": SourceFileType.PDF, ".docx": SourceFileType.DOCX}
@@ -64,6 +65,9 @@ def extract_text(file_type: SourceFileType, content: bytes) -> str:
     text = text.strip()
     if not text:
         raise _bad_request("no extractable text found in the uploaded file")
+    if NUL in text:
+        # PostgreSQL text can't store it (request_text.py). In a .txt it usually means UTF-16.
+        raise _bad_request("file contains NUL (0x00) characters; save it as UTF-8 text")
     if len(text) > MAX_REFERENCE_CHARS:
         raise _bad_request(f"extracted text exceeds the {MAX_REFERENCE_CHARS:,} character limit")
     return text

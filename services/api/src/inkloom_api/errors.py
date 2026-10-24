@@ -13,9 +13,10 @@ import logging
 import traceback
 from enum import Enum
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -51,6 +52,19 @@ def _body(code: ErrorCode, message: str, retry_after: int | None = None) -> dict
     return body
 
 
+def internal_error_response(exc: BaseException) -> JSONResponse:
+    """The safe 500 for an unhandled exception. RequestIdMiddleware (logging.py) calls it while
+    the request ID is still bound, so the body and the X-Request-ID header both carry it."""
+    # The type and the stack frames only: an exception's message can carry document text
+    # (a pydantic ValidationError embeds its input) or a connection string.
+    frames = "".join(traceback.format_tb(exc.__traceback__))
+    logger.error("unhandled exception %s\n%s", type(exc).__name__, frames)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=_body(ErrorCode.INTERNAL_ERROR, "an internal error occurred"),
+    )
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def _on_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -61,12 +75,17 @@ def install_error_handlers(app: FastAPI) -> None:
             content=_body(ErrorCode.VALIDATION_ERROR, f"invalid request: {fields}"),
         )
 
+    # Starlette's HTTPException, which FastAPI's subclasses: this also catches the router's own
+    # 404 (no such route) and 405 (wrong method), which otherwise answer a bare {"detail": ...}.
     @app.exception_handler(HTTPException)
     async def _on_http_exception(request: Request, exc: HTTPException) -> JSONResponse:
         code = {
             status.HTTP_401_UNAUTHORIZED: ErrorCode.UNAUTHENTICATED,
             status.HTTP_403_FORBIDDEN: ErrorCode.FORBIDDEN,
             status.HTTP_404_NOT_FOUND: ErrorCode.NOT_FOUND,
+            # No code of its own: the frontend's ApiErrorCode union is closed, and "no such route
+            # for this method" is a kind of not-found. The 405 status itself is kept.
+            status.HTTP_405_METHOD_NOT_ALLOWED: ErrorCode.NOT_FOUND,
             status.HTTP_409_CONFLICT: ErrorCode.CONFLICT,
             status.HTTP_422_UNPROCESSABLE_ENTITY: ErrorCode.VALIDATION_ERROR,
             status.HTTP_429_TOO_MANY_REQUESTS: ErrorCode.RATE_LIMITED,
@@ -79,11 +98,6 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _on_unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
-        # The type and the stack frames only: an exception's message can carry document text
-        # (a pydantic ValidationError embeds its input) or a connection string.
-        frames = "".join(traceback.format_tb(exc.__traceback__))
-        logger.error("unhandled exception %s\n%s", type(exc).__name__, frames)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=_body(ErrorCode.INTERNAL_ERROR, "an internal error occurred"),
-        )
+        # Normally unreachable: RequestIdMiddleware answers unhandled exceptions first. Kept as
+        # the last line of defence for anything raised outside it.
+        return internal_error_response(exc)

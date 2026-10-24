@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from inkloom_verify.schemas import ReferenceDocument
@@ -26,6 +26,7 @@ from ..auth.permissions import Permission
 from ..config import Settings, get_settings
 from ..db import get_db
 from ..models import AuditEvent, BrandProfile, BrandSource, SourceVersion
+from ..request_text import StoredText
 from ..review_queries import brand_review_stats
 from ..schemas import BrandOut, BrandSourceOut, FlippedDependentOut, NewSourceVersionResponse, WithdrawSourceResponse
 from ..section_diff import document_section_hashes
@@ -80,8 +81,8 @@ def list_brands(
 
 
 class BrandCreateRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    description: str | None = Field(default=None, max_length=2000)
+    name: StoredText = Field(min_length=1, max_length=200)
+    description: StoredText | None = Field(default=None, max_length=2000)
 
     @field_validator("name")
     @classmethod
@@ -151,7 +152,8 @@ def list_brand_sources(
 @router.post("/{brand_id}/sources", response_model=BrandSourceOut, status_code=201)
 def upload_brand_source(
     brand_id: uuid.UUID,
-    title: str = Form(..., max_length=300),
+    # Annotated form: FastAPI skips StoredText's validator on a required `= Form(...)` default.
+    title: Annotated[StoredText, Form(max_length=300)],
     sensitivity: str = Form(BrandSourceSensitivity.NORMAL.value),
     approve: bool = Form(False),
     file: UploadFile = File(...),
@@ -225,7 +227,7 @@ def upload_brand_source(
 
 class WithdrawSourceBody(BaseModel):
     status: Literal["superseded", "archived"]
-    reason: str = Field(min_length=1, max_length=2000)
+    reason: StoredText = Field(min_length=1, max_length=2000)
 
 
 @router.post("/{brand_id}/sources/{source_id}/withdraw", response_model=WithdrawSourceResponse)

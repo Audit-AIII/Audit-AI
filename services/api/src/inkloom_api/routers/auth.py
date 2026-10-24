@@ -26,6 +26,7 @@ from ..config import Settings, get_settings
 from ..db import get_db
 from ..models import BrandProfile, Membership, Organisation, User
 from ..rate_limit import enforce_registration_rate_limit
+from ..request_text import StoredText
 from ..schemas import BrandOut, LoginResponse, OrganisationOut, RegisterResponse, SessionInfo, UserOut
 from ..statuses import MembershipRole
 
@@ -75,9 +76,9 @@ def login(body: LoginRequest, db: Session = Depends(get_db), settings: Settings 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    display_name: str | None = Field(default=None, max_length=200)
-    organisation_name: str | None = Field(default=None, max_length=200)
-    brand_name: str | None = Field(default=None, max_length=200)
+    display_name: StoredText | None = Field(default=None, max_length=200)
+    organisation_name: StoredText | None = Field(default=None, max_length=200)
+    brand_name: StoredText | None = Field(default=None, max_length=200)
 
     @field_validator("display_name", "organisation_name", "brand_name", mode="before")
     @classmethod

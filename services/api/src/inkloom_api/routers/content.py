@@ -19,6 +19,7 @@ from ..auth.dependencies import AuthContext, get_current_membership, require_per
 from ..auth.permissions import Permission
 from ..db import get_db
 from ..models import ApprovalEvent, ContentVersion, Review
+from ..request_text import StoredText
 from ..review_runner import start_review
 from ..schemas import (
     ApprovalEventOut,
@@ -36,7 +37,7 @@ MAX_CONTENT_CHARS = 100_000  # matches inkloom_verify.schemas.MAX_CONTENT_CHARS
 
 
 class NewVersionRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=MAX_CONTENT_CHARS)
+    text: StoredText = Field(min_length=1, max_length=MAX_CONTENT_CHARS)
 
 
 @router.post("/{content_item_id}/versions", response_model=NewVersionResponse, status_code=201)

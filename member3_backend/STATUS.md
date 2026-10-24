@@ -1,7 +1,7 @@
 # Member 3 (Backend) — Project Status
 
 **Team:** CodeNinjas · **Product:** InkLoom AI · **Member:** Member 3 — Backend, Security & Governance
-**Last updated:** 2026-10-24 · **Tests:** 214 / 214 passing against a real PostgreSQL database ·
+**Last updated:** 2026-10-24 · **Tests:** 232 / 232 passing against a real PostgreSQL database ·
 **Smoke test:** passing over real HTTP with a real AI provider · not yet deployed
 
 > `00_CONTEXT.md` in this folder is the original governance contract. Where it mentions team roles,
@@ -126,7 +126,7 @@ POST /api/reviews (brand_id, text)
  5. engine (in-process):
       ClaimExtractor -> BM25 retrieval -> ClaimVerifier
       CONTRADICTED -> ClaimCorrector (engine's own, recheck on): evidence-backed rewrite
-      NOT_ENOUGH_EVIDENCE -> engine softening step, once Member 2 ships it (handoff)
+      NOT_ENOUGH_EVIDENCE -> engine ClaimSoftener: softened wording, kept only if softening_guard passes
  6. backend re-validates every citation against its own copy of the source; a bad one downgrades
     the finding to unverified and drops its suggestion
  7. findings get a category (contradicted_claim / unsupported_claim / supported_claim / engine_error);
@@ -166,6 +166,7 @@ then switched off by the individual-user decision.
 | 9 | `8c05137` | Docs, contract schemas, smoke test |
 | fix | tag `known-good-2026-10-24` | Resolved the merge conflicts committed in `68b9b59` (main, evaluations router + tests, API.md): kept the POST / 404 Scorecard design. The engine dataset grew to 80 claims in `6b23c11`; tests now read its size instead of hardcoding 55 |
 | fix | branch `fix/main-green` | Re-verified main after direct pushes broke it (`IndentationError` in `test_evaluations.py`). Krish's `member2/fix-plan-2-5-6-8` (incl. `f9f18a8` re-indent and `cc145f7` backend changes) was already on main via PR #1; no conflict markers; full suite 212 passed / 0 skipped against PostgreSQL; server boots (`/health` 200). No code changes needed |
+| Phase 2 | branch `darsh/phase2-contracts` | Contract and stability audit (`tests/test_api_stability.py`, 18 tests). Fixed: router 404/405 answered outside the error shape; every 500 lost its request id; a NUL character in any text field or uploaded file was a 500 (now 422); an Idempotency-Key over 200 chars was a 500 after storing the review (now 422 first); two same-key requests at once stored a duplicate review then 500'd (key now claimed in the review's own transaction: one review, both get it); a caller's X-Request-ID was echoed unvalidated. Guard test: only login/register/health are open. Docs: softening shipped |
 
 Trust Scorecard real run (gemini-3.5-flash-lite, engine dataset of 55 claims at the time; it is now 80): 53 answered,
 catch_rate 1.0 (35/35), false_positive_rate 0.0 (0/18 answered supported). Small synthetic set —
@@ -179,7 +180,7 @@ of time on free-tier 503s; such runs (>20% claims without a verdict) are now ref
 ```sh
 cd services/api
 set -a; source .env; set +a
-.venv/Scripts/python -m pytest -q          # 214 passed, 0 skipped, ~66s, real PostgreSQL 18.6 (2026-10-24, after merging fix/main-green and chore/single-user-decision onto 3b319e6)
+.venv/Scripts/python -m pytest -q          # 232 passed, 0 skipped, ~74s, real PostgreSQL 18.6 (2026-10-24, branch darsh/phase2-contracts)
 ```
 
 Covers: cross-account isolation (every route), revoked memberships, approval guards and state
@@ -214,16 +215,15 @@ A full run wipes the database (migration round-trip) — reseed with `scripts/se
   takes ~1–4 minutes (synchronous).
 - `ReviewOut.content_item_id` is present on every review (the old gap is closed).
 
-**Member 2 (engine):** `HANDOFF_unverified_suggestions.md` — a softening step for
-NOT_ENOUGH_EVIDENCE claims (`ClaimSoftener`, prompt `soften-claim-v1`). The backend calls it as
-soon as `inkloom_verify.softening` exists. Also still open from earlier: OpenRouter's internal retry
+**Member 2 (engine):** the softening step (`HANDOFF_unverified_suggestions.md`) shipped as
+`inkloom_verify.softening.ClaimSoftener`; the backend loads and uses it (`test_unverified_suggestions.py`
+runs it end to end). Still open from earlier: OpenRouter's internal retry
 stops on the `require_parameters` 404 (the backend's own fallback works around it).
 
 ## 10. Known limitations
 
-- Rate limiter and idempotency replay are in-process memory (single worker). The evaluation's
-  10-minute limit is in the database.
+- The rate limiter is in-process memory (single worker). Idempotency keys and the evaluation's
+  10-minute limit are in the database.
 - No invites, org switcher, password reset or email verification (by design for individual accounts).
-- Unverified claims get no suggested wording until the engine's softening step ships.
 - Source conflict detection (Phase 7 optional) and Phase 9 items 3–5 not built.
 - Not deployed.

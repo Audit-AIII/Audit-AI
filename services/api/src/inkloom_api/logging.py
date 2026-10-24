@@ -10,6 +10,7 @@ server-side log line without ever exposing internals.
 from __future__ import annotations
 
 import logging
+import re
 import sys
 import uuid
 from contextvars import ContextVar
@@ -21,6 +22,9 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 _request_id: ContextVar[str] = ContextVar("request_id", default="-")
+# A caller's X-Request-ID is reused only if it looks like an id: it goes into every log line and
+# back into responses, so free text (markup, a 5 kB string) gets a generated id instead.
+_REQUEST_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,128}")
 
 
 def get_request_id() -> str:
@@ -58,8 +62,8 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        incoming = request.headers.get("x-request-id")
-        request_id = incoming if incoming else uuid.uuid4().hex
+        incoming = request.headers.get("x-request-id", "")
+        request_id = incoming if _REQUEST_ID_PATTERN.fullmatch(incoming) else uuid.uuid4().hex
         token = _request_id.set(request_id)
         try:
             self._logger.info("start method=%s path=%s", request.method, request.url.path)
@@ -69,10 +73,13 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
             )
         except Exception as exc:
             # The type only: an exception's message can carry document text or a connection
-            # string. errors.py logs the stack frames (also without the message).
+            # string. errors.py logs the stack frames (also without the message). Answered here,
+            # while the request ID is still bound, so the 500 carries it like every other error.
             self._logger.error("unhandled method=%s path=%s error=%s", request.method, request.url.path,
                                type(exc).__name__)
-            raise
+            from .errors import internal_error_response  # errors.py imports this module
+
+            response = internal_error_response(exc)
         finally:
             _request_id.reset(token)
         response.headers["X-Request-ID"] = request_id

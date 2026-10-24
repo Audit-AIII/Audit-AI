@@ -33,6 +33,7 @@ from ..auth.dependencies import AuthContext, require_permission
 from ..auth.permissions import Permission
 from ..db import get_db
 from ..models import Review
+from ..request_text import StoredText
 from ..schemas import ApprovalEventOut
 from ..statuses import ApprovalAction
 from ..tenancy import get_content_version_or_404, not_found
@@ -42,7 +43,7 @@ router = APIRouter(prefix="/api/content-versions", tags=["content-versions"])
 
 class RequestChangesBody(BaseModel):
     decision: Literal["changes_requested", "rejected"]
-    note: str | None = Field(default=None, max_length=2000)
+    note: StoredText | None = Field(default=None, max_length=2000)
 
 
 def _latest_review_or_404(db: Session, content_version_id: uuid.UUID) -> Review:

@@ -228,12 +228,11 @@ def _propose_correction(corrector: ClaimCorrector, result: ClaimResult, content:
 def load_softener_class():
     """The engine's softening step for UNVERIFIED claims, if this engine version has one.
 
-    Not built yet: it needs a change in Member 2's engine, proposed in
-    member3_backend/HANDOFF_unverified_suggestions.md as
+    Member 2 shipped it as proposed in member3_backend/HANDOFF_unverified_suggestions.md:
     `inkloom_verify.softening.ClaimSoftener(provider).soften(result, content)` returning an object
-    with `target_span` / `original_text` / `replacement_text`, or None. Until that module exists
-    this returns None and nothing changes; once it ships, suggestions appear with no backend
-    change - still behind softening_guard.py and never changing the verdict."""
+    with `target_span` / `original_text` / `replacement_text`, or None. Suggestions stay behind
+    softening_guard.py and never change the verdict. An older engine without the module makes
+    this return None, and unverified claims simply get no suggestion."""
     try:
         from inkloom_verify.softening import ClaimSoftener  # type: ignore[import-not-found]
     except ImportError:

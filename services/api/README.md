@@ -179,6 +179,4 @@ points**, not UTF-16 code units - a JS client highlighting that range must conve
 - Source conflict detection (Phase 7 task 7, marked optional in the phase doc) is not built.
 - Free-tier model ids change; the ids in `.env.example` were verified against the providers' live
   lists and real calls on 2026-10-24. Re-check them there if calls start failing.
-- Suggested wording for *unverified* claims waits on the engine's softening step
-  (`member3_backend/HANDOFF_unverified_suggestions.md`); the backend side is built.
 - No deploy yet.

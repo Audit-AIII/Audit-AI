@@ -100,7 +100,12 @@ Content sent for review leaves the machine for the configured cloud provider (se
 - **Errors**: `{"error": {"code", "message", "request_id"}}`. Codes: `UNAUTHENTICATED` (401),
   `FORBIDDEN` (403 — not raised for an active account any more), `NOT_FOUND` (404), `CONFLICT` (409),
   `VALIDATION_ERROR` (422 — field locations only, never the submitted value), `RATE_LIMITED` (429),
-  `INTERNAL_ERROR` (500). Every response carries `X-Request-ID`.
+  `INTERNAL_ERROR` (500). Every response carries `X-Request-ID`, errors included (a 500's
+  `request_id` matches it). An unknown path is `404 NOT_FOUND`; a wrong method on a known path is
+  `405` with code `NOT_FOUND`. A caller-supplied `X-Request-ID` is reused only if it is 1–128 of
+  `A-Z a-z 0-9 . _ -`; otherwise a new one is generated.
+- **Text fields** (titles, names, notes, draft text, uploaded file contents) must not contain a NUL
+  (`\u0000`) character: `422 VALIDATION_ERROR` naming the field (PostgreSQL cannot store it).
 - `span` offsets are Unicode **code points** into the submitted text, not UTF-16 units.
 - Reviews run **synchronously**: the POST response is the finished result.
 - Every state change writes an audit event; provider calls are logged (metadata only) to
@@ -205,7 +210,11 @@ in scope keeps the whole review on local Ollama only.
 ### `POST /api/reviews` · `POST /api/reviews/upload`
 
 Body `{"brand_id", "title"?, "text"}` (text ≤ 100,000 chars), or multipart `brand_id`, `title`?, `file`.
-Optional `Idempotency-Key` header replays the first response. Rate-limited per user and account.
+Optional `Idempotency-Key` header (1–200 visible ASCII characters, else `422`) replays the first
+response, also to a request sent while the first is still running (it waits for it). If the first
+is still running after ~15 s, the second gets `409` "still being processed" — retry it. The same
+key with a different body is `409`. A request that fails frees its key. Rate-limited per user and
+account.
 **201** with the Review shape below. `status`:
 
 | `status` | When |
@@ -275,10 +284,11 @@ Optional `Idempotency-Key` header replays the first response. Rate-limited per u
 - **`suggested_correction`**: the **whole `original_text` rewritten**, so the UI can do
   `draft.replace(original_text, suggested_correction)`. For contradicted claims it comes from the
   engine's corrector, is backed by the cited quote and re-verified as supported, and is dropped if
-  this backend's evidence validation downgrades the finding. For unverified claims it stays `null`
-  until Member 2's softening step ships (`member3_backend/HANDOFF_unverified_suggestions.md`); the
-  backend already accepts and rule-checks it, and the finding stays `unverified`. A suggestion is
-  only ever offered — nothing is applied automatically.
+  this backend's evidence validation downgrades the finding. For unverified claims it is the
+  engine's softened wording (`inkloom_verify.softening.ClaimSoftener`), kept only if it passes this
+  backend's rule check (`softening_guard.py`: no new numbers, no unproven rankings, names, prices and
+  dates unchanged), else `null`; the finding stays `unverified`. A suggestion is only ever offered
+  — nothing is applied automatically.
 - **`evidence[].source_title` / `source_version_number`**: the document and the version the quote was
   actually taken from (still the old number after the document gets a new version).
 - `brand_name`, `content_item_id`, `title`, `version_number`, `text`: `null` only on very old rows.
@@ -414,10 +424,9 @@ provider configured → **409**, nothing stored. `POST` where more than 20% of c
 
 ## Known limits
 
-- Rate limiting and idempotency replay are in-process memory (single worker); the evaluation's
-  10-minute limit is in the database.
+- Rate limiting is in-process memory (single worker); idempotency keys and the evaluation's
+  10-minute limit are in the database.
 - No org switcher, no invites, no password reset, no email verification (individual accounts).
 - A full `pytest` run wipes the database (the migrations round-trip test) — reseed afterwards with
   `scripts/seed.py --reset`.
-- Unverified-claim suggestions wait on the engine's softening step (handoff to Member 2).
 - Not deployed yet.

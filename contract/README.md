@@ -90,9 +90,9 @@ quote was taken from). `category` is now filled on real runs: `contradicted_clai
 `unsupported_claim` (unverified - no evidence either way), `supported_claim`, `engine_error` (that
 claim could not be checked); `stub` still marks the no-provider placeholder. `suggested_correction`
 is the **whole `original_text` rewritten** (swap it in with `draft.replace(original_text,
-suggested_correction)`); it is an evidence-backed, re-verified fix for contradicted claims, and stays
-`null` for unverified claims until the engine's softening step ships
-(`member3_backend/HANDOFF_unverified_suggestions.md`). It is only ever a suggestion.
+suggested_correction)`); it is an evidence-backed, re-verified fix for contradicted claims, and for
+unverified claims the engine's softened wording when it passes the backend's rule check (else
+`null`; the finding stays `unverified`). It is only ever a suggestion.
 `BrandOut` (`GET /api/brands`) gained `review_count`, `open_review_count` (reviews waiting for the
 user's decision) and `last_review_at`.
 
@@ -157,7 +157,11 @@ For Member 1: this is what replaces the placeholder localStorage session in
 | 401 | `UNAUTHENTICATED` | No token, an invalid/expired token, or a membership that is no longer active. Send the user to login. |
 | 403 | `FORBIDDEN` | Not raised for an active account in individual-user mode (roles no longer gate anything); kept in the table because the code still exists. |
 | 404 | `NOT_FOUND` | The resource doesn't exist, or it belongs to another account — these are indistinguishable on purpose (same code, same message). |
-| 422 | `VALIDATION_ERROR` | The request body/params failed validation. `message` lists field locations only, never the submitted value. |
+| 404 / 405 | `NOT_FOUND` | Also an unknown path (404) or a wrong method on a known path (405 keeps its status; there is no separate code). |
+| 409 | `CONFLICT` | A guard refused the action (stale version, unfinished review, ...), or an `Idempotency-Key` clash. The message is user-readable. |
+| 422 | `VALIDATION_ERROR` | The request body/params failed validation. `message` lists field locations only, never the submitted value. Also a NUL (`\u0000`) character in any text field, or an `Idempotency-Key` that isn't 1-200 visible ASCII characters. |
+| 429 | `RATE_LIMITED` | Too many submissions; `retry_after` (seconds) and a `Retry-After` header say when to try again. |
+| 500 | `INTERNAL_ERROR` | Never carries internals. `request_id` (also the `X-Request-ID` header) ties it to the server log. |
 
 ## Example responses
 

@@ -27,9 +27,10 @@ from ..auth.dependencies import AuthContext, get_current_membership, require_per
 from ..auth.permissions import Permission
 from ..config import Settings, get_settings
 from ..db import get_db
-from ..idempotency import find_replay, hash_request_body, record
+from ..idempotency import claim, complete, hash_request_body, validated_key
 from ..models import ContentItem, ContentVersion, EvidenceLink, Finding, Review
 from ..rate_limit import rate_limited_submit_permission
+from ..request_text import StoredText
 from ..review_queries import reviews_in_organisation
 from ..review_runner import start_review
 from ..schemas import ReviewOut
@@ -46,8 +47,8 @@ _RERUN_ENDPOINT = "POST /api/reviews/{id}/rerun"
 
 class ReviewCreateRequest(BaseModel):
     brand_id: uuid.UUID
-    title: str | None = Field(default=None, max_length=300)
-    text: str = Field(min_length=1, max_length=MAX_CONTENT_CHARS)
+    title: StoredText | None = Field(default=None, max_length=300)
+    text: StoredText = Field(min_length=1, max_length=MAX_CONTENT_CHARS)
 
 
 def _submit_content_and_review(
@@ -62,11 +63,11 @@ def _submit_content_and_review(
     text: str,
     audit_details_extra: dict | None = None,
 ) -> ReviewOut:
-    """Shared by `POST /api/reviews` and `POST /api/reviews/upload`: replay check, tenant-checked
-    brand, a new `ContentItem` + its first `ContentVersion`, run the review, audit
-    `review.submitted`, commit, then (if an idempotency key was given) record the replay."""
+    """Shared by `POST /api/reviews` and `POST /api/reviews/upload`: claim the idempotency key (or
+    replay), tenant-checked brand, a new `ContentItem` + its first `ContentVersion`, run the
+    review, audit `review.submitted`, store the replay, and commit it all at once."""
     if idempotency_key:
-        replay = find_replay(db, auth.organisation_id, endpoint, idempotency_key, request_hash)
+        replay = claim(db, auth.organisation_id, endpoint, idempotency_key, request_hash)
         if replay is not None:
             return ReviewOut(**replay)
 
@@ -107,15 +108,12 @@ def _submit_content_and_review(
         request_id=review.request_id,
     )
 
-    db.commit()
+    db.flush()
     db.refresh(review)
     result = ReviewOut.from_model(review)
     if idempotency_key:
-        # A second, small commit: accepted tradeoff - if the process died between these two
-        # commits, a retried request would re-run once more rather than replay, which is safe
-        # (never silently wrong), just not perfectly exactly-once under that specific crash.
-        record(db, auth.organisation_id, endpoint, idempotency_key, request_hash, 201, result.model_dump(mode="json"))
-        db.commit()
+        complete(db, auth.organisation_id, endpoint, idempotency_key, 201, result.model_dump(mode="json"))
+    db.commit()
     return result
 
 
@@ -126,6 +124,7 @@ def create_review(
     auth: AuthContext = Depends(rate_limited_submit_permission()),
     db: Session = Depends(get_db),
 ) -> ReviewOut:
+    idempotency_key = validated_key(idempotency_key)
     if not body.text.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "text must not be blank")
 
@@ -145,7 +144,7 @@ def create_review(
 @router.post("/upload", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
 def create_review_from_upload(
     brand_id: uuid.UUID = Form(...),
-    title: str | None = Form(default=None, max_length=300),
+    title: StoredText | None = Form(default=None, max_length=300),
     file: UploadFile = File(...),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(rate_limited_submit_permission()),
@@ -155,6 +154,7 @@ def create_review_from_upload(
     """Self-serve onboarding's "check a draft" step: a pasted-text alternative for people who'd
     rather upload a file (.txt/.pdf/.docx, same as brand sources). The uploaded bytes are never
     stored - only the extracted text, as the content item's first version."""
+    idempotency_key = validated_key(idempotency_key)
     file_type = file_type_from_name(file.filename)
     content = read_limited(file, settings.max_source_upload_bytes)
     text = extract_text(file_type, content)
@@ -242,9 +242,10 @@ def rerun_review(
     re-checked without editing it."""
     # No request body to hash - the thing being deduplicated is "rerun THIS review", so the
     # target review_id itself is the hashed payload.
+    idempotency_key = validated_key(idempotency_key)
     request_hash = hash_request_body({"review_id": str(review_id)}) if idempotency_key else None
     if idempotency_key:
-        replay = find_replay(db, auth.organisation_id, _RERUN_ENDPOINT, idempotency_key, request_hash)
+        replay = claim(db, auth.organisation_id, _RERUN_ENDPOINT, idempotency_key, request_hash)
         if replay is not None:
             return ReviewOut(**replay)
 
@@ -264,10 +265,10 @@ def rerun_review(
         request_id=new_review.request_id,
     )
 
-    db.commit()
+    db.flush()
     db.refresh(new_review)
     result = ReviewOut.from_model(new_review)
     if idempotency_key:
-        record(db, auth.organisation_id, _RERUN_ENDPOINT, idempotency_key, request_hash, 201, result.model_dump(mode="json"))
-        db.commit()
+        complete(db, auth.organisation_id, _RERUN_ENDPOINT, idempotency_key, 201, result.model_dump(mode="json"))
+    db.commit()
     return result
