@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FindingBadge, SeverityBadge, verdictOf } from "@/components/additions/Badges";
 import { EmptyState, ErrorState, LoadingState, NeedsBackend } from "@/components/additions/States";
-import { findingChip, isRule, isStub, isStubReview, isWholeDraft, suggestionLabel } from "@/components/app/reviewLabels";
+import { findingChip, isRule, isStub, isStubReview, isWholeDraft, suggestionFor } from "@/components/app/reviewLabels";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { Button } from "@/components/primitives/Button";
 import { history, itemIdOf, rerun, saveNewVersion, type NewVersionOut } from "@/lib/additions/content";
@@ -100,11 +100,12 @@ function EditorView({ review }: { review: ReviewOut }) {
   };
 
   const apply = (f: FindingOut) => {
-    if (!f.suggested_correction) return;
-    const broken = brokenBy(f.original_text, f.suggested_correction, locks);
+    const sg = suggestionFor(f);
+    if (!sg) return;
+    const broken = brokenBy(f.original_text, sg.text, locks);
     if (broken.length) return setNotice({ ok: false, text: `Not applied: it would change must-keep text (${broken.map((b) => `“${b}”`).join(", ")}). Edit by hand if you really mean to.` });
     if (!draft.includes(f.original_text)) return setNotice({ ok: false, text: "That sentence has already changed in your draft, so the suggestion can’t be placed. Edit it by hand." });
-    setDraft(draft.replace(f.original_text, f.suggested_correction));
+    setDraft(draft.replace(f.original_text, sg.text));
     setNotice({ ok: true, text: "Suggestion placed in your draft. Nothing is saved until you save a new version." });
   };
 
@@ -265,7 +266,8 @@ function EditorView({ review }: { review: ReviewOut }) {
 }
 
 function FindingDetail({ f, locks, canApply, onApply }: { f: FindingOut; locks: string[]; canApply: boolean; onApply: () => void }) {
-  const broken = f.suggested_correction ? brokenBy(f.original_text, f.suggested_correction, locks) : [];
+  const sg = suggestionFor(f);
+  const broken = sg ? brokenBy(f.original_text, sg.text, locks) : [];
   return (
     <div className="add-stack" aria-live="polite">
       {f.evidence.length ? (
@@ -289,10 +291,10 @@ function FindingDetail({ f, locks, canApply, onApply }: { f: FindingOut; locks: 
           <b>Why:</b> {f.explanation}
         </p>
       )}
-      {f.suggested_correction ? (
+      {sg ? (
         <div className="add-suggest">
-          <p className="t-caption add-muted">{suggestionLabel(f)} (not applied)</p>
-          <p>“{f.suggested_correction}”</p>
+          <p className="t-caption add-muted">{sg.label} (not applied)</p>
+          <p>“{sg.text}”</p>
           {broken.length > 0 && <p className="add-note">🔒 Blocked: would change {broken.map((b) => `“${b}”`).join(", ")}.</p>}
           <button type="button" className="add-btn-small" onClick={onApply} disabled={!canApply || broken.length > 0}>
             Apply suggestion to my draft

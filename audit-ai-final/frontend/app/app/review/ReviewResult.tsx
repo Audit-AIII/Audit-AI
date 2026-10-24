@@ -18,7 +18,7 @@ import {
   rulesUnfinished,
   severity,
   stubReason,
-  suggestionLabel,
+  suggestionFor,
 } from "@/components/app/reviewLabels";
 import { ApiError, api } from "@/lib/api/client";
 import type { FindingOut, ReviewOut, RuleCheck } from "@/lib/api/types";
@@ -325,11 +325,7 @@ function FindingDetail({ f }: { f: FindingOut }) {
             <p className="evidence__quote">“{e.quote}”</p>
           </div>
         ))}
-        {f.suggested_correction && (
-          <p className="t-body panel__note">
-            <b>{suggestionLabel(f)}:</b> “{f.suggested_correction}”
-          </p>
-        )}
+        <Suggestion f={f} />
         <p className="t-caption">This is a brand rule, not a fact check. You decide on it.</p>
       </div>
     );
@@ -355,13 +351,20 @@ function FindingDetail({ f }: { f: FindingOut }) {
           <b>The problem:</b> {f.explanation}
         </p>
       )}
-      {f.suggested_correction && (
-        <p className="t-body panel__note">
-          <b>{suggestionLabel(f)}:</b> “{f.suggested_correction}”
-        </p>
-      )}
+      <Suggestion f={f} />
       {f.requires_human_review && <p className="t-caption">You need to decide on this one.</p>}
     </div>
+  );
+}
+
+/** The suggestion for a finding with its label (never applied for you). */
+function Suggestion({ f }: { f: FindingOut }) {
+  const sg = suggestionFor(f);
+  if (!sg) return null;
+  return (
+    <p className="t-body panel__note">
+      <b>{sg.label}:</b> “{sg.text}”
+    </p>
   );
 }
 

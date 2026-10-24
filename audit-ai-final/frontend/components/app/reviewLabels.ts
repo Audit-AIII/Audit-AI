@@ -13,7 +13,7 @@ export function verdict(status: FindingOut["verification_status"]) {
     case "unverified":
       return { glyph: "?", label: "Not proven yet", tone: "unverified" };
     case "conflicting_sources":
-      return { glyph: "⇄", label: "Your documents disagree", tone: "unverified" };
+      return { glyph: "⇄", label: "Approved documents disagree, check which is correct", tone: "unverified" };
     case "not_applicable":
       // Not a claim verdict (rule findings carry this; see findingChip for how they are shown).
       return { glyph: "–", label: "No claim verdict", tone: "neutral" };
@@ -69,6 +69,24 @@ export function findingChip(f: FindingOut) {
 /** Label for a suggestion, by where it comes from. */
 export const suggestionLabel = (f: FindingOut) =>
   f.suggestion_basis === "brand_rule" ? "From brand rules" : f.suggestion_basis === "approved_document" ? "From approved document" : "We suggest";
+
+/**
+ * The one suggestion to offer for a finding, with an honest label. Nothing is ever applied
+ * automatically; this only decides what to show.
+ * - rule findings: suggested_correction, labelled by suggestion_basis;
+ * - unverified claims: safer_wording ("Safer wording, not evidence-backed"). Older backends put that
+ *   softened text in suggested_correction instead, so it gets the same label there;
+ * - other claims (contradicted): suggested_correction, backed by the cited quote.
+ */
+export const SAFER_WORDING_LABEL = "Safer wording, not evidence-backed";
+export function suggestionFor(f: FindingOut): { text: string; label: string; evidenceBacked: boolean } | null {
+  if (isRule(f)) return f.suggested_correction ? { text: f.suggested_correction, label: suggestionLabel(f), evidenceBacked: f.suggestion_basis === "approved_document" } : null;
+  if (f.verification_status === "unverified") {
+    const text = f.safer_wording ?? f.suggested_correction;
+    return text ? { text, label: SAFER_WORDING_LABEL, evidenceBacked: false } : null;
+  }
+  return f.suggested_correction ? { text: f.suggested_correction, label: "We suggest (backed by your documents)", evidenceBacked: true } : null;
+}
 
 /** Rule checks status for the review. Only "complete" (or no rules at all on old reviews) may look rule-clean. */
 export const rulesUnfinished = (r: ReviewOut) => r.rules_status === "incomplete" || r.rules_status === "not_applied";
