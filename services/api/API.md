@@ -35,7 +35,7 @@ docker compose up -d        # needs Docker Desktop running
 ```sh
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]" -e ../verification -c constraints.txt   # exact tested versions; macOS/Linux: .venv/bin/python
-.venv/Scripts/python -m alembic upgrade head              # migrations 0001-0012
+.venv/Scripts/python -m alembic upgrade head              # migrations 0001-0013
 ```
 
 ### 4. Seed two demo accounts (optional)
