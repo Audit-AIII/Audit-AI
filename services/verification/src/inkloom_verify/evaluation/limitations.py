@@ -63,10 +63,13 @@ LIMITATIONS: list[Limitation] = [
                 "aimed at a model are refused. References must be trusted when they are approved.",
         evidence=["tests/test_prompt_security.py::test_an_instruction_worded_as_a_fact_is_not_recognised"]),
     Limitation(
-        topic="Live model quality", status="not_implemented",
-        finding="No live model run has been measured: there is no model-backed accuracy, CONTRADICTED recall or "
-                "citation validity. CI measures the engine's ceiling with scripted gold answers (oracle) instead.",
-        evidence=[]),
+        topic="Live model quality", status="measured",
+        finding="One live run (google/gemini-2.5-flash-lite, verifier only, 80 synthetic claims, 25 held out) gave "
+                "CONTRADICTED recall 87.5% (28/32), precision 90.3%, false-positive rate 6.2%, and citation validity "
+                "86.7% (52/60), which misses the 100% gate; every quote was found verbatim (60/60). It is one run on "
+                "AI-written labels (0/80 reviewed), so read it as an indication, not a guarantee; the full pipeline "
+                "(extraction and routing) was not run live.",
+        evidence=["EVAL.md"]),
     Limitation(
         topic="Label review", status="measured",
         finding="Every label in eval/dataset.jsonl was written by an AI assistant and checked mechanically; none has "
