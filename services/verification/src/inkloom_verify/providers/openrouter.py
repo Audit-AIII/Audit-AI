@@ -50,16 +50,46 @@ from inkloom_verify.security import install_redaction, register_secret
 
 logger = logging.getLogger(__name__)
 
-# OpenRouter's message when require_parameters excludes every endpoint of a model. Matched to
-# classify the 404 only; the provider's text is never echoed (see _error).
-_NO_ENDPOINTS = re.compile(r"no endpoints found", re.IGNORECASE)
+# OpenRouter's 404 messages when routing leaves no endpoint for a model. Matched to classify the
+# 404 only; the provider's text is never echoed (see _error). Two different causes:
+#   "No endpoints found that can handle the requested parameters."  -> require_parameters
+#   "No endpoints found matching your data policy (...)"            -> data_collection=deny (or the
+#      account's privacy settings) excludes every endpoint, e.g. a free model whose only provider
+#      may train on prompts. Switching structured-output mode cannot help that.
+_NO_ENDPOINTS_FOR_PARAMETERS = re.compile(r"no endpoints found that can handle the requested parameters", re.IGNORECASE)
+_NO_ENDPOINTS_FOR_DATA_POLICY = re.compile(r"no endpoints found matching your data policy", re.IGNORECASE)
 
 
 class UnsupportedParametersError(ProviderRequestError):
     """404: no endpoint of this model supports the requested parameters (require_parameters)."""
 
+
+# OpenRouter's 429 when the account's daily allowance for :free models is used up. Every :free model
+# shares it, so it is a quota (not a transient rate limit): retrying or trying another :free model
+# cannot succeed until it resets. Matched to classify only; the text is never echoed.
+_FREE_MODEL_QUOTA = re.compile(r"free-models-per-day", re.IGNORECASE)
+
+
+class FreeModelQuotaError(ProviderQuotaError):
+    """429 free-models-per-day: the daily quota for :free models is exhausted. Never retried; the
+    remaining :free models are skipped; a paid model later in the list is still tried."""
+
+
+class DataPolicyError(ProviderRequestError):
+    """404: every endpoint of this model is excluded by the data policy (data_collection=deny or the
+    account's OpenRouter privacy settings). Not retried and no fallback: the next model is tried."""
+
 API_KEY_VAR = "OPENROUTER_API_KEY"
 MODELS_VAR = "INKLOOM_LLM_MODELS"
+MAX_MODELS = 5
+# An OpenRouter model id: "<provider>/<model>" with an optional ":<variant>" (":free", ":nitro").
+# One slash, so a URL ("https://openrouter.ai/x/y") is refused instead of being sent as a model id.
+MODEL_ID = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(?::[A-Za-z0-9._-]+)?")
+MODELS_FORMAT = (
+    f"{MODELS_VAR} must be a comma-separated list of 1 to {MAX_MODELS} OpenRouter model ids, tried in "
+    "order, with no quotes or brackets, e.g. nvidia/nemotron-3.5-super-vl:free or "
+    "nvidia/nemotron-3.5-super-vl:free,meta-llama/llama-3.3-70b-instruct:free"
+)
 _OPTIONAL_VARS = {
     "base_url": "OPENROUTER_BASE_URL",
     "timeout_seconds": "INKLOOM_LLM_TIMEOUT_SECONDS",
@@ -76,7 +106,7 @@ class OpenRouterSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     api_key: SecretStr
-    models: list[str] = Field(min_length=1, max_length=5)
+    models: list[str] = Field(min_length=1, max_length=MAX_MODELS)
     base_url: str = "https://openrouter.ai/api/v1"
     timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     max_retries: int = Field(default=2, ge=0, le=5)
@@ -100,7 +130,7 @@ class OpenRouterSettings(BaseModel):
     @classmethod
     def _model_ids(cls, value: list[str]) -> list[str]:
         for model in value:
-            if not re.fullmatch(r"[A-Za-z0-9._:/-]{3,128}", model):
+            if len(model) > 128 or not MODEL_ID.fullmatch(model):
                 raise ValueError("each model must be an OpenRouter model id such as provider/model-name")
         return value
 
@@ -120,7 +150,7 @@ class OpenRouterSettings(BaseModel):
         if missing:
             raise ProviderNotConfiguredError(
                 f"LLM provider not configured: set {' and '.join(missing)}. "
-                f"{MODELS_VAR} is a comma-separated list of OpenRouter model ids, tried in order. "
+                f"{MODELS_FORMAT}. "
                 "AI checks are unavailable until then."
             )
         values: dict[str, Any] = {
@@ -138,7 +168,31 @@ class OpenRouterSettings(BaseModel):
             names = {"api_key": API_KEY_VAR, "models": MODELS_VAR, **_OPTIONAL_VARS}
             fields = sorted({names.get(str(e["loc"][0]), str(e["loc"][0])) for e in error.errors()})
             # Field names only: validation messages could echo the values, including the key.
-            raise ProviderNotConfiguredError(f"LLM provider misconfigured: invalid {', '.join(fields)}.") from None
+            message = f"LLM provider misconfigured: invalid {', '.join(fields)}."
+            if MODELS_VAR in fields:
+                message += " " + MODELS_FORMAT + "." + models_hint(env[MODELS_VAR])
+            raise ProviderNotConfiguredError(message) from None
+
+
+def models_hint(raw: str) -> str:
+    """What looks wrong with an INKLOOM_LLM_MODELS value, described without repeating it (someone
+    may have pasted a key into the wrong variable)."""
+    value = raw.strip()
+    found = []
+    if any(q in value for q in "\"'`"):
+        found.append("it contains quote characters (cmd's set VAR=\"...\" keeps the quotes; write set VAR=value)")
+    if any(b in value for b in "[]{}"):
+        found.append("it contains brackets (JSON is not accepted; use a plain comma-separated list)")
+    if ";" in value or any(" " in part.strip() or "\t" in part.strip() for part in value.split(",")):
+        found.append("models are separated by something other than commas")
+    if "=" in value:
+        found.append("it contains '=' (a name=model mapping is not accepted)")
+    if "://" in value:
+        found.append("it contains a URL (use the model id only, e.g. provider/model)")
+    count = len([m for m in value.split(",") if m.strip()])
+    if count > MAX_MODELS:
+        found.append(f"it lists {count} models (at most {MAX_MODELS})")
+    return (" Detected: " + "; ".join(found) + ".") if found else ""
 
 
 class OpenRouterProvider:
@@ -159,6 +213,10 @@ class OpenRouterProvider:
         self._secret = settings.api_key.get_secret_value()
         register_secret(self._secret)
         install_redaction(logger)
+        # Refusals that cannot change during one run (an evaluation, a request), remembered so that
+        # later calls skip them without a network request instead of failing the same way again.
+        self._refused_models: dict[str, ProviderError] = {}  # model -> DataPolicyError
+        self._free_quota_error: FreeModelQuotaError | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> OpenRouterProvider:
@@ -176,6 +234,12 @@ class OpenRouterProvider:
         attempts = 0
         last: ProviderError | None = None
         for model in self.settings.models:
+            if model in self._refused_models:
+                last = self._refused_models[model]
+                continue
+            if self._free_quota_error is not None and model.endswith(":free"):
+                last = self._free_quota_error
+                continue
             mode = self.settings.structured_output
             retry = 0
             while retry <= self.settings.max_retries:
@@ -183,8 +247,16 @@ class OpenRouterProvider:
                 try:
                     data, answered_by = self._call(model, request, mode)
                     return JsonCompletion(data=data, model=answered_by, attempts=attempts)
+                except FreeModelQuotaError as error:
+                    last = self._free_quota_error = error
+                    logger.warning("openrouter model=%s: daily free-model quota exhausted; skipping :free models", model)
+                    break
                 except ACCOUNT_ERRORS:
                     raise
+                except DataPolicyError as error:
+                    last = self._refused_models[model] = error
+                    logger.warning("openrouter model=%s rejected by the data policy; skipped for this run", model)
+                    break
                 except UnsupportedParametersError as error:
                     last = error
                     if mode == "json_schema":
@@ -293,9 +365,22 @@ class OpenRouterProvider:
             return ProviderAuthError(message)
         if status == 408:
             return ProviderTimeoutError(message)
+        if status == 429 and _FREE_MODEL_QUOTA.search(
+            error.get("message") if isinstance(error.get("message"), str) else ""
+        ):
+            return FreeModelQuotaError(
+                "OpenRouter's daily quota for :free models is exhausted (429 free-models-per-day). No :free model "
+                "can answer until it resets; use a paid model with a compliant endpoint, or wait."
+            )
         if status == 429:
             return ProviderRateLimitError(message, _retry_after(response))
-        if status == 404 and isinstance(error.get("message"), str) and _NO_ENDPOINTS.search(error["message"]):
+        provider_message = error.get("message") if isinstance(error.get("message"), str) else ""
+        if status == 404 and _NO_ENDPOINTS_FOR_DATA_POLICY.search(provider_message):
+            return DataPolicyError(
+                f"{model}: no endpoint matches the data policy (404); with {_OPTIONAL_VARS['data_collection']}=deny a model "
+                "whose providers may train on or log prompts cannot be used (see https://openrouter.ai/settings/privacy)"
+            )
+        if status == 404 and _NO_ENDPOINTS_FOR_PARAMETERS.search(provider_message):
             return UnsupportedParametersError(f"{model}: no endpoint supports the requested parameters (404)")
         if status in (400, 404, 413, 422):
             return ProviderRequestError(message)

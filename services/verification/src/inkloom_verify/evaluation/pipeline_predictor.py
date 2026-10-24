@@ -176,6 +176,8 @@ class PipelinePredictor:
                        for c in citations],
             model_id=",".join(models) or None,
             prompt_version=prompts.get("verify_claim"),
+            error_code=",".join(sorted({c.error_code for c in claims if c.error_code}))[:64] or None
+            if verdict is Verdict.ERROR else None,
         )
         if verdict is Verdict.ERROR:
             codes = sorted({c.error_code for c in claims if c.error_code})
@@ -187,7 +189,9 @@ class PipelinePredictor:
 
     def _record(self, record, verdict, claims, outcome, reason, status, errors, prompts, models, started) -> EvalPrediction:
         self._store(record, verdict, outcome, reason, status, errors, claims, prompts, models, started)
-        return EvalPrediction(record_id=record.record_id, verdict=verdict)
+        codes = ",".join(sorted({e["code"] for e in errors}))[:64] or None
+        return EvalPrediction(record_id=record.record_id, verdict=verdict,
+                              error_code=codes if verdict is Verdict.ERROR else None)
 
     def _store(self, record, verdict, outcome, reason, status, errors, claims, prompts, models, started) -> None:
         self.models |= set(models)

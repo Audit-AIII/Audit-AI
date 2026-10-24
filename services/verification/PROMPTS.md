@@ -186,7 +186,7 @@ credentials are in the code.
 | Variable | Required | Default | Meaning |
 |---|---|---|---|
 | `OPENROUTER_API_KEY` | yes | none | OpenRouter API key. |
-| `INKLOOM_LLM_MODELS` | yes | none | Comma-separated OpenRouter model ids, tried in order, at most 5. The team's choice is Gemini Flash first and Llama as fallback. **Copy the exact ids from openrouter.ai/models**: I couldn't confirm the current ids, so none are hard-coded. |
+| `INKLOOM_LLM_MODELS` | yes | none | Comma-separated OpenRouter model ids (`provider/model[:variant]`), tried in order, at most 5. No quotes, JSON or mappings; in cmd.exe write `set INKLOOM_LLM_MODELS=a/b:free` without quotes (cmd keeps them). The team's choice is Gemini Flash first and Llama as fallback. **Copy the exact ids from openrouter.ai/models**: I couldn't confirm the current ids, so none are hard-coded. |
 | `INKLOOM_LLM_TIMEOUT_SECONDS` | no | 30 | Per-request timeout. |
 | `INKLOOM_LLM_MAX_RETRIES` | no | 2 | Retries per model on transient failures. |
 | `INKLOOM_LLM_SEED` | no | 0 | Sent as `seed`; `none` sends no seed. |
@@ -215,6 +215,12 @@ unavailable". Nothing falls back to fake output.
   only of such models failed every call. The report records the configured mode
   (`structured_output`), not the mode that answered; the fallback is logged per model
   (`openrouter model=... has no endpoint for json_schema; retrying with json_object`).
+  A 404 "No endpoints found **matching your data policy**" is different: with
+  `INKLOOM_LLM_DATA_COLLECTION=deny` (the default) every endpoint of that model may train on or log
+  prompts (seen 2026-10-24 for `nvidia/nemotron-3.5-super-vl:free`, whose only endpoint is
+  "Free model training"). It raises `DataPolicyError`: no fallback, no retry, next model. The
+  engine never relaxes `data_collection` by itself; choose a model with a compliant endpoint, or
+  change the setting knowingly.
 - **401/403 (credentials) and 402 (no credit)** stop immediately; no other model can fix them.
 - **Replies:** a reply wrapped in a ```` ```json ```` fence is unwrapped. A reply cut off at the
   token limit (`finish_reason: length`) counts as malformed.
