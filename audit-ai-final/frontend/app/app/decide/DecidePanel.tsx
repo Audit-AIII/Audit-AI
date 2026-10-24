@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
-import { findingChip, isStub, isStubReview, isWholeDraft } from "@/components/app/reviewLabels";
+import { findingChip, isStub, isStubReview, isWholeDraft, suggestionFor } from "@/components/app/reviewLabels";
 import { isDecidable } from "@/components/app/roles";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import { history, itemIdOf } from "@/lib/additions/content";
@@ -85,7 +85,7 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
   const stub = isStubReview(review);
   const decidable = isDecidable(review.status);
   const open = review.findings.filter((f) => !isStub(f) && f.verification_status !== "supported");
-  const fixes = review.findings.filter((f) => f.suggested_correction);
+  const fixes = review.findings.filter((f) => suggestionFor(f) !== null);
 
   const approveBlock = !decidable
     ? null // the outcome banner explains
@@ -187,7 +187,7 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
               <p className="t-caption">Suggested wording (not applied, you edit the draft yourself)</p>
               {fixes.map((f) => (
                 <p key={f.finding_id} className="diff">
-                  <del>{f.original_text}</del> <ins>{f.suggested_correction}</ins>
+                  <del>{f.original_text}</del> <ins>{suggestionFor(f)?.text}</ins> <span className="t-caption">({suggestionFor(f)?.label})</span>
                 </p>
               ))}
             </div>

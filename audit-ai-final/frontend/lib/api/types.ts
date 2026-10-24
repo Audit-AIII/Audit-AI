@@ -141,6 +141,9 @@ export type FindingOut = {
   scope?: RuleScope | null;
   suggestion_basis?: SuggestionBasis | null;
   source_ids?: string[] | null;
+  /** Unverified claims only: a softened rewrite that is NOT backed by evidence (suggested_correction
+   * stays empty for unverified claims on backends that send this). */
+  safer_wording?: string | null;
 };
 
 export type EngineInfo = {

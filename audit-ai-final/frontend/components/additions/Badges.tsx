@@ -6,7 +6,7 @@ const VERDICT: Record<string, { glyph: string; label: string; tone: string }> = 
   supported: { glyph: "✓", label: "Supported", tone: "ok" },
   contradicted: { glyph: "≠", label: "Contradicted", tone: "bad" },
   unverified: { glyph: "?", label: "Not proven yet", tone: "warn" },
-  conflicting_sources: { glyph: "⇄", label: "Sources disagree", tone: "warn" },
+  conflicting_sources: { glyph: "⇄", label: "Approved documents disagree, check which is correct", tone: "warn" },
   not_applicable: { glyph: "–", label: "No claim", tone: "none" },
 };
 export const verdictOf = (s: string) => VERDICT[s] ?? { glyph: "?", label: s.replace(/_/g, " "), tone: "warn" };
