@@ -31,9 +31,26 @@ async function optional<T>(path: string, init?: Parameters<typeof request>[1]): 
 }
 
 export const brandRisk = (brandId: string) => optional<BrandRisk>(`/api/analytics/brand-risk?brand_id=${encodeURIComponent(brandId)}`);
+/**
+ * Two different 404s:
+ *   - {"error": {"code": "NOT_FOUND", "message": "no evaluation has been run yet"}}: the route
+ *     exists, nothing has been run -> an empty state (state "none"), not "needs backend";
+ *   - FastAPI's default {"detail": "Not Found"} (no error body, so code BAD_RESPONSE): the route
+ *     itself is missing -> { available: false }.
+ */
+export const isNoEvaluationYet = (err: unknown) =>
+  err instanceof ApiError && err.status === 404 && err.code === "NOT_FOUND" && /no evaluation/i.test(err.message);
+
 export async function latestEvaluation(): Promise<Maybe<EvaluationResponse>> {
-  const r = await optional<unknown>("/api/evaluations/latest");
-  return r.available ? { available: true, data: parseEvaluation(r.data) } : r;
+  try {
+    return { available: true, data: parseEvaluation(await request<unknown>("/api/evaluations/latest")) };
+  } catch (err) {
+    if (isNoEvaluationYet(err)) {
+      return { available: true, data: { contract: "evaluation-summary-v1", state: "none", reason: "", how_to_run: "" } };
+    }
+    if (isMissingRoute(err)) return { available: false };
+    throw err;
+  }
 }
 
 /** Illustration only; rendered under a "Sample data" notice and never mixed with real numbers. */
