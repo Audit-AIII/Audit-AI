@@ -5,3 +5,15 @@
 !.env.example
 *.pem
 *.key
+
+# Build, test and tool caches, everywhere (the services and the frontend also list their own).
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+node_modules/
+.next/
+# Playwright output
+playwright-report/
+test-results/
