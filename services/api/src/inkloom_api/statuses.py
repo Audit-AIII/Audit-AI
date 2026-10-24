@@ -59,6 +59,17 @@ class FindingCategory(str, Enum):
     UNSUPPORTED_CLAIM = "unsupported_claim"  # unverified: no evidence either way
     SUPPORTED_CLAIM = "supported_claim"
     ENGINE_ERROR = "engine_error"  # this one claim could not be checked (provider/engine failure)
+    # Rule findings (check_type "rule") carry the engine's own rule category instead:
+    # "terminology", "brand_compliance" or "accessibility" (inkloom_verify.schemas.RuleCategory).
+
+
+class RulesStatus(str, Enum):
+    """`reviews.rules_status` (migration 0010): whether the brand's rules ran on this review.
+    NULL on reviews from before rules were wired in."""
+
+    COMPLETE = "complete"  # every rule check ran (each one passed, violated or not_checkable)
+    INCOMPLETE = "incomplete"  # at least one check ended in error: never show the draft as rule-clean
+    NOT_APPLIED = "not_applied"  # nothing ran: the stored rules are invalid, or the rules engine failed
 
 
 class CheckType(str, Enum):

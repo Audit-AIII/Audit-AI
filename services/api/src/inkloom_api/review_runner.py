@@ -14,7 +14,7 @@ from inkloom_verify.schemas import CONTRACT_VERSION
 from sqlalchemy.orm import Session
 
 from .engine.pipeline import build_corpus, run_review
-from .models import BrandSource, ContentVersion, Review, SourceVersion
+from .models import BrandProfile, BrandSource, ContentVersion, Review, SourceVersion
 from .statuses import BrandSourceSensitivity, BrandSourceStatus, ReviewState
 
 
@@ -65,5 +65,7 @@ def start_review(
     # confidential - a mixed-sensitivity corpus must not let the content touch a cloud provider
     # just because some of its other sources are normal.
     confidential = any(source.sensitivity == BrandSourceSensitivity.CONFIDENTIAL.value for source, _ in entries)
-    run_review(db, review, content_version, corpus, confidential=confidential, provider_builders=provider_builders)
+    brand = db.get(BrandProfile, brand_profile_id) if brand_profile_id else None
+    run_review(db, review, content_version, corpus, confidential=confidential, provider_builders=provider_builders,
+               brand_rules=brand.rules if brand is not None else None)
     return review

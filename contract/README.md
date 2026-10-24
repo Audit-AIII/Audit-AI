@@ -96,6 +96,24 @@ unverified claims the engine's softened wording when it passes the backend's rul
 `BrandOut` (`GET /api/brands`) gained `review_count`, `open_review_count` (reviews waiting for the
 user's decision) and `last_review_at`.
 
+## Rule findings and brand rules (2026-10-24, additive)
+
+For Member 1 (Chahit). Member 2's terminology / compliance / accessibility rules now run on every
+review. Full shapes: `services/api/API.md` ("Brand rules" and "Rule findings"). What the UI needs:
+
+- A **rule finding** has `check_type: "rule"`, `category` `terminology` | `brand_compliance` |
+  `accessibility` (**new values — the UI needs labels**), `verification_status: "not_applicable"`
+  (not a claim verdict: don't render it as supported/contradicted), and new fields `rule_id`,
+  `rule_type`, `scope`, `suggestion_basis`, `source_ids` (all `null` on claim findings).
+- `scope: "document"` means something is missing; show it as about the whole draft, not the
+  highlighted first line.
+- `suggested_correction` works as for claims (`draft.replace(original_text, suggested_correction)`);
+  label it by `suggestion_basis`: brand rule vs. approved document.
+- On the review, `rules_status` (`complete` | `incomplete` | `not_applied` | `null`) and
+  `rule_checks`. A check with status `not_checkable` must read "not checked", never "passed";
+  `incomplete` / `not_applied` mean the draft must not be shown as rule-clean.
+- `GET` / `PUT /api/brands/{id}/rules` to view and edit a brand's rules (a rules editor is new UI).
+
 ## Routes for the new UI pages (2026-10-24)
 
 Full shapes and example JSON: `services/api/API.md`.

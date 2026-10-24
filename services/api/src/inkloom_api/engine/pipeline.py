@@ -45,6 +45,7 @@ from ..statuses import (
     Severity,
     VerificationStatus,
 )
+from .brand_rules import apply_brand_rules
 from .corpus import CorpusEntry, build_corpus, corpus_lookup  # noqa: F401 (build_corpus re-exported for routers)
 from .evidence_validator import EvidenceIntegrityError, validate_all
 from .provider import build_provider
@@ -98,8 +99,12 @@ def run_review(
     db: Session, review: Review, content_version: ContentVersion, corpus: list[CorpusEntry],
     confidential: bool = False,
     provider_builders: list[tuple[str, Callable[[], LLMProvider]]] | None = None,
+    brand_rules: dict | None = None,
 ) -> None:
     """Mutates `review` and adds `Finding`/`EvidenceLink` rows to `db`. Caller commits.
+
+    `brand_rules`: the brand's stored rules (brand_profiles.rules). They run first, on every
+    path below - they are deterministic and need no provider (engine/brand_rules.py).
 
     `provider_builders` replaces the configured fallback chain (engine/provider.py) for this one
     review - used only by `scripts/seed.py` to run demo reviews through the offline scripted
@@ -107,9 +112,17 @@ def run_review(
     external_call_log exactly like a real provider's."""
     review.status = ReviewState.ANALYSING.value
     review.started_at = datetime.now(timezone.utc)
+    rules = apply_brand_rules(db, review, content_version, brand_rules, corpus)
+
+    def finish(state: ReviewState, summary: str | None = None) -> None:
+        # A rule finding, or rules that could not (fully) run, also needs a person; a failed
+        # review stays failed. The rules' note is kept alongside the claims' summary.
+        if state is ReviewState.COMPLETED and rules.needs_human_review:
+            state = ReviewState.NEEDS_HUMAN_REVIEW
+        _finish(db, review, state, "; ".join(p for p in (summary, rules.note) if p) or None)
 
     if not corpus:
-        _finish(db, review, ReviewState.FAILED, "This brand has no approved sources to verify content against.")
+        finish(ReviewState.FAILED, "This brand has no approved sources to verify content against.")
         return
 
     organisation_id = content_version.content_item.organisation_id
@@ -124,7 +137,7 @@ def run_review(
     if cached is not None:
         materialize_cached_report(db, review, cached)
         needs_review = any(f["requires_human_review"] for f in cached["findings"])
-        _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_review else ReviewState.COMPLETED)
+        finish(ReviewState.NEEDS_HUMAN_REVIEW if needs_review else ReviewState.COMPLETED)
         return
 
     on_attempt = _make_external_call_logger(db, review, organisation_id)
@@ -140,7 +153,7 @@ def run_review(
         else:
             reason = f"none configured (tried: {', '.join(provider.unconfigured)})"
         _write_stub_finding(db, review, content_version, reason)
-        _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW)
+        finish(ReviewState.NEEDS_HUMAN_REVIEW)
         return
 
     review.engine_provider = provider.name
@@ -162,7 +175,7 @@ def run_review(
 
     if not extraction.claims and not extraction.complete:
         message = "; ".join(e.message for e in extraction.errors)[:500] or "Claim extraction failed."
-        _finish(db, review, ReviewState.FAILED, message)
+        finish(ReviewState.FAILED, message)
         return
 
     try:
@@ -176,7 +189,7 @@ def run_review(
         softener = softener_class(provider) if softener_class is not None else None
         content = InputContent(text=content_version.text)
     except Exception as error:  # e.g. RetrievalError/RetrievalLimitError on a malformed corpus
-        _finish(db, review, ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
+        finish(ReviewState.FAILED, f"Could not prepare the reference corpus: {type(error).__name__}"[:500])
         return
 
     needs_human_review = bool(extraction.errors)  # a partial extraction still needs a human look
@@ -206,7 +219,7 @@ def run_review(
         _write_finding(db, review, content_version, claim, result, lookup, organisation_id, softening)
 
     summary = "; ".join(e.message for e in extraction.errors)[:500] or None
-    _finish(db, review, ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED, summary)
+    finish(ReviewState.NEEDS_HUMAN_REVIEW if needs_human_review else ReviewState.COMPLETED, summary)
     # Only a genuine completed analysis is cached - never a stub result or a provider/corpus
     # failure (both returned early above, before reaching here), nor a partial one.
     if not partial and provider_builders is None:

@@ -1,7 +1,7 @@
 # Member 3 (Backend) — Project Status
 
 **Team:** CodeNinjas · **Product:** InkLoom AI · **Member:** Member 3 — Backend, Security & Governance
-**Last updated:** 2026-10-24 · **Tests:** 234 / 234 passing against a real PostgreSQL database ·
+**Last updated:** 2026-10-24 · **Tests:** 260 / 260 passing (+2 strict xfail: engine gaps 1-2) against a real PostgreSQL database ·
 **Smoke test:** passing over real HTTP with a real AI provider · not yet deployed
 
 > `00_CONTEXT.md` in this folder is the original governance contract. Where it mentions team roles,
@@ -36,10 +36,10 @@ Implemented without changing the UI or dropping anything:
 
 | Area | Description |
 |---|---|
-| Database | PostgreSQL, 17 tables, 9 Alembic migrations |
+| Database | PostgreSQL, 17 tables, 10 Alembic migrations |
 | Auth | Email + password, JWT bearer tokens, self-serve registration (one private account per email) |
 | Isolation | Every query scoped to the caller's own account; other accounts' data unreachable by construction |
-| API | FastAPI, 23 HTTP routes across 7 routers |
+| API | FastAPI, 25 HTTP routes across 7 routers |
 | Orchestration | Calls Member 2's engine in-process (extraction, retrieval, verification, **correction**), writes results |
 | Versioning | Immutable content versions, exactly one current version per item |
 | Approval | The owner approves / requests changes; stale and source-drift guards |
@@ -85,6 +85,7 @@ verified on a live database (and by `tests/test_migrations.py` on every run).
 | 0007 | `ops_tables_review_id_set_null_on_delete` | Dangling-FK fix |
 | 0008 | `risk_based_approval_routing` | Two roles + `reviews.required_reviewer_role` (kept; routing now off) |
 | 0009 | `evaluation_runs` | **New.** Trust Scorecard runs |
+| 0010 | `brand_rules_and_rule_findings` | **New.** `brand_profiles.rules`, rule fields on findings, `reviews.rules_status` / `rule_checks` |
 
 Tables: `organisations` (= accounts), `users`, `memberships`, `brand_profiles`, `brand_sources`,
 `source_versions`, `content_items`, `content_versions`, `reviews`, `findings`, `evidence_links`,
@@ -168,6 +169,7 @@ then switched off by the individual-user decision.
 | fix | branch `fix/main-green` | Re-verified main after direct pushes broke it (`IndentationError` in `test_evaluations.py`). Krish's `member2/fix-plan-2-5-6-8` (incl. `f9f18a8` re-indent and `cc145f7` backend changes) was already on main via PR #1; no conflict markers; full suite 212 passed / 0 skipped against PostgreSQL; server boots (`/health` 200). No code changes needed |
 | Phase 2 | branch `darsh/phase2-contracts` | Contract and stability audit (`tests/test_api_stability.py`, 18 tests). Fixed: router 404/405 answered outside the error shape; every 500 lost its request id; a NUL character in any text field or uploaded file was a 500 (now 422); an Idempotency-Key over 200 chars was a 500 after storing the review (now 422 first); two same-key requests at once stored a duplicate review then 500'd (key now claimed in the review's own transaction: one review, both get it); a caller's X-Request-ID was echoed unvalidated. Guard test: only login/register/health are open. Docs: softening shipped |
 | Phase 3 | branch `darsh/phase3-single-user` | Single-user decision confirmed (DECISIONS.md decision 1); already implemented, no code change. Verified and pinned: within one account a brand's review gets only that brand's approved, current documents, cites nothing of another brand's, and the result cache can't carry evidence across brands or past a withdrawal (`test_reference_set_isolation.py`, mutation-checked); every decision is audited (who, when, which version) and an approval never carries over to a new version (`test_individual_mode.py`) |
+| Phase 4 | branch `darsh/phase4-rules` | Krish's rules module wired into reviews (Krish's gap 3 test now passes). Migration 0010; `GET`/`PUT /api/brands/{id}/rules` validated with the engine's `BrandRules`; rule findings via `rule_finding_fields`, run on every review path, never cached; `rules_status` / `rule_checks` so not-checkable is never 'passed'; rule evidence kept only if really in an approved document. `test_rule_findings.py` (12 tests, mutation-checked). Includes Krish's `member2/steps-6-8` |
 
 Trust Scorecard real run (gemini-3.5-flash-lite, engine dataset of 55 claims at the time; it is now 80): 53 answered,
 catch_rate 1.0 (35/35), false_positive_rate 0.0 (0/18 answered supported). Small synthetic set —
@@ -181,7 +183,7 @@ of time on free-tier 503s; such runs (>20% claims without a verdict) are now ref
 ```sh
 cd services/api
 set -a; source .env; set +a
-.venv/Scripts/python -m pytest -q          # 234 passed, 0 skipped, ~74s, real PostgreSQL 18.6 (2026-10-24, branch darsh/phase3-single-user)
+.venv/Scripts/python -m pytest -q          # 260 passed, 2 xfailed, 0 skipped, ~75s, real PostgreSQL 18.6 (2026-10-24, branch darsh/phase4-rules)
 ```
 
 Covers: cross-account isolation (every route), revoked memberships, approval guards and state

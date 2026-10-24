@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from .engine.corpus import CorpusEntry
 from .models import ContentVersion, EvidenceLink, Finding, ResultCache, Review
+from .statuses import CheckType
 
 
 def compute_cache_key(
@@ -53,8 +54,12 @@ def store_report(db: Session, cache_key: str, review_id: uuid.UUID, report: dict
 
 
 def serialize_review_outcome(db: Session, review: Review) -> dict:
-    """Everything needed to replay this review's result onto a different `Review` row later."""
-    findings = db.query(Finding).filter_by(review_id=review.id).all()
+    """Everything needed to replay this review's result onto a different `Review` row later.
+    Rule findings are left out: rules run fresh on every review (engine/brand_rules.py), since a
+    brand's rules can change while the content and its sources stay the same."""
+    findings = (
+        db.query(Finding).filter(Finding.review_id == review.id, Finding.check_type != CheckType.RULE.value).all()
+    )
     return {
         "report_status": review.report_status,
         "engine_provider": review.engine_provider,

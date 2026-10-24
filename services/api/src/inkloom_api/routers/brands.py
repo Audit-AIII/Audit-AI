@@ -15,7 +15,8 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from inkloom_verify.schemas import ReferenceDocument
-from pydantic import BaseModel, Field, field_validator
+from inkloom_verify.schemas import BrandRules
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -26,7 +27,7 @@ from ..auth.permissions import Permission
 from ..config import Settings, get_settings
 from ..db import get_db
 from ..models import AuditEvent, BrandProfile, BrandSource, SourceVersion
-from ..request_text import StoredText
+from ..request_text import StoredText, contains_nul
 from ..review_queries import brand_review_stats
 from ..schemas import BrandOut, BrandSourceOut, FlippedDependentOut, NewSourceVersionResponse, WithdrawSourceResponse
 from ..section_diff import document_section_hashes
@@ -349,3 +350,67 @@ def approve_brand_source(
     db.commit()
     db.refresh(source)
     return BrandSourceOut.from_model(source)
+
+
+# --- Brand rules (terminology, compliance, accessibility; migration 0010) -----------------------
+
+
+class BrandRulesRequest(BaseModel):
+    # An `inkloom_verify.schemas.BrandRules` object without `rule_set_id`/`version` (this backend
+    # sets both), or null to remove the brand's rules (the default accessibility checks still run).
+    rules: dict | None
+
+
+class BrandRulesOut(BaseModel):
+    brand_id: uuid.UUID
+    rules: dict | None
+
+
+@router.get("/{brand_id}/rules", response_model=BrandRulesOut)
+def get_brand_rules(
+    brand_id: uuid.UUID,
+    auth: AuthContext = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> BrandRulesOut:
+    brand = get_brand_profile_or_404(db, auth.organisation_id, brand_id)
+    return BrandRulesOut(brand_id=brand.id, rules=brand.rules)
+
+
+@router.put("/{brand_id}/rules", response_model=BrandRulesOut)
+def put_brand_rules(
+    brand_id: uuid.UUID,
+    body: BrandRulesRequest,
+    auth: AuthContext = Depends(require_permission(Permission.MANAGE_SOURCES)),
+    db: Session = Depends(get_db),
+) -> BrandRulesOut:
+    """Validated with the engine's own `BrandRules` when saved (RULES_HANDOFF.md section 4), so a
+    malformed or contradictory rule set is a 422 here - naming fields and rule ids, never values -
+    rather than a review that can't apply it. Each save bumps `version`; reviews read the rules
+    as they are when the review runs."""
+    brand = get_brand_profile_or_404(db, auth.organisation_id, brand_id)
+    stored = None
+    if body.rules is not None:
+        if contains_nul(body.rules):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid brand rules: must not contain NUL (0x00) characters")
+        previous = (brand.rules or {}).get("version")
+        version = int(previous) + 1 if isinstance(previous, str) and previous.isdigit() else 1
+        candidate = {**body.rules, "rule_set_id": f"brand-{brand.id}", "version": str(version)}
+        try:
+            validated = BrandRules.model_validate(candidate)
+        except ValidationError as error:
+            problems = [(".".join(str(p) for p in e["loc"]) or "rules") + ": " + e["msg"] for e in error.errors()][:20]
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"invalid brand rules: {'; '.join(problems)}"[:1000]) from None
+        stored = validated.model_dump(mode="json", exclude_unset=True)
+
+    brand.rules = stored
+    log_audit_event(
+        db,
+        organisation_id=auth.organisation_id,
+        actor_user_id=auth.user_id,
+        event_type="brand.rules_updated" if stored is not None else "brand.rules_cleared",
+        entity_type="brand_profile",
+        entity_id=brand.id,
+        details={"version": stored["version"]} if stored is not None else {},
+    )
+    db.commit()
+    return BrandRulesOut(brand_id=brand.id, rules=stored)

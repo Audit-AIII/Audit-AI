@@ -11,10 +11,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..statuses import CheckType, EvidenceRelation, MembershipRole, ReviewState, Severity, VerificationStatus, values
+from ..statuses import CheckType, EvidenceRelation, MembershipRole, ReviewState, RulesStatus, Severity, VerificationStatus, values
 from .base import Base, created_at_column, updated_at_column, uuid_pk
 
 
@@ -28,6 +28,9 @@ class Review(Base):
         CheckConstraint(
             f"required_reviewer_role IN {_ROUTABLE_REVIEWER_ROLES} OR required_reviewer_role IS NULL",
             name="ck_review_required_reviewer_role",
+        ),
+        CheckConstraint(
+            f"rules_status IS NULL OR rules_status IN {tuple(values(RulesStatus))}", name="ck_review_rules_status"
         ),
     )
 
@@ -48,6 +51,10 @@ class Review(Base):
     # Phase 5 task 5: true when this review's findings were replayed from result_cache rather
     # than actually sent to any provider.
     served_from_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Brand rules (migration 0010): whether they ran, and one check record per rule
+    # (inkloom_verify.schemas.RuleCheck as JSON). Never part of the result cache.
+    rules_status: Mapped[str | None] = mapped_column(String(20))
+    rule_checks: Mapped[list | None] = mapped_column(JSONB)
     # Phase 9 stretch item 1 (migration 0008). Individual-user mode turned routing off: every new
     # review writes NULL here (engine/pipeline.py's _finish). Older rows may still hold a role
     # name; it is kept for history and no longer gates approval.
@@ -75,6 +82,7 @@ class Finding(Base):
         CheckConstraint(
             f"verification_status IN {tuple(values(VerificationStatus))}", name="ck_finding_verification_status"
         ),
+        CheckConstraint("scope IS NULL OR scope IN ('text', 'document')", name="ck_finding_scope"),
     )
 
     finding_id: Mapped[uuid.UUID] = uuid_pk("finding_id")
@@ -93,6 +101,11 @@ class Finding(Base):
     requires_human_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # The engine's claim_id (inkloom_verify.schemas.ClaimId), kept for traceability. Opaque here.
     engine_claim_id: Mapped[str | None] = mapped_column(String(80))
+    # Rule findings only (check_type "rule", migration 0010); null on claim findings.
+    rule_id: Mapped[str | None] = mapped_column(String(128))  # engine ids are up to 128 chars
+    rule_type: Mapped[str | None] = mapped_column(String(40))
+    scope: Mapped[str | None] = mapped_column(String(10))  # "text" | "document" (something missing)
+    suggestion_basis: Mapped[str | None] = mapped_column(String(30))  # "brand_rule" | "approved_document"
     created_at: Mapped[datetime] = created_at_column()
 
     review: Mapped[Review] = relationship(back_populates="findings")

@@ -135,6 +135,7 @@ current one, and no cited source may have been withdrawn or replaced since the r
 | `POST /api/brands/{brand_id}/sources/{source_id}/approve` | Approve a draft document |
 | `POST /api/brands/{brand_id}/sources/{source_id}/withdraw` | Withdraw an approved document; approved dependents → `source_changed` |
 | `POST /api/brands/{brand_id}/sources/{source_id}/versions` | New version of a document; flips only dependents whose cited section changed |
+| `GET /api/brands/{brand_id}/rules` · `PUT .../rules` | **New.** The brand's terminology / compliance / accessibility rules |
 | `POST /api/reviews` | Check pasted text |
 | `POST /api/reviews/upload` | Check an uploaded draft file |
 | `GET /api/reviews` | **New.** The review queue: list the user's reviews |
@@ -207,6 +208,27 @@ approve on upload) → 201 one item of the above. `.../withdraw` body `{"status"
 `.../versions` (multipart `file`) → `{"source", "version_number", "flipped"}`. A confidential source
 in scope keeps the whole review on local Ollama only.
 
+### Brand rules — `GET` / `PUT /api/brands/{id}/rules`
+
+The checks are the engine's (`inkloom_verify.rules`; rule kinds and fields:
+`services/verification/RULES_HANDOFF.md`, JSON Schema `services/verification/schemas/brand_rules.schema.json`).
+`PUT` body `{"rules": {...}}` — a `BrandRules` object **without** `rule_set_id` / `version` (the
+backend sets `rule_set_id = "brand-<id>"` and bumps `version` on every save) — or `{"rules": null}`
+to remove them. Both answer `{"brand_id", "rules"}` (the stored object, or `null`).
+
+```json
+{"rules": {"prohibited_terms": [{"rule_id": "no-guarantee", "term": "guaranteed",
+                                 "approved_alternative": "designed", "severity": "high"}],
+           "required_terms": [{"rule_id": "req-company", "term": "Lumen Goods"}]}}
+```
+- Validated when saved: malformed or contradictory rules, or a NUL character → **422** whose message
+  names fields and rule ids only (e.g. `conflicting rules: a requires a term that b prohibits`),
+  never a configured value; nothing is stored.
+- No rules (`null`) still runs the default accessibility checks on every review. `{}` is the same,
+  saved explicitly.
+- Every save is audited (`brand.rules_updated` / `brand.rules_cleared`). Reviews use the rules as
+  they are when the review runs. Another account's brand → 404.
+
 ### `POST /api/reviews` · `POST /api/reviews/upload`
 
 Body `{"brand_id", "title"?, "text"}` (text ≤ 100,000 chars), or multipart `brand_id`, `title`?, `file`.
@@ -219,9 +241,9 @@ account.
 
 | `status` | When |
 |---|---|
-| `completed` | Every claim supported (or nothing to check) — **never** means approved |
-| `needs_human_review` | At least one claim contradicted / unverified / errored, or stub mode |
-| `failed` | No approved document for the brand, or claim extraction failed (`error_summary` says why) |
+| `completed` | Every claim supported (or nothing to check) and no rule finding — **never** means approved |
+| `needs_human_review` | At least one claim contradicted / unverified / errored, a rule finding, brand rules that could not (fully) run, or stub mode |
+| `failed` | No approved document for the brand, or claim extraction failed (`error_summary` says why). Rule findings may still be listed. |
 
 ### Review shape (all review routes)
 
@@ -293,6 +315,39 @@ account.
   actually taken from (still the old number after the document gets a new version).
 - `brand_name`, `content_item_id`, `title`, `version_number`, `text`: `null` only on very old rows.
 - `required_reviewer_role`: always `null` on new reviews (routing is off).
+
+**Rule findings** (brand rules and the default accessibility checks; they run on every review,
+before and independent of the claim checks, with no model call, and are never served from cache):
+
+```json
+{
+  "finding_id": "...", "check_type": "rule", "category": "terminology", "severity": "high",
+  "original_text": "Guaranteed", "span": {"start": 0, "end": 10},
+  "explanation": "\"Guaranteed\" is a prohibited term.", "verification_status": "not_applicable",
+  "suggested_correction": "designed", "requires_human_review": true, "evidence": [],
+  "rule_id": "no-guarantee", "rule_type": "prohibited_term", "scope": "text",
+  "suggestion_basis": "brand_rule", "source_ids": []
+}
+```
+- `category`: `terminology`, `brand_compliance` or `accessibility`. `verification_status` is always
+  `not_applicable` — a rule check is not a verdict on a claim. Always `requires_human_review`.
+- `scope: "document"`: something is missing (a required term, a disclaimer); the span anchors on the
+  draft's first line — show it as about the whole draft.
+- `suggested_correction` (terminology only) replaces `original_text`; `suggestion_basis` says why:
+  `brand_rule` (configured) or `approved_document` (the rule is quoted from an approved document,
+  which is then in `evidence` / `source_ids`). Evidence is kept only if that document is one of the
+  brand's current approved documents and the quote is really in it; otherwise it is dropped, and so
+  is an `approved_document` suggestion. Claim findings have these five fields `null`.
+
+On the review:
+- **`rules_status`**: `complete` (every check ran), `incomplete` (a check failed — never show the
+  draft as rule-clean), `not_applied` (nothing ran: the stored rules no longer validate, or the
+  rules module failed; `error_summary` says why, no rule finding is made up), `null` on reviews
+  from before rules existed.
+- **`rule_checks`**: one `{"rule_id", "rule_type", "category", "status", "findings", "reason"}` per
+  rule; `status` is `passed`, `violated`, `not_checkable` (the draft has nothing to inspect — no
+  links, headings, images, media or colours; show **"not checked"**, never "passed") or `error`.
+  `null` when the rules did not run.
 
 ### `GET /api/reviews` — review queue
 
@@ -429,4 +484,6 @@ provider configured → **409**, nothing stored. `POST` where more than 20% of c
 - No org switcher, no invites, no password reset, no email verification (individual accounts).
 - A full `pytest` run wipes the database (the migrations round-trip test) — reseed afterwards with
   `scripts/seed.py --reset`.
+- Image, video and colour accessibility checks only see what is in the text (Markdown / HTML);
+  uploads don't pass their images or media to the rules yet, so those checks are `not_checkable`.
 - Not deployed yet.

@@ -163,6 +163,67 @@
       "items": {
         "$ref": "finding.schema.json"
       }
+    },
+    "rules_status": {
+      "enum": [
+        "complete",
+        "incomplete",
+        "not_applied",
+        null
+      ],
+      "description": "Brand rules on this review. complete: every check ran; incomplete: a check failed (never show the draft as rule-clean); not_applied: nothing ran (see error_summary). Null on reviews from before rules existed."
+    },
+    "rule_checks": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "description": "One record per rule. not_checkable means 'not checked' (the draft lacks what the check needs), never 'passed'.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rule_id",
+          "rule_type",
+          "category",
+          "status",
+          "findings",
+          "reason"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "string"
+          },
+          "rule_type": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "terminology",
+              "brand_compliance",
+              "accessibility"
+            ]
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "violated",
+              "not_checkable",
+              "error"
+            ]
+          },
+          "findings": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
     }
   }
 }

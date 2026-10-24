@@ -26,6 +26,10 @@ class BrandProfile(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    # The brand's validated `inkloom_verify.schemas.BrandRules` JSON (migration 0010); null means
+    # no brand rules, so only the default accessibility checks run. Written only by
+    # PUT /api/brands/{id}/rules, which validates it first.
+    rules: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()
 

@@ -21,3 +21,15 @@ def _no_nul(value: str) -> str:
 
 
 StoredText = Annotated[str, AfterValidator(_no_nul)]
+
+
+def contains_nul(value: object) -> bool:
+    """True if any string inside a JSON-like value (keys included) holds a NUL - for request
+    bodies stored as JSONB, which PostgreSQL also refuses to hold it in."""
+    if isinstance(value, str):
+        return NUL in value
+    if isinstance(value, dict):
+        return any(contains_nul(k) or contains_nul(v) for k, v in value.items())
+    if isinstance(value, list):
+        return any(contains_nul(v) for v in value)
+    return False

@@ -132,6 +132,13 @@ class FindingOut(BaseModel):
     suggested_correction: str | None
     requires_human_review: bool
     evidence: list[EvidenceLinkOut]
+    # Rule findings only (check_type "rule"; services/verification/RULES_HANDOFF.md section 7),
+    # null on claim findings. Defaults keep older idempotency replays parsing.
+    rule_id: str | None = None
+    rule_type: str | None = None
+    scope: str | None = None  # "text": the span is the offending text; "document": something is missing
+    suggestion_basis: str | None = None  # "brand_rule" | "approved_document"
+    source_ids: list[uuid.UUID] | None = None  # the approved documents a rule is quoted from
 
     @classmethod
     def from_model(cls, finding) -> "FindingOut":
@@ -147,7 +154,27 @@ class FindingOut(BaseModel):
             suggested_correction=finding.suggested_correction,
             requires_human_review=finding.requires_human_review,
             evidence=[EvidenceLinkOut.from_model(e) for e in finding.evidence],
+            rule_id=finding.rule_id,
+            rule_type=finding.rule_type,
+            scope=finding.scope,
+            suggestion_basis=finding.suggestion_basis,
+            source_ids=(
+                [e.source_id for e in finding.evidence if e.source_id is not None]
+                if finding.check_type == "rule" else None
+            ),
         )
+
+
+class RuleCheckOut(BaseModel):
+    """One rule's outcome (inkloom_verify.schemas.RuleCheck): passed, violated, not_checkable (the
+    draft lacks what the check needs - show "not checked", never "passed") or error."""
+
+    rule_id: str
+    rule_type: str
+    category: str
+    status: str
+    findings: int
+    reason: str | None
 
 
 class EngineInfoOut(BaseModel):
@@ -184,6 +211,10 @@ class ReviewOut(BaseModel):
     version_number: int | None = None
     text: str | None = None
     brand_name: str | None = None  # additive; via content_item.brand_profile (viewonly)
+    # Brand rules (migration 0010): complete | incomplete | not_applied, null on older reviews;
+    # and one check record per rule (null when the rules did not run).
+    rules_status: str | None = None
+    rule_checks: list[RuleCheckOut] | None = None
 
     @classmethod
     def from_model(cls, review) -> "ReviewOut":
@@ -223,6 +254,8 @@ class ReviewOut(BaseModel):
                 if content_item is not None and content_item.brand_profile is not None
                 else None
             ),
+            rules_status=review.rules_status,
+            rule_checks=review.rule_checks,
         )
 
 

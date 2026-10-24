@@ -24,7 +24,7 @@
         "string",
         "null"
       ],
-      "description": "Real runs: contradicted_claim | unsupported_claim | supported_claim | engine_error. 'stub' marks the no-provider placeholder. Null only on findings written before categories were filled."
+      "description": "Claim findings: contradicted_claim | unsupported_claim | supported_claim | engine_error. Rule findings (check_type 'rule'): terminology | brand_compliance | accessibility. 'stub' marks the no-provider placeholder. Null only on findings written before categories were filled."
     },
     "severity": {
       "enum": [
@@ -93,6 +93,47 @@
       "items": {
         "$ref": "#/definitions/EvidenceLink"
       }
+    },
+    "rule_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Rule findings only: the brand rule (or built-in accessibility check, e.g. style.caps) that produced it. Null on claim findings."
+    },
+    "rule_type": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Rule findings only: e.g. prohibited_term, required_disclaimer, all_caps_run (inkloom_verify RuleType)."
+    },
+    "scope": {
+      "enum": [
+        "text",
+        "document",
+        null
+      ],
+      "description": "Rule findings only. text: the span is the offending text. document: something is missing (a required term, a disclaimer); the span anchors on the first line."
+    },
+    "suggestion_basis": {
+      "enum": [
+        "brand_rule",
+        "approved_document",
+        null
+      ],
+      "description": "Rule findings with a suggested_correction: why it may be offered."
+    },
+    "source_ids": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "description": "Rule findings only: the approved documents the rule is quoted from (also in evidence)."
     }
   },
   "definitions": {

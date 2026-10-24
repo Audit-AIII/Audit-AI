@@ -218,8 +218,6 @@ def test_gap2_safer_wording_is_kept_out_of_suggested_correction(client, monkeypa
     assert finding.get("safer_wording") == "The Lumen Pods are earbuds sold in India."
 
 
-@pytest.mark.xfail(strict=True, reason="backend gap 3: rules.evaluate_rules (terminology, accessibility) is not run "
-                   "in reviews (RULES_HANDOFF.md)")
 @requires_db
 def test_gap3_rule_findings_appear_in_reviews(client, monkeypatch, account_factory):
     use_scripted_provider(monkeypatch, RULES)
