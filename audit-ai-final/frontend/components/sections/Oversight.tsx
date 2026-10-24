@@ -1,9 +1,8 @@
 import { Heading } from "@/components/primitives/Heading";
 
 const PASSPORT = [
-  { step: "Tone check", service: "Cloud AI", note: "Personal details hidden" },
-  { step: "Fact check", service: "Your own server", note: "Stays with you" },
-  { step: "Private document", service: "Your own server", note: "Never leaves" },
+  { step: "Claim check", service: "Outside AI service", note: "Only if one is set up" },
+  { step: "Private document", service: "Local AI only", note: "Never sent out" },
 ];
 
 /** Dark inset panel: who decides, the core principle, and the Data Passport. */
@@ -16,7 +15,7 @@ export function Oversight() {
             People stay in charge
           </Heading>
           <p className="t-lead oversight__intro" data-r="up">
-            Audit AI only suggests. A person accepts, edits, rejects or passes it to someone senior.
+            Audit AI only suggests. A person approves it, sends it back with a note, or rejects it.
           </p>
 
           <figure className="oversight__quote" data-r="up">

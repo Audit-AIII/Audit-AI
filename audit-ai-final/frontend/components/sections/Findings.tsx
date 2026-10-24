@@ -56,11 +56,11 @@ const FINDINGS: Finding[] = [
   {
     label: "Claims",
     window: "circle",
-    source: "Eco-claim rules",
-    excerpt: "“Best” or “number one” needs recent, independent proof.",
+    source: "Your approved documents",
+    excerpt: "No approved document ranks the product “number one”.",
     title: "“India’s number-one eco-friendly solution”",
-    copy: "Nothing you have approved backs up “number one”. Audit AI suggests softer wording, and a reviewer decides.",
-    spec: { check: "Claims", source: "Eco-claim rules", result: "Not proven yet: needs softer wording" },
+    copy: "Nothing you have approved backs up “number one”. Audit AI suggests softer wording, and a person decides.",
+    spec: { check: "Claims", source: "Your approved documents", result: "Not proven yet: needs softer wording" },
     snippet: {
       channel: "Social post",
       body: (
@@ -73,13 +73,13 @@ const FINDINGS: Finding[] = [
     },
   },
   {
-    label: "Tone",
+    label: "Tone · coming next",
     window: "rect",
     source: "Readability and tone rules",
     excerpt: "Write buttons in normal case. One exclamation mark at most.",
     title: "“BUY NOW!!!”",
-    copy: "One line, two problems: all capitals are harder to read for many people, and shouting does not fit the brand’s voice.",
-    spec: { check: "Easy to read, tone", source: "Readability and tone rules", result: "Two problems" },
+    copy: "Coming next, not built yet: this is how readability and tone checks will look. All capitals are harder to read for many people, and shouting does not fit the brand’s voice.",
+    spec: { check: "Easy to read, tone (coming next)", source: "Readability and tone rules", result: "Two problems" },
     snippet: {
       channel: "Email",
       body: (

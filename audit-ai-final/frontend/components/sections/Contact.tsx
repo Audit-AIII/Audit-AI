@@ -38,7 +38,7 @@ export function Contact() {
         <div className="contact__body">
           <div className="contact__cta" data-r="up">
             <p className="t-lead">
-              Sign in to upload a draft, run the six checks and see every problem with the reason behind it.
+              Sign in to upload a draft, run the checks and see every problem with the reason behind it.
             </p>
             <div className="hero__actions">
               <StartReviewButton />

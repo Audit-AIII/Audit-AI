@@ -10,14 +10,14 @@ gsap.registerPlugin(ScrollTrigger);
 
 // COPY TO REVIEW: step descriptions expand the §15 parentheticals into sentences.
 const STEPS = [
-  { title: "Add what's approved", copy: "Upload your brand guide, key facts, approved claims and logos. You only do this once.", visual: "import" },
-  { title: "Send in your draft", copy: "Paste the text, or upload a document or an image.", visual: "submit" },
+  { title: "Add what's approved", copy: "Upload your brand guide and key facts as PDF, Word or text files. You only do this once.", visual: "import" },
+  { title: "Send in your draft", copy: "Paste the text, or upload a PDF, Word or text file.", visual: "submit" },
   {
     title: "See what needs fixing",
     copy: "Each problem comes with the reason, the document it is based on and a suggested fix.",
     visual: "review",
   },
-  { title: "Approve and keep a record", copy: "The right person signs it off, and every decision is saved so you can show it later.", visual: "approve" },
+  { title: "Approve and keep a record", copy: "A person signs it off, and every decision is saved so you can show it later.", visual: "approve" },
 ] as const;
 
 function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {
@@ -25,7 +25,7 @@ function StepVisual({ kind }: { kind: (typeof STEPS)[number]["visual"] }) {
     case "import":
       return (
         <div className="pv pv--import">
-          {["Brand guide", "Key facts", "Claims", "Logos"].map((t) => (
+          {["Brand guide", "Key facts", "Fact sheet"].map((t) => (
             <span key={t} className="pv__tag">
               {t}
             </span>

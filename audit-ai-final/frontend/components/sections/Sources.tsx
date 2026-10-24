@@ -3,12 +3,13 @@ import { BeachFind, Shore, type ShellSpot } from "@/components/layout/Shore";
 
 type Kind = "guide" | "facts" | "claims" | "rules" | "logos";
 
-const SOURCES: { kind: Kind; name: string; checks: string; add: string }[] = [
-  { kind: "guide", name: "Brand guide", checks: "Your voice and the words you use", add: "PDF or Word file" },
-  { kind: "facts", name: "Key facts", checks: "Prices, numbers and dates", add: "Spreadsheet (CSV)" },
-  { kind: "claims", name: "Approved claims", checks: "Promises you are allowed to make, and until when", add: "Added inside Audit AI" },
-  { kind: "rules", name: "Advertising rules", checks: "What the law lets you claim", add: "Built in, starting with India’s eco-claim rules" },
-  { kind: "logos", name: "Logos and colours", checks: "Brand colours and how the logo is used", add: "PNG or SVG images" },
+// `soon`: shown as "Coming next". Today any approved PDF, Word or text document is checked against.
+const SOURCES: { kind: Kind; name: string; checks: string; add: string; soon?: boolean }[] = [
+  { kind: "guide", name: "Brand guide", checks: "Facts and promises written in it", add: "PDF, Word or text file" },
+  { kind: "facts", name: "Key facts", checks: "Prices, numbers and dates", add: "PDF, Word or text file" },
+  { kind: "claims", name: "Approved claims", checks: "Promises you are allowed to make, and until when", add: "Coming next", soon: true },
+  { kind: "rules", name: "Advertising rules", checks: "What the law lets you claim", add: "Coming next", soon: true },
+  { kind: "logos", name: "Logos and colours", checks: "Brand colours and how the logo is used", add: "Coming next", soon: true },
 ];
 
 /** A small paper drawing of each source, so the row shows what it is. */
@@ -103,11 +104,11 @@ export function Sources() {
       <div className="container">
         <div className="sources__head">
           <Heading id="sources-title" className="sources__title" data-r="up">
-            Five things we check against
+            What we check against
           </Heading>
           <p className="t-lead sources__intro" data-r="up">
-            You add these once. Every draft is then checked against them, and each flag tells you which one it came
-            from.
+            You add your approved documents once. Every draft is then checked against them, and each flag tells you
+            which one it came from. Three more kinds of source are coming next.
           </p>
         </div>
 
@@ -120,7 +121,10 @@ export function Sources() {
                   <BeachFind key={j} {...f} className={`sources__find sources__find--${j ? "b" : "a"}`} />
                 ))}
               </div>
-              <h3 className="t-title sources__name">{s.name}</h3>
+              <h3 className="t-title sources__name">
+                {s.name}
+                {s.soon && <span className="checks__soon">Coming next</span>}
+              </h3>
               <dl className="sources__meta">
                 <div>
                   <dt className="t-caption">Checks</dt>

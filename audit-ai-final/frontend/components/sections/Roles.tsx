@@ -2,10 +2,11 @@ import { Heading } from "@/components/primitives/Heading";
 import { TextLink } from "@/components/primitives/TextLink";
 import { StartReviewButton } from "@/components/layout/StartReview";
 
+// Today every account is one person who writes, checks and decides. Separate team roles are planned.
 const ROLES = [
   { name: "Writer", does: "Sends drafts in and fixes what is flagged.", gets: "Every draft", caption: "Sends in" },
-  { name: "Manager", does: "Approves clean drafts in one click.", gets: "Clean drafts", caption: "Approves" },
-  { name: "Reviewer", does: "Makes the call on risky ones.", gets: "Risky drafts", caption: "Decides" },
+  { name: "Decider", does: "Reads why each line was flagged, then approves, sends back or rejects.", gets: "Checked drafts", caption: "Decides" },
+  { name: "Team roles", does: "Planned: separate reviewers and managers, with risky drafts routed to a reviewer.", gets: "Planned", caption: "Not yet" },
 ];
 
 const PATH = ["Draft", "Checked", "Being reviewed", "Approved"];
@@ -30,12 +31,12 @@ export function Roles() {
               </li>
             ))}
           </ol>
-          <p className="t-caption roles__fork">Risky → Reviewer · Clean → Manager</p>
+          <p className="t-caption roles__fork">Planned: Risky → Reviewer · Clean → Manager</p>
         </div>
 
         <div className="roles__sheet card" data-r="scale">
           <Heading id="roles-title" className="roles__title">
-            Three people, one simple flow
+            A person makes every call
           </Heading>
           <ul className="roles__list">
             {ROLES.map((r) => (
