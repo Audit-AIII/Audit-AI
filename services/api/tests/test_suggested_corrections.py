@@ -135,4 +135,6 @@ def test_no_correction_call_for_supported_or_unverified(client, monkeypatch, db_
         "Lumen Pods offer up to 12 hours of playback per charge. Lumen Pods are India's number one earbuds."
     )
     assert all(f["suggested_correction"] is None for f in review["findings"])
-    assert len(_calls(db_session, review["id"])) == 3  # extraction + two verifications, nothing else
+    # extraction + two verifications + one softening call for the unverified claim (the scripted
+    # model declines it); no correction call for either claim.
+    assert len(_calls(db_session, review["id"])) == 4

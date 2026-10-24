@@ -190,7 +190,14 @@ def render_markdown(report: dict[str, Any], max_cases: int = 25) -> str:
               "| Metric | Value | What it answers |", "|---|---|---|"]
     lines += [f"| {label} | {_ratio(m.get(key), m['unavailable'].get(key))} | {what} |" for key, label, what in METRICS]
     lines += [f"| Citation resolution (quote found verbatim) | {_ratio(m.get('citation_resolution'), m['unavailable'].get('citation_resolution'))} "
-              "| Citations that quote the reference exactly. |", "",
+              "| Citations that quote the reference exactly. |",
+              f"| Provider failure rate | {_ratio(m.get('provider_failure_rate'), m['unavailable'].get('provider_failure_rate'))} "
+              "| Records whose answer was ERROR (provider failure, invalid output, budget refusal, missing). |"]
+    latency = m.get("latency") or {}
+    lines += ["", (f"Latency per case (wall clock, seconds; includes provider time only for live runs): n {latency['n']} · "
+                   f"mean {latency['mean_seconds']} · p50 {latency['p50_seconds']} · p95 {latency['p95_seconds']} · "
+                   f"max {latency['max_seconds']}") if latency else
+              f"Latency per case: unavailable ({m['unavailable'].get('latency', 'not measured')})", "",
               "## 12. Confusion matrix", "", "Rows are labels, columns are predictions.", ""]
     confusion = v["confusion"]
     columns = list(next(iter(confusion.values())).keys()) if confusion else []

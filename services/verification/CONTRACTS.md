@@ -428,9 +428,32 @@ yet:
 | `CONTRADICTED` | `contradicted` |
 | `NOT_ENOUGH_EVIDENCE` | `unverified` |
 | `ERROR` | no finding status; the review should go to `failed` or `needs_human_review` (their rule: "never fail open") |
-| none | `conflicting_sources`: the verifier currently folds conflicting evidence into `NOT_ENOUGH_EVIDENCE` and can't report it separately |
-| `correction.replacement_text` (only when `correction_attempt.status` is `proposed`) | `suggested_correction` |
+| `NOT_ENOUGH_EVIDENCE` with `conflicting_sources: true` | `conflicting_sources` (verdict unchanged; always human review) |
+| `correction.replacement_text` (only when `correction_attempt.status` is `proposed`) | `suggested_correction` (evidence-backed only; null otherwise) |
+| `safer_wording.replacement_text` (`NOT_ENOUGH_EVIDENCE` only, `evidence_backed: false`) | **proposed** `safer_wording` field: never `suggested_correction` |
+| cited `doc_id`s, once each | **proposed** `source_ids` field |
+| `VerificationReport.rule_findings[]` | one finding each, `check_type: "rule"`, `verification_status: "not_applicable"` |
 | `ReportScore.requires_human_review` | review state `needs_human_review` |
+
+`inkloom_verify.integration` implements this mapping: `finding_fields()` returns only fields the
+shared contract has today (it validates against `contract/schemas/finding.schema.json`), and
+`proposed_finding_fields()` returns `source_ids`, `safer_wording` and
+`safer_wording_evidence_backed`, which need a contract change by Members 1 and 3 first.
+
+### Additions of 2026-10-24 (contract 0.2.0, backward compatible: all optional or defaulted)
+
+- `VerificationRequest.rules` (`BrandRules`): explicit brand rules, applied deterministically
+  before extraction by `rules.py`. Types: `required_terms`, `prohibited_terms`, `product_names`,
+  `disclaimers`, `numeric_limits`. A rule's `source` must be one of the request's references,
+  with its quote found verbatim in that document.
+- `VerificationReport.rule_findings` (`RuleFinding`): the shared finding shape. A suggested
+  correction exists only for a sourced rule naming the approved wording.
+- `ReportScore.rule_violations` and review reason `rule_violations`.
+- `ClaimResult.conflicting_sources` (derived from the citation guard; refused when inconsistent).
+- `ClaimResult.safer_wording` (`SaferWording`, labelled `safer_wording`, `evidence_backed: false`;
+  only on `NOT_ENOUGH_EVIDENCE`, so it can never sit next to a `correction`). Filled by the
+  pipeline only with `PipelineConfig(suggest_safer_wording=True)` (off by default).
+- The public `/v1/verify` contract (`schemas/public_*.schema.json`) is unchanged.
 
 ## HTTP endpoint: `POST /v1/verify` (public contract, Phase 2)
 

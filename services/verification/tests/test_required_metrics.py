@@ -108,7 +108,9 @@ def test_zero_denominators_are_unavailable_never_zero():
     assert m.citation_validity is None and m.citation_resolution is None
     assert m.human_review_share is None and m.correction_traceability is None
     assert set(m.unavailable) == {"contradicted_precision", "contradicted_recall", "false_negative_rate", "citation_validity",
-                                  "citation_resolution", "human_review_share", "correction_traceability"}
+                                  "citation_resolution", "human_review_share", "correction_traceability", "latency"}
+    assert m.latency == {} and "no per-case timings" in m.unavailable["latency"]  # never a made-up 0 s
+    assert m.provider_failure_rate.numerator == 0 and m.provider_failure_rate.denominator == 1
     assert "never predicted" in m.unavailable["contradicted_precision"]
     assert "needs --pipeline full" in m.unavailable["human_review_share"]
     assert "unavailable (" in rm.markdown(m) and "0.0% (0/0)" not in rm.markdown(m)

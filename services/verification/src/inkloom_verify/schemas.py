@@ -23,7 +23,7 @@ from collections import Counter
 from enum import Enum
 from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from inkloom_verify.security import has_hidden_characters
 
@@ -181,6 +181,155 @@ class ReferenceDescriptor(_Contract):
     text_sha256: Sha256Hex
 
 
+# --- Brand rules (deterministic checks; rules.py) ------------------------------------------------
+
+MAX_RULES_PER_TYPE = 100
+MAX_RULE_TEXT_CHARS = 500
+MAX_RULE_FINDINGS = 200
+RuleText = _text(MAX_RULE_TEXT_CHARS)
+RuleId = Annotated[str, Field(pattern=_EXTERNAL_ID_PATTERN)]
+
+
+class RuleType(str, Enum):
+    REQUIRED_TERM = "required_term"  # the content must contain this term
+    PROHIBITED_TERM = "prohibited_term"  # the content must not contain this term
+    PRODUCT_NAMING = "product_naming"  # a product is written only as its approved name
+    REQUIRED_DISCLAIMER = "required_disclaimer"  # this text must appear (always, or when a trigger term does)
+    NUMERIC_LIMIT = "numeric_limit"  # a figure about a subject stays within a range
+
+
+class RuleSeverity(str, Enum):  # the shared finding contract's values
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class RuleSource(_Contract):
+    """Where a rule is written down: one of the request's reference documents and the rule's
+    exact wording in it. Checked against the request (the document must be one of its references
+    and the quote must be in that document's text), so a rule finding's evidence is real."""
+
+    doc_id: DocumentId
+    quote: RuleText
+
+
+class _Rule(_Contract):
+    rule_id: RuleId
+    severity: RuleSeverity = RuleSeverity.MEDIUM
+    source: RuleSource | None = None
+
+
+class RequiredTermRule(_Rule):
+    term: RuleText
+
+
+class ProhibitedTermRule(_Rule):
+    term: RuleText
+    # A brand-approved alternative. Offered as a correction only when the rule has a source.
+    approved_alternative: RuleText | None = None
+
+
+class ProductNamingRule(_Rule):
+    approved_name: RuleText
+    # Other spellings to flag. Any case-insensitive match of the approved name that is not
+    # written exactly as approved is flagged too.
+    variants: Annotated[list[RuleText], Field(max_length=MAX_RULES_PER_TYPE)] = []
+
+
+class RequiredDisclaimerRule(_Rule):
+    disclaimer: RuleText
+    # Required only when one of these terms appears; required always when empty.
+    trigger_terms: Annotated[list[RuleText], Field(max_length=MAX_RULES_PER_TYPE)] = []
+
+
+class NumericLimitRule(_Rule):
+    """A figure in a sentence that mentions ``subject``, written with one of ``units``, must be
+    within ``[minimum, maximum]``. "battery" + units ["hours", "hour", "h"] + maximum 24 flags
+    "battery lasts 30 hours"."""
+
+    subject: RuleText
+    units: Annotated[list[RuleText], Field(min_length=1, max_length=20)]
+    minimum: float | None = None
+    maximum: float | None = None
+
+    @model_validator(mode="after")
+    def _check_range(self) -> NumericLimitRule:
+        if self.minimum is None and self.maximum is None:
+            raise ValueError("a numeric rule needs a minimum, a maximum or both")
+        if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
+            raise ValueError("minimum must not exceed maximum")
+        return self
+
+
+class BrandRules(_Contract):
+    """Explicit brand rules for one request, applied deterministically before claim extraction."""
+
+    rule_set_id: RuleId
+    version: Label | None = None
+    required_terms: Annotated[list[RequiredTermRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+    prohibited_terms: Annotated[list[ProhibitedTermRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+    product_names: Annotated[list[ProductNamingRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+    disclaimers: Annotated[list[RequiredDisclaimerRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+    numeric_limits: Annotated[list[NumericLimitRule], Field(max_length=MAX_RULES_PER_TYPE)] = []
+
+    def all_rules(self) -> list[_Rule]:
+        return [*self.required_terms, *self.prohibited_terms, *self.product_names, *self.disclaimers, *self.numeric_limits]
+
+    @model_validator(mode="after")
+    def _check_ids(self) -> BrandRules:
+        duplicates = sorted(r for r, n in Counter(rule.rule_id for rule in self.all_rules()).items() if n > 1)
+        if duplicates:
+            raise ValueError(f"duplicate rule_id: {', '.join(duplicates)}")
+        return self
+
+
+class RuleEvidence(_Contract):
+    """The shared contract's evidence item: a source id, the exact quote, and its relation."""
+
+    source_id: DocumentId
+    quote: RuleText
+    relation: Literal["contradicts"] = "contradicts"  # the content breaks the quoted rule
+
+
+class RuleFinding(_Contract):
+    """One rule violation, in the shared finding contract's shape (check_type "rule").
+
+    ``verification_status`` is always ``not_applicable``: a rule check is not a claim checked
+    against evidence. ``requires_human_review`` is always true: a person decides. A suggested
+    correction exists only when the rule is quoted from an approved document (``evidence``) and
+    names the approved wording (product naming, a prohibited term's approved alternative)."""
+
+    finding_id: Annotated[str, Field(pattern=r"^rul_[A-Za-z0-9_.:-]{1,160}$")]
+    rule_id: RuleId
+    rule_type: RuleType
+    check_type: Literal["rule"] = "rule"
+    category: Literal["rule_violation"] = "rule_violation"
+    severity: RuleSeverity
+    original_text: Annotated[str, Field(max_length=MAX_RULE_TEXT_CHARS)]  # "" when something is missing
+    span: SourceSpan | None = None  # None when something is missing
+    explanation: RuleText
+    verification_status: Literal["not_applicable"] = "not_applicable"
+    source_ids: Annotated[list[DocumentId], Field(max_length=1)] = []
+    evidence: Annotated[list[RuleEvidence], Field(max_length=1)] = []
+    suggested_correction: RuleText | None = None
+    requires_human_review: Literal[True] = True
+
+    @model_validator(mode="after")
+    def _check(self) -> RuleFinding:
+        if (self.span is None) != (self.original_text == ""):
+            raise ValueError("a rule finding has a span exactly when it quotes original_text")
+        if self.span is not None and self.span.length != len(self.original_text):
+            raise ValueError("original_text does not match the span length")
+        if [e.source_id for e in self.evidence] != self.source_ids:
+            raise ValueError("source_ids must list the evidence's source ids")
+        if self.suggested_correction is not None and not self.evidence:
+            raise ValueError("a suggested_correction needs evidence: an approved, quoted rule")
+        if self.suggested_correction is not None and self.span is None:
+            raise ValueError("a suggested_correction replaces quoted text; nothing is quoted")
+        return self
+
+
 class VerificationRequest(_Contract):
     """What a caller sends to verify one piece of content against its reference documents."""
 
@@ -190,6 +339,8 @@ class VerificationRequest(_Contract):
     reference_set_id: ReferenceSetId | None = None
     content: InputContent
     references: Annotated[list[ReferenceDocument], Field(min_length=1, max_length=MAX_REFERENCE_DOCS)]
+    # Explicit brand rules, checked deterministically before extraction (rules.py). Optional.
+    rules: BrandRules | None = None
 
     @model_validator(mode="after")
     def _check_references(self) -> VerificationRequest:
@@ -199,6 +350,17 @@ class VerificationRequest(_Contract):
         total = sum(len(r.text) for r in self.references)
         if total > MAX_TOTAL_REFERENCE_CHARS:
             raise ValueError(f"reference documents exceed {MAX_TOTAL_REFERENCE_CHARS} characters in total")
+        if self.rules is not None:
+            # A rule's source must be one of this request's references, quoted verbatim: rule
+            # evidence comes only from the authorised set, like claim evidence.
+            texts = {r.doc_id: r.text for r in self.references}
+            for rule in self.rules.all_rules():
+                if rule.source is None:
+                    continue
+                if rule.source.doc_id not in texts:
+                    raise ValueError(f"rule {rule.rule_id} cites a document that is not a reference of this request")
+                if rule.source.quote not in texts[rule.source.doc_id]:
+                    raise ValueError(f"rule {rule.rule_id} quotes text that is not in its source document")
         return self
 
 
@@ -623,6 +785,32 @@ class CitationGuardReport(_Contract):
         return self
 
 
+class SaferWording(_Contract):
+    """A suggested safer wording for part of an UNVERIFIED (NOT_ENOUGH_EVIDENCE) claim
+    (softening.py). It only removes or softens words and is **not evidence-backed**: there is no
+    evidence for an unverified claim. It is kept apart from ``Correction`` (evidence-backed, only
+    on CONTRADICTED claims), labelled as such, and never makes the claim supported."""
+
+    label: Literal["safer_wording"] = "safer_wording"
+    evidence_backed: Literal[False] = False
+    target_span: SourceSpan  # inside the claim's source_span; offsets into the content text
+    original_text: Annotated[str, Field(min_length=1, max_length=4_000)]
+    replacement_text: Annotated[str, Field(min_length=1, max_length=4_000)]
+
+    @field_validator("replacement_text")
+    @classmethod
+    def _single_clean_line(cls, value: str) -> str:
+        if "\n" in value or "\r" in value or has_hidden_characters(value):
+            raise ValueError("replacement must be one line without hidden or control characters")
+        return value
+
+
+def _conflict_default(data: dict[str, Any]) -> bool:
+    """Default for ClaimResult.conflicting_sources, derived from the citation guard."""
+    guard = data.get("citation_guard")
+    return guard is not None and any(r.reason is GuardRejectionReason.CONFLICTING_EVIDENCE for r in guard.rejected)
+
+
 class ClaimResult(_Contract):
     """The outcome for one claim.
 
@@ -649,6 +837,13 @@ class ClaimResult(_Contract):
     model_rationale: Annotated[str, Field(max_length=MAX_RATIONALE_CHARS)] | None = None
     citation_guard: CitationGuardReport | None = None
     correction_attempt: CorrectionAttempt | None = None
+    # Approved references disagree about this claim (the guard found a conflict). The verdict
+    # stays NOT_ENOUGH_EVIDENCE; Member 3 maps this flag to verification_status
+    # "conflicting_sources". Derived from citation_guard: filled in when omitted, rejected when wrong.
+    conflicting_sources: Annotated[bool, Field(strict=True)] = Field(default_factory=_conflict_default)
+    # Optional, NOT_ENOUGH_EVIDENCE only, never evidence-backed (see SaferWording). Never mixed
+    # with ``correction``, which is the only source of a suggested correction.
+    safer_wording: SaferWording | None = None
     # Both derived from the fields above by fixed rules: filled in when omitted, rejected when they
     # disagree, so neither can be inflated by a caller or a model.
     evidence_strength: EvidenceStrength = Field(default_factory=_strength_default)
@@ -698,6 +893,14 @@ class ClaimResult(_Contract):
             raise ValueError(f"{verdict.value} must not carry an error")
         if self.correction is not None and verdict is not Verdict.CONTRADICTED:
             raise ValueError("a correction is only allowed on a CONTRADICTED claim")
+        if self.safer_wording is not None:
+            if verdict is not Verdict.NOT_ENOUGH_EVIDENCE:
+                raise ValueError("safer_wording is only allowed on a NOT_ENOUGH_EVIDENCE claim")
+            span, target = self.claim.source_span, self.safer_wording.target_span
+            if not (span.start <= target.start and target.end <= span.end):
+                raise ValueError("safer_wording.target_span must lie inside the claim's source_span")
+        if self.conflicting_sources is not _conflict_default({"citation_guard": self.citation_guard}):
+            raise ValueError("conflicting_sources must be true exactly when the guard found conflicting evidence")
         if self.error is not None and self.error.claim_id not in (None, self.claim.claim_id):
             raise ValueError("error.claim_id does not match the claim")
 
@@ -792,6 +995,7 @@ class ReviewReason(str, Enum):
     WEAK_EVIDENCE = "weak_evidence"  # a SUPPORTED claim rests only on weak evidence
     CONFLICTING_EVIDENCE = "conflicting_evidence"  # the references disagree about a claim's figure
     POLICY_THRESHOLD = "policy_threshold"  # the decision policy routed a SUPPORTED claim (EVAL.md Phase 5)
+    RULE_VIOLATIONS = "rule_violations"  # an explicit brand rule was broken (rules.py)
 
 
 class ReportScore(_Contract):
@@ -814,9 +1018,12 @@ class ReportScore(_Contract):
     corrections_need_review: Annotated[int, Field(strict=True, ge=0)]
     requires_human_review: Annotated[bool, Field(strict=True)]
     review_reasons: list[ReviewReason]
+    rule_violations: Annotated[int, Field(strict=True, ge=0)] = 0
 
     @classmethod
-    def compute(cls, results: list[ClaimResult], report_errors: list[ProcessingError]) -> ReportScore:
+    def compute(
+        cls, results: list[ClaimResult], report_errors: list[ProcessingError], rule_findings: list[RuleFinding] = (),
+    ) -> ReportScore:
         counts = Counter(r.verdict for r in results)
         attempts = [r.correction_attempt for r in results if r.correction_attempt is not None]
         proposed = sum(a.status is CorrectionStatus.PROPOSED for a in attempts)
@@ -840,6 +1047,7 @@ class ReportScore(_Contract):
                     and any(x.reason is GuardRejectionReason.CONFLICTING_EVIDENCE for x in r.citation_guard.rejected)
                     for r in results
                 )),
+                (ReviewReason.RULE_VIOLATIONS, bool(rule_findings)),
                 (ReviewReason.POLICY_THRESHOLD, any(set(r.review_reasons) - FLOOR_REVIEW_REASONS for r in results)),
             )
             if applies
@@ -860,6 +1068,7 @@ class ReportScore(_Contract):
             corrections_need_review=need_review,
             requires_human_review=bool(reasons),
             review_reasons=reasons,
+            rule_violations=len(rule_findings),
         )
 
 
@@ -886,6 +1095,8 @@ class VerificationReport(_Contract):
     references: Annotated[list[ReferenceDescriptor], Field(min_length=1, max_length=MAX_REFERENCE_DOCS)]
     status: ReportStatus
     results: Annotated[list[ClaimResult], Field(max_length=MAX_CLAIMS)] = []
+    # Violations of the request's explicit brand rules (rules.py), found before extraction.
+    rule_findings: Annotated[list[RuleFinding], Field(max_length=MAX_RULE_FINDINGS)] = []
     errors: list[ProcessingError] = []
     provenance: EngineProvenance
     # Optional so earlier payloads stay valid; when present it must equal ReportScore.compute().
@@ -896,8 +1107,16 @@ class VerificationReport(_Contract):
         self._check_status()
         self._check_claims()
         self._check_provenance()
-        if self.score is not None and self.score != ReportScore.compute(self.results, self.errors):
+        if self.score is not None and self.score != ReportScore.compute(self.results, self.errors, self.rule_findings):
             raise ValueError("score does not match the results; compute it with ReportScore.compute")
+        ids = Counter(f.finding_id for f in self.rule_findings)
+        if any(n > 1 for n in ids.values()):
+            raise ValueError("duplicate rule finding_id")
+        for finding in self.rule_findings:
+            if finding.span is not None and not finding.span.fits(self.content_length):
+                raise ValueError(f"rule finding {finding.finding_id} span exceeds content_length")
+            if any(e.source_id not in {r.doc_id for r in self.references} for e in finding.evidence):
+                raise ValueError(f"rule finding {finding.finding_id} cites a document not in references")
         return self
 
     def _check_status(self) -> None:

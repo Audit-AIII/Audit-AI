@@ -63,6 +63,7 @@
         "downgraded": false,
         "rejected": []
       },
+      "conflicting_sources": false,
       "evidence_strength": "strong",
       "review_reasons": [],
       "requires_human_review": false
@@ -152,6 +153,7 @@
         "issues": [],
         "recheck_verdict": "SUPPORTED"
       },
+      "conflicting_sources": false,
       "evidence_strength": "moderate",
       "review_reasons": [
         "contradicted"
@@ -192,6 +194,7 @@
         "downgraded": false,
         "rejected": []
       },
+      "conflicting_sources": false,
       "evidence_strength": "none",
       "review_reasons": [
         "not_enough_evidence"
@@ -233,6 +236,7 @@
         "retryable": true,
         "claim_id": "clm_0004"
       },
+      "conflicting_sources": false,
       "evidence_strength": "none",
       "review_reasons": [
         "error"
@@ -240,6 +244,7 @@
       "requires_human_review": true
     }
   ],
+  "rule_findings": [],
   "errors": [],
   "provenance": {
     "engine_version": "0.1.0",
@@ -272,6 +277,7 @@
       "contradicted_claims",
       "unverified_claims",
       "processing_errors"
-    ]
+    ],
+    "rule_violations": 0
   }
 }

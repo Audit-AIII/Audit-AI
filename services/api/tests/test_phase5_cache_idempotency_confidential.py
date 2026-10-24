@@ -50,6 +50,10 @@ EXTRACTION_REPLY = {
 # No citations needed: NOT_ENOUGH_EVIDENCE skips the citation guard entirely (verification.py),
 # so this reply alone is enough to complete one claim's verification in exactly one call.
 VERIFICATION_REPLY = {"verdict": "NOT_ENOUGH_EVIDENCE", "citations": [], "rationale": "insufficient context"}
+# An unverified claim also gets one safer-wording call (inkloom_verify.softening); here the model
+# declines, so no suggestion is stored.
+SOFTENING_REPLY = {"status": "needs_human_review", "original_text": "", "replacement_text": "", "citations": [],
+                   "reason": "Nothing to soften."}
 
 
 def _login(client, email: str) -> str:
@@ -115,7 +119,7 @@ def test_duplicate_idempotency_key_creates_one_job_and_one_llm_call(
     from inkloom_api.engine import pipeline
     from inkloom_api.engine.providers.fallback import FallbackProvider
 
-    scripted = ScriptedProvider(dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY))
+    scripted = ScriptedProvider(dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY), dict(SOFTENING_REPLY))
     monkeypatch.setattr(
         pipeline, "build_provider",
         lambda confidential=False, on_attempt=None: FallbackProvider([("fake", lambda: scripted)], on_attempt=on_attempt),
@@ -127,12 +131,12 @@ def test_duplicate_idempotency_key_creates_one_job_and_one_llm_call(
 
     first = client.post("/api/reviews", json=body, headers=headers)
     assert first.status_code == 201, first.text
-    assert len(scripted.calls) == 2  # one extraction call, one verification call
+    assert len(scripted.calls) == 3  # one extraction call, one verification call, one softening call
 
     second = client.post("/api/reviews", json=body, headers=headers)
     assert second.status_code == 201, second.text
     assert second.json() == first.json()  # byte-identical replay, not a second analysis
-    assert len(scripted.calls) == 2  # unchanged - the second request made no LLM call at all
+    assert len(scripted.calls) == 3  # unchanged - the second request made no LLM call at all
 
     review_count = (
         db_session.query(Review)
@@ -179,11 +183,12 @@ def test_same_content_in_two_organisations_never_shares_a_cache_entry(
     from inkloom_api.engine import pipeline
     from inkloom_api.engine.providers.fallback import FallbackProvider
 
-    # Four replies: a full extraction+verification pair for each organisation's own analysis.
-    # If org B's request could be served from org A's cache, it would never consume replies 3-4,
-    # and ScriptedProvider would still have them left over at the end of the test.
+    # Six replies: a full extraction+verification+softening set for each organisation's own
+    # analysis. If org B's request could be served from org A's cache, it would never consume
+    # replies 4-6, and ScriptedProvider would still have them left over at the end of the test.
     scripted = ScriptedProvider(
-        dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY), dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY),
+        dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY), dict(SOFTENING_REPLY),
+        dict(EXTRACTION_REPLY), dict(VERIFICATION_REPLY), dict(SOFTENING_REPLY),
     )
     monkeypatch.setattr(
         pipeline, "build_provider",
@@ -199,7 +204,7 @@ def test_same_content_in_two_organisations_never_shares_a_cache_entry(
         headers={"Authorization": f"Bearer {token_a}"},
     )
     assert response_a.status_code == 201, response_a.text
-    assert len(scripted.calls) == 2
+    assert len(scripted.calls) == 3
 
     token_b = _login(client, cross_org_fixture.admin_b.email)
     response_b = client.post(
@@ -210,7 +215,7 @@ def test_same_content_in_two_organisations_never_shares_a_cache_entry(
     assert response_b.status_code == 201, response_b.text
     # Byte-identical content, byte-identical source text, but a DIFFERENT organisation: org B's
     # request must still hit the provider for real, not replay org A's cached result.
-    assert len(scripted.calls) == 4
+    assert len(scripted.calls) == 6
 
     body_a, body_b = response_a.json(), response_b.json()
     assert body_a["id"] != body_b["id"]

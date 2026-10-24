@@ -23,7 +23,10 @@ PROMPT_DIR = Path(__file__).resolve().parent
 LOCK_FILE = PROMPT_DIR / "prompts.lock.json"
 
 # Component -> the version-id prefix its prompt files use.
-COMPONENTS = {"extraction": "extract-claims", "verification": "verify-claim", "correction": "correct-claim"}
+COMPONENTS = {
+    "extraction": "extract-claims", "verification": "verify-claim", "correction": "correct-claim",
+    "softening": "soften-claim",
+}
 
 
 class PromptNotFoundError(LookupError):

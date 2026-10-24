@@ -99,6 +99,13 @@ class RequiredMetrics(_Model):
     correction_traceability: Ratio | None
     corrections: dict[str, Any]
     unavailable: dict[str, str]
+    # Reliability additions (Member 2 audit, 2026-10-24). Defaults keep older saved reports loadable.
+    # Provider failure rate: records whose prediction is ERROR (provider failure, invalid output,
+    # budget refusal, missing prediction) / evaluated records.
+    provider_failure_rate: Ratio | None = None
+    # Wall-clock seconds per case from the full pipeline (cases.jsonl): n, mean, p50, p95, max.
+    # It includes provider time only when a live provider answered; scripted runs time local code.
+    latency: dict[str, Any] = {}
 
 
 def _rate(numerator: int, denominator: int, name: str, unavailable: dict[str, str], why: str) -> Ratio | None:
@@ -263,13 +270,31 @@ def compute(
         corrections = {"proposed": proposed, "traceable": traceable, "untraceable": untraceable,
                        "attempts_by_status": dict(statuses), "claims_not_applicable": not_applicable}
 
+    failure_rate = _rate(counts["error_predictions"], counts["evaluated"], "provider_failure_rate", unavailable,
+                         "no record was evaluated")
+    timings = sorted(o.seconds for o in outcomes.values())
+    if timings:
+        latency = {"n": len(timings), "mean_seconds": round(sum(timings) / len(timings), 4),
+                   "p50_seconds": _percentile(timings, 50), "p95_seconds": _percentile(timings, 95),
+                   "max_seconds": timings[-1]}
+    else:
+        latency = {}
+        unavailable["latency"] = "no per-case timings (only full-pipeline runs record them, in cases.jsonl)"
+
     return RequiredMetrics(
+        provider_failure_rate=failure_rate, latency=latency,
         counts=dict(counts), contradicted_precision=precision, contradicted_recall=recall, false_positive_rate=fpr,
         false_negative_rate=fnr, citation_validity=validity, citation_resolution=resolution,
         citation_failures={"citations": total_citations, "valid": valid, "resolved": resolved, **dict(citation_fail)},
         retrieval_recall_at_5=recall_at_5, retrieval=retrieval_info, human_review_share=share, review=review,
         correction_traceability=traceability, corrections=corrections, unavailable=unavailable,
     )
+
+
+def _percentile(sorted_values: list[float], pct: int) -> float:
+    """Nearest-rank percentile of an already sorted, non-empty list."""
+    rank = max(1, -(-pct * len(sorted_values) // 100))  # ceil(pct/100 * n), at least 1
+    return sorted_values[rank - 1]
 
 
 def _fmt(r: Ratio | None, name: str, m: RequiredMetrics) -> str:
@@ -293,6 +318,8 @@ def markdown(m: RequiredMetrics) -> str:
          "human_review_share"),
         ("8. Correction traceability", "traceable proposals / proposed corrections", m.correction_traceability,
          "correction_traceability"),
+        ("   Provider failure rate", "ERROR predictions / evaluated records", m.provider_failure_rate,
+         "provider_failure_rate"),
     ]
     lines = ["## Required metrics (positive class: CONTRADICTED)", "",
              f"Evaluated {c['evaluated']} records · TP {c['tp']} · FP {c['fp']} · FN {c['fn']} · TN {c['tn']} · "
@@ -300,6 +327,11 @@ def markdown(m: RequiredMetrics) -> str:
              f"invalid labels {c['invalid_labels']} · unexpected predictions {c['unexpected_predictions']}", "",
              "| Metric | Formula | Value |", "|---|---|---|"]
     lines += [f"| {name} | {formula} | {_fmt(r, key, m)} |" for name, formula, r, key in rows]
+    lat = m.latency
+    lines += ["", ("Latency per case (wall clock, seconds; includes provider time only for live runs): "
+                   f"n {lat['n']} · mean {lat['mean_seconds']} · p50 {lat['p50_seconds']} · p95 {lat['p95_seconds']} · "
+                   f"max {lat['max_seconds']}") if lat else
+              f"Latency: unavailable ({m.unavailable.get('latency', 'not measured')})"]
     cf = {k: v for k, v in m.citation_failures.items() if k not in ("citations", "valid", "resolved")}
     lines += ["", f"Citation failures: {cf or 'none'}",
               f"Retrieval: {m.retrieval['with_gold_evidence']} records with gold evidence, "

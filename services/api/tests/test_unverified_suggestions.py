@@ -1,10 +1,12 @@
 """Safer-wording suggestions for UNVERIFIED claims - backend side (step 4b, handoff route).
 
-The engine has no softening step yet (member3_backend/HANDOFF_unverified_suggestions.md asks
-Member 2 for one). These tests pin what the backend already does so it lights up when that ships:
+The engine's softening step (inkloom_verify.softening.ClaimSoftener, built by Member 2 from
+member3_backend/HANDOFF_unverified_suggestions.md) is now present. These tests pin the backend side:
 
-1. today's engine has no softener -> nothing changes, unverified claims get no suggestion;
-   -> test_no_softener_in_current_engine
+1. the engine's real softener is loaded, and end to end through it (scripted model, real engine
+   checks, real backend guard) the handoff example is offered and the "leading" swap is not;
+   -> test_engine_softener_is_loaded
+   -> test_real_engine_softener_end_to_end (parametrised)
 2. the guard (softening_guard.py) on the handoff's own examples: a good softening passes;
    swapping one ranking for another, adding a number, dropping a price/date/name, no change,
    hidden characters - all refused;
@@ -37,10 +39,34 @@ KORA_FACTS = "Kora X2 - Product Fact Sheet\n\nCamera: 50 MP main camera.\nPrice:
 CLAIM = "The Kora X2 is India's number one smartphone."
 
 
-def test_no_softener_in_current_engine() -> None:
+def test_engine_softener_is_loaded() -> None:
+    from inkloom_verify.softening import ClaimSoftener
+
     from inkloom_api.engine.pipeline import load_softener_class
 
-    assert load_softener_class() is None
+    assert load_softener_class() is ClaimSoftener
+
+
+@pytest.mark.parametrize("correction, expected", [
+    (("India's number one smartphone", "a smartphone sold in India"), "The Kora X2 is a smartphone sold in India."),
+    (("number one", "leading"), None),  # one unproven ranking for another: the engine refuses it
+    (("India's number one smartphone", "a 5G smartphone sold in India"), None),  # invented fact
+])
+@requires_db
+def test_real_engine_softener_end_to_end(client, monkeypatch, db_session, account_factory, correction, expected) -> None:
+    """No stand-in: the engine's own ClaimSoftener, prompt and checks, then the backend guard."""
+    rule = ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No document mentions rankings.", correction=correction)
+    use_scripted_provider(monkeypatch, [rule])
+    owner = account_factory("owner", with_source=False)
+    owner.upload_source(KORA_FACTS)
+
+    review = owner.submit(CLAIM)
+    [finding] = review["findings"]
+    assert finding["verification_status"] == "unverified" and finding["evidence"] == []
+    assert finding["suggested_correction"] == expected
+    db_session.expire_all()
+    calls = db_session.query(ExternalCallLog).filter_by(review_id=uuid.UUID(review["id"])).count()
+    assert calls == 3  # extraction + verification + softening, all logged
 
 
 def test_guard_accepts_a_real_softening() -> None:
@@ -93,7 +119,7 @@ class _FakeSoftener:
             user="<softening_input_json>\n" + json.dumps({"sentence": sentence, "claim": claim.statement}) + "\n</softening_input_json>",
             schema_name="claim_softening", json_schema={"type": "object"}, max_output_tokens=256,
         )).data
-        if reply["status"] != "corrected":
+        if reply["status"] not in ("corrected", "softened"):
             return None
         start = sentence.index(reply["original_text"]) + claim.source_span.start
         return _Softened(SourceSpan(start=start, end=start + len(reply["original_text"])),

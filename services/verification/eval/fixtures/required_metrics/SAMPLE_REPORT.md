@@ -17,6 +17,9 @@ Evaluated 8 records · TP 2 · FP 1 · FN 2 · TN 3 · missing predictions 1 · 
 | 6. Retrieval recall@5 | records with gold evidence in the top 5 / records with gold evidence | 100.0% (6/6) |
 | 7. Human-review share | records routed to review / records with a pipeline outcome | 71.4% (5/7) |
 | 8. Correction traceability | traceable proposals / proposed corrections | 50.0% (1/2) |
+|    Provider failure rate | ERROR predictions / evaluated records | 25.0% (2/8) |
+
+Latency per case (wall clock, seconds; includes provider time only for live runs): n 7 · mean 0.0 · p50 0.0 · p95 0.0 · max 0.0
 
 Citation failures: {'does_not_resolve:quote_mismatch': 1, 'no_supporting_evidence_exists': 1}
 Retrieval: 6 records with gold evidence, 2 excluded (no gold evidence), 0 empty retrievals, misses none

@@ -88,7 +88,9 @@ def make_responder(rules: list[ScriptedRule]):
                     "reason": "No scripted correction for this claim."}
         labels = [e["label"] for e in data.get("evidence", [])]
         return {
-            "status": "corrected",
+            # The engine's softener (inkloom_verify.softening) names its status "softened" and
+            # cites nothing (there is no evidence for an unverified claim).
+            "status": "softened" if request.schema_name == "claim_softening" else "corrected",
             "original_text": rule.correction[0],
             "replacement_text": rule.correction[1],
             "citations": labels[:1],

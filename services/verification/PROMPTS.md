@@ -9,8 +9,8 @@ string, and that string is recorded with every result.
 - **Where the prompts live:** each prompt version is its own file in
   [`src/inkloom_verify/prompts/`](src/inkloom_verify/prompts/), named by its version id:
   `extract-claims-v1.txt`, `verify-claim-v1.txt`, `correct-claim-v1.txt`, and the Phase 6
-  security revisions `extract-claims-v2.txt`, `verify-claim-v2.txt`, `correct-claim-v2.txt`. The
-  file holds the system prompt.
+  security revisions `extract-claims-v2.txt`, `verify-claim-v2.txt`, `correct-claim-v2.txt`, and
+  `soften-claim-v1.txt` (safer wording for unverified claims). The file holds the system prompt.
 - **What stays in code:** the user-message and repair templates and the output schema stay in the
   matching Python module, and are versioned with it.
 - **Released versions are listed in `prompts.lock.json`** with the SHA-256 of their text. **A
@@ -539,3 +539,52 @@ correction.
 - **The minimality bound is a heuristic**, chosen without real author data. It isn't a
   measure of style preservation.
 - **Not measured on a live model** (EVAL.md, Phase 6).
+
+## Prompt: `soften-claim-v1`
+
+**What it's for:** a suggested safer wording for a NOT_ENOUGH_EVIDENCE (unverified) claim.
+Requested by Member 3 in `member3_backend/HANDOFF_unverified_suggestions.md`. Code:
+[`softening.py`](src/inkloom_verify/softening.py) (`ClaimSoftener.soften(result, content)` returns
+a `SoftenedWording` or None) and [`prompts/softening.py`](src/inkloom_verify/prompts/softening.py).
+
+- **Input:** the author's sentence and the claim, in `<softening_input_json>`. There is no
+  evidence: an unverified claim has none.
+- **Reply:** the correction reply's shape, `{status, original_text, replacement_text, citations,
+  reason}`. `status` is `softened` or `needs_human_review`, and `citations` must be empty.
+- **Calls:** one per unverified claim, plus at most one repair. Counted by the request's
+  `CallBudget`. Other verdicts, ERROR results and claims that give instructions make no call.
+
+### The product rules and the checks that enforce them (`softening_issues`)
+
+1. **Never invent facts.**
+   - No number, currency symbol, month or capitalised name that the claim didn't already have.
+   - No added word outside `SOFTENING_WORDS`: grammatical words plus a short list of hedges and
+     plain descriptions. "sold" and "available" are on it because the handoff's own example uses
+     them.
+2. **Remove or soften the unsupported part.** The text may grow by at most 3 words.
+3. **Never swap one ranking for another.** No term from `RANKING_TERMS` anywhere in the
+   rewritten claim. The list includes every term of the backend's guard. "India's number one" →
+   "India's leading" is refused.
+4. **Names, prices and dates unchanged.** Every number, currency symbol, month and capitalised
+   name of the claim is kept.
+5. **The finding stays unverified.** `SoftenedWording` is a separate object with no verdict, and
+   the `ClaimResult` is never changed.
+
+A proposal is also refused when:
+- the replacement is not one line, or contains hidden characters;
+- it contains text that gives instructions;
+- it is identical to the original;
+- its target is not in the claim.
+
+The backend re-checks every suggestion with its own guard (`services/api/src/inkloom_api/
+softening_guard.py`), and the engine's checks are at least as strict.
+
+### Known limitations
+
+- **Word lists, not meaning.** A softened wording built only from allowed words could still
+  imply something the claim didn't say. The user decides; nothing is applied automatically.
+- **Over-strict by design.** Some good rewrites are refused, for example one that needs a new
+  word ("smartphone" → "phone") or drops a name the author wouldn't mind losing. The suggestion
+  is then simply not shown.
+- **Not measured on a live model.** There is no recorded softening evaluation set yet
+  (`eval/data/softening_v1.jsonl` was offered as optional in the handoff).

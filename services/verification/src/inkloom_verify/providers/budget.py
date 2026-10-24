@@ -1,8 +1,9 @@
 """A per-request budget on model calls: how many, how many (estimated) tokens, and for how long.
 
 The engine makes one call per extraction batch and per claim, plus up to four per CONTRADICTED
-claim (correction, its repair, the re-check and its repair), so one large request could
-otherwise make hundreds of calls. ``BudgetedProvider`` wraps the request's provider and refuses
+claim (correction, its repair, the re-check and its repair) and up to two per NOT_ENOUGH_EVIDENCE
+claim when a safer wording is requested (softening and its repair; softening.py), so one large
+request could otherwise make hundreds of calls. ``BudgetedProvider`` wraps the request's provider and refuses
 further calls once any limit is reached. The refusal is a ProviderError with code LIMIT_EXCEEDED
 and is not retryable, so every stage turns it into an ERROR result, a FAILED report or a FAILED
 correction, never a verdict.

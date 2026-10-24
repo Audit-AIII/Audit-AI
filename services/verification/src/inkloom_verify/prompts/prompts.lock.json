@@ -24,6 +24,10 @@
     "correct-claim-v2": {
       "component": "correction",
       "sha256": "dd831a110fc673d6cd8f460c79e7a75236a6f5409bffb4cfebcbb22b352ac1af"
+    },
+    "soften-claim-v1": {
+      "component": "softening",
+      "sha256": "89437617260bf8c51242a81d4848c1e1b3e3c232bc171c8272428dce488f61ab"
     }
   }
 }

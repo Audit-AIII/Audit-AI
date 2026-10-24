@@ -1,5 +1,80 @@
 {
   "$defs": {
+    "BrandRules": {
+      "additionalProperties": false,
+      "description": "Explicit brand rules for one request, applied deterministically before claim extraction.",
+      "properties": {
+        "disclaimers": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RequiredDisclaimerRule"
+          },
+          "maxItems": 100,
+          "title": "Disclaimers",
+          "type": "array"
+        },
+        "numeric_limits": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/NumericLimitRule"
+          },
+          "maxItems": 100,
+          "title": "Numeric Limits",
+          "type": "array"
+        },
+        "product_names": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProductNamingRule"
+          },
+          "maxItems": 100,
+          "title": "Product Names",
+          "type": "array"
+        },
+        "prohibited_terms": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProhibitedTermRule"
+          },
+          "maxItems": 100,
+          "title": "Prohibited Terms",
+          "type": "array"
+        },
+        "required_terms": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RequiredTermRule"
+          },
+          "maxItems": 100,
+          "title": "Required Terms",
+          "type": "array"
+        },
+        "rule_set_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Set Id",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "rule_set_id"
+      ],
+      "title": "BrandRules",
+      "type": "object"
+    },
     "InputContent": {
       "additionalProperties": false,
       "description": "The content under review, already converted to plain text by the caller.",
@@ -33,6 +108,179 @@
         "text"
       ],
       "title": "InputContent",
+      "type": "object"
+    },
+    "NumericLimitRule": {
+      "additionalProperties": false,
+      "description": "A figure in a sentence that mentions ``subject``, written with one of ``units``, must be\nwithin ``[minimum, maximum]``. \"battery\" + units [\"hours\", \"hour\", \"h\"] + maximum 24 flags\n\"battery lasts 30 hours\".",
+      "properties": {
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "medium"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subject": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        },
+        "units": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Units",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rule_id",
+        "subject",
+        "units"
+      ],
+      "title": "NumericLimitRule",
+      "type": "object"
+    },
+    "ProductNamingRule": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_name": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Approved Name",
+          "type": "string"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "medium"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "variants": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Variants",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rule_id",
+        "approved_name"
+      ],
+      "title": "ProductNamingRule",
+      "type": "object"
+    },
+    "ProhibitedTermRule": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_alternative": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved Alternative"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "medium"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "term": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Term",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "term"
+      ],
+      "title": "ProhibitedTermRule",
       "type": "object"
     },
     "ReferenceDocument": {
@@ -89,6 +337,124 @@
       ],
       "title": "ReferenceDocument",
       "type": "object"
+    },
+    "RequiredDisclaimerRule": {
+      "additionalProperties": false,
+      "properties": {
+        "disclaimer": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Disclaimer",
+          "type": "string"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "medium"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "trigger_terms": {
+          "default": [],
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Trigger Terms",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rule_id",
+        "disclaimer"
+      ],
+      "title": "RequiredDisclaimerRule",
+      "type": "object"
+    },
+    "RequiredTermRule": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity",
+          "default": "medium"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "term": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Term",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "term"
+      ],
+      "title": "RequiredTermRule",
+      "type": "object"
+    },
+    "RuleSeverity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "RuleSeverity",
+      "type": "string"
+    },
+    "RuleSource": {
+      "additionalProperties": false,
+      "description": "Where a rule is written down: one of the request's reference documents and the rule's\nexact wording in it. Checked against the request (the document must be one of its references\nand the quote must be in that document's text), so a rule finding's evidence is real.",
+      "properties": {
+        "doc_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "quote": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc_id",
+        "quote"
+      ],
+      "title": "RuleSource",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -129,6 +495,17 @@
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
       "title": "Request Id",
       "type": "string"
+    },
+    "rules": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BrandRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "tenant_id": {
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",

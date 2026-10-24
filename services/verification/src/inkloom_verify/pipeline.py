@@ -32,6 +32,8 @@ from inkloom_verify.prompts import extraction as extraction_prompt
 from inkloom_verify.prompts import verification as verification_prompt
 from inkloom_verify.providers.base import LLMProvider, ProviderError
 from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
+from inkloom_verify.rules import check_rules
+from inkloom_verify.softening import ClaimSoftener
 from inkloom_verify.retrieval import BM25Retriever, RetrievalConfig
 from inkloom_verify.schemas import (
     Claim,
@@ -43,6 +45,7 @@ from inkloom_verify.schemas import (
     PipelineStage,
     ProcessingError,
     ReportScore,
+    RuleFinding,
     ReportStatus,
     RetrievalMethod,
     Verdict,
@@ -70,6 +73,10 @@ class PipelineConfig(BaseModel):
     verification: VerificationConfig = Field(default_factory=VerificationConfig)
     correction: CorrectionConfig = Field(default_factory=CorrectionConfig)
     correct_contradicted: bool = True
+    # Ask for a safer wording for each NOT_ENOUGH_EVIDENCE claim (softening.py): one call plus at
+    # most one repair per such claim. Off by default; stored in ClaimResult.safer_wording, never
+    # in the correction (which stays evidence-backed only).
+    suggest_safer_wording: bool = False
     # Which verified claims a person must review, beyond the fixed floor (EVAL.md Phase 5).
     decision_policy: DecisionPolicy = Field(default_factory=DecisionPolicy)
     # Per-request limits on model calls, estimated tokens and wall-clock time (providers/budget.py).
@@ -84,19 +91,23 @@ def verify_request(
     models: set[str] = set()
     prompts: dict[str, str] = {}  # stage -> prompt version actually sent
     budgeted = BudgetedProvider(provider, config.budget)
+    # Explicit brand rules first: deterministic, no model call, so their findings stand even if
+    # extraction or a provider fails later (they are carried on a FAILED report too).
+    rule_findings = check_rules(request.content.text, request.rules)
     try:
         results, errors = _run(request, budgeted, config, models, prompts)
-        report = _report(request, provider, results, errors, models, prompts)
+        report = _report(request, provider, results, errors, models, prompts, rule_findings)
         check_report_scope(request, report)
         logger.info("pipeline request=%s usage=%s", request.request_id, budgeted.usage())
         return report
     except ScopeViolation as violation:
         # Ids only (never text), so the violations are safe to log.
         logger.error("pipeline request=%s scope violation: %s", request.request_id, violation.violations[:5])
-        return _failed(request, provider, models, "The report did not match its request and was discarded.", prompts)
+        return _failed(request, provider, models, "The report did not match its request and was discarded.", prompts,
+                       rule_findings)
     except Exception as error:  # noqa: BLE001 - never fail open; the type name is safe to log, the message may not be
         logger.error("pipeline request=%s failed unexpectedly: %s", request.request_id, type(error).__name__)
-        return _failed(request, provider, models, "The verification engine failed unexpectedly.", prompts)
+        return _failed(request, provider, models, "The verification engine failed unexpectedly.", prompts, rule_findings)
 
 
 def _run(
@@ -117,6 +128,7 @@ def _run(
         if config.correct_contradicted
         else None
     )
+    softener = ClaimSoftener(provider) if config.suggest_safer_wording else None
     results = []
     for claim in extraction.claims:
         # Partial failure (Phase 4): a claim's own failure stays with that claim. Provider errors
@@ -136,6 +148,8 @@ def _run(
                 logger.error("pipeline request=%s claim=%s correction failed unexpectedly: %s",
                              request.request_id, claim.claim_id, type(error).__name__)
                 result = _correction_failed(result)
+        if softener is not None and result.verdict is Verdict.NOT_ENOUGH_EVIDENCE:
+            result = _with_safer_wording(softener, result, request)
         results.append(apply_policy(result, config.decision_policy))
     models.update(verifier.models_used)
     if verifier.prompt_sent:
@@ -144,12 +158,31 @@ def _run(
         models.update(corrector.models_used)
         if corrector.prompt_sent:
             prompts["correct_claim"] = corrector.prompt.version
+    if softener is not None:
+        models.update(softener.models_used)
+        if softener.prompt_sent:
+            prompts["soften_claim"] = softener.prompt.version
     logger.info(
         "pipeline request=%s claims=%d errors=%d verdicts=%s",
         request.request_id, len(results), len(errors),
         ",".join(f"{v.value}:{sum(r.verdict is v for r in results)}" for v in Verdict),
     )
     return results, errors
+
+
+def _with_safer_wording(softener: ClaimSoftener, result: ClaimResult, request: VerificationRequest) -> ClaimResult:
+    """``result`` with a safer wording attached, or unchanged. A softening problem never changes
+    or drops the verdict: the softener returns None on any failure, and anything unexpected is
+    caught here."""
+    try:
+        wording = softener.soften(result, request.content)
+    except Exception as error:  # noqa: BLE001 - the type name is safe to log, the message may hold content
+        logger.error("pipeline request=%s claim=%s softening failed unexpectedly: %s",
+                     request.request_id, result.claim.claim_id, type(error).__name__)
+        return result
+    if wording is None:
+        return result
+    return ClaimResult.model_validate({**result.model_dump(), "safer_wording": wording.model_dump()})
 
 
 def _claim_error(claim: Claim, stage: PipelineStage) -> ClaimResult:
@@ -237,6 +270,7 @@ def _report(
     errors: list[ProcessingError],
     models: set[str],
     prompts: dict[str, str],
+    rule_findings: list[RuleFinding] = (),
 ) -> VerificationReport:
     return VerificationReport(
         request_id=request.request_id,
@@ -247,19 +281,21 @@ def _report(
         references=[d.descriptor() for d in request.references],
         status=_status(results, errors),
         results=results,
+        rule_findings=list(rule_findings),
         errors=errors,
         provenance=_provenance(provider, models, prompts),
-        score=ReportScore.compute(results, errors),
+        score=ReportScore.compute(results, errors, list(rule_findings)),
     )
 
 
 def _failed(
-    request: VerificationRequest, provider: LLMProvider, models: set[str], message: str, prompts: dict[str, str]
+    request: VerificationRequest, provider: LLMProvider, models: set[str], message: str, prompts: dict[str, str],
+    rule_findings: list[RuleFinding] = (),
 ) -> VerificationReport:
     error = ProcessingError(
         code=ErrorCode.INTERNAL_ERROR, stage=PipelineStage.REQUEST, message=message, retryable=False
     )
-    return _report(request, provider, [], [error], models, prompts)
+    return _report(request, provider, [], [error], models, prompts, rule_findings)
 
 
 def main(argv: list[str] | None = None) -> int:

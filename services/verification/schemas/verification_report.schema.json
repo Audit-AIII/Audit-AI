@@ -134,6 +134,10 @@
         "claim": {
           "$ref": "#/$defs/Claim"
         },
+        "conflicting_sources": {
+          "title": "Conflicting Sources",
+          "type": "boolean"
+        },
         "correction": {
           "anyOf": [
             {
@@ -202,6 +206,17 @@
           },
           "title": "Review Reasons",
           "type": "array"
+        },
+        "safer_wording": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SaferWording"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "verdict": {
           "$ref": "#/$defs/Verdict"
@@ -766,6 +781,12 @@
           "title": "Review Reasons",
           "type": "array"
         },
+        "rule_violations": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Rule Violations",
+          "type": "integer"
+        },
         "supported": {
           "minimum": 0,
           "title": "Supported",
@@ -838,10 +859,212 @@
         "corrections_need_review",
         "weak_evidence",
         "conflicting_evidence",
-        "policy_threshold"
+        "policy_threshold",
+        "rule_violations"
       ],
       "title": "ReviewReason",
       "type": "string"
+    },
+    "RuleEvidence": {
+      "additionalProperties": false,
+      "description": "The shared contract's evidence item: a source id, the exact quote, and its relation.",
+      "properties": {
+        "quote": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "relation": {
+          "const": "contradicts",
+          "default": "contradicts",
+          "title": "Relation",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "quote"
+      ],
+      "title": "RuleEvidence",
+      "type": "object"
+    },
+    "RuleFinding": {
+      "additionalProperties": false,
+      "description": "One rule violation, in the shared finding contract's shape (check_type \"rule\").\n\n``verification_status`` is always ``not_applicable``: a rule check is not a claim checked\nagainst evidence. ``requires_human_review`` is always true: a person decides. A suggested\ncorrection exists only when the rule is quoted from an approved document (``evidence``) and\nnames the approved wording (product naming, a prohibited term's approved alternative).",
+      "properties": {
+        "category": {
+          "const": "rule_violation",
+          "default": "rule_violation",
+          "title": "Category",
+          "type": "string"
+        },
+        "check_type": {
+          "const": "rule",
+          "default": "rule",
+          "title": "Check Type",
+          "type": "string"
+        },
+        "evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RuleEvidence"
+          },
+          "maxItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "explanation": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "finding_id": {
+          "pattern": "^rul_[A-Za-z0-9_.:-]{1,160}$",
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "original_text": {
+          "maxLength": 500,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "requires_human_review": {
+          "const": true,
+          "default": true,
+          "title": "Requires Human Review",
+          "type": "boolean"
+        },
+        "rule_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "rule_type": {
+          "$ref": "#/$defs/RuleType"
+        },
+        "severity": {
+          "$ref": "#/$defs/RuleSeverity"
+        },
+        "source_ids": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 1,
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceSpan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "suggested_correction": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Correction"
+        },
+        "verification_status": {
+          "const": "not_applicable",
+          "default": "not_applicable",
+          "title": "Verification Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "rule_id",
+        "rule_type",
+        "severity",
+        "original_text",
+        "explanation"
+      ],
+      "title": "RuleFinding",
+      "type": "object"
+    },
+    "RuleSeverity": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "title": "RuleSeverity",
+      "type": "string"
+    },
+    "RuleType": {
+      "enum": [
+        "required_term",
+        "prohibited_term",
+        "product_naming",
+        "required_disclaimer",
+        "numeric_limit"
+      ],
+      "title": "RuleType",
+      "type": "string"
+    },
+    "SaferWording": {
+      "additionalProperties": false,
+      "description": "A suggested safer wording for part of an UNVERIFIED (NOT_ENOUGH_EVIDENCE) claim\n(softening.py). It only removes or softens words and is **not evidence-backed**: there is no\nevidence for an unverified claim. It is kept apart from ``Correction`` (evidence-backed, only\non CONTRADICTED claims), labelled as such, and never makes the claim supported.",
+      "properties": {
+        "evidence_backed": {
+          "const": false,
+          "default": false,
+          "title": "Evidence Backed",
+          "type": "boolean"
+        },
+        "label": {
+          "const": "safer_wording",
+          "default": "safer_wording",
+          "title": "Label",
+          "type": "string"
+        },
+        "original_text": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "replacement_text": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Replacement Text",
+          "type": "string"
+        },
+        "target_span": {
+          "$ref": "#/$defs/SourceSpan"
+        }
+      },
+      "required": [
+        "target_span",
+        "original_text",
+        "replacement_text"
+      ],
+      "title": "SaferWording",
+      "type": "object"
     },
     "SourceSpan": {
       "additionalProperties": false,
@@ -941,6 +1164,15 @@
       },
       "maxItems": 200,
       "title": "Results",
+      "type": "array"
+    },
+    "rule_findings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RuleFinding"
+      },
+      "maxItems": 200,
+      "title": "Rule Findings",
       "type": "array"
     },
     "score": {

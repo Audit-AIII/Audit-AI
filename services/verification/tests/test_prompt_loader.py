@@ -54,12 +54,16 @@ V1_HASHES = {  # taken from the inline text before Phase 1 moved it into files; 
 }
 
 
+# The softening prompt (Member 3's handoff, unverified-claim suggestions), released 2026-10-24.
+SOFTENING_HASHES = {"soften-claim-v1": "89437617260bf8c51242a81d4848c1e1b3e3c232bc171c8272428dce488f61ab"}
+
+
 def test_the_wording_is_exactly_the_released_text():
     """Phase 1 moved the prompts into files without changing a character; Phase 6 added v2 files
-    beside them without touching v1."""
+    beside them without touching v1; the softening step added soften-claim-v1."""
     lock = json.loads((loader.LOCK_FILE).read_text(encoding="utf-8"))["released"]
-    assert set(lock) == set(V1_HASHES) | {"extract-claims-v2", "verify-claim-v2", "correct-claim-v2"}
-    for version, digest in V1_HASHES.items():
+    assert set(lock) == set(V1_HASHES) | {"extract-claims-v2", "verify-claim-v2", "correct-claim-v2"} | set(SOFTENING_HASHES)
+    for version, digest in (V1_HASHES | SOFTENING_HASHES).items():
         assert lock[version]["sha256"] == digest
     for version, entry in lock.items():
         assert load_prompt(entry["component"], version).sha256 == entry["sha256"]
