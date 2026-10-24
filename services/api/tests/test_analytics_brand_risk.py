@@ -31,7 +31,7 @@ RULES = [
     ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No rankings in any document."),
     ScriptedRule("warranty", "SUPPORTED", "Warranty: 2 years.", "Stated."),
 ]
-EXPECTED_KEYS = {"top_categories", "median_turnaround_minutes", "re_review_rate", "queue_age_minutes", "sample_size"}
+EXPECTED_KEYS = {"top_categories", "median_turnaround_minutes", "re_review_rate", "queue_age_minutes", "sample_size", "dismissed_finding_rate"}
 
 
 def _risk(client, account, query: str = ""):
@@ -54,6 +54,7 @@ def test_zero_reviews_returns_empty_and_nulls(client, account_factory) -> None:
         "re_review_rate": None,
         "queue_age_minutes": {"median": None, "oldest": None},
         "sample_size": 0,
+        "dismissed_finding_rate": {"numerator": 0, "denominator": 0, "value": None},
     }
 
 

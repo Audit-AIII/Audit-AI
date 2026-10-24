@@ -394,7 +394,9 @@ n times.
   (`suggested_correction` / `safer_wording` `null`, `withheld_by_intent_lock: true`). Re-run for a
   suggestion that keeps them. Locks are part of the result-cache key.
 - A new version (`POST /api/content/{id}/versions`) inherits the current version's locks. The
-  user's own edits are not blocked when they drop a locked phrase.
+  user's own edits are **warned, not blocked**: the response has `lock_warnings: [{"phrase",
+  "occurrences_before", "occurrences_after"}]` for every locked phrase the edit kept fewer times
+  than the previous version (empty when all are kept); the version is saved either way.
 - The review shape carries `locked_phrases`. Audited as `content_version.locks_updated` (count only).
 
 ### Dismiss and comments — `/api/findings/{finding_id}/...`
@@ -422,7 +424,8 @@ Query: `brand_id` (the page always sends it; omitted = every brand in the accoun
   "median_turnaround_minutes": 95.0,
   "re_review_rate": 0.25,
   "queue_age_minutes": {"median": 180.0, "oldest": 2880.0},
-  "sample_size": 12
+  "sample_size": 12,
+  "dismissed_finding_rate": {"numerator": 1, "denominator": 6, "value": 0.1667}
 }
 ```
 - `top_categories`: finding counts by `category`, excluding `stub`, `supported_claim` and null;
@@ -433,6 +436,10 @@ Query: `brand_id` (the page always sends it; omitted = every brand in the accoun
   as `open_review_count`); `null`s if none.
 - `sample_size`: reviews counted. Zero reviews → `{"top_categories": [], "median_turnaround_minutes":
   null, "re_review_rate": null, "queue_age_minutes": {"median": null, "oldest": null}, "sample_size": 0}`.
+- `dismissed_finding_rate` (additive): of the period's flagged findings (the same set
+  `top_categories` counts), how many the user has dismissed. Only each finding's latest decision
+  counts (dismissed then restored = not dismissed). `value` is `null` when nothing is flagged. A
+  live false-positive signal from the user's own decisions, not a measured accuracy.
 - Another account's `brand_id` → 404; bad `days` → 422.
 
 ### `GET /api/evaluations/latest` · `POST /api/evaluations` — Trust Scorecard
