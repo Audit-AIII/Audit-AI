@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { SeverityBadge, StatusBadge } from "@/components/additions/Badges";
+import { FindingBadge, SeverityBadge } from "@/components/additions/Badges";
 import { EmptyState, ErrorState, LoadingState, NeedsBackend } from "@/components/additions/States";
 import { isStub, isStubReview } from "@/components/app/reviewLabels";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
@@ -144,7 +144,7 @@ function SentenceDetail({ s }: { s: Sentence }) {
       {s.findings.map((f) => (
         <div key={f.finding_id} className="add-stack">
           <div className="add-row">
-            <StatusBadge status={f.verification_status} />
+            <FindingBadge f={f} />
             <SeverityBadge severity={f.severity} />
           </div>
           <p className="add-note">

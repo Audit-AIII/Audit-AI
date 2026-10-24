@@ -4,6 +4,8 @@ import { getSession, signOut } from "@/lib/session";
 import type {
   ApprovalEventOut,
   BrandOut,
+  BrandRules,
+  BrandRulesOut,
   BrandSourceOut,
   CreateReviewBody,
   ErrorBody,
@@ -53,11 +55,16 @@ export class ApiError extends Error {
         return "That action isn't allowed on this account.";
       case 404:
         return "We couldn't find that. It may not exist, or it belongs to another organisation.";
+      case 405:
+        // A wrong method on a known path: the server sends code NOT_FOUND with status 405.
+        return "That action isn't available here. Please reload the page and try again.";
       case 409:
-        // The backend's 409 messages are safe and specific (stale version, wrong approver role,
-        // idempotency clash), so show them.
+        // The backend's 409 messages are safe and specific (stale version, a changed source, an
+        // idempotency clash), so show them. "Still being processed" is retried before it gets here.
         return `This can’t be done right now: ${this.message}.`;
       case 422:
+        if (/\bNUL\b|\\u0000|null character/i.test(this.message))
+          return `Some text contains a hidden NUL character that can't be saved (${this.message}). Remove it and try again.`;
         return `Something in the form isn't valid (${this.message}).`;
       case 429:
         return "Too many checks in a short time. Please wait a minute and try again.";
@@ -72,8 +79,67 @@ function isErrorBody(x: unknown): x is ErrorBody {
   return !!e && typeof e.code === "string" && typeof e.message === "string";
 }
 
+/* ---- Request rules from services/api/API.md "Conventions" and POST /api/reviews ---- */
+
+/** Idempotency-Key: 1-200 visible ASCII characters (crypto.randomUUID() qualifies). */
+export const isValidIdempotencyKey = (key: string) => /^[\x21-\x7E]{1,200}$/.test(key);
+
+/** Path of the first string containing a NUL (\u0000), e.g. "body.text", or null. The server
+ * rejects these with 422 because PostgreSQL cannot store them; catching it first gives a clearer
+ * message and saves a round trip. */
+export function findNulField(value: unknown, path = "body"): string | null {
+  if (typeof value === "string") return value.includes("\u0000") ? path : null;
+  if (Array.isArray(value)) {
+    for (const [i, v] of value.entries()) {
+      const hit = findNulField(v, `${path}.${i}`);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) {
+      const hit = findNulField(v, `${path}.${k}`);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+function findNulInForm(form: FormData): string | null {
+  for (const [k, v] of form.entries()) if (typeof v === "string" && v.includes("\u0000")) return `body.${k}`;
+  return null;
+}
+
+/** Checks done before any request leaves the browser; throws the same ApiError shape the server would. */
+export function preflight(body: unknown, form: FormData | undefined, headers: Record<string, string>) {
+  const key = headers["Idempotency-Key"];
+  if (key !== undefined && !isValidIdempotencyKey(key))
+    throw new ApiError(422, "VALIDATION_ERROR", "invalid request: header.Idempotency-Key", null);
+  const nul = form ? findNulInForm(form) : findNulField(body);
+  if (nul) throw new ApiError(422, "VALIDATION_ERROR", `invalid request: ${nul} contains a NUL character`, null);
+}
+
+/** 409 "still being processed": the same Idempotency-Key is already in flight on the server. */
+export const isStillProcessing = (err: unknown) =>
+  err instanceof ApiError && err.status === 409 && /still being processed/i.test(err.message);
+
+/**
+ * Runs `send`; while the server answers 409 "still being processed" for this Idempotency-Key,
+ * waits and sends the SAME request again (same key), so the user never sees it as an error. After
+ * the last attempt the 409 is returned as a normal error.
+ */
+export async function retryWhileInFlight<T>(hasKey: boolean, send: () => Promise<T>, waitsMs = [1500, 3000, 5000, 8000, 12000]): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await send();
+    } catch (err) {
+      if (!hasKey || !isStillProcessing(err) || attempt >= waitsMs.length) throw err;
+      await new Promise((r) => setTimeout(r, waitsMs[attempt]));
+    }
+  }
+}
+
 type Options = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT";
   body?: unknown;
   /** Multipart body. Sent as-is with NO Content-Type: the browser adds it with the boundary. */
   form?: FormData;
@@ -81,7 +147,13 @@ type Options = {
   headers?: Record<string, string>;
 };
 
-async function request<T>(path: string, { method = "GET", body, form, auth = true, headers = {} }: Options = {}): Promise<T> {
+async function request<T>(path: string, options: Options = {}): Promise<T> {
+  const headers = options.headers ?? {};
+  preflight(options.body, options.form, headers);
+  return retryWhileInFlight("Idempotency-Key" in headers, () => send<T>(path, options));
+}
+
+async function send<T>(path: string, { method = "GET", body, form, auth = true, headers = {} }: Options = {}): Promise<T> {
   const token = auth ? getSession()?.token : undefined;
   let res: Response;
   try {
@@ -159,6 +231,19 @@ export const api = {
     form.append("file", file, file.name);
     if (title) form.append("title", title);
     return request<ReviewOut>("/api/reviews/upload", { method: "POST", form, headers: { "Idempotency-Key": idempotencyKey } });
+  },
+  /** GET /api/brands/{id}/rules -> {brand_id, rules | null}. */
+  brandRules: (brandId: string) => request<BrandRulesOut>(`/api/brands/${encodeURIComponent(brandId)}/rules`),
+  /** PUT the whole rule set, or null to remove it. rule_set_id / version are set by the server and stripped here. */
+  saveBrandRules: (brandId: string, rules: BrandRules | null) => {
+    let body: BrandRules | null = null;
+    if (rules) {
+      const { rule_set_id: _id, version: _v, ...rest } = rules;
+      void _id;
+      void _v;
+      body = rest;
+    }
+    return request<BrandRulesOut>(`/api/brands/${encodeURIComponent(brandId)}/rules`, { method: "PUT", body: { rules: body } });
   },
   review: (reviewId: string) => request<ReviewOut>(`/api/reviews/${encodeURIComponent(reviewId)}`),
   /** Approves the content version's latest review. 409 when stale, not decidable, a cited source

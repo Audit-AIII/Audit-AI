@@ -33,6 +33,7 @@
 .add-badge--ok { background: var(--ok-tint); box-shadow: var(--shadow-raised); }
 .add-badge--warn { background: var(--warn-tint); outline: 1px dashed var(--warn); outline-offset: -1px; }
 .add-badge--bad { background: var(--bad-tint); box-shadow: var(--shadow-well); }
+.add-badge--rule { outline: 1.5px solid var(--ink); outline-offset: -1px; }
 .add-badge--none { outline: 1px solid var(--ink-2); outline-offset: -1px; color: var(--surface); }
 .add-sev { font-size: 15px; letter-spacing: .04em; white-space: nowrap; }
 
@@ -264,3 +265,7 @@
 /* Dashboard (Insights): cards size to their content */
 .add-insights .panel { min-height: 0; }
 .add-insights__basis { margin: -10px 0 18px; }
+
+/* Rule findings in the editor: underline, not an evidence tint */
+.add-mark--rule { background: transparent; box-shadow: inset 0 -3px 0 var(--ink); }
+.add-rules-json { min-height: 320px; font: 400 15px / 1.5 ui-monospace, monospace; }

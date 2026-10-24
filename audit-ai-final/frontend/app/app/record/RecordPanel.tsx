@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
-import { isStub, isStubReview } from "@/components/app/reviewLabels";
+import { isRule, isStub, isStubReview } from "@/components/app/reviewLabels";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import type { ReviewOut } from "@/lib/api/types";
 import { useSession } from "@/lib/session";
@@ -57,8 +57,9 @@ type Step = { at: string | null; who: string; what: string; local?: boolean };
 function Record({ review, decision }: { review: ReviewOut; decision: SavedDecision | null }) {
   const session = useSession();
   const stub = isStubReview(review);
-  const counted = review.findings.filter((f) => !isStub(f));
+  const counted = review.findings.filter((f) => !isStub(f) && !isRule(f));
   const open = counted.filter((f) => f.verification_status !== "supported").length;
+  const ruleFindings = review.findings.filter(isRule).length;
   const outcome = OUTCOME[review.status];
   // Only trust the browser's copy of the decision if it agrees with the server's outcome.
   const localDecision = decision && decision.action === review.status ? decision : null;
@@ -73,7 +74,7 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
         ? "Ran a placeholder check (no AI service set up, nothing was really checked)"
         : review.status === "failed"
           ? `Couldn’t check the draft${review.error_summary ? `: ${review.error_summary}` : ""}`
-          : `Checked the draft: ${counted.length} claim${counted.length === 1 ? "" : "s"}, ${open} to look at`,
+          : `Checked the draft: ${counted.length} claim${counted.length === 1 ? "" : "s"}, ${open} to look at${ruleFindings ? `, ${ruleFindings} brand-rule finding${ruleFindings === 1 ? "" : "s"}` : ""}`,
     },
   ];
   if (outcome) {

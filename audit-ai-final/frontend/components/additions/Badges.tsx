@@ -1,3 +1,4 @@
+import { findingChip, isRule } from "@/components/app/reviewLabels";
 import type { FindingOut } from "@/lib/api/types";
 
 /** Glyph + word + relief for each state (DESIGN §16). Unverified is never shown as false. */
@@ -17,6 +18,19 @@ export function StatusBadge({ status }: { status: FindingOut["verification_statu
       <span aria-hidden="true">{v.glyph}</span> {v.label}
     </span>
   );
+}
+
+/** Badge for a whole finding: brand-rule findings show "§ <category> rule", claims their verdict. */
+export function FindingBadge({ f }: { f: FindingOut }) {
+  if (isRule(f)) {
+    const c = findingChip(f);
+    return (
+      <span className="add-badge add-badge--rule">
+        <span aria-hidden="true">{c.glyph}</span> {c.label}
+      </span>
+    );
+  }
+  return <StatusBadge status={f.verification_status} />;
 }
 
 const SOURCE: Record<string, { glyph: string; label: string; tone: string }> = {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
-import { isStub, isStubReview, verdict } from "@/components/app/reviewLabels";
+import { findingChip, isStub, isStubReview, isWholeDraft } from "@/components/app/reviewLabels";
 import { isDecidable } from "@/components/app/roles";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import { history, itemIdOf } from "@/lib/additions/content";
@@ -164,11 +164,11 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
           {open.length > 0 ? (
             <ul className="rows">
               {open.map((f) => {
-                const v = verdict(f.verification_status);
+                const v = findingChip(f);
                 return (
                   <li key={f.finding_id} className="rows__item">
                     <div>
-                      <p className="rows__title">“{f.original_text}”</p>
+                      <p className="rows__title">{isWholeDraft(f) ? "About the whole draft" : `“${f.original_text}”`}</p>
                       <p className="rows__meta">
                         <span className={`chip chip--${v.tone}`}>
                           {v.glyph} {v.label}

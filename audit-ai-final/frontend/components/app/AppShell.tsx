@@ -14,6 +14,7 @@ const WORKSPACE = [
   { href: "/app/insights", label: "Dashboard", hint: "Your brand at a glance: what gets flagged and how reviews move." },
   { href: "/app/queue", label: "Queue", hint: "Reviews waiting for a decision. Open one to decide on it." },
   { href: "/app/guidelines", label: "Guidelines", hint: "Upload, update or withdraw the documents drafts are checked against." },
+  { href: "/app/rules", label: "Rules", hint: "Words to use or avoid, required disclaimers and accessibility settings for this brand." },
   { href: "/app/scorecard", label: "Scorecard", hint: "How well the checker does on a benchmark test set." },
 ];
 /** Exact segment match, so /app/review-edit does not light up the "Review" stage. */

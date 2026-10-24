@@ -94,6 +94,32 @@ export type EvidenceOut = {
   source_version_id: string | null;
   quote: string;
   relation: EvidenceRelation;
+  /** The document and version the quote was taken from (optional; newer backends). */
+  source_title?: string | null;
+  source_version_number?: number | null;
+};
+
+/* ---- Brand rules (services/api/API.md "Brand rules" / "Rule findings"; contract/README.md) ---- */
+
+export type RuleCategory = Open<"terminology" | "brand_compliance" | "accessibility">;
+export type RuleType = Open<
+  | "required_term" | "prohibited_term" | "product_naming" | "preferred_term" | "spelling" | "terminology_consistency"
+  | "required_disclaimer" | "numeric_limit"
+  | "all_caps_run" | "emoji_run" | "vague_link_text" | "missing_alt_text" | "heading_structure" | "missing_captions" | "low_contrast"
+>;
+/** "text": about the highlighted span. "document": something is missing from the whole draft. */
+export type RuleScope = Open<"text" | "document">;
+export type SuggestionBasis = Open<"brand_rule" | "approved_document">;
+export type RulesStatus = Open<"complete" | "incomplete" | "not_applied">;
+/** "not_checkable" = nothing to inspect (no links, headings, images...): show "Not checked", never "Passed". */
+export type RuleCheckStatus = Open<"passed" | "violated" | "not_checkable" | "error">;
+export type RuleCheck = {
+  rule_id: string;
+  rule_type: RuleType;
+  category: RuleCategory;
+  status: RuleCheckStatus;
+  findings: number;
+  reason: string | null;
 };
 
 export type FindingOut = {
@@ -109,6 +135,12 @@ export type FindingOut = {
   suggested_correction: string | null;
   requires_human_review: boolean;
   evidence: EvidenceOut[];
+  /* Rule findings only (check_type "rule"); null on claim findings, absent on older backends. */
+  rule_id?: string | null;
+  rule_type?: RuleType | null;
+  scope?: RuleScope | null;
+  suggestion_basis?: SuggestionBasis | null;
+  source_ids?: string[] | null;
 };
 
 export type EngineInfo = {
@@ -142,7 +174,17 @@ export type ReviewOut = {
   version_number?: number | null;
   /** The submitted (or extracted) text the spans point into. */
   text?: string | null;
+  /** Brand rules: complete | incomplete | not_applied; null on reviews from before rules existed. */
+  rules_status?: RulesStatus | null;
+  /** One record per rule that ran; null when the rules did not run. */
+  rule_checks?: RuleCheck[] | null;
 };
+
+/** Stored brand rules (BrandRules, services/verification/schemas/brand_rules.schema.json).
+ * rule_set_id / version are set by the server and are never sent on PUT. */
+export type BrandRules = Record<string, unknown> & { rule_set_id?: string; version?: string | null };
+/** GET / PUT /api/brands/{id}/rules */
+export type BrandRulesOut = { brand_id: string; rules: BrandRules | null };
 
 /** POST /api/content-versions/{id}/approve and /request-changes */
 export type ApprovalEventOut = {
