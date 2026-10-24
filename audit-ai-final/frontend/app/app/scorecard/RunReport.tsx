@@ -23,7 +23,7 @@ function RatioCell({ r }: { r: Ratio }) {
 export function RunReport({ run }: { run: RunEvaluation }) {
   const mode = providerModeText(run.provider_mode);
   return (
-    <div className="add-stack">
+    <div className="add-stack add-run">
       <section className="app-alert app-alert--placeholder" role="note" aria-label="What this measures">
         <b>What this measures.</b> This tests the claim checker on a small labelled set. It is not the accuracy of every review.
         <br />
