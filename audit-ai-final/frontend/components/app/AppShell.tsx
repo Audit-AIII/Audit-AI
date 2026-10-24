@@ -8,9 +8,10 @@ import { ApiError, api } from "@/lib/api/client";
 import { getSession, signIn, useSession } from "@/lib/session";
 import { isSandTransitioning } from "@/lib/sandWave";
 import { STAGES } from "./stages";
+import { StageTrack, WorkspaceMenu, type WorkspacePage } from "./WorkspaceNav";
 
-/** Second, smaller row: workspace pages outside the five review stages. */
-const WORKSPACE = [
+/** Workspace pages outside the five review stages (the "Workspace" menu in the bar). */
+const WORKSPACE: WorkspacePage[] = [
   { href: "/app/insights", label: "Dashboard", hint: "Your brand at a glance: what gets flagged and how reviews move." },
   { href: "/app/queue", label: "Queue", hint: "Reviews waiting for a decision. Open one to decide on it." },
   { href: "/app/guidelines", label: "Guidelines", hint: "Upload, update or withdraw the documents drafts are checked against." },
@@ -21,7 +22,7 @@ const WORKSPACE = [
 const inSection = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
 
 /**
- * Workspace frame: wordmark · numbered stage bar (same on every stage page) · account,
+ * Workspace frame: wordmark · stage track · Workspace menu · account (one row),
  * then the stage page, then a one-line status bar. Signed-out visitors are sent to sign in.
  */
 export function AppShell({ children }: { children: ReactNode }) {
@@ -72,32 +73,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Link className="app__brand t-wordmark grain-text" data-text="Audit AI." href="/">
           Audit AI.
         </Link>
-        <nav className="stages" aria-label="Review stages">
-          <ol className="stages__list">
-            {STAGES.map((s) => {
-              const on = s.slug === current?.slug;
-              return (
-                <li key={s.slug}>
-                  <Link className="stage" href={`/app/${s.slug}`} aria-current={on ? "page" : undefined}>
-                    <span className="stage__n">{s.n}</span>
-                    <span className="stage__label">{s.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
-        </nav>
-        <nav className="app__more" aria-label="Workspace">
-          <ul className="app__more-list">
-            {WORKSPACE.map((w) => (
-              <li key={w.href}>
-                <Link className="app__more-link" href={w.href} aria-current={page?.href === w.href ? "page" : undefined}>
-                  {w.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <StageTrack current={current?.slug} />
+        <WorkspaceMenu pages={WORKSPACE} current={page} />
         <div className="app__account">
           <AccountNav inApp />
         </div>
@@ -110,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <footer className="app__status board" aria-live="polite">
         <span className="app__status-dot" aria-hidden="true" />
         <p>
-          {offline ? "Can’t reach the Audit AI server. Check that it is running." : (current?.hint ?? page?.hint ?? "Use the stages above to check a draft, or the workspace links for everything else.")}
+          {offline ? "Can’t reach the Audit AI server. Check that it is running." : (current?.hint ?? page?.hint ?? "Use the stages above to check a draft, or the Workspace menu for everything else.")}
         </p>
         <span className="t-caption app__status-sample">{session.organisation.name}</span>
       </footer>
