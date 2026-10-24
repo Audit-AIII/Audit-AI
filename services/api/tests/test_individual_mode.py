@@ -22,6 +22,9 @@ behaviour instead:
    covered in test_content_versioning.py) and a replaced cited source.
    -> test_failed_review_still_cannot_be_approved
    -> test_replaced_cited_source_still_blocks_approval
+6. DECISIONS.md: every decision is in the audit log - who decided, when, which version - and an
+   approval never carries over to a newer version of the same draft.
+   -> test_every_decision_is_audited_and_an_approval_never_carries_over
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ import uuid
 
 from conftest import requires_db, use_scripted_provider
 from inkloom_api.engine.scripted_provider import ScriptedRule
-from inkloom_api.models import Membership, Review
+from inkloom_api.models import AuditEvent, Membership, Review
 
 CONTRADICTION_RULES = [
     ScriptedRule("24 hours of playback per charge", "CONTRADICTED", "up to 12 hours of playback per charge",
@@ -150,3 +153,38 @@ def test_replaced_cited_source_still_blocks_approval(client, monkeypatch, accoun
     denied = _approve(client, owner, review["content_version_id"])
     assert denied.status_code == 409
     assert "rerun" in denied.json()["error"]["message"]
+
+
+@requires_db
+def test_every_decision_is_audited_and_an_approval_never_carries_over(
+    client, force_stub_mode, db_session, account_factory
+) -> None:
+    owner = account_factory("owner")
+    v1 = owner.submit()
+    assert _approve(client, owner, v1["content_version_id"]).status_code == 201
+
+    edited = client.post(f"/api/content/{v1['content_item_id']}/versions",
+                         json={"text": "Lumen Pods offer up to 12 hours of playback."}, headers=owner.headers)
+    assert edited.status_code == 201, edited.text
+    v2 = edited.json()
+    assert v2["review"]["status"] != "approved"  # v1's approval does not carry over
+    rejected = client.post(f"/api/content-versions/{v2['content_version_id']}/request-changes",
+                           json={"decision": "rejected", "note": "not ready"}, headers=owner.headers)
+    assert rejected.status_code == 201, rejected.text
+
+    db_session.expire_all()
+    events = (
+        db_session.query(AuditEvent)
+        .filter(AuditEvent.organisation_id == uuid.UUID(owner.organisation_id),
+                AuditEvent.event_type.like("content_version.%"))
+        .order_by(AuditEvent.created_at)
+        .all()
+    )
+    decisions = [(e.event_type, e.entity_id, str(e.actor_user_id), e.details.get("note")) for e in events]
+    assert decisions == [
+        ("content_version.approved", v1["content_version_id"], owner.user_id, None),
+        ("content_version.created", str(v2["content_version_id"]), owner.user_id, None),  # the edit
+        ("content_version.rejected", str(v2["content_version_id"]), owner.user_id, "not ready"),
+    ]
+    assert all(e.created_at is not None for e in events)
+    assert client.get(f"/api/reviews/{v1['id']}", headers=owner.headers).json()["status"] == "approved"

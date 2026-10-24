@@ -1,7 +1,7 @@
 # Member 3 (Backend) — Project Status
 
 **Team:** CodeNinjas · **Product:** InkLoom AI · **Member:** Member 3 — Backend, Security & Governance
-**Last updated:** 2026-10-24 · **Tests:** 232 / 232 passing against a real PostgreSQL database ·
+**Last updated:** 2026-10-24 · **Tests:** 234 / 234 passing against a real PostgreSQL database ·
 **Smoke test:** passing over real HTTP with a real AI provider · not yet deployed
 
 > `00_CONTEXT.md` in this folder is the original governance contract. Where it mentions team roles,
@@ -167,6 +167,7 @@ then switched off by the individual-user decision.
 | fix | tag `known-good-2026-10-24` | Resolved the merge conflicts committed in `68b9b59` (main, evaluations router + tests, API.md): kept the POST / 404 Scorecard design. The engine dataset grew to 80 claims in `6b23c11`; tests now read its size instead of hardcoding 55 |
 | fix | branch `fix/main-green` | Re-verified main after direct pushes broke it (`IndentationError` in `test_evaluations.py`). Krish's `member2/fix-plan-2-5-6-8` (incl. `f9f18a8` re-indent and `cc145f7` backend changes) was already on main via PR #1; no conflict markers; full suite 212 passed / 0 skipped against PostgreSQL; server boots (`/health` 200). No code changes needed |
 | Phase 2 | branch `darsh/phase2-contracts` | Contract and stability audit (`tests/test_api_stability.py`, 18 tests). Fixed: router 404/405 answered outside the error shape; every 500 lost its request id; a NUL character in any text field or uploaded file was a 500 (now 422); an Idempotency-Key over 200 chars was a 500 after storing the review (now 422 first); two same-key requests at once stored a duplicate review then 500'd (key now claimed in the review's own transaction: one review, both get it); a caller's X-Request-ID was echoed unvalidated. Guard test: only login/register/health are open. Docs: softening shipped |
+| Phase 3 | branch `darsh/phase3-single-user` | Single-user decision confirmed (DECISIONS.md decision 1); already implemented, no code change. Verified and pinned: within one account a brand's review gets only that brand's approved, current documents, cites nothing of another brand's, and the result cache can't carry evidence across brands or past a withdrawal (`test_reference_set_isolation.py`, mutation-checked); every decision is audited (who, when, which version) and an approval never carries over to a new version (`test_individual_mode.py`) |
 
 Trust Scorecard real run (gemini-3.5-flash-lite, engine dataset of 55 claims at the time; it is now 80): 53 answered,
 catch_rate 1.0 (35/35), false_positive_rate 0.0 (0/18 answered supported). Small synthetic set —
@@ -180,7 +181,7 @@ of time on free-tier 503s; such runs (>20% claims without a verdict) are now ref
 ```sh
 cd services/api
 set -a; source .env; set +a
-.venv/Scripts/python -m pytest -q          # 232 passed, 0 skipped, ~74s, real PostgreSQL 18.6 (2026-10-24, branch darsh/phase2-contracts)
+.venv/Scripts/python -m pytest -q          # 234 passed, 0 skipped, ~74s, real PostgreSQL 18.6 (2026-10-24, branch darsh/phase3-single-user)
 ```
 
 Covers: cross-account isolation (every route), revoked memberships, approval guards and state
