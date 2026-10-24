@@ -163,9 +163,10 @@ then switched off by the individual-user decision.
 | 6 | `8c2fb67` | `GET /api/analytics/brand-risk` |
 | 7 | `2628379` | Trust Scorecard + migration 0009 |
 | 8 | `3e3a897` | Demo seed covering every state |
-| 9 | this commit | Docs, contract schemas, smoke test |
+| 9 | `8c05137` | Docs, contract schemas, smoke test |
+| fix | tag `known-good-2026-10-24` | Resolved the merge conflicts committed in `68b9b59` (main, evaluations router + tests, API.md): kept the POST / 404 Scorecard design. The engine dataset grew to 80 claims in `6b23c11`; tests now read its size instead of hardcoding 55 |
 
-Trust Scorecard real run (gemini-3.5-flash-lite, engine dataset of 55 claims): 53 answered,
+Trust Scorecard real run (gemini-3.5-flash-lite, engine dataset of 55 claims at the time; it is now 80): 53 answered,
 catch_rate 1.0 (35/35), false_positive_rate 0.0 (0/18 answered supported). Small synthetic set —
 `limits_note` says it shows testing, not universal accuracy. A run with `gemini-3.6-flash` ran out
 of time on free-tier 503s; such runs (>20% claims without a verdict) are now refused and not stored.
@@ -177,7 +178,7 @@ of time on free-tier 503s; such runs (>20% claims without a verdict) are now ref
 ```sh
 cd services/api
 set -a; source .env; set +a
-.venv/Scripts/python -m pytest -q          # 183 passed, ~45s, real PostgreSQL
+.venv/Scripts/python -m pytest -q          # 183 passed, ~70s, real PostgreSQL (2026-10-24)
 ```
 
 Covers: cross-account isolation (every route), revoked memberships, approval guards and state
