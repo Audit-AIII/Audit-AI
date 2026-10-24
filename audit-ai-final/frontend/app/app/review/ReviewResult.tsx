@@ -201,6 +201,8 @@ function ReviewView({
         <Panel n="03" label="Why it was flagged" title={current ? (isStub(current) ? "Placeholder" : verdict(current.verification_status).label) : "–"}>
           {current ? <FindingDetail f={current} /> : <p className="t-body panel__note">Pick a problem to see why.</p>}
           <EngineNote review={review} stub={stub} />
+          <a className="link" href={`/app/review-edit?id=${review.id}`}>Fix the wording →</a>
+          <a className="link" href={`/app/coverage?id=${review.id}`}>See evidence coverage →</a>
           <Button href={`/app/decide?id=${review.id}`}>Choose what to do →</Button>
         </Panel>
       </Panels>

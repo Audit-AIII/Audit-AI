@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { isStub, isStubReview, verdict } from "@/components/app/reviewLabels";
 import { canApprove, canReview, isDecidable, roleName } from "@/components/app/roles";
 import { useReview, useReviewId } from "@/components/app/useReview";
+import { history, itemIdOf } from "@/lib/additions/content";
 import { ApiError, api } from "@/lib/api/client";
 import type { ApprovalEventOut, ReviewOut } from "@/lib/api/types";
 import { useSession } from "@/lib/session";
@@ -50,6 +51,7 @@ function Empty({ title, body, bad = false }: { title: string; body: string; bad?
           {body}
         </p>
         <Button href="/app/draft">Check a draft →</Button>
+        <a className="link" href="/app/queue">Open the review queue →</a>
       </div>
     </>
   );
@@ -63,6 +65,25 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<ApprovalEventOut | null>(null);
   const [stubAck, setStubAck] = useState(false);
+  // Newer version of the same content item than the one decided here? The backend refuses to
+  // approve a stale version (409); say so up front. Unknown (no item id / history failed) = no warning.
+  const [newerVersion, setNewerVersion] = useState<number | null>(null);
+  const itemId = itemIdOf(review);
+  useEffect(() => {
+    if (!itemId || review.version_number == null) return;
+    let live = true;
+    history(itemId)
+      .then((h) => {
+        const cur = h.versions.find((v) => v.is_current);
+        if (live && cur && cur.version_number > review.version_number!) setNewerVersion(cur.version_number);
+      })
+      .catch(() => {
+        /* only drives the warning; the server still enforces staleness */
+      });
+    return () => {
+      live = false;
+    };
+  }, [itemId, review.version_number]);
 
   const stub = isStubReview(review);
   const decidable = isDecidable(review.status);
@@ -76,7 +97,9 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
     ? null // the outcome banner explains
     : !canApprove(role)
       ? `Your role (${roleName(role)}) can’t approve. An approver needs to do this.`
-      : routingBlocks
+      : newerVersion !== null
+        ? "A newer version of this draft exists, so this one can’t be approved."
+        : routingBlocks
         ? `This review needs a ${roleName(required!)} (or an admin) to approve it.`
         : stub && !stubAck
           ? "Tick the box above first: nothing was really checked."
@@ -133,6 +156,12 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
       {!outcome && !decidable && (
         <div className="app-alert" role="status">
           This review can’t be decided on ({review.status.replace(/_/g, " ")}). {review.status === "failed" ? "Fix the problem and check the draft again." : ""}
+        </div>
+      )}
+      {newerVersion !== null && decidable && (
+        <div className="app-alert" role="alert">
+          <b>⚠ A newer version of this draft exists. Approving this one will be refused.</b> This is version {review.version_number}; the
+          latest is version {newerVersion}. You can still send this one back.
         </div>
       )}
       {stub && decidable && (
