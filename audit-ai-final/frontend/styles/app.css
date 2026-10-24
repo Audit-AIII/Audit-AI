@@ -3,6 +3,12 @@
    Same pressed-paper kit as the landing page, denser (DESIGN.md §17). No Lenis here.
    ========================================================================== */
 .app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; min-height: 100svh; }
+/* Evidence-status tints, workspace only (the one place new hues are allowed, DESIGN.md §16).
+   Opaque and matte, lighter than the canvas so ink reads on them: rose = contradicted,
+   light gold = unverified, sage = supported. Contrast with --ink: rose 8.9:1, gold 10.3:1,
+   sage 9.4:1; each status ink (--bad / --warn / --ok) is over 6.5:1 on its own tint. The
+   translucent landing values blended into the tan board and read muddy. */
+.app { --bad-tint: #e6c3b8; --warn-tint: #f1d7a8; --ok-tint: #d3d3ac; }
 
 /* ---- Top bar ---- */
 .app__bar {
@@ -282,8 +288,8 @@ textarea.draft__text {
 .coverage__pct { font: 700 20px / 1 var(--font-display); }
 .heat { margin: 0; font-size: 20px; line-height: 1.75; }
 .heat mark { color: var(--ink); padding: 2px 3px; border-radius: var(--r-tag); }
-.heat__bad { background: var(--bad-tint); box-shadow: var(--shadow-well); }
-.heat__warn { background: var(--warn-tint); outline: 1.5px dashed var(--warn); outline-offset: 0; }
+.heat__bad { background: var(--bad-tint); box-shadow: inset 0 -2px 0 var(--bad); }
+.heat__warn { background: var(--warn-tint); box-shadow: inset 0 -2px 0 transparent; outline: 1.5px dashed var(--warn); outline-offset: -1px; }
 .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: auto 0 0; }
 .legend__ok { color: var(--ok); }
 .legend__warn { color: var(--warn); }
@@ -402,7 +408,7 @@ button.rows__item:focus-visible { outline: 2px solid var(--accent); outline-offs
 
 /* Highlighted spans in the draft are buttons too */
 .heat__mark { padding: 2px 3px; border-radius: var(--r-tag); color: var(--ink); cursor: pointer; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.heat__ok { background: var(--ok-tint); }
+.heat__ok { background: var(--ok-tint); box-shadow: inset 0 -1px 0 var(--ok); }
 .heat__placeholder { background: transparent; outline: 1.5px dashed var(--ink-2); outline-offset: 0; }
 .heat__mark.is-current { text-decoration: underline 2px; text-underline-offset: 4px; }
 .heat__mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -600,3 +606,8 @@ button.rows__item { transition: background-color var(--dur-base), translate var(
 .tally__note { margin: 0; color: var(--ink); }
 @media (max-width: 767px) { .tally__list > li { display: flex; flex: 1 1 140px; } .tally__tile { flex: 1; min-width: 0; } }
 @media (prefers-reduced-motion: reduce) { .tally__tile { animation: none; transition: none; } .tally__tile:hover { translate: none; } }
+
+/* Beach finds in the workspace backdrop (Shore, see AppAmbient): above the discs, under the panels.
+   Below 1280px the title strip is too narrow (long titles, head buttons), so only the tide stays. */
+.app__ambient .shore { z-index: 0; }
+@media (max-width: 1279px) { .app__ambient .shell:not(.shell--tide) { display: none; } }
