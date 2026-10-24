@@ -55,7 +55,8 @@ def provider(handler, models=("google/gemini-flash", "meta-llama/llama"), **sett
         OpenRouterSettings(api_key=KEY, models=list(models), **settings),
         client=httpx.Client(transport=httpx.MockTransport(transport)),
         sleep=sleeps.append,
-        jitter=lambda: 1.0,  # deterministic: the full exponential step (jitter is tested on its own)
+        # Deterministic: the full exponential step (jitter is tested on its own).
+        jitter=lambda: 1.0,
     )
     return adapter, seen, sleeps
 
@@ -354,7 +355,9 @@ def test_backoff_is_jittered_within_half_to_full_step_and_capped():
         sleeps: list[float] = []
         adapter = OpenRouterProvider(
             OpenRouterSettings(api_key=KEY, models=["google/gemini-flash"]),
-            client=httpx.Client(transport=httpx.MockTransport(lambda r: responses.pop(0))),
+            client=httpx.Client(
+                transport=httpx.MockTransport(lambda r, responses=responses: responses.pop(0))
+            ),
             sleep=sleeps.append,
             jitter=jitter,
         )

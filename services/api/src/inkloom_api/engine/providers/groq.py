@@ -23,7 +23,6 @@ import os
 
 import httpx
 from inkloom_verify.providers.base import (
-    parse_json_object,
     JsonCompletion,
     JsonCompletionRequest,
     MalformedOutputError,
@@ -34,8 +33,8 @@ from inkloom_verify.providers.base import (
     ProviderRequestError,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    parse_json_object,
 )
-
 from inkloom_verify.security import register_secret
 
 from .retry import with_retry

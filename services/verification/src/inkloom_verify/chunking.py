@@ -111,7 +111,7 @@ class DocumentPassage:
 
 def passage_id_for(doc_id: str, doc_text_sha256: str, span: SourceSpan) -> str:
     """A passage id that depends only on the document and location, so it is stable across runs."""
-    key = f"{doc_id}\x00{doc_text_sha256}\x00{span.start}\x00{span.end}".encode("utf-8")
+    key = f"{doc_id}\x00{doc_text_sha256}\x00{span.start}\x00{span.end}".encode()
     return "psg_" + hashlib.sha256(key).hexdigest()[:24]
 
 

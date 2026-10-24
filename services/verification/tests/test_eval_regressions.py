@@ -9,10 +9,11 @@ from pathlib import Path
 import pytest
 
 from inkloom_verify.evaluation import metrics, scripted
-from inkloom_verify.evaluation.oracle import OracleProvider, OraclePredictor
+from inkloom_verify.evaluation.oracle import OraclePredictor, OracleProvider
 from inkloom_verify.evaluation.pipeline_predictor import PipelinePredictor
 from inkloom_verify.evaluation.runner import load_records
-from inkloom_verify.schemas import EvalCategory as C, GuardRejectionReason, Verdict
+from inkloom_verify.schemas import EvalCategory as C
+from inkloom_verify.schemas import GuardRejectionReason, Verdict
 
 ROOT = Path(__file__).resolve().parents[1]
 RECORDS = load_records(ROOT / "eval" / "dataset.jsonl")
@@ -42,7 +43,7 @@ def adversary_runs():
     return runs
 
 
-# --- Every record, through the real pipeline ----------------------------------------------------------
+# --- Every record, through the real pipeline ------------------------------------------------------
 
 
 @pytest.mark.parametrize("record_id", sorted(BY_ID))
@@ -89,7 +90,7 @@ def test_every_dataset_category_is_a_regression_case(category):
     assert covered, category  # each of these records runs in the two parametrised tests above
 
 
-# --- REG-012 ------------------------------------------------------------------------------------------
+# --- REG-012 --------------------------------------------------------------------------------------
 
 
 def test_reg_012_the_planted_quote_is_never_evidence(adversary_runs):
@@ -111,7 +112,7 @@ def test_reg_012_the_planted_quote_is_never_evidence(adversary_runs):
     assert outcome.predicted != "SUPPORTED" and outcome.requires_human_review
 
 
-# --- CI fails when the engine regresses ---------------------------------------------------------------
+# --- CI fails when the engine regresses -----------------------------------------------------------
 
 
 def gates(out: Path) -> dict[str, str]:

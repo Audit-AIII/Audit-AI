@@ -31,9 +31,9 @@ RECORDS = {r.record_id: r for r in load_records(FIXTURE / "dataset.jsonl")}
 CASES = {
     c.record_id: c
     for c in (
-        CaseOutcome.model_validate_json(l)
-        for l in (FIXTURE / "cases.jsonl").read_text(encoding="utf-8").splitlines()
-        if l.strip()
+        CaseOutcome.model_validate_json(ln)
+        for ln in (FIXTURE / "cases.jsonl").read_text(encoding="utf-8").splitlines()
+        if ln.strip()
     )
 }
 METRICS = rm.compute(
@@ -164,7 +164,7 @@ def fixture_report(**changes) -> dict:
     return report
 
 
-# --- Successful generation ------------------------------------------------------------------------------
+# --- Successful generation ------------------------------------------------------------------------
 
 
 def test_every_required_section_is_rendered_from_the_result():
@@ -185,7 +185,7 @@ def test_passed_gated_outcomes_and_wrong_approvals_are_explained():
     assert "**missed contradictions** (CONTRADICTED predicted as anything else): 2" in text
 
 
-# --- Undefined versus measured zero ---------------------------------------------------------------------
+# --- Undefined versus measured zero ---------------------------------------------------------------
 
 
 def test_undefined_metrics_are_unavailable_and_measured_zero_is_zero():
@@ -205,7 +205,7 @@ def test_undefined_metrics_are_unavailable_and_measured_zero_is_zero():
     assert "0.0% (0/0)" not in text
 
 
-# --- Failed, partial, incomplete, skipped ----------------------------------------------------------------
+# --- Failed, partial, incomplete, skipped ---------------------------------------------------------
 
 
 def test_a_failed_gate_fails_the_run_and_is_marked_violated():
@@ -301,7 +301,7 @@ def test_no_baseline_is_shown_as_no_baseline_with_how_to_set_one():
     assert "To set one: measure it in a real run" in text
 
 
-# --- Invalid results --------------------------------------------------------------------------------------
+# --- Invalid results ------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -330,7 +330,7 @@ def test_a_metric_that_is_not_a_ratio_is_refused_and_nothing_is_written(tmp_path
     assert list(tmp_path.iterdir()) == []
 
 
-# --- Timestamped paths ------------------------------------------------------------------------------------
+# --- Timestamped paths ----------------------------------------------------------------------------
 
 
 def test_reports_are_named_by_their_utc_timestamp_and_never_overwritten(tmp_path):
@@ -359,7 +359,7 @@ def test_reports_are_named_by_their_utc_timestamp_and_never_overwritten(tmp_path
     )  # re-rendered identically
 
 
-# --- The Trust Scorecard summary contract ------------------------------------------------------------------
+# --- The Trust Scorecard summary contract ---------------------------------------------------------
 
 
 def test_the_summary_carries_the_eight_metrics_and_real_cases_of_each_status():

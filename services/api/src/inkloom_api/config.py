@@ -7,7 +7,6 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 MIN_AUTH_SECRET_CHARS = 32  # HS256 key: at least 256 bits of text
 
 

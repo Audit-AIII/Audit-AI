@@ -319,7 +319,7 @@ def test_partial_failure_keeps_every_other_claims_result():
 def test_mapping_carries_evidence_confidence_and_the_correction():
     source = internal("verification_report.json")
     public = to_public_report(source)
-    for entry, result in zip(public.claims, source.results):
+    for entry, result in zip(public.claims, source.results, strict=False):
         assert (
             entry.claim.text == result.claim.text
             and entry.claim.span.start == result.claim.source_span.start

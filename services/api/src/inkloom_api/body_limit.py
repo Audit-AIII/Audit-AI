@@ -8,6 +8,7 @@ files) get the upload limit plus 1 MB for the envelope; every other route gets t
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 
@@ -72,10 +73,8 @@ class BodySizeLimitMiddleware:
                 started = True
             await send(message)
 
-        try:
+        with contextlib.suppress(_TooLarge):
             await self.app(scope, counted_receive, tracked_send)
-        except _TooLarge:
-            pass
 
 
 async def _reject(send: Send) -> None:

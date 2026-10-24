@@ -21,11 +21,11 @@ from e2e_support import CONTENT, DOCS, RoutedProvider, careful_model  # noqa: E4
 from inkloom_verify.api import create_verify_router, install_dev_error_handlers  # noqa: E402
 from inkloom_verify.api_contract import PUBLIC_SCHEMA_VERSION, Report  # noqa: E402
 from inkloom_verify.pipeline import PipelineEngine  # noqa: E402
-from inkloom_verify.providers.base import (
+from inkloom_verify.providers.base import (  # noqa: E402
     MalformedOutputError,
     ProviderRateLimitError,
     ProviderTimeoutError,
-)  # noqa: E402
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMAS = ROOT / "schemas"
@@ -213,7 +213,8 @@ def test_10_every_fixture_validates(name):
 def test_11_required_metadata():
     data = client().post("/v1/verify", json=body()).json()
     assert set(data["metadata"]) == {"content_hash", "errors", "prompt_versions"}
-    # The versions actually sent: careful_model reaches all three stages (one claim is CONTRADICTED).
+    # The versions actually sent: careful_model reaches all three stages (one claim is
+    # CONTRADICTED).
     assert data["metadata"]["prompt_versions"] == {
         "extract_claims": "extract-claims-v1",
         "verify_claim": "verify-claim-v1",
@@ -330,7 +331,7 @@ def test_offsets_are_code_points_through_the_endpoint():
         assert text[span["start"] : span["end"]] == entry["claim"]["text"]
 
 
-# --- Known gaps, recorded by the Phase 6 audit (strict: they fail once fixed, so the marker goes) --
+# --- Known gaps (strict xfail: each fails once fixed, so its marker must go) ----------------------
 
 
 @pytest.mark.xfail(

@@ -28,7 +28,7 @@ from inkloom_verify.evaluation.runner import (
     evaluate,
     load_records,
 )
-from inkloom_verify.providers.base import JsonCompletionRequest, ProviderQuotaError
+from inkloom_verify.providers.base import JsonCompletionRequest, ProviderError, ProviderQuotaError
 from inkloom_verify.providers.openrouter import OpenRouterProvider, OpenRouterSettings
 from inkloom_verify.schemas import ErrorCode, Verdict
 
@@ -139,7 +139,7 @@ def test_an_ordinary_429_is_still_a_retried_rate_limit():
 def test_a_data_policy_refusal_is_remembered_and_never_relaxes_data_collection():
     provider, calls, _ = adapter(lambda body: (404, POLICY_404))
     for _ in range(3):
-        with pytest.raises(Exception):
+        with pytest.raises(ProviderError):
             provider.complete_json(REQUEST)
     assert len(calls) == 1  # later records skip the refused model without a network call
     assert calls[0]["provider"] == {"data_collection": "deny", "require_parameters": True}

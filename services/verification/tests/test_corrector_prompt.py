@@ -17,15 +17,15 @@ from inkloom_verify.api_contract import to_public_report  # noqa: E402
 from inkloom_verify.pipeline import PipelineConfig, PipelineEngine, verify_request  # noqa: E402
 from inkloom_verify.prompts import correction as prompt  # noqa: E402
 from inkloom_verify.providers.base import MalformedOutputError  # noqa: E402
-from inkloom_verify.schemas import (
+from inkloom_verify.schemas import (  # noqa: E402
     CorrectionIssueCode,
     CorrectionStatus,
     ReferenceDocument,
     Verdict,
     VerificationRequest,
-)  # noqa: E402
+)
 
-I = CorrectionIssueCode
+Issue = CorrectionIssueCode
 SHEET = ReferenceDocument(
     doc_id="lumen-pods-fact-sheet",
     text=(
@@ -210,12 +210,12 @@ def test_rewriting_the_whole_sentence_is_refused_as_not_minimal():
         content,
         scripted("Price: €129 (EU launch price).", fix(content, "Price: €129 (EU launch price).")),
     )
-    assert result.correction is None and I.NOT_MINIMAL in [
+    assert result.correction is None and Issue.NOT_MINIMAL in [
         i.code for i in result.correction_attempt.issues
     ]
 
 
-# --- Unsafe proposals are never returned -----------------------------------------------------------
+# --- Unsafe proposals are never returned ----------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -226,35 +226,35 @@ def test_rewriting_the_whole_sentence_is_refused_as_not_minimal():
             "Price: €129 (EU launch price).",
             "€99",
             "€109",
-            I.UNSUPPORTED_ADDITION,
+            Issue.UNSUPPORTED_ADDITION,
         ),  # number
         (
             "Marta Costa is the chief executive officer.",
             "Chief executive officer: Ana Ribeiro.",
             "Marta Costa",
             "Tomás Silva",
-            I.UNSUPPORTED_ADDITION,
+            Issue.UNSUPPORTED_ADDITION,
         ),  # name
         (
             "Lumen Pods cost €99.",
             "Price: €129 (EU launch price).",
             "€99",
             "€129 with free shipping",
-            I.UNSUPPORTED_ADDITION,
+            Issue.UNSUPPORTED_ADDITION,
         ),  # feature
         (
             "Lumen Pods cost €99.",
             "Price: €129 (EU launch price).",
             "€99",
             "129",
-            I.DROPS_UNIT,
+            Issue.DROPS_UNIT,
         ),  # unit dropped
         (
             "Lumen Pods launch on 2 May 2026.",
             "Launch date: 2 April 2026.",
             "2 May 2026",
             "2 April 2025",
-            I.UNSUPPORTED_ADDITION,
+            Issue.UNSUPPORTED_ADDITION,
         ),  # date
     ],
     ids=["new-number", "new-name", "new-feature", "dropped-unit", "wrong-year"],
@@ -287,7 +287,7 @@ def test_dropping_the_named_source_is_refused():
             fix("Ana Ribeiro says Lumen Pods cost €99", "Lumen Pods cost €129"),
         ),
     )
-    assert result.correction is None and I.DROPS_ATTRIBUTION in [
+    assert result.correction is None and Issue.DROPS_ATTRIBUTION in [
         i.code for i in result.correction_attempt.issues
     ]
 
@@ -314,7 +314,9 @@ def test_injection_inside_the_claim_is_data_and_cannot_add_facts():
         result.correction is None
         and result.correction_attempt.status is CorrectionStatus.NEEDS_HUMAN_REVIEW
     )
-    assert {I.DROPS_UNIT, I.NOT_MINIMAL} <= {i.code for i in result.correction_attempt.issues}
+    assert {Issue.DROPS_UNIT, Issue.NOT_MINIMAL} <= {
+        i.code for i in result.correction_attempt.issues
+    }
 
 
 def test_injection_inside_the_evidence_cannot_supply_the_replacement():
@@ -323,7 +325,7 @@ def test_injection_inside_the_evidence_cannot_supply_the_replacement():
     _, result, _ = run(
         "Lumen Pods cost €99.", scripted("Price: €129 (EU launch price).", fix("€99", "FREE"))
     )
-    assert result.correction is None and I.UNSUPPORTED_ADDITION in [
+    assert result.correction is None and Issue.UNSUPPORTED_ADDITION in [
         i.code for i in result.correction_attempt.issues
     ]
 
@@ -337,7 +339,7 @@ def test_ambiguous_evidence_makes_the_model_decline_and_nothing_is_fabricated():
         result.correction is None
         and result.correction_attempt.status is CorrectionStatus.NEEDS_HUMAN_REVIEW
     )
-    assert [i.code for i in result.correction_attempt.issues] == [I.MODEL_DECLINED]
+    assert [i.code for i in result.correction_attempt.issues] == [Issue.MODEL_DECLINED]
 
 
 def test_conflicting_evidence_never_reaches_the_corrector():

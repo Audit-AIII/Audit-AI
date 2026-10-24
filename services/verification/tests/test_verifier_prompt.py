@@ -273,7 +273,7 @@ def test_conflicting_authoritative_sources_are_treated_the_same_until_authority_
     ]
 
 
-# --- Fabrication and injection ----------------------------------------------------------------------
+# --- Fabrication and injection --------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -315,7 +315,7 @@ def test_prompt_injection_inside_a_passage_is_data():
     )  # an instruction is not evidence for the figure
 
 
-# --- Invalid output, bounded repairs ---------------------------------------------------------------
+# --- Invalid output, bounded repairs --------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

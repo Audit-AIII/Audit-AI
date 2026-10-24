@@ -17,9 +17,8 @@ test_scope.py; the backend's own copies in services/api/tests/test_security_cont
 from __future__ import annotations
 
 import pytest
-from e2e_support import DOCS, SUPPORTED_CLAIM, RoutedProvider, careful_model, data_block, request
-from test_pipeline import failing_at
 
+from e2e_support import DOCS, SUPPORTED_CLAIM, RoutedProvider, careful_model, data_block, request
 from inkloom_verify.integration import finding_fields
 from inkloom_verify.pipeline import verify_request
 from inkloom_verify.providers.base import (
@@ -27,7 +26,8 @@ from inkloom_verify.providers.base import (
     ProviderRateLimitError,
     ProviderTimeoutError,
 )
-from inkloom_verify.schemas import ReferenceDocument, ReportStatus, VerificationRequest, Verdict
+from inkloom_verify.schemas import ReferenceDocument, ReportStatus, Verdict, VerificationRequest
+from test_pipeline import failing_at
 
 FAILURES = {
     "timeout": ProviderTimeoutError("slow"),

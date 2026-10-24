@@ -17,7 +17,7 @@ BrandRisk exactly; every number comes from real rows in the period, never invent
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -79,7 +79,7 @@ def test_metrics_from_real_rows_and_period(
     use_scripted_provider(monkeypatch, RULES)
     owner, other = account_factory("owner"), account_factory("other")
     other.submit("Lumen Pods offer up to 24 hours of playback per charge.")  # never counted
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Decided 120 minutes after it was created: contradicted + unsupported.
     decided = owner.submit(
@@ -95,7 +95,8 @@ def test_metrics_from_real_rows_and_period(
     waiting = owner.submit("Lumen Pods are India's number one earbuds.")
     _set_created(db_session, "reviews", waiting["id"], now - timedelta(minutes=120))
 
-    # One item, two versions: v1's review is stale (not waiting), v2's waits 30 minutes. Supported only.
+    # One item, two versions: v1's review is stale (not waiting), v2's waits 30 minutes. Supported
+    # only.
     v1 = owner.submit("Lumen Pods come with a 2-year warranty.")
     v2 = client.post(
         f"/api/content/{v1['content_item_id']}/versions",

@@ -34,14 +34,18 @@ BODY = {
 }
 
 
+def _read(path: str) -> str:
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 def post(body: dict) -> tuple[int, dict]:
     app = FastAPI()
     install_dev_error_handlers(app)
-    loader = (
-        lambda tenant, ref: [DOCS["pods-fact-sheet"], DOCS["company-facts"]]
-        if ref == "ref_pods"
-        else None
-    )  # noqa: E731
+
+    def loader(tenant, ref):
+        return [DOCS["pods-fact-sheet"], DOCS["company-facts"]] if ref == "ref_pods" else None
+
     app.include_router(
         create_verify_router(
             PipelineEngine(RoutedProvider(careful_model)),
@@ -127,7 +131,7 @@ def test_the_frontend_still_renders_the_engine_derived_fields():
     types = os.path.join(frontend, "lib", "api", "types.ts")
     if not (os.path.exists(component) and os.path.exists(types)):
         return  # the frontend may be checked out separately
-    rendered = open(component, encoding="utf-8").read()
+    rendered = _read(component)
     for marker in (
         "Why it was flagged",
         "evidence__quote",
@@ -139,17 +143,13 @@ def test_the_frontend_still_renders_the_engine_derived_fields():
     # Since Member 1's 53ef611 the suggestion wording lives in components/app/reviewLabels.ts. The
     # evidence-backed correction and the engine's safer wording must stay apart there: only the
     # correction may be presented as backed by the brand's documents (contract 2026-10-24).
-    labels = open(
-        os.path.join(frontend, "components", "app", "reviewLabels.ts"), encoding="utf-8"
-    ).read()
+    labels = _read(os.path.join(frontend, "components", "app", "reviewLabels.ts"))
     suggestion = labels.split("export function suggestionFor", 1)[1].split("\n}\n", 1)[0]
     assert "suggested_correction" in suggestion and "safer_wording" in suggestion
     assert "We suggest (backed by your documents)" in suggestion
     assert 'SAFER_WORDING_LABEL = "Safer wording, not evidence-backed"' in labels
     assert "label: SAFER_WORDING_LABEL, evidenceBacked: false" in suggestion
-    finding = (
-        open(types, encoding="utf-8").read().split("export type FindingOut", 1)[1].split("};", 1)[0]
-    )
+    finding = _read(types).split("export type FindingOut", 1)[1].split("};", 1)[0]
     for field in (
         "span",
         "verification_status",

@@ -13,8 +13,8 @@ import logging
 import re
 import sys
 import uuid
+from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
-from typing import Awaitable, Callable
 
 from inkloom_verify.security import install_redaction
 from starlette.middleware.base import BaseHTTPMiddleware

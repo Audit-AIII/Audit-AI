@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from inkloom_verify import __version__
 from inkloom_verify.chunking import sentence_spans
+from inkloom_verify.retrieval import BM25Retriever
 from inkloom_verify.schemas import (
     MAX_CLAIM_CHARS,
     MAX_CLAIMS,
@@ -39,7 +40,6 @@ from inkloom_verify.schemas import (
     VerificationReport,
     VerificationRequest,
 )
-from inkloom_verify.retrieval import BM25Retriever
 from inkloom_verify.scope import check_report_scope
 
 FAKE_NOTICE = "FAKE ENGINE: canned development result; no AI verification was performed."

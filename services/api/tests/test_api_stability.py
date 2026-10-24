@@ -131,7 +131,7 @@ def test_only_login_register_and_health_are_open_and_every_route_has_a_response_
 
 
 def test_every_protected_route_refuses_a_request_without_a_token(client) -> None:
-    for method, path, operation in _operations():
+    for method, path, _operation in _operations():
         if (method, path) in OPEN_OPERATIONS:
             continue
         url = re.sub(r"\{[^}]+\}", str(uuid.uuid4()), path)

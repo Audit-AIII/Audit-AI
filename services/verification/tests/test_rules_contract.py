@@ -18,8 +18,8 @@ from pathlib import Path
 
 import jsonschema
 import pytest
-from e2e_support import RoutedProvider, careful_model, request
 
+from e2e_support import RoutedProvider, careful_model, request
 from inkloom_verify import rules as rules_module
 from inkloom_verify.integration import (
     PROPOSED_RULE_FINDING_FIELDS,
@@ -211,7 +211,7 @@ def test_the_engine_pipeline_report_carries_rule_findings_in_the_new_shape():
     }
 
 
-# --- Errors ----------------------------------------------------------------------------------------
+# --- Errors ---------------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("text", [None, 42, "", "   \n\t "])
@@ -433,7 +433,7 @@ def test_regression_a_match_longer_than_the_field_limit_is_clipped_not_a_crash()
     assert text[finding.span.start : finding.span.end] == finding.original_text
 
 
-# --- Control characters in rule text and labels (NUL fix, 2026-10-24) ------------------------------
+# --- Control characters in rule text and labels (NUL fix, 2026-10-24) -----------------------------
 
 HIDDEN = {
     "NUL": "\x00",

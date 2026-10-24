@@ -317,7 +317,8 @@ def create_verify_router(
                 status.HTTP_500_INTERNAL_SERVER_ERROR, "the reference set could not be used"
             ) from None
 
-        # Corrections need the request's option AND the server's setting (approved, prompts Phase 4).
+        # Corrections need the request's option AND the server's setting (approved, prompts Phase
+        # 4).
         corrections = body.options.suggest_corrections and getattr(
             engine, "corrections_enabled", True
         )

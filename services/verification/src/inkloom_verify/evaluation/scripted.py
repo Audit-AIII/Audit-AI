@@ -256,7 +256,7 @@ def fault_pass_rate(outcomes: Sequence[FaultOutcome]) -> Ratio:
     return ratio(sum(o.passed for o in outcomes), len(outcomes))
 
 
-# --- Full-pipeline safety (EVAL.md Phase 6) ---------------------------------------------------------
+# --- Full-pipeline safety (EVAL.md Phase 6) -------------------------------------------------------
 
 
 class _PipelineAdversary:

@@ -28,8 +28,8 @@ from inkloom_verify.rules import RuleEvaluationError, evaluate_rules
 from inkloom_verify.schemas import RuleEvidence, RuleFinding, SourceSpan
 from sqlalchemy.orm import Session
 
-from ..models import ContentVersion, EvidenceLink, Finding, Review
 from ..intent_lock_guard import breaks_locks
+from ..models import ContentVersion, EvidenceLink, Finding, Review
 from ..section_diff import section_hash_for_span
 from ..statuses import CheckType, EvidenceRelation, RulesStatus, VerificationStatus
 from .corpus import CorpusEntry

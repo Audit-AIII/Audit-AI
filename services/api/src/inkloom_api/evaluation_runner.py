@@ -34,7 +34,7 @@ import statistics
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import inkloom_verify
@@ -222,7 +222,8 @@ def run_evaluation(
         started = clock()
         try:
             prediction = predictor.predict(record)
-        except Exception:  # noqa: BLE001 - an unexpected failure is this one claim's ERROR, never a crash
+        except Exception:
+            # Broad on purpose: an unexpected failure is this one claim's ERROR, never a crash.
             prediction = EvalPrediction(record_id=record.record_id, verdict=Verdict.ERROR)
         latencies_ms.append((clock() - started) * 1000)
         predictions[record.record_id] = prediction
@@ -248,7 +249,7 @@ def run_evaluation(
     }
     return EvaluationResult(
         status="partial" if errors else "completed",
-        ran_at=datetime.now(timezone.utc),
+        ran_at=datetime.now(UTC),
         sample_size=len(records),
         dataset_version=dataset_version,
         engine_prompt_version=prompt_versions[0]

@@ -142,9 +142,10 @@ def main() -> None:
     listed = expect(client.get("/api/reviews", headers=headers), 200, "GET /api/reviews")
     if not isinstance(listed, list) or [r["id"] for r in listed] != [review["id"]]:
         fail(f"expected a plain array holding exactly this review, got {listed!r:.300}")
+    status = review["status"]
     print(
-        f"  {len(listed)} review(s); ?status={review['status']} -> "
-        f"{len(expect(client.get(f'/api/reviews?status={review["status"]}', headers=headers), 200, 'filter'))}"
+        f"  {len(listed)} review(s); ?status={status} -> "
+        f"{len(expect(client.get(f'/api/reviews?status={status}', headers=headers), 200, 'filter'))}"
     )
 
     step("fetch the review")

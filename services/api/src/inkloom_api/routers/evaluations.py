@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 import threading
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -90,7 +90,7 @@ class EvaluationOut(BaseModel):
     provider_mode: str | None
 
     @classmethod
-    def from_model(cls, run: EvaluationRun) -> "EvaluationOut":
+    def from_model(cls, run: EvaluationRun) -> EvaluationOut:
         m = run.metrics
         return cls(
             catch_rate=m["catch_rate"]["value"],
@@ -134,7 +134,7 @@ def _enforce_interval(db: Session, auth: AuthContext, settings: Settings) -> Non
     """Counts every run that actually called the provider - stored or discarded - from the
     audit trail, so the limit survives a restart and a discarded run can't be retried at once.
     A request refused before any call (no provider configured) writes no event and isn't counted."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     since = now - timedelta(seconds=settings.eval_min_interval_seconds)
     latest = (
         db.query(AuditEvent.created_at)

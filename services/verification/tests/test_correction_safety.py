@@ -26,7 +26,7 @@ from inkloom_verify.verification import ClaimVerifier
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = {c.case_id: c for c in load_cases(ROOT / "eval" / "data" / "corrections_v1.jsonl")}
-I = CorrectionIssueCode
+Issue = CorrectionIssueCode
 PRICE = ["Price: €129 (EU launch price). Battery: up to 36 hours with the case."]
 
 
@@ -56,19 +56,33 @@ PRICE = ["Price: €129 (EU launch price). Battery: up to 36 hours with the case
             [],
         ),
         # changed numbers: a value the evidence gives for something else
-        ("€99", "€36", PRICE, "Lumen Pods cost ", ".", [I.UNSUPPORTED_ADDITION]),
-        ("36 hours", "129 hours", PRICE, "It lasts ", " with the case.", [I.UNSUPPORTED_ADDITION]),
+        ("€99", "€36", PRICE, "Lumen Pods cost ", ".", [Issue.UNSUPPORTED_ADDITION]),
+        (
+            "36 hours",
+            "129 hours",
+            PRICE,
+            "It lasts ",
+            " with the case.",
+            [Issue.UNSUPPORTED_ADDITION],
+        ),
         (
             "7 g",
             "6 g",
             ["Weight: 5.2 g per earbud"],
             "They weigh ",
             " per earbud.",
-            [I.UNSUPPORTED_ADDITION],
+            [Issue.UNSUPPORTED_ADDITION],
         ),
         # units must survive
-        ("€99", "129", PRICE, "Lumen Pods cost ", ".", [I.DROPS_UNIT]),
-        ("7 g", "5.2", ["Weight: 5.2 g per earbud"], "They weigh ", " per earbud.", [I.DROPS_UNIT]),
+        ("€99", "129", PRICE, "Lumen Pods cost ", ".", [Issue.DROPS_UNIT]),
+        (
+            "7 g",
+            "5.2",
+            ["Weight: 5.2 g per earbud"],
+            "They weigh ",
+            " per earbud.",
+            [Issue.DROPS_UNIT],
+        ),
         # changed dates: the day, the month, or a year borrowed from elsewhere
         (
             "2 May 2026",
@@ -76,7 +90,7 @@ PRICE = ["Price: €129 (EU launch price). Battery: up to 36 hours with the case
             ["Launch date: 2 April 2026"],
             "Launch on ",
             ".",
-            [I.UNSUPPORTED_ADDITION],
+            [Issue.UNSUPPORTED_ADDITION],
         ),
         (
             "2 May 2026",
@@ -84,7 +98,7 @@ PRICE = ["Price: €129 (EU launch price). Battery: up to 36 hours with the case
             ["Launch date: 2 April 2026. Founded 2025."],
             "Launch on ",
             ".",
-            [I.UNSUPPORTED_ADDITION],
+            [Issue.UNSUPPORTED_ADDITION],
         ),
         # invented names
         (
@@ -93,7 +107,7 @@ PRICE = ["Price: €129 (EU launch price). Battery: up to 36 hours with the case
             ["Lumen Goods was founded in 2019 in Lisbon"],
             "Founded in ",
             ".",
-            [I.UNSUPPORTED_ADDITION],
+            [Issue.UNSUPPORTED_ADDITION],
         ),
         (
             "Tomás Silva",
@@ -101,10 +115,10 @@ PRICE = ["Price: €129 (EU launch price). Battery: up to 36 hours with the case
             ["Ana Ribeiro is the chief executive officer."],
             "",
             " is the CEO.",
-            [I.UNSUPPORTED_ADDITION],
+            [Issue.UNSUPPORTED_ADDITION],
         ),
         # unsupported facts added beside a supported fix
-        ("€99", "€129 including VAT", PRICE, "Lumen Pods cost ", ".", [I.UNSUPPORTED_ADDITION]),
+        ("€99", "€129 including VAT", PRICE, "Lumen Pods cost ", ".", [Issue.UNSUPPORTED_ADDITION]),
     ],
     ids=lambda v: v if isinstance(v, str) and len(v) < 25 else None,
 )
@@ -148,10 +162,10 @@ def corrector_run(case_id: str, original: str, replacement: str):
 @pytest.mark.parametrize(
     ("case_id", "original", "replacement", "code"),
     [
-        ("corr-v1-027", "€99", "129", I.DROPS_UNIT),  # currency dropped
-        ("corr-v1-027", "€99", "€12", I.UNSUPPORTED_ADDITION),  # a number not in the evidence
-        ("corr-v1-028", "2 May 2026", "2 April 2025", I.UNSUPPORTED_ADDITION),  # changed year
-        ("corr-v1-024", "Tomás Silva", "Marta Costa", I.UNSUPPORTED_ADDITION),  # invented name
+        ("corr-v1-027", "€99", "129", Issue.DROPS_UNIT),  # currency dropped
+        ("corr-v1-027", "€99", "€12", Issue.UNSUPPORTED_ADDITION),  # a number not in the evidence
+        ("corr-v1-028", "2 May 2026", "2 April 2025", Issue.UNSUPPORTED_ADDITION),  # changed year
+        ("corr-v1-024", "Tomás Silva", "Marta Costa", Issue.UNSUPPORTED_ADDITION),  # invented name
     ],
 )
 def test_unsafe_proposals_are_never_offered(case_id, original, replacement, code):

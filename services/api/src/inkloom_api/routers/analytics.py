@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import statistics
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -91,7 +91,7 @@ def brand_risk(
     Without it, the same numbers are computed over every brand in the caller's account."""
     if brand_id is not None:
         get_brand_profile_or_404(db, auth.organisation_id, brand_id)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     period = reviews_in_organisation(auth.organisation_id).where(
         Review.created_at >= now - timedelta(days=days)

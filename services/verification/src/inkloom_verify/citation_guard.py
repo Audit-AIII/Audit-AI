@@ -34,7 +34,6 @@ from collections.abc import Sequence
 from inkloom_verify.chunking import sentence_spans
 from inkloom_verify.extraction import MONTHS, NEGATION
 from inkloom_verify.retrieval import tokenize
-from inkloom_verify.security import instruction_like
 from inkloom_verify.schemas import (
     MAX_PASSAGE_CHARS,
     Citation,
@@ -43,6 +42,7 @@ from inkloom_verify.schemas import (
     ReferenceDocument,
     SourceSpan,
 )
+from inkloom_verify.security import instruction_like
 
 _QUOTE_MARKS = {
     "‘": "'",

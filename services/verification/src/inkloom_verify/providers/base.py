@@ -127,7 +127,8 @@ _FENCE = re.compile(r"^\s*```(?:json)?\s*\n(.*)\n\s*```\s*$", re.DOTALL)
 def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     keys = [key for key, _ in pairs]
     if len(keys) != len(set(keys)):
-        # Python's json would silently keep the last value: {"verdict": "X", "verdict": "SUPPORTED"}.
+        # Python's json would silently keep the last value: {"verdict": "X", "verdict":
+        # "SUPPORTED"}.
         raise ValueError("duplicate key")
     return dict(pairs)
 

@@ -15,8 +15,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from inkloom_verify.schemas import ReferenceDocument
-from inkloom_verify.schemas import BrandRules
+from inkloom_verify.schemas import BrandRules, ReferenceDocument
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError

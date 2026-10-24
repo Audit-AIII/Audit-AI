@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Union
+from typing import Any
 
 from inkloom_verify.providers.base import JsonCompletion, JsonCompletionRequest
 
-Reply = Union[
-    dict[str, Any], Exception, Callable[[JsonCompletionRequest], Union[dict[str, Any], Exception]]
-]
+Reply = dict[str, Any] | Exception | Callable[[JsonCompletionRequest], dict[str, Any] | Exception]
 
 
 class ScriptedProvider:

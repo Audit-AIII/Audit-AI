@@ -168,7 +168,7 @@ def test_max_claims_limits_the_claims_checked():
     assert len(report.claims) == 2
 
 
-# --- Invalid requests ------------------------------------------------------------------------------
+# --- Invalid requests -----------------------------------------------------------------------------
 
 
 def without(path: str) -> dict:
@@ -295,7 +295,7 @@ def test_wrong_method_and_unknown_route():
     assert client.post("/v1/verify/extra", json=body()).status_code == 404
 
 
-# --- Reference sets: loaded for the authenticated tenant only --------------------------------------
+# --- Reference sets: loaded for the authenticated tenant only -------------------------------------
 
 
 def test_the_loader_is_asked_with_the_authenticated_tenant():
@@ -349,7 +349,7 @@ def test_the_router_requires_authentication_outside_development():
         create_verify_router(FakeEngine(), reference_set_loader=Loader())
 
 
-# --- Failures --------------------------------------------------------------------------------------
+# --- Failures -------------------------------------------------------------------------------------
 
 
 def test_a_failed_claim_does_not_erase_the_others():
@@ -411,7 +411,7 @@ def test_engine_failures_become_a_safe_500(engine):
     assert "secret detail" not in response.text and "Lumen" not in response.text
 
 
-# --- Model output never reaches the response unvalidated -------------------------------------------
+# --- Model output never reaches the response unvalidated ------------------------------------------
 
 
 def test_model_output_outside_the_contract_never_reaches_the_response():
@@ -478,7 +478,7 @@ def test_the_model_sees_one_claim_and_its_passages_at_a_time():
         )
 
 
-# --- OpenAPI and the development app ---------------------------------------------------------------
+# --- OpenAPI and the development app --------------------------------------------------------------
 
 
 def test_openapi_documents_the_public_contract():
@@ -613,7 +613,7 @@ def test_dev_handlers_agree_with_the_backends(backend_modules):
         )
 
 
-# --- Example payloads for Members 1 and 3 ----------------------------------------------------------
+# --- Example payloads for Members 1 and 3 ---------------------------------------------------------
 
 
 def test_api_examples_are_current():

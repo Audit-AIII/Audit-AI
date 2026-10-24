@@ -20,7 +20,7 @@ from .config import get_settings  # noqa: E402
 from .db import get_db  # noqa: E402
 from .errors import install_error_handlers  # noqa: E402
 from .logging import RequestIdMiddleware, configure_logging  # noqa: E402
-from .routers import (
+from .routers import (  # noqa: E402
     analytics,
     auth,
     brands,
@@ -29,7 +29,7 @@ from .routers import (
     evaluations,
     findings,
     reviews,
-)  # noqa: E402
+)
 
 settings = get_settings()
 configure_logging(settings.log_level)

@@ -37,9 +37,8 @@ from inkloom_verify.prompts import extraction as extraction_prompt
 from inkloom_verify.prompts import verification as verification_prompt
 from inkloom_verify.providers.base import LLMProvider, ProviderError
 from inkloom_verify.providers.budget import BudgetedProvider, CallBudget
-from inkloom_verify.rules import check_rules
-from inkloom_verify.softening import ClaimSoftener
 from inkloom_verify.retrieval import BM25Retriever, RetrievalConfig
+from inkloom_verify.rules import check_rules
 from inkloom_verify.schemas import (
     Claim,
     ClaimResult,
@@ -50,14 +49,15 @@ from inkloom_verify.schemas import (
     PipelineStage,
     ProcessingError,
     ReportScore,
-    RuleFinding,
     ReportStatus,
     RetrievalMethod,
+    RuleFinding,
     Verdict,
     VerificationReport,
     VerificationRequest,
 )
 from inkloom_verify.scope import ScopeViolation, check_report_scope
+from inkloom_verify.softening import ClaimSoftener
 from inkloom_verify.verification import ClaimVerifier, VerificationConfig, verify_claim
 
 logger = logging.getLogger(__name__)
@@ -118,7 +118,8 @@ def verify_request(
             prompts,
             rule_findings,
         )
-    except Exception as error:  # noqa: BLE001 - never fail open; the type name is safe to log, the message may not be
+    except Exception as error:
+        # Broad on purpose: never fail open. The type name is safe to log; the message may not be.
         logger.error(
             "pipeline request=%s failed unexpectedly: %s", request.request_id, type(error).__name__
         )
@@ -164,7 +165,9 @@ def _run(
         # checked over the whole report afterwards: contamination is not safe to continue past.)
         try:
             result = verify_claim(claim, retriever, verifier, top_k=config.retrieval.top_k)
-        except Exception as error:  # noqa: BLE001 - the type name is safe to log, the message may hold content
+        except Exception as error:
+            # Broad on purpose: one claim's failure is its ERROR. The type name is safe to log;
+            # the message may hold content.
             logger.error(
                 "pipeline request=%s claim=%s verification failed unexpectedly: %s",
                 request.request_id,
@@ -215,7 +218,9 @@ def _with_safer_wording(
     caught here."""
     try:
         wording = softener.soften(result, request.content, request.locked_phrases)
-    except Exception as error:  # noqa: BLE001 - the type name is safe to log, the message may hold content
+    except Exception as error:
+        # Broad on purpose: a softening failure only drops the suggestion. The type name is safe
+        # to log; the message may hold content.
         logger.error(
             "pipeline request=%s claim=%s softening failed unexpectedly: %s",
             request.request_id,

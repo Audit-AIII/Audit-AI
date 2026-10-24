@@ -40,7 +40,8 @@ RULES = [
     ScriptedRule(
         "12 hours", "SUPPORTED", "up to 12 hours of playback per charge", "The fact sheet says so."
     ),
-    # The corrector re-verifies its fix; the corrected sentence must check as SUPPORTED to be offered.
+    # The corrector re-verifies its fix; the corrected sentence must check as SUPPORTED to be
+    # offered.
     ScriptedRule(
         "2-year warranty", "SUPPORTED", "Warranty: 2 years.", "The fact sheet says 2 years."
     ),
@@ -125,7 +126,8 @@ def test_all_three_verdicts_reach_the_review_with_provenance_and_routing(
     )
     assert review["status"] == "needs_human_review"  # anything not SUPPORTED goes to a person
 
-    # Provenance: the cited quote is verbatim in the approved document, linked to its source and version.
+    # Provenance: the cited quote is verbatim in the approved document, linked to its source and
+    # version.
     for finding, relation in ((supported, "supports"), (contradicted, "contradicts")):
         [evidence] = finding["evidence"]
         assert evidence["relation"] == relation and evidence["quote"] in DEFAULT_FACT_SHEET
@@ -204,7 +206,7 @@ def test_unparseable_extraction_fails_the_review_instead_of_passing_it(
     assert review["status"] == "failed" and review["findings"] == []
 
 
-# --- Missing evidence --------------------------------------------------------------------------------
+# --- Missing evidence -----------------------------------------------------------------------------
 
 
 @requires_db

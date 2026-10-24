@@ -84,7 +84,7 @@ def test_the_extractor_sends_the_released_v1_prompt_unchanged():
         assert rule in call.system
 
 
-# --- The cases --------------------------------------------------------------------------------------
+# --- The cases ------------------------------------------------------------------------------------
 
 
 def test_one_simple_factual_statement():

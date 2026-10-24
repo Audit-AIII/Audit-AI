@@ -18,14 +18,16 @@ ROOT = Path(__file__).resolve().parents[1]
 DATASET = ROOT / "eval" / "dataset.jsonl"
 RECORDS = {
     r["record_id"]: r
-    for r in (json.loads(l) for l in DATASET.read_text(encoding="utf-8").splitlines() if l.strip())
+    for r in (
+        json.loads(ln) for ln in DATASET.read_text(encoding="utf-8").splitlines() if ln.strip()
+    )
 }
 
 
 def write(tmp_path, *lines) -> Path:
     path = tmp_path / "data.jsonl"
     path.write_text(
-        "\n".join(l if isinstance(l, str) else json.dumps(l, ensure_ascii=False) for l in lines)
+        "\n".join(ln if isinstance(ln, str) else json.dumps(ln, ensure_ascii=False) for ln in lines)
         + "\n",
         encoding="utf-8",
     )
@@ -42,7 +44,7 @@ def record(source="v3-006", **changes):
     return r
 
 
-# --- The shipped dataset ----------------------------------------------------------------------------
+# --- The shipped dataset --------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
@@ -101,11 +103,11 @@ def test_the_first_55_records_are_unchanged_dataset_v1_lines():
     )
     if committed.returncode != 0:
         pytest.skip("git history not available")
-    lines = [l for l in DATASET.read_text(encoding="utf-8").splitlines() if l]
-    assert lines[:55] == [l for l in committed.stdout.splitlines() if l]
+    lines = [ln for ln in DATASET.read_text(encoding="utf-8").splitlines() if ln]
+    assert lines[:55] == [ln for ln in committed.stdout.splitlines() if ln]
 
 
-# --- Malformed JSONL ----------------------------------------------------------------------------------
+# --- Malformed JSONL ------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -132,7 +134,7 @@ def test_an_empty_file_is_invalid(tmp_path):
     assert problems(tmp_path, "") == ["the file has no records"]
 
 
-# --- Ids, statuses and fields -------------------------------------------------------------------------
+# --- Ids, statuses and fields ---------------------------------------------------------------------
 
 
 def test_duplicate_ids_are_rejected(tmp_path):
@@ -163,7 +165,7 @@ def test_unknown_fields_and_categories_are_rejected(tmp_path):
     assert problems(tmp_path, record(categories=["made_up"]))
 
 
-# --- Inconsistent expected evidence -------------------------------------------------------------------
+# --- Inconsistent expected evidence ---------------------------------------------------------------
 
 
 def gold(r, **changes):
@@ -234,7 +236,7 @@ def test_a_gold_quote_from_an_instruction_is_rejected(tmp_path):
     ]
 
 
-# --- Adversarial records ------------------------------------------------------------------------------
+# --- Adversarial records --------------------------------------------------------------------------
 
 
 def test_an_injection_must_be_categorised(tmp_path):
@@ -258,7 +260,7 @@ def test_the_injection_tag_must_match_where_the_injection_is(tmp_path):
     ]
 
 
-# --- Size, mix and coverage ---------------------------------------------------------------------------
+# --- Size, mix and coverage -----------------------------------------------------------------------
 
 
 def test_a_skewed_or_small_dataset_fails_the_mix_check(tmp_path):
@@ -278,7 +280,7 @@ def test_the_validator_never_changes_the_file(tmp_path):
     assert path.read_bytes() == before
 
 
-# --- Command line -------------------------------------------------------------------------------------
+# --- Command line ---------------------------------------------------------------------------------
 
 
 def test_cli_exit_codes(tmp_path, capsys):

@@ -433,7 +433,8 @@ class StyleRules(_Contract):
     # Emoji: a run longer than this (spaces between emoji do not break a run).
     emoji: bool = True
     emoji_max_run: Annotated[int, Field(strict=True, ge=1, le=20)] = 2
-    # Link text that says nothing out of context, compared case-insensitively to the whole link text.
+    # Link text that says nothing out of context, compared case-insensitively to the whole link
+    # text.
     vague_link_text: bool = True
     vague_link_phrases: Annotated[
         list[RuleText], Field(min_length=1, max_length=MAX_RULES_PER_TYPE)
@@ -454,7 +455,8 @@ class StyleRules(_Contract):
     heading_structure: bool = True
     # <video> without a captions/subtitles <track>; audio without a transcript (metadata only).
     media_captions: bool = True
-    # Inline style colour pairs and ContentMetadata.colors below this ratio (WCAG 2 AA: 4.5, large text 3).
+    # Inline style colour pairs and ContentMetadata.colors below this ratio (WCAG 2 AA: 4.5, large
+    # text 3).
     color_contrast: bool = True
     min_contrast_ratio: Annotated[float, Field(ge=1.0, le=21.0)] = 4.5
     min_contrast_ratio_large_text: Annotated[float, Field(ge=1.0, le=21.0)] = 3.0
@@ -1285,9 +1287,9 @@ class ClaimResult(_Contract):
     model_rationale: Annotated[str, Field(max_length=MAX_RATIONALE_CHARS)] | None = None
     citation_guard: CitationGuardReport | None = None
     correction_attempt: CorrectionAttempt | None = None
-    # Approved references disagree about this claim (the guard found a conflict). The verdict
-    # stays NOT_ENOUGH_EVIDENCE; Member 3 maps this flag to verification_status
-    # "conflicting_sources". Derived from citation_guard: filled in when omitted, rejected when wrong.
+    # Approved references disagree about this claim (the guard found a conflict). The verdict stays
+    # NOT_ENOUGH_EVIDENCE; Member 3 maps this flag to verification_status "conflicting_sources".
+    # Derived from citation_guard: filled in when omitted, rejected when wrong.
     conflicting_sources: Annotated[bool, Field(strict=True)] = Field(
         default_factory=_conflict_default
     )

@@ -196,7 +196,8 @@ class PipelinePredictor:
         )
         try:
             report = verify_request(request, self.provider, self.config)
-        except Exception as error:  # noqa: BLE001 - verify_request never raises; if it did, the case still counts
+        except Exception as error:
+            # Broad on purpose: verify_request never raises; if it did, the case still counts.
             return self._record(
                 record,
                 Verdict.ERROR,

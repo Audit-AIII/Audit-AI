@@ -100,7 +100,7 @@ def test_the_oracle_replay_returns_every_labelled_claim_exactly():
     metrics = score(RECORDS, results)
     assert metrics.exact_span_matches.value == 1.0 and metrics.claim_precision.value == 1.0
     assert metrics.atomicity_violations == metrics.opinion_leakage == metrics.slice_violations == 0
-    for record, result in zip(RECORDS, results):
+    for record, result in zip(RECORDS, results, strict=False):
         assert not result.warnings and not result.errors, record.record_id
         for claim in result.claims:
             assert record.text[claim.source_span.start : claim.source_span.end] == claim.text

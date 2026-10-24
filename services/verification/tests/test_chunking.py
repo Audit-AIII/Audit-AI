@@ -217,7 +217,7 @@ def test_token_chunks_are_within_bounds_and_exact():
 
 def test_token_chunks_overlap_by_whole_sentences():
     passages = chunk_document(LONG, ChunkingConfig())
-    for before, after in zip(passages, passages[1:]):
+    for before, after in zip(passages, passages[1:], strict=False):
         assert after.span.start < before.span.end  # they overlap
         shared = LONG.text[after.span.start : before.span.end]
         assert word_count(shared) >= 50

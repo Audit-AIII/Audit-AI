@@ -13,7 +13,7 @@ import platform
 import subprocess
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from importlib import metadata
 from pathlib import Path
@@ -724,7 +724,7 @@ def run(
     reviewed = sum(1 for r in records if r.reviewed_by)
     return EvalReport(
         manifest=Manifest(
-            created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            created_at=datetime.now(UTC).isoformat(timespec="seconds"),
             dataset=DatasetInfo(
                 path=str(dataset_path),
                 sha256=file_sha256(dataset_path),

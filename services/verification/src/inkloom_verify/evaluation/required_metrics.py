@@ -48,7 +48,6 @@ that the corrected sentence means what the evidence means.
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import sys
 from collections import Counter
@@ -104,9 +103,9 @@ class RequiredMetrics(_Model):
     correction_traceability: Ratio | None
     corrections: dict[str, Any]
     unavailable: dict[str, str]
-    # Reliability additions (Member 2 audit, 2026-10-24). Defaults keep older saved reports loadable.
-    # Provider failure rate: records whose prediction is ERROR (provider failure, invalid output,
-    # budget refusal, missing prediction) / evaluated records.
+    # Reliability additions (Member 2 audit, 2026-10-24). Defaults keep older saved reports
+    # loadable. Provider failure rate: records whose prediction is ERROR (provider failure, invalid
+    # output, budget refusal, missing prediction) / evaluated records.
     provider_failure_rate: Ratio | None = None
     # Wall-clock seconds per case from the full pipeline (cases.jsonl): n, mean, p50, p95, max.
     # It includes provider time only when a live provider answered; scripted runs time local code.

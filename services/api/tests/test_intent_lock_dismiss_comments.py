@@ -154,7 +154,8 @@ def test_lock_set_after_review_withholds_and_rerun_respects_it(
         finding["suggested_correction"] is None and finding["withheld_by_intent_lock"] is False
     )  # never produced
 
-    # Unlocking makes the stored suggestion of the first review visible again: it was withheld, never deleted.
+    # Unlocking makes the stored suggestion of the first review visible again: it was withheld,
+    # never deleted.
     assert _put_locks(client, owner, review["content_version_id"], []).status_code == 200
     assert (
         _claim_finding(client.get(f"/api/reviews/{review['id']}", headers=owner.headers).json())[

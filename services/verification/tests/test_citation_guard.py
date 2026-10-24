@@ -303,7 +303,7 @@ def test_every_gold_quote_is_accepted_and_every_corruption_rejected():
 
 # --- Support checks: valid quotes must also carry the claim's figures -------------------------
 
-from inkloom_verify.citation_guard import quantities, support_problems  # noqa: E402
+from inkloom_verify.citation_guard import quantities  # noqa: E402
 
 
 @pytest.mark.parametrize(

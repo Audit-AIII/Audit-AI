@@ -25,8 +25,8 @@ from inkloom_verify.evaluation.metrics import Ratio, ratio
 from inkloom_verify.providers.base import ProviderError
 from inkloom_verify.schemas import (
     Citation,
-    ClaimText,
     ClaimResult,
+    ClaimText,
     EvalSplit,
     EvidencePassage,
     GoldEvidence,

@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from inkloom_verify.correction import ClaimCorrector
 from inkloom_verify.decision_policy import DecisionPolicy, apply_policy
@@ -39,8 +39,9 @@ from inkloom_verify.schemas import (
 from inkloom_verify.verification import ClaimVerifier, verify_claim
 from sqlalchemy.orm import Session
 
-from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, Finding, Review
 from ..config import get_settings
+from ..intent_lock_guard import breaks_locks
+from ..models import AuditEvent, ContentVersion, EvidenceLink, ExternalCallLog, Finding, Review
 from ..result_cache import (
     compute_cache_key,
     get_cached_report,
@@ -49,7 +50,6 @@ from ..result_cache import (
     store_report,
 )
 from ..section_diff import section_hash_for_span
-from ..intent_lock_guard import breaks_locks
 from ..softening_guard import softening_issues
 from ..statuses import (
     CheckType,
@@ -61,7 +61,11 @@ from ..statuses import (
     VerificationStatus,
 )
 from .brand_rules import apply_brand_rules
-from .corpus import CorpusEntry, build_corpus, corpus_lookup  # noqa: F401 (build_corpus re-exported for routers)
+from .corpus import (  # noqa: F401 (build_corpus re-exported for routers)
+    CorpusEntry,
+    build_corpus,
+    corpus_lookup,
+)
 from .evidence_validator import EvidenceIntegrityError, validate_all
 from .provider import build_provider
 from .providers.fallback import FallbackProvider
@@ -134,7 +138,7 @@ def run_review(
     provider (engine/scripted_provider.py) with no API key. Every call is still logged to
     external_call_log exactly like a real provider's."""
     review.status = ReviewState.ANALYSING.value
-    review.started_at = datetime.now(timezone.utc)
+    review.started_at = datetime.now(UTC)
     locks = list(
         content_version.locked_phrases or []
     )  # Intent-lock: passed to the engine, re-checked here
@@ -187,8 +191,8 @@ def run_review(
     lookup = corpus_lookup(corpus)
 
     # Per-review limits (SECURITY.md): every model call below goes through one budget (calls,
-    # estimated tokens, deadline; provider retries count), and at most review_max_claims claims
-    # are kept. A refused call is LIMIT_EXCEEDED: the claim becomes ERROR (unverified, human review).
+    # estimated tokens, deadline; provider retries count), and at most review_max_claims claims are
+    # kept. A refused call is LIMIT_EXCEEDED: the claim becomes ERROR (unverified, human review).
     settings = get_settings()
     provider = BudgetedProvider(
         provider,
@@ -402,7 +406,7 @@ def _finish(
 ) -> None:
     review.status = state.value
     review.error_summary = error_summary
-    review.completed_at = datetime.now(timezone.utc)
+    review.completed_at = datetime.now(UTC)
     # Individual-user mode: risk-based routing (Phase 9 stretch item 1) is off. The account owner
     # approves their own content, so no review is routed to a reviewer role. The column stays
     # (migration 0008) and is always written as NULL, which the UI shows as "Any approver".
@@ -543,7 +547,7 @@ def _write_finding(
     relation = _RELATION_FOR_VERDICT.get(verdict)
     if relation is None:
         return finding.requires_human_review  # NOT_ENOUGH_EVIDENCE / ERROR never carry citations
-    for citation, entry in zip(result.citations, valid_entries):
+    for citation, entry in zip(result.citations, valid_entries, strict=False):
         db.add(
             EvidenceLink(
                 finding_id=finding.finding_id,

@@ -21,9 +21,9 @@ spec = importlib.util.spec_from_file_location("run_eval_p3", ROOT / "eval" / "ru
 run_eval = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run_eval)
 RECORDS = [
-    json.loads(l)
-    for l in (ROOT / "eval" / "dataset.jsonl").read_text(encoding="utf-8").splitlines()
-    if l.strip()
+    json.loads(ln)
+    for ln in (ROOT / "eval" / "dataset.jsonl").read_text(encoding="utf-8").splitlines()
+    if ln.strip()
 ]
 
 
@@ -97,7 +97,7 @@ def live(monkeypatch, **options):
 def read(out: Path):
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     cases = (
-        [json.loads(l) for l in (out / "cases.jsonl").read_text(encoding="utf-8").splitlines()]
+        [json.loads(ln) for ln in (out / "cases.jsonl").read_text(encoding="utf-8").splitlines()]
         if (out / "cases.jsonl").exists()
         else []
     )
@@ -119,7 +119,7 @@ def cassette(tmp_path_factory):
     return code, out
 
 
-# --- Successful execution -----------------------------------------------------------------------------
+# --- Successful execution -------------------------------------------------------------------------
 
 
 def test_a_recorded_run_executes_the_real_pipeline_for_every_record(cassette):
@@ -189,7 +189,7 @@ def test_the_cassette_holds_replies_never_credentials(cassette, monkeypatch):
     _, out = cassette
     lines = (out / "cassette.jsonl").read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[0])["kind"] == CASSETTE_KIND and all(
-        "key" in json.loads(l) for l in lines[1:]
+        "key" in json.loads(ln) for ln in lines[1:]
     )
     import httpx
 
@@ -230,7 +230,7 @@ def test_the_cassette_holds_replies_never_credentials(cassette, monkeypatch):
     assert secret not in path.read_text(encoding="utf-8")
 
 
-# --- Pipeline failures and skipped records ----------------------------------------------------------
+# --- Pipeline failures and skipped records --------------------------------------------------------
 
 
 def test_provider_errors_become_error_cases_and_are_replayed_as_errors(tmp_path, monkeypatch):
@@ -334,7 +334,7 @@ def test_a_partial_replay_reports_its_misses(cassette, tmp_path):
     )
 
 
-# --- Invalid inputs -------------------------------------------------------------------------------------
+# --- Invalid inputs -------------------------------------------------------------------------------
 
 
 def write_dataset(tmp_path, lines) -> Path:
@@ -394,7 +394,7 @@ def test_record_needs_the_live_source(capsys):
     assert "--record needs --verdicts openrouter" in capsys.readouterr().err
 
 
-# --- The record verdict rule ----------------------------------------------------------------------------
+# --- The record verdict rule ----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

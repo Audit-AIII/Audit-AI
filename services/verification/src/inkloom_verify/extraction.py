@@ -30,8 +30,6 @@ from inkloom_verify.providers.base import (
     ProviderError,
 )
 from inkloom_verify.retrieval import tokenize
-from inkloom_verify.security import clean_display_text
-from inkloom_verify.security import has_hidden_characters
 from inkloom_verify.schemas import (
     MAX_CLAIM_CHARS,
     MAX_CLAIMS,
@@ -46,6 +44,7 @@ from inkloom_verify.schemas import (
     numbers_in,
     sha256_text,
 )
+from inkloom_verify.security import clean_display_text, has_hidden_characters
 
 logger = logging.getLogger(__name__)
 

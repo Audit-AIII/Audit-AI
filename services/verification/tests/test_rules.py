@@ -8,9 +8,9 @@ rules run before extraction, reach the report, route it to a person, and survive
 from __future__ import annotations
 
 import pytest
-from e2e_support import CONTENT, DOCS, RoutedProvider, careful_model, request
 from pydantic import ValidationError
 
+from e2e_support import CONTENT, DOCS, RoutedProvider, careful_model, request
 from inkloom_verify.pipeline import verify_request
 from inkloom_verify.providers.base import ProviderTimeoutError
 from inkloom_verify.rules import check_rules
@@ -87,7 +87,7 @@ def test_required_term_present_any_case_is_fine():
     )
 
 
-# --- 2. Prohibited term ----------------------------------------------------------------------------
+# --- 2. Prohibited term ---------------------------------------------------------------------------
 
 
 def test_prohibited_term_every_occurrence_is_flagged_with_its_span():
@@ -156,7 +156,7 @@ def test_prohibited_term_alternative_is_offered_with_its_basis():
     assert sourced.source_ids == [SHEET.doc_id] and sourced.evidence[0].quote == RULE_QUOTE
 
 
-# --- 3. Approved product naming --------------------------------------------------------------------
+# --- 3. Approved product naming -------------------------------------------------------------------
 
 
 def test_product_naming_flags_wrong_case_and_listed_variants_but_not_the_approved_name():
@@ -193,7 +193,7 @@ def test_product_naming_without_a_source_suggests_the_configured_name_as_a_brand
     assert finding.suggested_correction == "Lumen Pods" and finding.suggestion_basis == "brand_rule"
 
 
-# --- 4. Required disclaimer ------------------------------------------------------------------------
+# --- 4. Required disclaimer -----------------------------------------------------------------------
 
 
 def test_disclaimer_required_only_when_triggered():
@@ -410,7 +410,7 @@ def test_rule_finding_spans_point_into_the_request_content():
         assert CONTENT[finding.span.start : finding.span.end] == finding.original_text
 
 
-# --- Accessibility and tone (StyleRules) -----------------------------------------------------------
+# --- Accessibility and tone (StyleRules) ----------------------------------------------------------
 
 
 def style(text: str, **settings) -> list[RuleFinding]:

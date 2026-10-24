@@ -84,9 +84,10 @@ def run(respond) -> tuple[int, dict]:
 
     app = FastAPI()
     install_dev_error_handlers(app)
-    loader = (
-        lambda t, s: [DOCS["pods-fact-sheet"], DOCS["company-facts"]] if s == "ref_pods" else None
-    )  # noqa: E731
+
+    def loader(t, s):
+        return [DOCS["pods-fact-sheet"], DOCS["company-facts"]] if s == "ref_pods" else None
+
     app.include_router(
         create_verify_router(
             PipelineEngine(RoutedProvider(wrapped)),
@@ -120,7 +121,7 @@ def baseline() -> Report:
     return BASELINE
 
 
-# --- 1. All claims succeed -------------------------------------------------------------------------
+# --- 1. All claims succeed ------------------------------------------------------------------------
 
 
 def test_all_claims_succeed():
@@ -132,7 +133,7 @@ def test_all_claims_succeed():
     assert report.metadata.errors == []
 
 
-# --- 2. One claim fails, the others succeed --------------------------------------------------------
+# --- 2. One claim fails, the others succeed -------------------------------------------------------
 
 
 def test_one_claim_fails_while_others_succeed():
@@ -148,7 +149,7 @@ def test_one_claim_fails_while_others_succeed():
     ]
 
 
-# --- 3. Several claims fail, each with its own cause -----------------------------------------------
+# --- 3. Several claims fail, each with its own cause ----------------------------------------------
 
 
 def test_multiple_claims_fail_independently():
@@ -170,7 +171,7 @@ def test_multiple_claims_fail_independently():
     )  # the one that did not fail
 
 
-# --- 4. All four statuses in one report ------------------------------------------------------------
+# --- 4. All four statuses in one report -----------------------------------------------------------
 
 
 def test_a_mixture_of_every_status():
@@ -185,7 +186,7 @@ def test_a_mixture_of_every_status():
     }
 
 
-# --- 5. One failure does not erase or change other results -----------------------------------------
+# --- 5. One failure does not erase or change other results ----------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -204,7 +205,7 @@ def test_one_failure_leaves_every_other_result_exactly_as_it_was(failure):
     assert failed[UNVERIFIED_CLAIM].verdict.status.value == "ERROR"
 
 
-# --- 6. Failed claims keep their identity ----------------------------------------------------------
+# --- 6. Failed claims keep their identity ---------------------------------------------------------
 
 
 def test_failed_claims_keep_their_id_span_text_and_position():

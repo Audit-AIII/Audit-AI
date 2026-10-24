@@ -112,7 +112,8 @@ def macro_f1(per_class: dict[Verdict, ClassMetrics]) -> MacroF1:
     included = [cls for cls in GOLD_CLASSES if per_class[cls].f1 is not None]
     if not included:
         return MacroF1(value=None, classes=[])
-    return MacroF1(value=sum(per_class[c].f1 for c in included) / len(included), classes=included)  # type: ignore[misc]
+    value = sum(per_class[c].f1 for c in included) / len(included)  # type: ignore[misc]
+    return MacroF1(value=value, classes=included)
 
 
 def accuracy(confusion: Confusion) -> Ratio:

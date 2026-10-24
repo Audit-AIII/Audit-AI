@@ -26,9 +26,9 @@ PREDICTIONS = load_predictions(FIXTURE / "predictions.jsonl")
 CASES = {
     c.record_id: c
     for c in (
-        CaseOutcome.model_validate_json(l)
-        for l in (FIXTURE / "cases.jsonl").read_text(encoding="utf-8").splitlines()
-        if l.strip()
+        CaseOutcome.model_validate_json(ln)
+        for ln in (FIXTURE / "cases.jsonl").read_text(encoding="utf-8").splitlines()
+        if ln.strip()
     )
 }
 
@@ -42,7 +42,7 @@ def ratio(r):
     return None if r is None else (r.numerator, r.denominator)
 
 
-# --- The fixture, worked out by hand ------------------------------------------------------------------
+# --- The fixture, worked out by hand --------------------------------------------------------------
 #   label C:  v1-027 -> C (TP)   v1-025 -> C (TP)   v1-020 -> NEE (FN)   v3-006 -> missing (FN)
 #   label ¬C: v1-009 S -> C (FP) v1-001 S -> S (TN) v1-037 NEE -> S (TN) v3-019 NEE -> ERROR (TN)
 
@@ -109,7 +109,7 @@ def test_the_committed_sample_report_is_what_the_fixture_produces(fixture_metric
     assert committed.endswith(rm.markdown(fixture_metrics))
 
 
-# --- Edge cases ---------------------------------------------------------------------------------------
+# --- Edge cases -----------------------------------------------------------------------------------
 
 
 def pred(record_id, verdict, *citations):
@@ -292,7 +292,7 @@ def test_a_real_quote_that_is_not_the_annotated_evidence_is_not_supporting():
     assert m.citation_failures["not_the_annotated_evidence"] == 1
 
 
-# --- Correction traceability, one rule at a time --------------------------------------------------------
+# --- Correction traceability, one rule at a time --------------------------------------------------
 
 
 PRICE = {
@@ -371,7 +371,7 @@ def test_corrections_not_applicable_leave_traceability_unavailable():
     assert m.corrections["claims_not_applicable"] == 2 and ratio(m.human_review_share) == (1, 2)
 
 
-# --- The runner reports them --------------------------------------------------------------------------
+# --- The runner reports them ----------------------------------------------------------------------
 
 
 def test_the_default_run_reports_the_metrics_it_can_measure(tmp_path):

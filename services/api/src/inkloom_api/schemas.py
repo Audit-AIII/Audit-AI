@@ -74,7 +74,7 @@ class BrandSourceOut(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_model(cls, source) -> "BrandSourceOut":
+    def from_model(cls, source) -> BrandSourceOut:
         versions = sorted(source.versions, key=lambda v: v.version_number)
         return cls(
             id=source.id,
@@ -108,7 +108,7 @@ class EvidenceLinkOut(BaseModel):
     source_version_number: int | None = None
 
     @classmethod
-    def from_model(cls, evidence) -> "EvidenceLinkOut":
+    def from_model(cls, evidence) -> EvidenceLinkOut:
         return cls(
             id=evidence.id,
             source_id=evidence.source_id,
@@ -169,7 +169,7 @@ class FindingOut(BaseModel):
     @classmethod
     def from_model(
         cls, finding, text: str | None = None, locks: list[str] | None = None
-    ) -> "FindingOut":
+    ) -> FindingOut:
         suggested, safer, withheld = finding.suggested_correction, finding.safer_wording, False
         if text is not None and locks:
             if breaks_locks(text, finding.span_start, finding.span_end, suggested, locks):
@@ -265,7 +265,7 @@ class ReviewOut(BaseModel):
     locked_phrases: list[str] | None = None  # Intent-lock list of the reviewed content version
 
     @classmethod
-    def from_model(cls, review) -> "ReviewOut":
+    def from_model(cls, review) -> ReviewOut:
         engine = (
             EngineInfoOut(
                 provider=review.engine_provider,
@@ -347,7 +347,7 @@ class ApprovalEventOut(BaseModel):
     created_at: datetime
 
     @classmethod
-    def from_model(cls, event, version_number: int | None = None) -> "ApprovalEventOut":
+    def from_model(cls, event, version_number: int | None = None) -> ApprovalEventOut:
         return cls(
             id=event.id,
             content_version_id=event.content_version_id,
@@ -365,7 +365,7 @@ class ReviewSummaryOut(BaseModel):
     created_at: datetime
 
     @classmethod
-    def from_model(cls, review) -> "ReviewSummaryOut":
+    def from_model(cls, review) -> ReviewSummaryOut:
         return cls(id=review.id, status=review.status, created_at=review.created_at)
 
 

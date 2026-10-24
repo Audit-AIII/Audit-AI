@@ -361,7 +361,8 @@ def test_truly_concurrent_decisions_the_db_lock_serializes_them(
     time.sleep(
         0.3
     )  # give an unlocked SELECT plenty of time to return (it would, in well under this)
-    a_may_commit.set()  # only now let A proceed to commit - too late to rescue a buggy unlocked read
+    # Only now let A proceed to commit - too late to rescue a buggy unlocked read.
+    a_may_commit.set()
     t1.join(timeout=10)
     t2.join(timeout=10)
 

@@ -22,7 +22,6 @@ import pytest
 
 from conftest import requires_db
 from inkloom_api.auth.security import hash_password
-from inkloom_api.statuses import BrandSourceStatus
 from inkloom_api.models import (
     BrandProfile,
     BrandSource,
@@ -31,6 +30,7 @@ from inkloom_api.models import (
     SourceVersion,
     User,
 )
+from inkloom_api.statuses import BrandSourceStatus
 
 PASSWORD = "correct-horse-battery-staple"
 

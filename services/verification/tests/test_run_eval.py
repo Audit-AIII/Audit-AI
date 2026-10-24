@@ -428,7 +428,7 @@ def test_repair_calls_and_provider_errors_are_counted_per_stage():
     }
 
 
-# --- Provider failure rate gate (added 2026-10-24: a 78/80-ERROR live run reported PASSED) ---------
+# --- Provider failure rate gate (added 2026-10-24: a 78/80-ERROR live run reported PASSED) --------
 
 FAILURE_GATE = gate("required_metrics/provider_failure_rate", "<=", 0.2, "model_run")
 

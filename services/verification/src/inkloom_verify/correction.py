@@ -212,7 +212,8 @@ class CorrectionConfig(BaseModel):
     max_output_tokens: int = Field(default=1_000, ge=256, le=8_000)
     # The prompt file to load (prompts/<version>.txt). An exact version, never "latest".
     prompt_version: str = prompt.PROMPT_VERSION
-    # Re-verify the corrected claim against the same evidence; the proposal stands only if SUPPORTED.
+    # Re-verify the corrected claim against the same evidence; the proposal stands only if
+    # SUPPORTED.
     recheck: bool = True
     # Repair calls after a reply that does not match the schema (bounded; PROMPTS.md Phase 5).
     max_repairs: int = Field(default=1, ge=0, le=3)

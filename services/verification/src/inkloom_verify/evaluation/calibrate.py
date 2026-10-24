@@ -111,7 +111,8 @@ def calibrate(run_dir: Path, dataset: Path, split: str = "dev") -> dict[str, Any
     labels = {rid: records[rid].expected_verdict.value for rid in dev}
     results = [evaluate_candidate(p, outcomes, labels) for p in CANDIDATES]
     # The "never" candidates clear nothing, so a safe candidate always exists: when every looser
-    # candidate would clear a non-SUPPORTED record, the proposal is that every claim goes to a person.
+    # candidate would clear a non-SUPPORTED record, the proposal is that every claim goes to a
+    # person.
     safe = [r for r in results if r["safe"]]
     chosen = min(
         safe,

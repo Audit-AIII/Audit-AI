@@ -44,8 +44,8 @@ from inkloom_verify.schemas import (
     Verdict,
     VerificationReport,
 )
-from inkloom_verify.schemas import ClaimResult as InternalResult
 from inkloom_verify.schemas import Citation as InternalCitation
+from inkloom_verify.schemas import ClaimResult as InternalResult
 
 PUBLIC_SCHEMA_VERSION = "0.1.0"
 SchemaVersion = Literal["0.1.0"]
@@ -151,7 +151,7 @@ class Correction(_Public):
             )
         if not proposed and (any(p is not None for p in parts) or self.evidence):
             raise ValueError("only a proposed correction carries a replacement or evidence")
-        if proposed and len(self.original_text) != self.span.length:  # type: ignore[arg-type,union-attr]
+        if proposed and len(self.original_text) != self.span.length:  # type: ignore[arg-type,union-attr]  # noqa: E501
             raise ValueError("original_text length does not match its span")
         return self
 

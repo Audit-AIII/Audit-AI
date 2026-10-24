@@ -36,7 +36,7 @@ from inkloom_verify.schemas import (
 from inkloom_verify.verification import ClaimVerifier
 
 CASES = Path(__file__).resolve().parents[1] / "eval" / "data" / "corrections_v1.jsonl"
-I = CorrectionIssueCode
+Issue = CorrectionIssueCode
 
 
 @pytest.fixture(scope="module")
@@ -56,9 +56,6 @@ def proposal(original, replacement, citations=("C1",), status="corrected", reaso
 
 def supported(request):
     """A verifier reply accepting the corrected claim by quoting the first passage's key words."""
-    block = request.user.split("<verification_input_json>\n", 1)[1].rsplit(
-        "\n</verification_input_json>", 1
-    )[0]
     return {
         "verdict": "SUPPORTED",
         "citations": [{"passage": "P1", "quote": QUOTES[0]}],
@@ -168,7 +165,7 @@ def test_recheck_that_does_not_support_blocks_the_proposal(cases):
     corrected, _, _ = correct(cases["corr-v1-020"], proposal("24", "12"), nee)
     assert corrected.correction is None
     assert corrected.correction_attempt.status is CorrectionStatus.NEEDS_HUMAN_REVIEW
-    assert issue_codes(corrected) == [I.RECHECK_NOT_SUPPORTED]
+    assert issue_codes(corrected) == [Issue.RECHECK_NOT_SUPPORTED]
     assert corrected.correction_attempt.recheck_verdict is Verdict.NOT_ENOUGH_EVIDENCE
 
 
@@ -176,7 +173,7 @@ def test_recheck_failure_is_reported_not_guessed(cases):
     corrected, _, _ = correct(
         cases["corr-v1-020"], proposal("24", "12"), ProviderTimeoutError("slow")
     )
-    assert issue_codes(corrected) == [I.RECHECK_UNAVAILABLE] and corrected.correction is None
+    assert issue_codes(corrected) == [Issue.RECHECK_UNAVAILABLE] and corrected.correction is None
 
 
 # --- Unsupported additions and non-minimal edits -----------------------------------------------
@@ -185,39 +182,39 @@ def test_recheck_failure_is_reported_not_guessed(cases):
 @pytest.mark.parametrize(
     ("case_id", "original", "replacement", "code"),
     [
-        ("corr-v1-020", "24", "36", I.UNSUPPORTED_ADDITION),  # incorrect numeric substitution
-        ("corr-v1-030", "7", "5", I.UNSUPPORTED_ADDITION),  # rounded value
-        ("corr-v1-022", "in 2015", "in March 2019", I.UNSUPPORTED_ADDITION),  # unsupported date
-        ("corr-v1-028", "2 May", "12 April", I.UNSUPPORTED_ADDITION),  # unsupported day
+        ("corr-v1-020", "24", "36", Issue.UNSUPPORTED_ADDITION),  # incorrect numeric substitution
+        ("corr-v1-030", "7", "5", Issue.UNSUPPORTED_ADDITION),  # rounded value
+        ("corr-v1-022", "in 2015", "in March 2019", Issue.UNSUPPORTED_ADDITION),  # unsupported date
+        ("corr-v1-028", "2 May", "12 April", Issue.UNSUPPORTED_ADDITION),  # unsupported day
         (
             "corr-v1-023",
             "Porto",
             "Lisbon by Ana Ribeiro",
-            I.UNSUPPORTED_ADDITION,
+            Issue.UNSUPPORTED_ADDITION,
         ),  # unsupported entity
         (
             "corr-v1-029",
             "are carbon neutral",
             "are carbon neutral by 2030",
-            I.UNSUPPORTED_ADDITION,
+            Issue.UNSUPPORTED_ADDITION,
         ),  # promise
         (
             "corr-v1-029",
             "are carbon neutral",
             "will not be carbon neutral",
-            I.UNSUPPORTED_ADDITION,
+            Issue.UNSUPPORTED_ADDITION,
         ),  # modal commitment
-        ("corr-v1-027", "€99", "$129", I.UNSUPPORTED_ADDITION),  # currency symbol
-        ("corr-v1-026", "90%", "nearly 70%", I.UNSUPPORTED_ADDITION),  # hedge
-        ("corr-v1-020", "up to 24 hours", "12 hours", I.DROPS_QUALIFIER),
+        ("corr-v1-027", "€99", "$129", Issue.UNSUPPORTED_ADDITION),  # currency symbol
+        ("corr-v1-026", "90%", "nearly 70%", Issue.UNSUPPORTED_ADDITION),  # hedge
+        ("corr-v1-020", "up to 24 hours", "12 hours", Issue.DROPS_QUALIFIER),
         # Every added word is in the quote, but it rewrites far more than the error.
         (
             "corr-v1-021",
             "waterproof and safe for swimming",
             "water resistance IPX4 splash resistant and not suitable for swimming",
-            I.NOT_MINIMAL,
+            Issue.NOT_MINIMAL,
         ),
-        ("corr-v1-022", "2015", "2015", I.NO_CHANGE),
+        ("corr-v1-022", "2015", "2015", Issue.NO_CHANGE),
     ],
 )
 def test_unsafe_proposals_need_human_review_without_a_recheck(
@@ -235,11 +232,11 @@ def test_unsafe_proposals_need_human_review_without_a_recheck(
     [
         (
             proposal("", "", [], status="needs_human_review", reason="The quote gives no value."),
-            I.MODEL_DECLINED,
+            Issue.MODEL_DECLINED,
         ),
-        (proposal("48", "12"), I.TARGET_NOT_FOUND),
-        (proposal("24", "12", ["C9"]), I.UNKNOWN_CITATION),
-        (proposal("24", "12", []), I.NO_CITATION),
+        (proposal("48", "12"), Issue.TARGET_NOT_FOUND),
+        (proposal("24", "12", ["C9"]), Issue.UNKNOWN_CITATION),
+        (proposal("24", "12", []), Issue.NO_CITATION),
     ],
 )
 def test_declined_or_ungrounded_proposals(cases, reply, code):
@@ -252,7 +249,7 @@ def test_absent_evidence_cannot_be_filled_in(cases):
     corrected, _, _ = correct(
         cases["corr-syn-002"], proposal("are certified", "are certified by the Carbon Trust")
     )
-    assert issue_codes(corrected) == [I.UNSUPPORTED_ADDITION]
+    assert issue_codes(corrected) == [Issue.UNSUPPORTED_ADDITION]
 
 
 # --- Malformed output and provider failures ----------------------------------------------------
@@ -505,5 +502,5 @@ def test_correction_cli_checker_only(tmp_path, capsys):
 )
 def test_new_units_and_names_are_unsupported_additions(original, replacement, quotes):
     assert [i.code for i in correction_issues(original, replacement, quotes)][:1] == [
-        I.UNSUPPORTED_ADDITION
+        Issue.UNSUPPORTED_ADDITION
     ]

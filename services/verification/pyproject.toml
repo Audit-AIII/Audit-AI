@@ -31,8 +31,9 @@ src = ["src", "tests", "eval"]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "UP", "SIM"]
-# UP038 is deprecated in ruff: `isinstance(x, (A, B))` stays.
-ignore = ["UP038"]
+# UP038 is deprecated in ruff: `isinstance(x, (A, B))` stays. SIM905: a word list written as
+# "a b c".split() reads better than a long list literal.
+ignore = ["UP038", "SIM905"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI declares dependencies as default values by design.

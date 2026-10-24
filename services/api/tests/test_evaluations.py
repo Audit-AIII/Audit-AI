@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import inkloom_verify
@@ -106,7 +106,7 @@ def test_run_returns_evaluation_shape_and_is_stored(
     response = client.post("/api/evaluations", headers=owner.headers)
     assert response.status_code == 201, response.text
     body = response.json()
-    assert EVALUATION_KEYS <= set(body)
+    assert set(body) >= EVALUATION_KEYS
 
     assert body["sample_size"] == N
     assert body["catch_rate"] == 1.0  # every CONTRADICTED / NOT_ENOUGH_EVIDENCE claim flagged
@@ -256,7 +256,7 @@ def test_run_stored_before_new_fields_still_renders(client, db_session, account_
         EvaluationRun(
             organisation_id=uuid.UUID(owner.organisation_id),
             status="completed",
-            ran_at=datetime.now(timezone.utc),
+            ran_at=datetime.now(UTC),
             engine_prompt_version="verify-claim-v1",
             dataset_version="dataset.jsonl@000000000000",
             sample_size=55,

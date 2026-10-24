@@ -47,7 +47,7 @@ import os
 import platform
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -56,27 +56,35 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from inkloom_verify import __version__  # noqa: E402
 from inkloom_verify.chunking import ChunkingConfig  # noqa: E402
-from inkloom_verify.evaluation import scripted  # noqa: E402
 from inkloom_verify.correction import CorrectionConfig  # noqa: E402
+from inkloom_verify.decision_policy import DecisionPolicy  # noqa: E402
+from inkloom_verify.evaluation import report as reporting  # noqa: E402
+from inkloom_verify.evaluation import (  # noqa: E402
+    required_metrics,
+    scripted,
+)
+from inkloom_verify.evaluation.corrections import (  # noqa: E402
+    check_candidates,
+    load_cases,
+    run_live,
+)
 from inkloom_verify.evaluation.dataset import validate_dataset  # noqa: E402
-from inkloom_verify.evaluation.extraction import evaluate_extraction, load_extraction_records  # noqa: E402
-from inkloom_verify.evaluation.pipeline_predictor import (
+from inkloom_verify.evaluation.extraction import (  # noqa: E402
+    evaluate_extraction,
+    load_extraction_records,
+)
+from inkloom_verify.evaluation.oracle import OraclePredictor, OracleProvider  # noqa: E402
+from inkloom_verify.evaluation.pipeline_predictor import (  # noqa: E402
+    CaseOutcome,
     PipelinePredictor,
     decision_policy,
     retrieval_parameters,
-)  # noqa: E402
-from inkloom_verify.evaluation.replay import CassetteError, RecordingProvider, ReplayProvider  # noqa: E402
-from inkloom_verify.evaluation import report as reporting  # noqa: E402
-from inkloom_verify.evaluation import required_metrics  # noqa: E402
-from inkloom_verify.evaluation.pipeline_predictor import CaseOutcome  # noqa: E402
-from inkloom_verify.evaluation.summary import build_summary, incomplete_summary  # noqa: E402
-from inkloom_verify.evaluation.oracle import OracleProvider, OraclePredictor  # noqa: E402
-from inkloom_verify.decision_policy import DecisionPolicy  # noqa: E402
-from inkloom_verify.extraction import ExtractionConfig  # noqa: E402
-from inkloom_verify.pipeline import PipelineConfig  # noqa: E402
-from inkloom_verify.verification import VerificationConfig  # noqa: E402
-from inkloom_verify.evaluation.corrections import check_candidates, load_cases, run_live  # noqa: E402
-from inkloom_verify.evaluation.metrics import GOLD_CLASSES, PREDICTED_CLASSES  # noqa: E402
+)
+from inkloom_verify.evaluation.replay import (  # noqa: E402
+    CassetteError,
+    RecordingProvider,
+    ReplayProvider,
+)
 from inkloom_verify.evaluation.runner import (  # noqa: E402
     AbstainBaseline,
     EvaluationInputError,
@@ -85,11 +93,19 @@ from inkloom_verify.evaluation.runner import (  # noqa: E402
     load_records,
     run,
 )
-from inkloom_verify.providers.base import JsonCompletion, JsonCompletionRequest, ProviderError  # noqa: E402
+from inkloom_verify.evaluation.summary import build_summary, incomplete_summary  # noqa: E402
+from inkloom_verify.extraction import ExtractionConfig  # noqa: E402
+from inkloom_verify.pipeline import PipelineConfig  # noqa: E402
 from inkloom_verify.prompts import correction as correction_prompt  # noqa: E402
 from inkloom_verify.prompts import extraction as extraction_prompt  # noqa: E402
 from inkloom_verify.prompts import verification as verification_prompt  # noqa: E402
+from inkloom_verify.providers.base import (  # noqa: E402
+    JsonCompletion,
+    JsonCompletionRequest,
+    ProviderError,
+)
 from inkloom_verify.retrieval import RetrievalConfig  # noqa: E402
+from inkloom_verify.verification import VerificationConfig  # noqa: E402
 
 EVAL = ROOT / "eval"
 DATASET = EVAL / "dataset.jsonl"
@@ -390,7 +406,7 @@ def evaluate_all(args: argparse.Namespace) -> dict[str, Any]:
     commit = _git(["rev-parse", "HEAD"], ROOT)
     report: dict[str, Any] = {
         "run": {
-            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "engine_version": __version__,
             "python": platform.python_version(),
             "git_commit": commit,
@@ -678,12 +694,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--verdicts oracle needs --pipeline full")
     if args.record and args.verdicts != "openrouter":
         parser.error("--record needs --verdicts openrouter")
-    args.out = args.out or ROOT / "reports" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    args.out = args.out or ROOT / "reports" / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     args.out.mkdir(parents=True, exist_ok=True)
     reports_dir = args.reports_dir or Path(
         os.environ.get("INKLOOM_EVAL_REPORTS_DIR") or EVAL / "reports"
     )
-    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    started = datetime.now(UTC).isoformat(timespec="seconds")
     source = (
         "predictions"
         if args.predictions

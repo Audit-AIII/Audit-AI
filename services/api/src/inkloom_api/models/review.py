@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -26,6 +27,9 @@ from ..statuses import (
 )
 from .base import Base, created_at_column, updated_at_column, uuid_pk
 
+if TYPE_CHECKING:
+    from .brand import BrandSource, SourceVersion
+    from .content import ContentVersion
 
 _ROUTABLE_REVIEWER_ROLES = (MembershipRole.LEGAL_REVIEWER.value, MembershipRole.BRAND_MANAGER.value)
 
@@ -57,7 +61,8 @@ class Review(Base):
     engine_model_id: Mapped[str | None] = mapped_column(String(100))
     prompt_version: Mapped[str | None] = mapped_column(String(50))
     engine_contract_version: Mapped[str | None] = mapped_column(String(20))
-    # The request_id this backend sent to the engine (inkloom_verify.VerificationRequest.request_id).
+    # The request_id this backend sent to the engine
+    # (inkloom_verify.VerificationRequest.request_id).
     request_id: Mapped[str | None] = mapped_column(String(128), index=True)
     report_status: Mapped[str | None] = mapped_column(
         String(20)
@@ -81,11 +86,11 @@ class Review(Base):
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()
 
-    findings: Mapped[list["Finding"]] = relationship(back_populates="review")
+    findings: Mapped[list[Finding]] = relationship(back_populates="review")
     # Read-only: lets ReviewOut.from_model reach content_item_id / brand_id / title / text
     # without a second query, via the content_version's own existing `content_item` relationship
     # (models/content.py). No migration needed - the content_version_id FK already exists.
-    content_version: Mapped["ContentVersion"] = relationship("ContentVersion", viewonly=True)
+    content_version: Mapped[ContentVersion] = relationship("ContentVersion", viewonly=True)
 
 
 class Finding(Base):
@@ -137,11 +142,11 @@ class Finding(Base):
     created_at: Mapped[datetime] = created_at_column()
 
     review: Mapped[Review] = relationship(back_populates="findings")
-    evidence: Mapped[list["EvidenceLink"]] = relationship(back_populates="finding")
-    decisions: Mapped[list["FindingDecision"]] = relationship(
+    evidence: Mapped[list[EvidenceLink]] = relationship(back_populates="finding")
+    decisions: Mapped[list[FindingDecision]] = relationship(
         order_by="FindingDecision.created_at", viewonly=True
     )
-    comments: Mapped[list["FindingComment"]] = relationship(
+    comments: Mapped[list[FindingComment]] = relationship(
         order_by="FindingComment.created_at", viewonly=True
     )
 
@@ -185,8 +190,8 @@ class EvidenceLink(Base):
     finding: Mapped[Finding] = relationship(back_populates="evidence")
     # Read-only: EvidenceLinkOut shows the cited document's title and version number. Both stay
     # None if the source row is ever gone (the FKs are ON DELETE SET NULL).
-    source: Mapped["BrandSource | None"] = relationship("BrandSource", viewonly=True)
-    source_version: Mapped["SourceVersion | None"] = relationship("SourceVersion", viewonly=True)
+    source: Mapped[BrandSource | None] = relationship("BrandSource", viewonly=True)
+    source_version: Mapped[SourceVersion | None] = relationship("SourceVersion", viewonly=True)
 
 
 class FindingDecision(Base):

@@ -20,7 +20,7 @@ def found(evaluation, rule_id: str) -> list[str]:
     return [f.original_text for f in evaluation.findings if f.rule_id == rule_id]
 
 
-# --- Headings ---------------------------------------------------------------------------------------
+# --- Headings -------------------------------------------------------------------------------------
 
 
 def test_well_ordered_headings_pass():
@@ -108,7 +108,7 @@ def test_no_media_anywhere_is_not_checkable():
     )
 
 
-# --- Colour contrast --------------------------------------------------------------------------------
+# --- Colour contrast ------------------------------------------------------------------------------
 
 
 def test_contrast_ratio_matches_the_wcag_reference_values():
@@ -190,7 +190,7 @@ def test_text_without_links_cannot_have_its_link_text_checked():
     )
 
 
-# --- Configuration ------------------------------------------------------------------------------------
+# --- Configuration --------------------------------------------------------------------------------
 
 
 def test_each_accessibility_check_can_be_switched_off_and_then_is_not_reported():

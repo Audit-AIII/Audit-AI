@@ -36,7 +36,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from dotenv import load_dotenv
 
@@ -412,7 +412,7 @@ class _Clock:
     computed from these real rows like any others."""
 
     def __init__(self, start_hours_ago: float) -> None:
-        self._at = datetime.now(timezone.utc) - timedelta(hours=start_hours_ago)
+        self._at = datetime.now(UTC) - timedelta(hours=start_hours_ago)
 
     def next(self, hours: float = 5.0) -> datetime:
         self._at += timedelta(hours=hours)

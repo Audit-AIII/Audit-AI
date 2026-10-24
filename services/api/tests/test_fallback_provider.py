@@ -15,6 +15,7 @@ protocol, so this tests its own chain logic in isolation from any real provider'
 
 from __future__ import annotations
 
+import pytest
 from inkloom_verify.providers.base import (
     JsonCompletion,
     JsonCompletionRequest,
@@ -24,7 +25,6 @@ from inkloom_verify.providers.base import (
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
-import pytest
 
 from inkloom_api.engine.providers.fallback import FallbackProvider
 

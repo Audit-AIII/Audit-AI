@@ -121,7 +121,7 @@ def test_fixtures_are_deterministic_fictional_data():
         assert not any(marker in text for marker in ("http://", "https://", "@", "sk-"))
 
 
-# --- What each fixture demonstrates ----------------------------------------------------------------
+# --- What each fixture demonstrates ---------------------------------------------------------------
 
 
 def test_supported_includes_evidence():
@@ -197,7 +197,7 @@ def test_mixed_report_keeps_successful_results_beside_failures():
             )
 
 
-# --- Mutations: break the rule, and the fixture is rejected ----------------------------------------
+# --- Mutations: break the rule, and the fixture is rejected ---------------------------------------
 
 
 def mutated(name: str, change) -> dict:

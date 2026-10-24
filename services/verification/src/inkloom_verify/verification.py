@@ -32,7 +32,6 @@ from inkloom_verify.providers.base import (
     ProviderError,
 )
 from inkloom_verify.retrieval import EvidenceRetriever
-from inkloom_verify.security import clean_display_text, instruction_like, model_text_for_display
 from inkloom_verify.schemas import (
     MAX_PASSAGE_CHARS,
     MAX_RATIONALE_CHARS,
@@ -43,13 +42,14 @@ from inkloom_verify.schemas import (
     ClaimVerificationInput,
     ErrorCode,
     EvidencePassage,
+    GuardRejectionReason,
     PipelineStage,
     ProcessingError,
     ReferenceDocument,
     RejectedCitation,
     Verdict,
-    GuardRejectionReason,
 )
+from inkloom_verify.security import clean_display_text, instruction_like, model_text_for_display
 
 logger = logging.getLogger(__name__)
 
@@ -231,7 +231,7 @@ class ClaimVerifier:
         while the reply does not fit the schema."""
         self.prompt_sent = True
         current = request
-        for attempt in range(self.config.max_repairs + 1):
+        for _attempt in range(self.config.max_repairs + 1):
             completion = self.provider.complete_json(current)
             self.models_used.add(completion.model)
             try:

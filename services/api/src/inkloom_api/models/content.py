@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy import text as sql_text  # the model has a column named `text`
@@ -17,6 +18,9 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, created_at_column, updated_at_column, uuid_pk
+
+if TYPE_CHECKING:
+    from .brand import BrandProfile
 
 
 class ContentItem(Base):
@@ -40,11 +44,11 @@ class ContentItem(Base):
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()
 
-    versions: Mapped[list["ContentVersion"]] = relationship(
+    versions: Mapped[list[ContentVersion]] = relationship(
         back_populates="content_item", passive_deletes=True
     )
     # Read-only: lets ReviewOut.from_model show the brand's name without another query.
-    brand_profile: Mapped["BrandProfile | None"] = relationship("BrandProfile", viewonly=True)
+    brand_profile: Mapped[BrandProfile | None] = relationship("BrandProfile", viewonly=True)
 
 
 class ContentVersion(Base):

@@ -19,7 +19,8 @@ def build_engine(database_url: str, statement_timeout_ms: int):
     if database_url.startswith("postgresql"):
         # Server-side cap on every statement, so a slow query cannot hold a worker forever. Any
         # `options` already in DATABASE_URL (e.g. `?options=-csearch_path%3Dinkloom_test`, the
-        # throwaway test schema in README "Test") are kept: connect_args would otherwise replace them.
+        # throwaway test schema in README "Test") are kept: connect_args would otherwise replace
+        # them.
         url_options = make_url(database_url).query.get("options")
         options = [url_options] if isinstance(url_options, str) and url_options else []
         options.append(f"-c statement_timeout={int(statement_timeout_ms)}")

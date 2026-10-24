@@ -236,7 +236,7 @@ def _clip(text: str, limit: int = MAX_RULE_TEXT_CHARS) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-# --- The runner ---------------------------------------------------------------------------------------
+# --- The runner -----------------------------------------------------------------------------------
 
 
 @dataclass
@@ -270,7 +270,8 @@ class _Run:
         except _NotCheckable as reason:
             self._record(rule, rule_type, RuleCheckStatus.NOT_CHECKABLE, 0, str(reason))
             return
-        except Exception as error:  # noqa: BLE001 - one broken rule must not stop or pass the others
+        except Exception as error:
+            # Broad on purpose: one broken rule must not stop or pass the others.
             logger.error(
                 "rules: %s (%s) failed: %s", rule.rule_id, rule_type.value, type(error).__name__
             )
@@ -341,7 +342,7 @@ class _Run:
         )
 
 
-# --- Entry points -------------------------------------------------------------------------------------
+# --- Entry points ---------------------------------------------------------------------------------
 
 
 def _problems(error: ValidationError) -> list[str]:
@@ -540,7 +541,8 @@ def _numeric(text: str, rule: NumericLimitRule) -> list[_Hit]:
             continue
         for match in figure.finditer(text, sentence.start(), sentence.end()):
             number = match.group(1)
-            # "1,200" is twelve hundred; "4,5" (one to two digits after the comma) is a decimal comma.
+            # "1,200" is twelve hundred; "4,5" (one to two digits after the comma) is a decimal
+            # comma.
             value = float(
                 number.replace(",", "")
                 if re.search(r",\d{3}(?!\d)", number)
@@ -557,7 +559,7 @@ def _numeric(text: str, rule: NumericLimitRule) -> list[_Hit]:
     return hits
 
 
-# --- Accessibility and tone ---------------------------------------------------------------------------
+# --- Accessibility and tone -----------------------------------------------------------------------
 
 STYLE_RULE_IDS = {
     RuleType.ALL_CAPS_RUN: "style.all_caps",

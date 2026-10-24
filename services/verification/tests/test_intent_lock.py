@@ -104,7 +104,7 @@ def test_duplicate_locks_are_kept_once_in_order():
     assert validate_locks(["₹2,499", "2 April", "₹2,499"]) == ["₹2,499", "2 April"]
 
 
-# --- The corrector respects locks --------------------------------------------------------------------
+# --- The corrector respects locks -----------------------------------------------------------------
 
 
 def _correct(locks):
@@ -153,7 +153,7 @@ def test_no_locks_behaves_exactly_as_before():
     assert _correct([])[0].correction is not None
 
 
-# --- The softener respects locks ---------------------------------------------------------------------
+# --- The softener respects locks ------------------------------------------------------------------
 
 
 def test_a_softening_that_would_remove_locked_text_is_refused():
@@ -199,7 +199,6 @@ def test_malformed_locks_stop_the_suggestion_before_any_model_call():
 
 def test_the_pipeline_passes_locks_to_the_corrector():
     from e2e_support import CONTRADICTED_CLAIM, RoutedProvider, careful_model, request
-
     from inkloom_verify.pipeline import verify_request
     from inkloom_verify.schemas import VerificationRequest
 
@@ -216,7 +215,6 @@ def test_the_pipeline_passes_locks_to_the_corrector():
 
 def test_blank_locked_phrases_are_refused_by_the_request_contract():
     from e2e_support import request
-
     from inkloom_verify.schemas import VerificationRequest
 
     with pytest.raises(ValueError):

@@ -10,17 +10,21 @@ import pytest
 from pydantic import ValidationError
 
 from e2e_support import RoutedProvider, data_block, request
-from inkloom_verify.evaluation.runner import load_records
 from inkloom_verify.api_contract import to_public_report
 from inkloom_verify.decision_policy import DecisionPolicy, describe, looks_compound, review_reasons
 from inkloom_verify.evaluation.calibrate import CalibrationError, calibrate
+from inkloom_verify.evaluation.runner import load_records
 from inkloom_verify.pipeline import PipelineConfig, verify_request
 from inkloom_verify.schemas import (
     ClaimResult,
-    ClaimReviewReason as R,
-    EvidenceStrength as S,
     ReviewReason,
     Verdict,
+)
+from inkloom_verify.schemas import (
+    ClaimReviewReason as R,
+)
+from inkloom_verify.schemas import (
+    EvidenceStrength as S,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,7 +78,7 @@ def run(content: str, respond, docs=("pods-fact-sheet",), policy: DecisionPolicy
     return report, report.results
 
 
-# --- The cases EVAL.md lists, through the real pipeline --------------------------------------------
+# --- The cases EVAL.md lists, through the real pipeline -------------------------------------------
 
 
 def test_a_clear_supported_claim_with_matched_figures_is_auto_cleared():
@@ -221,7 +225,7 @@ def test_policy_routing_reaches_the_public_report_and_the_report_score():
     assert claim.verdict.needs_human_review is True
 
 
-# --- Threshold boundaries, the decision function itself -------------------------------------------------
+# --- Threshold boundaries, the decision function itself -------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -329,7 +333,7 @@ def test_the_contract_refuses_a_result_that_drops_a_floor_reason_or_misplaces_a_
             )
 
 
-# --- Calibration: dev split only, safety before volume ----------------------------------------------------
+# --- Calibration: dev split only, safety before volume --------------------------------------------
 
 
 def case_line(
@@ -381,9 +385,9 @@ def run_dir(tmp_path, lines, model_quality=False):
 def dataset(tmp_path, labels: dict[str, tuple[str, str]]):
     """A dataset of real records whose labels and splits are set for the test."""
     base = [
-        json.loads(l)
-        for l in (ROOT / "eval" / "dataset.jsonl").read_text(encoding="utf-8").splitlines()
-        if l.strip()
+        json.loads(ln)
+        for ln in (ROOT / "eval" / "dataset.jsonl").read_text(encoding="utf-8").splitlines()
+        if ln.strip()
     ]
     by_verdict = {
         v: next(r for r in base if r["expected_verdict"] == v)
@@ -465,7 +469,7 @@ def test_calibration_never_changes_the_active_policy(tmp_path):
     assert policy_file.read_bytes() == before
 
 
-# --- Recorded in evaluation reports -----------------------------------------------------------------------
+# --- Recorded in evaluation reports ---------------------------------------------------------------
 
 
 def test_reports_record_the_policy_version_thresholds_and_calibration_status(tmp_path):

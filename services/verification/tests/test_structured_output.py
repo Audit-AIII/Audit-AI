@@ -17,24 +17,39 @@ warnings.filterwarnings("ignore", message=".*httpx.*", category=DeprecationWarni
 from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from e2e_support import CONTENT, DOCS, ERROR_CLAIM, RoutedProvider, careful_model, request  # noqa: E402
+from e2e_support import (  # noqa: E402
+    CONTENT,
+    DOCS,
+    ERROR_CLAIM,
+    RoutedProvider,
+    careful_model,
+    request,
+)
 from inkloom_verify.api import create_verify_router, install_dev_error_handlers  # noqa: E402
 from inkloom_verify.api_contract import VerdictResult  # noqa: E402
 from inkloom_verify.correction import ClaimCorrector, CorrectionConfig  # noqa: E402
 from inkloom_verify.evaluation.corrections import contradicted_result, load_cases  # noqa: E402
 from inkloom_verify.extraction import ClaimExtractor, ExtractionConfig  # noqa: E402
 from inkloom_verify.pipeline import PipelineEngine, verify_request  # noqa: E402
-from inkloom_verify.providers.base import (
+from inkloom_verify.providers.base import (  # noqa: E402
     JsonCompletionRequest,
     MalformedOutputError,
     ProviderTimeoutError,
     parse_json_object,
-)  # noqa: E402
+)
 from inkloom_verify.providers.openrouter import OpenRouterProvider, OpenRouterSettings  # noqa: E402
 from inkloom_verify.retrieval import BM25Retriever  # noqa: E402
-from inkloom_verify.schemas import CorrectionStatus, ErrorCode, GuardRejectionReason, Verdict  # noqa: E402
-from inkloom_verify.verification import ClaimVerifier, VerificationConfig, verify_claim  # noqa: E402
-
+from inkloom_verify.schemas import (  # noqa: E402
+    CorrectionStatus,
+    ErrorCode,
+    GuardRejectionReason,
+    Verdict,
+)
+from inkloom_verify.verification import (  # noqa: E402
+    ClaimVerifier,
+    VerificationConfig,
+    verify_claim,
+)
 
 CASES = {
     c.case_id: c
@@ -45,7 +60,7 @@ CASES = {
 SECRET = "sk-or-v1-0000SECRETSECRET0000"
 
 
-# --- 1. Strict JSON parsing -------------------------------------------------------------------------
+# --- 1. Strict JSON parsing -----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -89,7 +104,7 @@ def test_a_duplicate_key_nested_anywhere_is_refused():
         parse_json_object('{"citations": [{"passage": "P1", "passage": "P2", "quote": "x"}]}')
 
 
-# --- 2. The adapter uses it, and retries are bounded --------------------------------------------------
+# --- 2. The adapter uses it, and retries are bounded ----------------------------------------------
 
 
 def openrouter(content: str, finish: str = "stop", models=("google/gemini-flash",), max_retries=2):
@@ -389,7 +404,7 @@ def test_the_public_report_refuses_invalid_confidence():
             )
 
 
-# --- 5. Model-output errors are not timeouts, at every level ---------------------------------------
+# --- 5. Model-output errors are not timeouts, at every level --------------------------------------
 
 
 def test_claim_level_codes_keep_timeouts_and_bad_output_apart():

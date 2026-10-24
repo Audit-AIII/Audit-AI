@@ -42,9 +42,9 @@ from inkloom_verify.providers.base import (
     ProviderQuotaError,
     ProviderRateLimitError,
     ProviderRequestError,
-    parse_json_object,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    parse_json_object,
 )
 from inkloom_verify.security import install_redaction, register_secret
 

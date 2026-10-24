@@ -14,7 +14,6 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 from inkloom_verify.providers.base import (
-    parse_json_object,
     JsonCompletion,
     JsonCompletionRequest,
     MalformedOutputError,
@@ -25,8 +24,8 @@ from inkloom_verify.providers.base import (
     ProviderRequestError,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    parse_json_object,
 )
-
 from inkloom_verify.security import register_secret
 
 from .retry import with_retry

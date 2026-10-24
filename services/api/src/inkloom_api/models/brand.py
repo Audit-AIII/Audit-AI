@@ -41,7 +41,7 @@ class BrandProfile(Base):
     # passive_deletes=True: see organisations.py for why - without it, deleting a BrandProfile
     # while its `sources` collection is loaded would try to null out brand_sources.brand_profile_id
     # (NOT NULL) itself instead of letting the DB's ON DELETE CASCADE handle it.
-    sources: Mapped[list["BrandSource"]] = relationship(
+    sources: Mapped[list[BrandSource]] = relationship(
         back_populates="brand_profile", passive_deletes=True
     )
 
@@ -85,7 +85,7 @@ class BrandSource(Base):
     updated_at: Mapped[datetime] = updated_at_column()
 
     brand_profile: Mapped[BrandProfile] = relationship(back_populates="sources")
-    versions: Mapped[list["SourceVersion"]] = relationship(
+    versions: Mapped[list[SourceVersion]] = relationship(
         back_populates="brand_source", passive_deletes=True
     )
 

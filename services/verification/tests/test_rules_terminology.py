@@ -78,7 +78,7 @@ def test_case_sensitive_spelling_only_flags_the_exact_case():
     assert texts(evaluation) == ["IPhone", "iphone"]
 
 
-# --- Consistency ------------------------------------------------------------------------------------
+# --- Consistency ----------------------------------------------------------------------------------
 
 
 def test_mixed_forms_flag_the_less_frequent_ones_without_a_suggestion():
@@ -114,7 +114,7 @@ def test_consistency_never_counts_a_short_form_inside_a_longer_one():
     ]  # "mail" inside "e-mail"/"email" is never counted separately
 
 
-# --- Matching behaviour ------------------------------------------------------------------------------
+# --- Matching behaviour ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

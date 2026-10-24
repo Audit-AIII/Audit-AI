@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
+
 from e2e_support import (
     CONTENT,
     CONTRADICTED_CLAIM,
@@ -20,9 +22,6 @@ from e2e_support import (
     data_block,
     request,
 )
-from pydantic import ValidationError
-from test_verification import PODS, answer, verifier_input
-
 from inkloom_verify.integration import (
     CONFLICTING_SOURCES_STATUS,
     PROPOSED_FINDING_FIELDS,
@@ -33,6 +32,7 @@ from inkloom_verify.pipeline import PipelineConfig, verify_request
 from inkloom_verify.providers.fake import ScriptedProvider
 from inkloom_verify.schemas import ClaimResult, ReferenceDocument, SaferWording, Verdict
 from inkloom_verify.verification import ClaimVerifier
+from test_verification import PODS, answer, verifier_input
 
 NEWER = ReferenceDocument(
     doc_id="pods-fact-sheet-v3", text="Battery life: up to 10 hours of playback per charge."

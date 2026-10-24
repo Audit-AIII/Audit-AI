@@ -3,9 +3,8 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from inkloom_verify.schemas import EvalRecord, Verdict
-
 from conftest import EXAMPLES
+from inkloom_verify.schemas import EvalRecord, Verdict
 
 
 @pytest.fixture

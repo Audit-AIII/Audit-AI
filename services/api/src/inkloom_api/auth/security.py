@@ -12,7 +12,7 @@ revoked membership loses access immediately without needing a token denylist.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
@@ -42,7 +42,7 @@ def create_access_token(settings: Settings, user_id: uuid.UUID, organisation_id:
         raise RuntimeError(
             f"AUTH_SECRET_KEY is missing or shorter than {MIN_AUTH_SECRET_CHARS} characters"
         )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
         "org": str(organisation_id),

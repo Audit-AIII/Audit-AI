@@ -11,10 +11,12 @@ from inkloom_verify.citation_guard import support_problems
 from inkloom_verify.evaluation.limitations import LIMITATIONS
 from inkloom_verify.retrieval import BM25Retriever
 from inkloom_verify.schemas import (
-    GuardRejectionReason as R,
     MAX_REFERENCE_CHARS,
     ReferenceDocument,
     Verdict,
+)
+from inkloom_verify.schemas import (
+    GuardRejectionReason as R,
 )
 from inkloom_verify.verification import ClaimVerifier, VerificationConfig, verify_claim
 

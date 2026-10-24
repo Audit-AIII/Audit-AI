@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -77,7 +77,7 @@ class RecordingProvider:
             "kind": CASSETTE_KIND,
             "version": CASSETTE_VERSION,
             "source": inner.name,
-            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         } | (metadata or {})
         path.write_text(json.dumps(header, ensure_ascii=False) + "\n", encoding="utf-8")
 
