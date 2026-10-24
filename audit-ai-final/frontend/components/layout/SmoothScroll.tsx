@@ -7,8 +7,6 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const HEADER_CLEARANCE = 88; // fixed 68px header + breathing room; matches scroll-padding-top in base.css
-
 /** Lenis smooth scroll driven by the GSAP ticker so ScrollTrigger scrubs stay in sync. Off for reduced motion. */
 export function SmoothScroll() {
   // In-page links: open a <details> target (FAQ answers) and briefly outline where the link landed.
@@ -31,7 +29,9 @@ export function SmoothScroll() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const lenis = new Lenis({ autoRaf: false, anchors: { offset: -HEADER_CLEARANCE } });
+    // In-page links land below the fixed header via scroll-padding-top (88px, base.css), which Lenis
+    // honours by itself; an extra offset here doubled it, so sections landed a whole header lower.
+    const lenis = new Lenis({ autoRaf: false, anchors: true });
     lenis.on("scroll", ScrollTrigger.update);
     const tick = (time: number) => lenis.raf(time * 1000);
     gsap.ticker.add(tick);
