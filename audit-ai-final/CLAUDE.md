@@ -5,7 +5,6 @@ Audit AI is a brand-governance platform that reviews content BEFORE publication 
 ## UI authority (read before any UI work)
 - `design/DESIGN.md` — visual system (Part A, §1–14) and product UI (Part B, §15–22). Tags: [M] measured, [R] reconstructed (calibrate), [I] inferred (verify).
 - `design/tokens.css` — the only source for colours, fonts, radii, shadows, durations.
-- `design/reference/screenshots/` — look at these images (Read tool) before building any section.
 
 ## Style in one paragraph
 "Pressed paper": warm cardboard canvas (#d4b08f) with grain, light from the TOP-LEFT, raised = approved/available, pressed = contradicted/input, dark die-cut window = evidence, dashed = unverified. Gabarito 700 uppercase headings, Instrument Sans body, radius 6px (no pills), motion 220ms buttons / 250ms links / 500ms reveals / 16s hero light, no bounce.
