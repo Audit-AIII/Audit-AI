@@ -9,6 +9,7 @@ workspace's brand exists).
 from __future__ import annotations
 
 import hashlib
+import logging
 import uuid
 from pathlib import Path
 from typing import Annotated, Literal
@@ -41,6 +42,7 @@ from ..source_upload import extract_text, file_type_from_name, read_limited, sto
 from ..statuses import BrandSourceSensitivity, BrandSourceStatus
 from ..tenancy import get_brand_profile_or_404, get_brand_source_or_404
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/brands", tags=["brands"])
 
 _DUPLICATE_BRAND_NAME = "a brand with this name already exists"
@@ -193,56 +195,71 @@ def upload_brand_source(
     content = read_limited(file, settings.max_source_upload_bytes)
     text = extract_text(file_type, content)
     storage_path = store_upload(settings, auth.organisation_id, file_type, content)
-
-    source = BrandSource(
-        brand_profile_id=brand.id,
-        title=title,
-        status=BrandSourceStatus.APPROVED.value if approve else BrandSourceStatus.DRAFT.value,
-        sensitivity=sensitivity,
-        source_type=file_type.value,
-        storage_path=storage_path,
-        created_by=auth.user_id,
-    )
-    db.add(source)
-    db.flush()
-
-    text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    db.add(
-        SourceVersion(
-            brand_source_id=source.id,
-            version_number=1,
-            text=text,
-            text_sha256=text_sha256,
-            section_hashes=document_section_hashes(
-                ReferenceDocument(doc_id=str(source.id), text=text, text_sha256=text_sha256)
-            ),
+    try:
+        source = BrandSource(
+            brand_profile_id=brand.id,
+            title=title,
+            status=BrandSourceStatus.APPROVED.value if approve else BrandSourceStatus.DRAFT.value,
+            sensitivity=sensitivity,
+            source_type=file_type.value,
+            storage_path=storage_path,
             created_by=auth.user_id,
         )
-    )
-    db.add(
-        AuditEvent(
-            organisation_id=auth.organisation_id,
-            actor_user_id=auth.user_id,
-            event_type="brand_source.uploaded",
-            entity_type="brand_source",
-            entity_id=str(source.id),
-            details={"source_type": file_type.value, "sensitivity": sensitivity},
+        db.add(source)
+        db.flush()
+
+        text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        db.add(
+            SourceVersion(
+                brand_source_id=source.id,
+                version_number=1,
+                text=text,
+                text_sha256=text_sha256,
+                section_hashes=document_section_hashes(
+                    ReferenceDocument(doc_id=str(source.id), text=text, text_sha256=text_sha256)
+                ),
+                created_by=auth.user_id,
+            )
         )
-    )
-    if approve:
         db.add(
             AuditEvent(
                 organisation_id=auth.organisation_id,
                 actor_user_id=auth.user_id,
-                event_type="brand_source.approved",
+                event_type="brand_source.uploaded",
                 entity_type="brand_source",
                 entity_id=str(source.id),
-                details={"previous_status": "draft", "approved_on_upload": True},
+                details={"source_type": file_type.value, "sensitivity": sensitivity},
             )
         )
-    db.commit()
+        if approve:
+            db.add(
+                AuditEvent(
+                    organisation_id=auth.organisation_id,
+                    actor_user_id=auth.user_id,
+                    event_type="brand_source.approved",
+                    entity_type="brand_source",
+                    entity_id=str(source.id),
+                    details={"previous_status": "draft", "approved_on_upload": True},
+                )
+            )
+        db.commit()
+    except BaseException:
+        _remove_stored_upload(settings, storage_path)
+        raise
     db.refresh(source)
     return BrandSourceOut.from_model(source)
+
+
+def _remove_stored_upload(settings: Settings, storage_path: str) -> None:
+    """Deletes the file `store_upload` wrote for a request that then failed before its commit, so
+    no orphan is left on disk. A failed delete is logged and never replaces the original error."""
+    try:
+        base = Path(settings.brand_source_storage_dir).resolve()
+        target = (base / storage_path).resolve()
+        if target.is_relative_to(base):  # stored paths are generated, but never leave the store
+            target.unlink(missing_ok=True)
+    except Exception:
+        logger.exception("could not remove stored upload %s after a failed request", storage_path)
 
 
 class WithdrawSourceBody(BaseModel):
@@ -312,41 +329,47 @@ def upload_new_source_version(
     content = read_limited(file, settings.max_source_upload_bytes)
     text = extract_text(file_type, content)
     storage_path = store_upload(settings, auth.organisation_id, file_type, content)
-    text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    try:
+        text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    next_number = (
-        db.query(SourceVersion.version_number)
-        .filter_by(brand_source_id=source.id)
-        .order_by(SourceVersion.version_number.desc())
-        .first()[0]
-        + 1
-    )
-    new_version = SourceVersion(
-        brand_source_id=source.id,
-        version_number=next_number,
-        text=text,
-        text_sha256=text_sha256,
-        section_hashes=document_section_hashes(
-            ReferenceDocument(doc_id=str(source.id), text=text, text_sha256=text_sha256)
-        ),
-        created_by=auth.user_id,
-    )
-    db.add(new_version)
-    db.flush()
-    source.storage_path = storage_path  # the file on disk the source was last updated from
-    source.source_type = file_type.value
+        next_number = (
+            db.query(SourceVersion.version_number)
+            .filter_by(brand_source_id=source.id)
+            .order_by(SourceVersion.version_number.desc())
+            .first()[0]
+            + 1
+        )
+        new_version = SourceVersion(
+            brand_source_id=source.id,
+            version_number=next_number,
+            text=text,
+            text_sha256=text_sha256,
+            section_hashes=document_section_hashes(
+                ReferenceDocument(doc_id=str(source.id), text=text, text_sha256=text_sha256)
+            ),
+            created_by=auth.user_id,
+        )
+        db.add(new_version)
+        db.flush()
+        source.storage_path = storage_path  # the file on disk the source was last updated from
+        source.source_type = file_type.value
 
-    flipped = apply_new_version_diff(db, source, new_version, auth.organisation_id, auth.user_id)
-    log_audit_event(
-        db,
-        organisation_id=auth.organisation_id,
-        actor_user_id=auth.user_id,
-        event_type="brand_source.new_version_uploaded",
-        entity_type="brand_source",
-        entity_id=source.id,
-        details={"version_number": next_number, "dependents_flipped": len(flipped)},
-    )
-    db.commit()
+        flipped = apply_new_version_diff(
+            db, source, new_version, auth.organisation_id, auth.user_id
+        )
+        log_audit_event(
+            db,
+            organisation_id=auth.organisation_id,
+            actor_user_id=auth.user_id,
+            event_type="brand_source.new_version_uploaded",
+            entity_type="brand_source",
+            entity_id=source.id,
+            details={"version_number": next_number, "dependents_flipped": len(flipped)},
+        )
+        db.commit()
+    except BaseException:
+        _remove_stored_upload(settings, storage_path)
+        raise
     db.refresh(source)
     db.refresh(new_version)
     return NewSourceVersionResponse(
