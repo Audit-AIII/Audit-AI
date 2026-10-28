@@ -1,0 +1,78 @@
+{
+  "_example_only": "DRAFT shape example for Round 3 (2026-10-28). NOT a measured result: no full-pipeline run exists yet. Numbers are copied from the existing frontend fixture (a verifier-only run) and per-check numerators are illustrative. Fields marked new in docs/round3/contracts.md sections 17 and 23 await Darsh.",
+  "catch_rate": 1.0,
+  "false_positive_rate": 0.0,
+  "per_check": [
+    {
+      "check": "verification",
+      "catch_rate": 1.0,
+      "false_positive_rate": 0.0,
+      "n": 80,
+      "catch_rate_ratio": {"numerator": 55, "denominator": 55, "value": 1.0},
+      "false_positive_rate_ratio": {"numerator": 0, "denominator": 25, "value": 0.0}
+    },
+    {
+      "check": "numeric",
+      "catch_rate": 1.0,
+      "false_positive_rate": 0.0,
+      "n": 26,
+      "catch_rate_ratio": {"numerator": 17, "denominator": 17, "value": 1.0},
+      "false_positive_rate_ratio": {"numerator": 0, "denominator": 9, "value": 0.0}
+    },
+    {
+      "check": "absent_fact",
+      "catch_rate": 1.0,
+      "false_positive_rate": null,
+      "n": 9,
+      "catch_rate_ratio": {"numerator": 9, "denominator": 9, "value": 1.0},
+      "false_positive_rate_ratio": {"numerator": 0, "denominator": 0, "value": null}
+    }
+  ],
+  "sample_size": 80,
+  "run_at": "2026-10-24T01:31:02Z",
+  "id": "00000000-0000-4000-8000-000000000001",
+  "status": "completed",
+  "engine_prompt_version": "verify-claim-v1",
+  "dataset_version": "dataset.jsonl@0516b9b8ce5b",
+  "limits_note": "Measured on 80 labelled claims from the engine's own test set (...). This is a small test set: it shows the checker was tested, not a universal accuracy figure, ...",
+  "latency_ms_p50": 1098.0,
+  "provider_failure_rate": 0.0,
+  "coverage": "full_pipeline",
+  "by_split": {
+    "dev": {
+      "n": 55,
+      "catch_rate": {"numerator": 37, "denominator": 37, "value": 1.0},
+      "false_positive_rate": {"numerator": 0, "denominator": 18, "value": 0.0}
+    },
+    "heldout": {
+      "n": 25,
+      "catch_rate": {"numerator": 18, "denominator": 18, "value": 1.0},
+      "false_positive_rate": {"numerator": 0, "denominator": 7, "value": 0.0}
+    }
+  },
+  "provider_mode": "live",
+  "headline": {
+    "split": "heldout",
+    "n": 25,
+    "catch_rate": {"numerator": 18, "denominator": 18, "value": 1.0},
+    "false_positive_rate": {"numerator": 0, "denominator": 7, "value": 0.0}
+  },
+  "run": {
+    "provider": "openrouter",
+    "provider_mode": "live",
+    "model_id": "<model id>",
+    "prompt_versions": {
+      "extract_claims": "extract-claims-v1",
+      "verify_claim": "verify-claim-v1",
+      "correct_claim": "correct-claim-v1"
+    },
+    "decision_policy_version": "decision-policy-v1",
+    "dataset": {"version": "dataset.jsonl@0516b9b8ce5b", "records": 80, "dev": 55, "heldout": 25},
+    "git_commit": "<commit>"
+  },
+  "limitations": [
+    {"topic": "Held-out size", "status": "measured", "finding": "The held-out split has 7 SUPPORTED claims, so one wrong flag moves the false-positive rate by about 14 points."},
+    {"topic": "Held-out exposure", "status": "measured", "finding": "The held-out gold quotes have already been read during development (logged in RUN_LEDGER.md), so held-out is not fully unseen."},
+    {"topic": "Tone", "status": "not_implemented", "finding": "Brand tone is not measured: there is no labelled tone test set, so the scorecard has no tone row."}
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "_example_only": "DRAFT shape example for Round 3 (2026-10-28), not agreed with the backend and not engine output. No tone check exists in the engine or backend yet. Fields beyond FindingOut (guideline_*, alternative_wording, validation_status, tone_summary) are proposals.",
+  "text": "Meet the Aria kettle 🌿 It boils a litre in under three minutes. Honestly, it's INSANELY good and you'll be obsessed! Order now before they're gone forever.",
+  "findings": [
+    {
+      "finding_id": "6f1d2a90-0c3e-4b7a-9d2f-1a5e8c3b7d01",
+      "check_type": "semantic",
+      "category": "tone",
+      "severity": "medium",
+      "original_text": "INSANELY good",
+      "span": {
+        "start": 79,
+        "end": 92
+      },
+      "explanation": "The brand voice guide lists \"insanely\" as a hype word to avoid.",
+      "verification_status": "not_applicable",
+      "suggested_correction": null,
+      "requires_human_review": false,
+      "evidence": [
+        {
+          "id": "a1c40e2b-7f19-4d3a-8b6e-5c2d9f0a1e11",
+          "source_id": "8b0c2f4e-1d7a-4c55-9a43-2f6e1b7d9c01",
+          "source_version_id": "3e9d7a10-6b2c-4f08-8d51-0c4a9e2b7f13",
+          "quote": "Avoid hype words such as \"insanely\", \"crazy\" or \"mind-blowing\"; let the product facts carry the excitement.",
+          "relation": "context",
+          "source_title": "Brand voice guide v4",
+          "source_version_number": 4
+        }
+      ],
+      "guideline_source_id": "8b0c2f4e-1d7a-4c55-9a43-2f6e1b7d9c01",
+      "guideline_source_title": "Brand voice guide v4",
+      "guideline_quote": "Avoid hype words such as \"insanely\", \"crazy\" or \"mind-blowing\"; let the product facts carry the excitement.",
+      "alternative_wording": "really good",
+      "validation_status": "validated"
+    },
+    {
+      "finding_id": "6f1d2a90-0c3e-4b7a-9d2f-1a5e8c3b7d02",
+      "check_type": "semantic",
+      "category": "tone",
+      "severity": "low",
+      "original_text": "Order now before they're gone forever.",
+      "span": {
+        "start": 117,
+        "end": 155
+      },
+      "explanation": "This may read as pressure to buy. The guideline was found, but the check could not tie its wording to this sentence, so treat it as a suggestion to look at, not a confirmed breach.",
+      "verification_status": "not_applicable",
+      "suggested_correction": null,
+      "requires_human_review": true,
+      "evidence": [
+        {
+          "id": "a1c40e2b-7f19-4d3a-8b6e-5c2d9f0a1e12",
+          "source_id": "8b0c2f4e-1d7a-4c55-9a43-2f6e1b7d9c01",
+          "source_version_id": "3e9d7a10-6b2c-4f08-8d51-0c4a9e2b7f13",
+          "quote": "We never pressure readers with false urgency.",
+          "relation": "context",
+          "source_title": "Brand voice guide v4",
+          "source_version_number": 4
+        }
+      ],
+      "guideline_source_id": "8b0c2f4e-1d7a-4c55-9a43-2f6e1b7d9c01",
+      "guideline_source_title": "Brand voice guide v4",
+      "guideline_quote": "We never pressure readers with false urgency.",
+      "alternative_wording": "Order yours today.",
+      "validation_status": "downgraded"
+    }
+  ],
+  "tone_summary": {
+    "validated": 1,
+    "downgraded": 1,
+    "discarded_unsupported": 1,
+    "discarded_span_not_found": 0
+  }
+}

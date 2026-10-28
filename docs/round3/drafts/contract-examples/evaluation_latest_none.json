@@ -1,0 +1,8 @@
+{
+  "_example_only": "GET /api/evaluations/latest when no run exists: HTTP 404, standard error body (current backend behaviour, routers/evaluations.py). The request_id is illustrative.",
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "no evaluation has been run yet",
+    "request_id": "req_7f3a9c2e"
+  }
+}
