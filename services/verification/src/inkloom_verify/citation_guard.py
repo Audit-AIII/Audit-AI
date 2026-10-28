@@ -345,6 +345,8 @@ def support_problems(
     labels = [_passage_label(quote, passages) for quote in quotes] if passages is not None else None
     if property_mismatch(claim, quotes, labels):
         problems.append(GuardRejectionReason.PROPERTY_MISMATCH)
+    if uncovered_clauses(claim, quotes):
+        problems.append(GuardRejectionReason.UNSUPPORTED_CLAUSE)
     if passages is not None:
         context = " ".join(passages)
         if any(not re.search(rf"(?<!\w){re.escape(name)}(?!\w)", context) for name in names(claim)):
@@ -472,6 +474,61 @@ def property_mismatch(
         if any(_overlap(words, w) for w in other):
             return True
     return False
+
+
+# --- Compound claims: every part of the claim needs some support -----------------------------------
+# "charge over USB-C and include a wireless charging pad" must not pass on "Charging: USB-C.": half
+# the claim has no support. Lexical, so it only catches parts with *no* support in the quotes; it
+# never proves a part is supported. Measured (Round 3 step 04): 0 of 35 dev SUPPORTED records
+# (eval/dataset.jsonl and eval/data/retrieval_v1.jsonl) are rejected on their gold quotes.
+
+_CLAIM_PART_BREAK = re.compile(r";|\b(?:and|but|while|whereas|plus|as well as)\b", re.IGNORECASE)
+_LEADING_CAPITALISED = re.compile(r"\s*(?:[^\W\d_a-z][\w'’-]*\s+)*[^\W\d_a-z][\w'’-]*")
+
+
+def _value_text(quotes: Sequence[str]) -> str:
+    """The quotes without their short ``Label:`` heads: "Charging:" says what a value is about,
+    not that the value is there, so it must not cover "a wireless charging pad"."""
+    values = []
+    for quote in quotes:
+        for sentence in _PROPERTY_SENTENCE.split(quote):
+            label = _label(sentence.strip())
+            values.append(sentence.strip()[len(label) + 1 :] if label else sentence)
+    return " ".join(values)
+
+
+def _bare_list_item(part: str) -> bool:
+    """Every word capitalised ("Teal", "Spencer"): an item of a list or a name, not a clause."""
+    words = _NAME_WORD.findall(part)
+    return bool(words) and all(word[0].isupper() for word in words)
+
+
+def uncovered_clauses(claim: str, quotes: Sequence[str]) -> list[str]:
+    """The parts of ``claim`` that none of the ``quotes`` covers; empty if every part is covered.
+
+    The claim is split at "and", "but", "while", "whereas", "plus", "as well as" and ";". Its
+    subject (the leading run of capitalised words, "The Acme Bottle") never counts as cover. A part
+    is checked only if it has a content word outside the subject and is not a bare capitalised list
+    item ("Graphite, Sand and Teal"), and only when at least two parts qualify. A qualifying part is
+    covered if it shares a figure with the quotes, or a content word (exact match, no stemming)
+    with their value text. Reads the claim and quotes only: no passages are needed.
+    """
+    match = _LEADING_CAPITALISED.match(claim)
+    subject = _property_words(match.group(0)) if match else set()
+    parts = [
+        (part, words)
+        for part in _CLAIM_PART_BREAK.split(claim)
+        if (words := _property_words(part) - subject) and not _bare_list_item(part)
+    ]
+    if len(parts) < 2:
+        return []
+    figures = {number for number, _ in quantities(" ".join(quotes))}
+    value_words = _property_words(_value_text(quotes)) - subject
+    return [
+        part.strip()
+        for part, words in parts
+        if not {number for number, _ in quantities(part)} & figures and not words & value_words
+    ]
 
 
 def full_dates(text: str) -> set[tuple[str, tuple[str, ...]]]:
