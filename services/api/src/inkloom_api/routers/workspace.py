@@ -13,10 +13,11 @@ from __future__ import annotations
 import uuid
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
+from .. import audit_history
 from ..auth.dependencies import AuthContext, get_current_membership
 from ..auth.permissions import can_manage_members
 from ..auth.security import create_access_token
@@ -24,6 +25,7 @@ from ..config import Settings, get_settings
 from ..db import get_db
 from ..models import Membership, Organisation, User
 from ..schemas import (
+    AuditEventOut,
     InvitationCreatedOut,
     InvitationOut,
     InvitationsOut,
@@ -33,6 +35,7 @@ from ..schemas import (
     OrganisationOut,
     UserOut,
     UserRefOut,
+    WorkspaceAuditOut,
     WorkspaceMembershipOut,
     WorkspaceOut,
 )
@@ -46,6 +49,7 @@ from ..workspace_service import (
     invitation_status,
     list_invitations,
     remove_member,
+    require_member_manager,
     revoke_invitation,
 )
 
@@ -256,3 +260,21 @@ def accept(
     db.commit()
     db.refresh(membership)
     return _session_for(settings, auth.user, membership.organisation, membership.role)
+
+
+@router.get("/api/workspace/audit", response_model=WorkspaceAuditOut)
+def get_workspace_audit(
+    limit: int = Query(default=20, ge=1, le=100),
+    cursor: str | None = Query(default=None, max_length=500),
+    auth: AuthContext = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> WorkspaceAuditOut:
+    """Membership and invitation events of the current workspace, newest first. Owners only:
+    it is the record of who was let in, with which role, by whom."""
+    require_member_manager(auth)
+    events, next_cursor = audit_history.workspace_history(db, auth.organisation_id, cursor, limit)
+    people = audit_history.actors(db, events)
+    return WorkspaceAuditOut(
+        items=[AuditEventOut.from_model(e, people.get(e.actor_user_id)) for e in events],
+        next_cursor=next_cursor,
+    )

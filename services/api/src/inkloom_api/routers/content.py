@@ -10,12 +10,12 @@ from __future__ import annotations
 import hashlib
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from inkloom_verify.intent_lock import intent_lock_violations
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import workflow
+from .. import audit_history, workflow
 from ..audit import log_audit_event
 from ..auth.dependencies import AuthContext, get_current_membership, require_permission
 from ..auth.permissions import Permission
@@ -26,6 +26,8 @@ from ..review_queries import review_out
 from ..review_runner import start_review
 from ..schemas import (
     ApprovalEventOut,
+    AuditEventOut,
+    AuditHistoryOut,
     ContentHistoryOut,
     ContentVersionHistoryOut,
     FindingEventOut,
@@ -266,3 +268,26 @@ def mark_reviewed(
     workflow.mark_reviewed(db, auth, item, version, review, body.note)
     db.commit()
     return WorkflowActionOut.from_item(item, version.version_number)
+
+
+@router.get("/{content_item_id}/audit", response_model=AuditHistoryOut)
+def get_audit_history(
+    content_item_id: uuid.UUID,
+    limit: int = Query(default=20, ge=1, le=100),
+    cursor: str | None = Query(default=None, max_length=500),
+    auth: AuthContext = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> AuditHistoryOut:
+    """The draft's audit trail, newest first: who did what, to which version, when, and why.
+    Any member of the workspace may read it; another workspace's draft is a 404."""
+    item = get_content_item_or_404(db, auth.organisation_id, content_item_id)
+    events, next_cursor, numbers = audit_history.draft_history(db, item, cursor, limit)
+    people = audit_history.actors(db, events)
+    return AuditHistoryOut(
+        content_item_id=item.id,
+        items=[
+            AuditEventOut.from_model(e, people.get(e.actor_user_id), numbers.get(e.entity_id))
+            for e in events
+        ],
+        next_cursor=next_cursor,
+    )

@@ -8,6 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from .audit_history import action_for
 from .intent_lock_guard import breaks_locks
 
 
@@ -523,6 +524,49 @@ class WorkflowActionOut(BaseModel):
             routing_reason=_stored_routing_reason(item),
             assigned_reviewer=_ref(item.assigned_reviewer),
         )
+
+
+class AuditEventOut(BaseModel):
+    """One audit trail entry (docs/governance.md 9.3). `actor` is null for system events (an AI
+    check finishing, a routing decision made by the backend). `action` is the stable name to show;
+    `event_type` is the raw stored type. `details` holds structured, safe facts only - never
+    document text, emails or secrets (audit.py)."""
+
+    id: uuid.UUID
+    actor: UserRefOut | None
+    action: str
+    event_type: str
+    note: str | None
+    version_number: int | None
+    created_at: datetime
+    details: dict | None
+
+    @classmethod
+    def from_model(cls, event, actor, version_number: int | None = None) -> AuditEventOut:
+        details = dict(event.details or {})
+        return cls(
+            id=event.id,
+            actor=_ref(actor),
+            action=action_for(event.event_type),
+            event_type=event.event_type,
+            note=event.note or details.get("note"),
+            version_number=event.version_number
+            if event.version_number is not None
+            else version_number,
+            created_at=event.created_at,
+            details=details or None,
+        )
+
+
+class AuditHistoryOut(BaseModel):
+    content_item_id: uuid.UUID
+    items: list[AuditEventOut]
+    next_cursor: str | None  # null on the last page
+
+
+class WorkspaceAuditOut(BaseModel):
+    items: list[AuditEventOut]
+    next_cursor: str | None
 
 
 class ReviewSummaryOut(BaseModel):

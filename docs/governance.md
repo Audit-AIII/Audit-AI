@@ -1,6 +1,6 @@
 # Team governance, permissions and risk-based routing (Round 3)
 
-**Status: Phases 1–4 done (2026-10-28); Phases 5–6 proposed.** Owner: Darsh (backend). Sections 1–3
+**Status: Phases 1–5 done (2026-10-28); Phase 6 in progress.** Owner: Darsh (backend). Sections 1–3
 describe the code as found at `1e416e5`; sections 4–10 are the plan. Section 3 lists the open
 decisions.
 
@@ -13,7 +13,8 @@ decisions.
 | 2. Roles enforced server-side | **done**: role x action table and `can()` in `auth/permissions.py`, used by every route and by `allowed_actions` (`review_queries.review_outs`); `tests/test_permissions.py`, `tests/test_governance_roles.py` |
 | 3. Author cannot approve own content | **done**: `approval_service.check_not_self_approval` on the approve route (and, from Phase 4, on publish and the implicit approve); 403 `SELF_APPROVAL_FORBIDDEN` + `approval_denied` audit event, nothing else changes; D1 solo sign-off recorded as `self_approval: true`; `approval_mode` on reviews; `tests/test_self_approval.py` |
 | 4. Risk-based routing and workflow | **done**: migration `0015`; `risk_policy.py` (contracts.md §19, approved by Krish 2026-10-28), `workflow_rules.py` (state machine), `workflow.py` (DB side + hooks); routes `POST /api/content/{id}/submit`, `/assign`, `/mark-reviewed`, `POST /api/content-versions/{id}/publish`; reviews carry workspace, author, owner, assigned_reviewer, workflow_status, risk_level, routing_reason, summary_counts; `tests/test_risk_routing.py` |
-| 5–6 | not started |
+| 5. Audit trail | **done**: migration `0016` (UPDATE on `audit_events` refused by a trigger), `audit_history.py`, `GET /api/content/{id}/audit` (any member) and `GET /api/workspace/audit` (owners); `tests/test_audit_trail.py` |
+| 6. Tests | in progress |
 
 Example payloads for the frontend are in [`contract/examples/`](../contract/examples/), all
 starting with `governance_`. Section 9 explains each one.
@@ -537,6 +538,23 @@ Item shape: `{id, actor: {id, display_name} | null (null = system), action, even
 note, version_number, created_at, details}`.
 
 The existing `GET /api/content/{id}/history` stays unchanged.
+
+**As implemented (Phase 5):**
+- `next_cursor` is opaque (the last item's time and id); a bad one is 422.
+- A draft's history includes events from before Round 3, matched through its versions, reviews and
+  findings. Older event types get stable `action` names: `review.submitted` -> `draft_created`,
+  `content_version.created` -> `version_created`, `review.rerun` -> `recheck_requested`,
+  `content_version.approved` / `.rejected` / `.changes_requested` -> `approval_granted` /
+  `approval_rejected` / `changes_requested`, `content_version.source_changed` -> `source_changed`,
+  `finding.*` -> `finding_dismissed` / `finding_restored` / `finding_commented`. Unknown types are
+  passed through as their own action.
+- Round 3 actions: `draft_submitted`, `routing_decision`, `review_requested`,
+  `reviewer_assigned`, `reviewed`, `approval_denied`, `published`. Decisions keep their existing
+  stored type and gain `content_item_id`, `version_number`, `note` and before/after.
+- `GET /api/workspace/audit` (owners): `account.registered`, `invite_created`,
+  `invite_accepted`, `invite_revoked`, `member_role_changed`, `member_removed`, same item shape.
+- Append-only: a Postgres trigger refuses any UPDATE of `audit_events`. Deleting a whole workspace
+  still removes its rows (ON DELETE CASCADE).
 
 ### 9.4 Summary counts
 

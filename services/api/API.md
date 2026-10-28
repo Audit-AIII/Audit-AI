@@ -167,6 +167,8 @@ current one, and no cited source may have been withdrawn or replaced since the r
 | `POST /api/content/{content_item_id}/assign` | **Round 3.** Assign (or clear) the draft's reviewer |
 | `POST /api/content/{content_item_id}/mark-reviewed` | **Round 3.** A reviewer marks the current version reviewed |
 | `POST /api/content-versions/{content_version_id}/publish` | **Round 3.** Publish approved content |
+| `GET /api/content/{content_item_id}/audit` | **Round 3.** A draft's audit trail, newest first, paginated |
+| `GET /api/workspace/audit` | **Round 3.** Membership and invitation events (owner) |
 
 ### `POST /api/auth/register`
 
@@ -242,6 +244,15 @@ the risk mapping is contracts.md section 19 (`risk_policy.py`).
   rule as approve.
 - A new version always starts again from `draft`; a new finished check re-routes a submitted
   draft and re-opens a decided one.
+
+### Audit trail (Round 3)
+
+`GET /api/content/{id}/audit?limit=20&cursor=...` -> `{"content_item_id", "items": [{"id",
+"actor": {"id", "display_name"} | null, "action", "event_type", "note", "version_number",
+"created_at", "details"}], "next_cursor"}`, newest first (`limit` 1-100, `next_cursor` null on the
+last page). Any member may read it; another workspace's draft is a 404. `GET /api/workspace/audit`
+is the same shape for membership events, owners only. Action names and the mapping of older event
+types: `docs/governance.md` 9.3. Audit rows can't be updated (database trigger, migration 0016).
 
 ### `GET /api/brands` — dashboard list
 
