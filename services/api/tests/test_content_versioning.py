@@ -43,8 +43,8 @@ PASSWORD = "correct-horse-battery-staple"
 @dataclass
 class Fixture:
     org: Organisation
-    admin: User  # holds every permission - submits, approves
-    reviewer: User  # legacy 'reviewer' role - still the account owner in individual-user mode
+    admin: User  # legacy 'admin' = owner - submits, approves
+    reviewer: User  # 'reviewer' - sends back, marks reviewed, never approves
     brand: BrandProfile
 
 
@@ -101,6 +101,19 @@ def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _review_first(client, admin_token: str, reviewer_token: str, review: dict) -> None:
+    """Round 3: this fixture is a team (owner + reviewer), and a stub-mode draft is routed to a
+    reviewer (risk_policy.py), so it is submitted and marked reviewed before it is approved."""
+    for token, path, body in (
+        (admin_token, "submit", {"content_version_id": review["content_version_id"]}),
+        (reviewer_token, "mark-reviewed", {"content_version_id": review["content_version_id"]}),
+    ):
+        response = client.post(
+            f"/api/content/{review['content_item_id']}/{path}", json=body, headers=_auth(token)
+        )
+        assert response.status_code == 200, response.text
+
+
 def _submit(client, token: str, brand_id, text: str = "Some content.") -> dict:
     response = client.post(
         "/api/reviews", json={"brand_id": str(brand_id), "text": text}, headers=_auth(token)
@@ -135,6 +148,7 @@ def test_reviewer_sends_back_but_only_an_approver_or_owner_approves(
     )
     assert refused.status_code == 403, refused.text
     assert refused.json()["error"]["code"] == "FORBIDDEN"
+    _review_first(client, admin_token, reviewer_token, second)
     approved = client.post(
         f"/api/content-versions/{second['content_version_id']}/approve",
         headers=_auth(admin_token),
@@ -220,6 +234,7 @@ def test_edit_after_approval_creates_unapproved_version(
     admin_token = _login(client, fixture.admin.email)
     review = _submit(client, admin_token, fixture.brand.id)
     content_version_id = review["content_version_id"]
+    _review_first(client, admin_token, _login(client, fixture.reviewer.email), review)
 
     approved = client.post(
         f"/api/content-versions/{content_version_id}/approve", headers=_auth(admin_token)
@@ -263,6 +278,7 @@ def test_concurrent_decisions_second_one_is_rejected_not_corrupting_state(
     admin_token = _login(client, fixture.admin.email)
     review = _submit(client, admin_token, fixture.brand.id)
     content_version_id = review["content_version_id"]
+    _review_first(client, admin_token, _login(client, fixture.reviewer.email), review)
 
     first = client.post(
         f"/api/content-versions/{content_version_id}/approve", headers=_auth(admin_token)

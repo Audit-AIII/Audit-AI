@@ -11,10 +11,18 @@ from __future__ import annotations
 
 import uuid
 
-from conftest import join_workspace, requires_db
+from conftest import join_workspace, requires_db, use_scripted_provider
+from inkloom_api.engine.scripted_provider import ScriptedRule
 from inkloom_api.models import ApprovalEvent, AuditEvent, Review
 
 pytestmark = requires_db
+
+# Clean drafts (every claim supported, nothing flagged) are routed to an approver only, so the
+# self-approval rule is the only thing these tests exercise. Routing has its own tests.
+SUPPORTED = [
+    ScriptedRule("playback per charge", "SUPPORTED", "up to 12 hours of playback per charge")
+]
+CLEAN = "Lumen Pods offer up to 12 hours of playback per charge."
 
 
 def _approve(client, actor, review: dict):
@@ -44,12 +52,13 @@ def _assert_unchanged_and_denied(db_session, review: dict, organisation_id: str)
 
 
 def test_owner_cannot_approve_own_draft_when_an_approver_exists(
-    client, force_stub_mode, account_factory, db_session
+    client, monkeypatch, account_factory, db_session
 ) -> None:
+    use_scripted_provider(monkeypatch, SUPPORTED)
     owner = account_factory("owner")
     approver = account_factory("approver", with_source=False)
     join_workspace(client, owner, approver, "approver")
-    review = owner.submit()
+    review = owner.submit(CLEAN)
 
     seen = _view(client, owner, review)
     assert seen["approval_mode"] == "team"
@@ -66,14 +75,15 @@ def test_owner_cannot_approve_own_draft_when_an_approver_exists(
 
 
 def test_approver_who_wrote_the_draft_cannot_approve_it(
-    client, force_stub_mode, account_factory, db_session
+    client, monkeypatch, account_factory, db_session
 ) -> None:
+    use_scripted_provider(monkeypatch, SUPPORTED)
     owner = account_factory("owner")
     approver = account_factory("approver", with_source=False)
     join_workspace(client, owner, approver, "approver")
     # An approver can't create drafts today; an older draft of theirs (e.g. written while they
     # were a writer) is the realistic case. Make them its author directly.
-    review = owner.submit()
+    review = owner.submit(CLEAN)
     from inkloom_api.models import ContentItem, ContentVersion
 
     version = db_session.get(ContentVersion, uuid.UUID(review["content_version_id"]))
@@ -89,18 +99,19 @@ def test_approver_who_wrote_the_draft_cannot_approve_it(
 
 
 def test_owner_who_edited_a_writers_draft_cannot_approve_that_version(
-    client, force_stub_mode, account_factory
+    client, monkeypatch, account_factory
 ) -> None:
+    use_scripted_provider(monkeypatch, SUPPORTED)
     owner = account_factory("owner")
     writer = account_factory("writer", with_source=False)
     approver = account_factory("approver", with_source=False)
     join_workspace(client, owner, writer, "writer")
     join_workspace(client, owner, approver, "approver")
-    draft = writer.submit(brand_id=owner.brand_id)
+    draft = writer.submit(CLEAN, brand_id=owner.brand_id)
 
     edited = client.post(
         f"/api/content/{draft['content_item_id']}/versions",
-        json={"text": "Lumen Pods have a 2-year warranty."},
+        json={"text": "Lumen Pods really offer up to 12 hours of playback per charge."},
         headers=owner.headers,
     )
     assert edited.status_code == 201, edited.text
@@ -113,10 +124,11 @@ def test_owner_who_edited_a_writers_draft_cannot_approve_that_version(
 
 
 def test_solo_owner_signs_off_own_work_as_a_labelled_self_approval(
-    client, force_stub_mode, account_factory, db_session
+    client, monkeypatch, account_factory, db_session
 ) -> None:
+    use_scripted_provider(monkeypatch, SUPPORTED)
     owner = account_factory("solo")
-    review = owner.submit()
+    review = owner.submit(CLEAN)
     seen = _view(client, owner, review)
     assert seen["approval_mode"] == "self"
     assert "approve" in seen["allowed_actions"]
@@ -134,21 +146,23 @@ def test_solo_owner_signs_off_own_work_as_a_labelled_self_approval(
 
 
 def test_reviewers_and_writers_do_not_count_as_someone_else_who_could_approve(
-    client, force_stub_mode, account_factory
+    client, monkeypatch, account_factory
 ) -> None:
+    use_scripted_provider(monkeypatch, SUPPORTED)
     owner = account_factory("owner")
     reviewer = account_factory("reviewer", with_source=False)
     join_workspace(client, owner, reviewer, "reviewer")
-    review = owner.submit()
+    review = owner.submit(CLEAN)
     assert _view(client, owner, review)["approval_mode"] == "self"
     assert _approve(client, owner, review).status_code == 201
 
 
-def test_rule_follows_membership_changes(client, force_stub_mode, account_factory) -> None:
+def test_rule_follows_membership_changes(client, monkeypatch, account_factory) -> None:
+    use_scripted_provider(monkeypatch, SUPPORTED)
     owner = account_factory("owner")
     approver = account_factory("approver", with_source=False)
-    first = owner.submit("Lumen Pods offer up to 12 hours of playback per charge.")
-    second = owner.submit("Lumen Pods come with a 2-year warranty.")
+    first = owner.submit(CLEAN)
+    second = owner.submit("Lumen Pods give up to 12 hours of playback per charge.")
 
     join_workspace(client, owner, approver, "approver")
     assert _approve(client, owner, first).status_code == 403

@@ -147,6 +147,31 @@ class InvitationStatus(str, Enum):
     EXPIRED = "expired"
 
 
+class WorkflowStatus(str, Enum):
+    """`content_items.workflow_status` (migration 0015): where a draft is in the team workflow.
+    Separate from `ReviewState`, which is the state of one AI check run. The transitions live in
+    `workflow_rules.py` (docs/governance.md section 6)."""
+
+    DRAFT = "draft"
+    SUBMITTED = "submitted"  # waiting for an approver (clean: no reviewer step needed)
+    IN_REVIEW = "in_review"  # waiting for a reviewer (routing found something)
+    NEEDS_CHANGES = "needs_changes"
+    REVIEWED = "reviewed"  # a reviewer looked; waiting for an approver
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    PUBLISHED = "published"
+    BLOCKED = "blocked"  # the AI check failed or a cited source changed: re-check first
+
+
+class RiskLevel(str, Enum):
+    """`content_items.risk_level`, from `risk_policy.assess` (contracts.md section 19)."""
+
+    CLEAN = "clean"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class ApprovalAction(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"

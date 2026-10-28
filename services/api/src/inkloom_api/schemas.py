@@ -300,6 +300,23 @@ class EngineInfoOut(BaseModel):
     contract_version: str | None
 
 
+def _ref(user) -> UserRefOut | None:
+    return UserRefOut.from_model(user) if user is not None else None
+
+
+def _stored_routing_reason(content_item) -> dict | None:
+    if content_item is None or content_item.routing_reason_code is None:
+        return None
+    return {
+        "code": content_item.routing_reason_code,
+        "text": content_item.routing_reason_text,
+        "triggered_by": [
+            {k: v for k, v in t.items() if k != "code"}
+            for t in (content_item.routing_details or {}).get("triggered_by", [])
+        ],
+    }
+
+
 class ReviewOut(BaseModel):
     id: uuid.UUID
     content_version_id: uuid.UUID
@@ -340,6 +357,18 @@ class ReviewOut(BaseModel):
     is_current_version: bool | None = None
     # "self": nobody but the draft's author could approve it (D1 solo sign-off); "team" otherwise.
     approval_mode: str | None = None
+    # Round 3 Phase 4 governance fields (docs/governance.md 9.1), all about the draft this review
+    # belongs to. `assigned_reviewer` is null whenever nobody is assigned (always, in a workspace
+    # of one). `routing_reason`: {code, text, triggered_by[]} or null before the first finished
+    # check. Defaults keep replays recorded before these fields existed parseable.
+    workspace: WorkspaceOut | None = None
+    author: UserRefOut | None = None
+    owner: UserRefOut | None = None
+    assigned_reviewer: UserRefOut | None = None
+    workflow_status: str | None = None
+    risk_level: str | None = None
+    routing_reason: dict | None = None
+    summary_counts: dict[str, int] | None = None
 
     @classmethod
     def from_model(
@@ -348,7 +377,12 @@ class ReviewOut(BaseModel):
         allowed_actions: list[str] | None = None,
         is_current_version: bool | None = None,
         approval_mode: str | None = None,
+        routing=None,
     ) -> ReviewOut:
+        """`routing`: a `risk_policy.RiskAssessment` to show instead of the draft's stored routing
+        (which belongs to an older check, e.g. a draft from before Round 3)."""
+        from .risk_policy import summary_counts
+
         engine = (
             EngineInfoOut(
                 provider=review.engine_provider,
@@ -380,7 +414,12 @@ class ReviewOut(BaseModel):
                 )
                 for f in review.findings
             ],
-            required_reviewer_role=review.required_reviewer_role,
+            required_reviewer_role=(
+                routing.required_reviewer_role
+                if routing is not None
+                else (content_item.required_reviewer_role if content_item is not None else None)
+            )
+            or review.required_reviewer_role,
             content_item_id=content_version.content_item_id
             if content_version is not None
             else None,
@@ -399,6 +438,22 @@ class ReviewOut(BaseModel):
             allowed_actions=allowed_actions or [],
             is_current_version=is_current_version,
             approval_mode=approval_mode,
+            workspace=WorkspaceOut.from_model(content_item.organisation)
+            if content_item is not None
+            else None,
+            author=_ref(content_item.author) if content_item is not None else None,
+            owner=_ref(content_item.owner) if content_item is not None else None,
+            assigned_reviewer=_ref(content_item.assigned_reviewer)
+            if content_item is not None
+            else None,
+            workflow_status=content_item.workflow_status if content_item is not None else None,
+            risk_level=routing.level
+            if routing is not None
+            else (content_item.risk_level if content_item is not None else None),
+            routing_reason=routing.routing_reason()
+            if routing is not None
+            else _stored_routing_reason(content_item),
+            summary_counts=summary_counts(review.findings),
         )
 
 
@@ -442,6 +497,31 @@ class ApprovalEventOut(BaseModel):
             actor_user_id=event.actor_user_id,
             note=event.note,
             created_at=event.created_at,
+        )
+
+
+class WorkflowActionOut(BaseModel):
+    """What a workflow action (submit, assign, mark reviewed, publish) answers: the draft's
+    workflow state afterwards. Re-fetch the review for its new `allowed_actions`."""
+
+    content_item_id: uuid.UUID
+    version_number: int | None
+    workflow_status: str
+    risk_level: str | None
+    required_reviewer_role: str | None
+    routing_reason: dict | None
+    assigned_reviewer: UserRefOut | None
+
+    @classmethod
+    def from_item(cls, item, version_number: int | None) -> WorkflowActionOut:
+        return cls(
+            content_item_id=item.id,
+            version_number=version_number,
+            workflow_status=item.workflow_status,
+            risk_level=item.risk_level,
+            required_reviewer_role=item.required_reviewer_role,
+            routing_reason=_stored_routing_reason(item),
+            assigned_reviewer=_ref(item.assigned_reviewer),
         )
 
 

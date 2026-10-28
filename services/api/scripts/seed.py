@@ -45,6 +45,7 @@ load_dotenv()
 from inkloom_verify.schemas import ReferenceDocument  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
+from inkloom_api import workflow  # noqa: E402
 from inkloom_api.approval_service import check_approve_guards, record_decision  # noqa: E402
 from inkloom_api.audit import log_audit_event  # noqa: E402
 from inkloom_api.auth.security import hash_password  # noqa: E402
@@ -455,6 +456,10 @@ def _review(
 ) -> Review:
     review = start_review(db, version, brand.id, provider_builders=_scripted(demo.rules))
     review.created_at = at
+    item = db.get(ContentItem, version.content_item_id)
+    if version.version_number > 1:
+        workflow.on_new_version(item)
+    workflow.on_review_finished(db, item, review, owner.id)  # routing, as the routes do
     log_audit_event(
         db,
         organisation_id=org.id,
@@ -481,7 +486,23 @@ def _decide(
             ApprovalAction.CHANGES_REQUESTED,
             "Please fix the claims flagged in the review.",
         )
-    event = record_decision(db, review, version, org.id, owner.id, action, note)
+    # The seeded owner is alone in their workspace, so this is the solo sign-off (D1) and the
+    # draft moves through the same workflow states as through the routes.
+    item = db.get(ContentItem, version.content_item_id)
+    before = item.workflow_status
+    after = workflow.finish_decision(item, action.value)
+    event = record_decision(
+        db,
+        review,
+        version,
+        org.id,
+        owner.id,
+        action,
+        note,
+        self_approval=action is ApprovalAction.APPROVED,
+        workflow_before=before,
+        workflow_after=after.value,
+    )
     db.flush()
     event.created_at = at
     db.flush()
@@ -491,7 +512,11 @@ def _submit(
     db, org, owner, brand, demo: DemoBrand, content: DemoContent, clock: _Clock
 ) -> list[Review]:
     item = ContentItem(
-        organisation_id=org.id, brand_profile_id=brand.id, title=content.title, created_by=owner.id
+        organisation_id=org.id,
+        brand_profile_id=brand.id,
+        title=content.title,
+        created_by=owner.id,
+        owner_user_id=owner.id,
     )
     db.add(item)
     db.flush()

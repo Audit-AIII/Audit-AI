@@ -513,7 +513,9 @@ def _write_finding(
     requires_review = verdict is not Verdict.SUPPORTED or result.requires_human_review
     review_reasons = _review_reasons(result, verdict, requires_review)
 
-    status = _STATUS_FOR_VERDICT[verdict]
+    # A verdict this backend doesn't know yet (decision D3) is stored as unverified, needs review:
+    # never a crash, never shown as supported or contradicted.
+    status = _STATUS_FOR_VERDICT.get(verdict, VerificationStatus.UNVERIFIED)
     if verdict is Verdict.NOT_ENOUGH_EVIDENCE and result.conflicting_sources:
         # The engine's citation guard found approved documents that disagree (its answer became
         # NOT_ENOUGH_EVIDENCE): reported as conflicting_sources, not plain unverified. The model's
@@ -525,8 +527,8 @@ def _write_finding(
         review_id=review.id,
         # From the verdict AFTER backend validation: a citation that failed our own check was
         # downgraded above, so it is counted as an unsupported claim, not a contradicted one.
-        category=_CATEGORY_FOR_VERDICT[verdict].value,
-        severity=_SEVERITY_FOR_VERDICT[verdict].value,
+        category=_CATEGORY_FOR_VERDICT.get(verdict, FindingCategory.UNSUPPORTED_CLAIM).value,
+        severity=_SEVERITY_FOR_VERDICT.get(verdict, Severity.MEDIUM).value,
         original_text=claim.source_span.slice(content_version.text),
         span_start=claim.source_span.start,
         span_end=claim.source_span.end,

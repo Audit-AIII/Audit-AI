@@ -23,6 +23,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from . import workflow
 from .audit import log_audit_event
 from .models import BrandSource, ContentVersion, EvidenceLink, Finding, Review, SourceVersion
 from .statuses import ReviewState
@@ -61,6 +62,7 @@ def _flip_to_source_changed(
     source_id: uuid.UUID,
 ) -> None:
     review.status = ReviewState.SOURCE_CHANGED.value
+    workflow.on_source_changed(db, content_version_id, actor_user_id, reason)
     log_audit_event(
         db,
         organisation_id=organisation_id,

@@ -21,6 +21,9 @@ def log_audit_event(
     entity_id: object,
     details: dict | None = None,
     request_id: str | None = None,
+    content_item_id: uuid.UUID | None = None,
+    version_number: int | None = None,
+    note: str | None = None,
 ) -> None:
     db.add(
         AuditEvent(
@@ -31,5 +34,8 @@ def log_audit_event(
             entity_id=str(entity_id),
             details=details,
             request_id=request_id,
+            content_item_id=content_item_id,
+            version_number=version_number,
+            note=note,
         )
     )

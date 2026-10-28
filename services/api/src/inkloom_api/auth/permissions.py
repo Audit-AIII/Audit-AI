@@ -24,7 +24,9 @@ from __future__ import annotations
 import uuid
 from enum import Enum
 
-from ..statuses import TEAM_ROLES, MembershipRole, ReviewState
+from .. import workflow_rules
+from ..errors import ErrorCode
+from ..statuses import TEAM_ROLES, MembershipRole, ReviewState, WorkflowStatus
 
 
 class Permission(str, Enum):
@@ -39,6 +41,10 @@ class Permission(str, Enum):
     REQUEST_CHANGES = "request_changes"
     APPROVE = "approve"
     REJECT = "reject"
+    SUBMIT = "submit"
+    ASSIGN = "assign"
+    MARK_REVIEWED = "mark_reviewed"
+    PUBLISH = "publish"
     RUN_EVALUATION = "run_evaluation"
     MANAGE_MEMBERS = "manage_members"
 
@@ -63,13 +69,17 @@ _GRANTS: dict[Permission, frozenset[MembershipRole]] = {
     Permission.REQUEST_CHANGES: frozenset({_R, _A, _O}),
     Permission.APPROVE: frozenset({_A, _O}),
     Permission.REJECT: frozenset({_A, _O}),
+    Permission.SUBMIT: frozenset({_W, _O}),
+    Permission.ASSIGN: frozenset({_R, _A, _O}),  # a reviewer may assign only themself
+    Permission.MARK_REVIEWED: frozenset({_R, _O}),
+    Permission.PUBLISH: frozenset({_A, _O}),
     Permission.RUN_EVALUATION: frozenset({_O}),
     Permission.MANAGE_MEMBERS: frozenset({_O}),
 }
 
 # A writer may do these only to drafts they wrote.
 _OWN_DRAFTS_ONLY: dict[MembershipRole, frozenset[Permission]] = {
-    _W: frozenset({Permission.EDIT_CONTENT, Permission.RERUN}),
+    _W: frozenset({Permission.EDIT_CONTENT, Permission.RERUN, Permission.SUBMIT}),
 }
 
 # Plain-language verbs for the 403 message.
@@ -85,6 +95,10 @@ _VERB = {
     Permission.REQUEST_CHANGES: "send drafts back",
     Permission.APPROVE: "approve content",
     Permission.REJECT: "reject content",
+    Permission.SUBMIT: "submit this draft",
+    Permission.ASSIGN: "assign reviewers",
+    Permission.MARK_REVIEWED: "mark drafts reviewed",
+    Permission.PUBLISH: "publish content",
     Permission.RUN_EVALUATION: "run evaluations",
     Permission.MANAGE_MEMBERS: "manage members and invitations",
 }
@@ -169,38 +183,85 @@ def allowed_review_actions(
     is_current_version: bool,
     content_version=None,
     self_approval_allowed: bool = False,
+    self_review_allowed: bool = False,
+    risk_level: str | None = None,
+    required_reviewer_role: str | None = None,
+    solo_review_shortcut: bool = False,
 ) -> list[str]:
     """`allowed_actions[]` for one review, as the frontend gets it (docs/governance.md 9.2), with
-    exactly the conditions the routes apply:
+    exactly the conditions the routes apply: the role (`can`), the workflow state
+    (`workflow_rules`, the same functions workflow.py calls) and the review itself.
 
-    - approve: the latest review of the draft's current version, in a decidable state (the
-      approve route refuses anything else as stale or not decidable), and never to the draft's
-      or version's author unless `self_approval_allowed` (D1: nobody else could approve);
-    - request_changes / reject: the latest review of its version, decidable;
-    - create_version, rerun, comment, dismiss_finding: any review (their routes don't care which).
+    - a decision, submit, mark_reviewed or publish acts on the latest review of the draft's
+      current version, which must be finished (`completed` / `needs_human_review`);
+    - nobody approves or publishes their own work, and the author doesn't review it, unless
+      nobody else could (`self_approval_allowed` / `self_review_allowed`, decisions D1 and D6);
+      the person who marked a version reviewed doesn't approve it either (D6);
+    - create_version, rerun, assign, comment and dismiss_finding don't depend on which review.
     """
 
     def ok(permission: Permission) -> bool:
         return can(role, user_id, permission, content_item)
 
-    decidable = is_latest_review and review_status in _DECIDABLE
+    status = getattr(content_item, "workflow_status", None) or WorkflowStatus.DRAFT.value
+    # The routing for this review: given by the caller when the draft's stored routing is for
+    # an older check (workflow.effective_assessment), otherwise the stored one.
+    routing = required_reviewer_role or getattr(content_item, "required_reviewer_role", None)
+    risk = risk_level or getattr(content_item, "risk_level", None)
+    acting_on_current = is_latest_review and is_current_version
+    decidable = acting_on_current and review_status in _DECIDABLE
+    own_work = is_author(user_id, content_item, content_version)
+    may_sign_own = self_approval_allowed or not own_work
+    reviewed_it = (
+        status == WorkflowStatus.REVIEWED.value
+        and getattr(content_item, "reviewed_by", None) == user_id
+    )
+
     actions: list[str] = []
     if ok(Permission.EDIT_CONTENT):
         actions.append("create_version")
     if ok(Permission.RERUN):
         actions.append("rerun")
-    own_work = is_author(user_id, content_item, content_version)
     if (
         decidable
-        and is_current_version
+        and ok(Permission.SUBMIT)
+        and workflow_rules.submit_error(status) is None
+        and risk is not None
+    ):
+        actions.append("resubmit" if getattr(content_item, "submitted_at", None) else "submit")
+    if ok(Permission.ASSIGN) and workflow_rules.assign_error(status) is None:
+        actions.append("assign")
+    if (
+        decidable
+        and ok(Permission.MARK_REVIEWED)
+        and workflow_rules.mark_reviewed_error(status) is None
+        and (self_review_allowed or not own_work)
+    ):
+        actions.append("mark_reviewed")
+    if (
+        decidable
         and ok(Permission.APPROVE)
-        and (self_approval_allowed or not own_work)
+        and may_sign_own
+        and workflow_rules.approve_error(status, routing)
+        in (None, *((ErrorCode.REVIEW_REQUIRED,) if solo_review_shortcut else ()))
+        and (self_approval_allowed or not reviewed_it)
     ):
         actions.append("approve")
-    if decidable and ok(Permission.REQUEST_CHANGES):
+    if (
+        decidable
+        and ok(Permission.REQUEST_CHANGES)
+        and not workflow_rules.request_changes_error(status)
+    ):
         actions.append("request_changes")
-    if decidable and ok(Permission.REJECT):
+    if decidable and ok(Permission.REJECT) and workflow_rules.reject_error(status) is None:
         actions.append("reject")
+    if (
+        is_current_version
+        and ok(Permission.PUBLISH)
+        and may_sign_own
+        and workflow_rules.publish_error(status, routing) is None
+    ):
+        actions.append("publish")
     if ok(Permission.COMMENT):
         actions.append("comment")
     if ok(Permission.DISMISS_FINDING):

@@ -22,7 +22,6 @@ from ..statuses import (
     ReviewState,
     RulesStatus,
     Severity,
-    VerificationStatus,
     values,
 )
 from .base import Base, created_at_column, updated_at_column, uuid_pk
@@ -101,10 +100,8 @@ class Finding(Base):
         CheckConstraint("span_end > span_start", name="ck_finding_span_order"),
         CheckConstraint(f"severity IN {tuple(values(Severity))}", name="ck_finding_severity"),
         CheckConstraint(f"check_type IN {tuple(values(CheckType))}", name="ck_finding_check_type"),
-        CheckConstraint(
-            f"verification_status IN {tuple(values(VerificationStatus))}",
-            name="ck_finding_verification_status",
-        ),
+        # No CHECK on verification_status (migration 0015, decision D3): a status the engine adds
+        # later is stored as-is and routed as medium risk (risk_policy.py), never refused.
         CheckConstraint("scope IS NULL OR scope IN ('text', 'document')", name="ck_finding_scope"),
     )
 

@@ -117,7 +117,7 @@
         "string",
         "null"
       ],
-      "description": "Always null on new reviews (individual-user mode: routing is off). Older rows may hold a role name; it no longer restricts approval."
+      "description": "Round 3: who the draft is routed to: 'reviewer' (a reviewer must check it first) or 'approver' (clean: approver only); null before the first finished check. Older reviews may still carry legal_reviewer / brand_manager."
     },
     "content_item_id": {
       "type": [
@@ -255,6 +255,160 @@
         "null"
       ],
       "description": "Round 3: \"self\" when nobody but the draft's author could approve it, so the author's own sign-off is allowed and recorded as a self-approval (decision D1); \"team\" otherwise, where the author can never approve. null on replays recorded before this field existed."
+    },
+    "workspace": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "is_personal": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "is_personal"
+      ],
+      "additionalProperties": false,
+      "description": "Round 3: the workspace the draft belongs to."
+    },
+    "author": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "display_name"
+      ],
+      "additionalProperties": false,
+      "description": "Round 3: who wrote the draft. Never an email."
+    },
+    "owner": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "display_name"
+      ],
+      "additionalProperties": false,
+      "description": "Round 3: the draft's owner (its author unless reassigned)."
+    },
+    "assigned_reviewer": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "display_name"
+      ],
+      "additionalProperties": false,
+      "description": "Round 3: the reviewer assigned to the draft; null when nobody is (always in a workspace of one). Show 'not assigned'."
+    },
+    "workflow_status": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Round 3: draft | submitted | in_review | needs_changes | reviewed | approved | rejected | published | blocked (docs/governance.md section 6). Treat an unknown value as in progress."
+    },
+    "risk_level": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Round 3: clean | low | medium | high (contracts.md section 19); null before the first finished check or while blocked."
+    },
+    "routing_reason": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "triggered_by": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "code",
+        "text",
+        "triggered_by"
+      ],
+      "description": "Round 3: why the draft was routed as it was: a stable code, a sentence for people, and the findings that triggered it ({finding_id, verification_status, review_reasons, risk_level})."
+    },
+    "summary_counts": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "supported": {
+          "type": "integer"
+        },
+        "contradicted": {
+          "type": "integer"
+        },
+        "unverified": {
+          "type": "integer"
+        },
+        "conflicting": {
+          "type": "integer"
+        },
+        "tone": {
+          "type": "integer"
+        },
+        "needs_human_review": {
+          "type": "integer"
+        }
+      },
+      "description": "Round 3: server-side counts over this review's findings (docs/governance.md 9.4). tone counts only the engine's style rules today."
     }
   }
 }

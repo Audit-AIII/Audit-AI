@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     auth_token_ttl_minutes: int = 60 * 12
     # Round 3: how long a workspace invitation link stays valid (docs/governance.md).
     invitation_ttl_days: int = 7
+    # Round 3 (DECISIONS_PENDING.md P4): when the person approving is the only one in the
+    # workspace who could review or approve, one approval also counts as the review a
+    # risky draft needs (recorded as a self-review). False makes solo users mark it
+    # reviewed first. Team workspaces are never affected.
+    solo_review_shortcut: bool = True
     environment: str = "development"
     log_level: str = "INFO"
     cors_allow_origins: str = "http://localhost:3000"

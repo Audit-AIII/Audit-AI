@@ -61,6 +61,11 @@ def _do(client, actor: Account, action: str, review: dict):
             headers=actor.headers,
         ),
         "rerun": lambda: client.post(f"/api/reviews/{review['id']}/rerun", headers=actor.headers),
+        "submit": lambda: client.post(
+            f"/api/content/{review['content_item_id']}/submit",
+            json={"content_version_id": cv},
+            headers=actor.headers,
+        ),
         "approve": lambda: client.post(
             f"/api/content-versions/{cv}/approve", headers=actor.headers
         ),
@@ -87,25 +92,29 @@ def _do(client, actor: Account, action: str, review: dict):
 REVIEW_ACTIONS = (
     "create_version",
     "rerun",
+    "submit",
     "approve",
     "request_changes",
     "reject",
     "comment",
     "dismiss_finding",
 )
+# A stub-mode draft is medium risk (nothing was checked), so in a team it needs a reviewer
+# first: nobody may approve it yet (REVIEW_REQUIRED), whatever their role.
 EXPECTED_ON_WRITERS_DRAFT = {
-    "owner": set(REVIEW_ACTIONS),
-    "approver": {"rerun", "approve", "request_changes", "reject", "comment", "dismiss_finding"},
+    "owner": set(REVIEW_ACTIONS) - {"approve"},
+    "approver": {"rerun", "request_changes", "reject", "comment", "dismiss_finding"},
     "reviewer": {"rerun", "request_changes", "comment", "dismiss_finding"},
-    "writer": {"create_version", "rerun", "comment"},  # the writer's own draft: never approve
+    "writer": {"create_version", "rerun", "submit", "comment"},  # own draft: never approve
 }
 
 
 @pytest.mark.parametrize("role", sorted(EXPECTED_ON_WRITERS_DRAFT))
 def test_allowed_actions_match_what_the_server_permits(client, team: Team, role: str) -> None:
-    """For each role: `allowed_actions` on a writer's draft is the documented set, and each of
-    the seven actions succeeds through its route exactly when it is listed (a fresh draft per
-    action, so one action's effect can't change another's answer)."""
+    """For each role: `allowed_actions` on a writer's draft is the documented set, and each
+    action succeeds through its route exactly when it is listed (a fresh draft per action, so
+    one action's effect can't change another's answer). An unlisted action is refused: 403 for
+    the role, 409 for the workflow (REVIEW_REQUIRED)."""
     actor = team.member(role)
     listed = None
     for action in REVIEW_ACTIONS:
@@ -119,8 +128,9 @@ def test_allowed_actions_match_what_the_server_permits(client, team: Team, role:
         if action in listed:
             assert response.status_code in (200, 201), (role, action, response.text)
         else:
-            assert response.status_code == 403, (role, action, response.text)
-            assert response.json()["error"]["code"] == "FORBIDDEN"
+            assert response.status_code in (403, 409), (role, action, response.text)
+            expected_code = "FORBIDDEN" if response.status_code == 403 else "REVIEW_REQUIRED"
+            assert response.json()["error"]["code"] == expected_code, (role, action)
 
 
 def test_writer_cannot_touch_another_writers_draft(client, team: Team) -> None:

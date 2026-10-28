@@ -12,19 +12,41 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy import text as sql_text  # the model has a column named `text`
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from ..statuses import WorkflowStatus, values
 from .base import Base, created_at_column, updated_at_column, uuid_pk
 
 if TYPE_CHECKING:
     from .brand import BrandProfile
+    from .organisations import Organisation, User
+
+
+def _user_fk() -> Mapped[uuid.UUID | None]:
+    return mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
 
 
 class ContentItem(Base):
     __tablename__ = "content_items"
+    __table_args__ = (
+        CheckConstraint(
+            f"workflow_status IN {tuple(values(WorkflowStatus))}",
+            name="ck_content_item_workflow_status",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     organisation_id: Mapped[uuid.UUID] = mapped_column(
@@ -44,8 +66,34 @@ class ContentItem(Base):
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()
 
+    # Round 3 workflow and routing (migration 0015, workflow.py, risk_policy.py). The routing
+    # fields describe the latest finished check of the current version.
+    workflow_status: Mapped[str] = mapped_column(
+        String(30), nullable=False, default=WorkflowStatus.DRAFT.value, server_default="draft"
+    )
+    owner_user_id: Mapped[uuid.UUID | None] = _user_fk()
+    assigned_reviewer_id: Mapped[uuid.UUID | None] = _user_fk()
+    risk_level: Mapped[str | None] = mapped_column(String(20))
+    required_reviewer_role: Mapped[str | None] = mapped_column(String(20))
+    routing_reason_code: Mapped[str | None] = mapped_column(String(60))
+    routing_reason_text: Mapped[str | None] = mapped_column(Text)
+    routing_details: Mapped[dict | None] = mapped_column(JSONB)
+    routed_review_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    submitted_by: Mapped[uuid.UUID | None] = _user_fk()
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[uuid.UUID | None] = _user_fk()
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    workflow_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     versions: Mapped[list[ContentVersion]] = relationship(
         back_populates="content_item", passive_deletes=True
+    )
+    # Read-only, for ReviewOut's governance fields without extra queries.
+    organisation: Mapped[Organisation] = relationship("Organisation", viewonly=True)
+    author: Mapped[User | None] = relationship("User", foreign_keys=[created_by], viewonly=True)
+    owner: Mapped[User | None] = relationship("User", foreign_keys=[owner_user_id], viewonly=True)
+    assigned_reviewer: Mapped[User | None] = relationship(
+        "User", foreign_keys=[assigned_reviewer_id], viewonly=True
     )
     # Read-only: lets ReviewOut.from_model show the brand's name without another query.
     brand_profile: Mapped[BrandProfile | None] = relationship("BrandProfile", viewonly=True)

@@ -20,6 +20,7 @@ from inkloom_verify.schemas import MAX_CONTENT_CHARS
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, selectinload
 
+from .. import workflow
 from ..audit import log_audit_event
 from ..auth.dependencies import AuthContext, get_current_membership, require_permission
 from ..auth.permissions import Permission
@@ -77,6 +78,7 @@ def _submit_content_and_review(
         brand_profile_id=brand.id,
         title=title,
         created_by=auth.user_id,
+        owner_user_id=auth.user_id,
     )
     db.add(content_item)
     db.flush()
@@ -92,6 +94,7 @@ def _submit_content_and_review(
     db.flush()
 
     review = start_review(db, content_version, brand.id)
+    workflow.on_review_finished(db, content_item, review, auth.user_id)
     details = {"content_item_id": str(content_item.id)}
     if audit_details_extra:
         details.update(audit_details_extra)
@@ -217,6 +220,18 @@ def list_reviews(
             selectinload(Review.content_version)
             .selectinload(ContentVersion.content_item)
             .selectinload(ContentItem.brand_profile),
+            selectinload(Review.content_version)
+            .selectinload(ContentVersion.content_item)
+            .selectinload(ContentItem.organisation),
+            selectinload(Review.content_version)
+            .selectinload(ContentVersion.content_item)
+            .selectinload(ContentItem.author),
+            selectinload(Review.content_version)
+            .selectinload(ContentVersion.content_item)
+            .selectinload(ContentItem.owner),
+            selectinload(Review.content_version)
+            .selectinload(ContentVersion.content_item)
+            .selectinload(ContentItem.assigned_reviewer),
             selectinload(Review.findings)
             .selectinload(Finding.evidence)
             .selectinload(EvidenceLink.source),
@@ -267,6 +282,7 @@ def rerun_review(
             return ReviewOut(**replay)
 
     new_review = start_review(db, content_version, content_item.brand_profile_id)
+    workflow.on_review_finished(db, content_item, new_review, auth.user_id)
     log_audit_event(
         db,
         organisation_id=auth.organisation_id,

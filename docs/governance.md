@@ -1,6 +1,6 @@
 # Team governance, permissions and risk-based routing (Round 3)
 
-**Status: Phases 1–3 done (2026-10-28); Phases 4–6 proposed.** Owner: Darsh (backend). Sections 1–3
+**Status: Phases 1–4 done (2026-10-28); Phases 5–6 proposed.** Owner: Darsh (backend). Sections 1–3
 describe the code as found at `1e416e5`; sections 4–10 are the plan. Section 3 lists the open
 decisions.
 
@@ -12,7 +12,8 @@ decisions.
 | 1. Workspaces, members, invitations | **done**: migration `0014`, `routers/workspace.py`, `workspace_service.py`, `tests/test_workspace_membership.py`. D2 (`admin` → `owner`) and D5 (link shown once) applied as recommended |
 | 2. Roles enforced server-side | **done**: role x action table and `can()` in `auth/permissions.py`, used by every route and by `allowed_actions` (`review_queries.review_outs`); `tests/test_permissions.py`, `tests/test_governance_roles.py` |
 | 3. Author cannot approve own content | **done**: `approval_service.check_not_self_approval` on the approve route (and, from Phase 4, on publish and the implicit approve); 403 `SELF_APPROVAL_FORBIDDEN` + `approval_denied` audit event, nothing else changes; D1 solo sign-off recorded as `self_approval: true`; `approval_mode` on reviews; `tests/test_self_approval.py` |
-| 4–6 | not started |
+| 4. Risk-based routing and workflow | **done**: migration `0015`; `risk_policy.py` (contracts.md §19, approved by Krish 2026-10-28), `workflow_rules.py` (state machine), `workflow.py` (DB side + hooks); routes `POST /api/content/{id}/submit`, `/assign`, `/mark-reviewed`, `POST /api/content-versions/{id}/publish`; reviews carry workspace, author, owner, assigned_reviewer, workflow_status, risk_level, routing_reason, summary_counts; `tests/test_risk_routing.py` |
+| 5–6 | not started |
 
 Example payloads for the frontend are in [`contract/examples/`](../contract/examples/), all
 starting with `governance_`. Section 9 explains each one.
@@ -350,6 +351,19 @@ are resolved inside the caller's workspace the same way.
    submitted | reviewed ─request_changes─► needs_changes
    needs_changes ─new version─► draft ─submit (offered as "resubmit")─► routing
 ```
+
+**As implemented (Phase 4)** — differences from the sketch above:
+- A new finished check of the current version re-opens a decided draft (approved, rejected,
+  needs changes) as `draft`: the decision belonged to the check it was made on. A failed
+  re-check leaves the decision standing; published content stays published.
+- Send back and reject act on the current version only (an older version is 409 CONFLICT).
+- Approve checks, in order: role, self-approval (D1), the review is decidable (409 CONFLICT, as
+  before), the workflow state (REVIEW_REQUIRED / INVALID_TRANSITION / D6), stale version and
+  superseded sources (409 CONFLICT).
+- **Solo shortcut (P4, setting `SOLO_REVIEW_SHORTCUT`, default on):** when the approver is the
+  only person in the workspace who could review or approve, their approval also stands in for
+  the review a risky draft needs, recorded as a `reviewed` event with `self_review: true`.
+  Without it, a solo user's risky drafts could never be approved through today's UI.
 
 Rules (all server-side, in one transaction with the audit event, the item row locked
 `FOR UPDATE`):

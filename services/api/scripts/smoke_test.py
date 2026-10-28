@@ -135,8 +135,16 @@ def main() -> None:
                 f"       {evidence['relation']}: {evidence['quote']!r} "
                 f"({evidence['source_title']} v{evidence['source_version_number']})"
             )
-    if review["required_reviewer_role"] is not None:
-        fail("individual-user mode: required_reviewer_role must be null")
+    # Round 3 routing (risk_policy.py): every finished check is routed to a reviewer or straight
+    # to an approver; a solo owner can still approve (decision D1 / DECISIONS_PENDING.md P4).
+    if review["required_reviewer_role"] not in ("reviewer", "approver"):
+        fail(f"routing: unexpected required_reviewer_role {review['required_reviewer_role']!r}")
+    if review["workflow_status"] != "draft" or "approve" not in review["allowed_actions"]:
+        fail(f"workflow: {review['workflow_status']} / {review['allowed_actions']}")
+    print(
+        f"  routing: risk={review['risk_level']} -> {review['required_reviewer_role']} "
+        f"({review['routing_reason']['code']}); approval_mode={review['approval_mode']}"
+    )
 
     step("list reviews")
     listed = expect(client.get("/api/reviews", headers=headers), 200, "GET /api/reviews")

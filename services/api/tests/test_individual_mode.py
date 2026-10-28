@@ -6,10 +6,10 @@ risk-based routing: high-severity reviews routed to `legal_reviewer`, everything
 `brand_manager`, enforced at approval) is deliberately switched off. These tests pin the new
 behaviour instead:
 
-1. every new review has required_reviewer_role = null - including a real high-severity
-   (CONTRADICTED) outcome through the real engine code, not just the stub;
-   -> test_new_reviews_are_never_routed_stub_mode
-   -> test_high_severity_review_is_not_routed
+1. Round 3: reviews are routed (risk_policy.py) - stub mode is medium risk, a real
+   CONTRADICTED outcome is high - and a solo owner still signs off (P4);
+   -> test_stub_reviews_are_routed_but_a_solo_owner_still_signs_off
+   -> test_high_severity_review_is_routed_to_a_reviewer
 2. registration still makes the user "admin" (= account owner), and they approve their own
    content and request changes on it;
    -> test_registered_owner_approves_own_content
@@ -53,29 +53,37 @@ def _approve(client, account, content_version_id: str):
 
 
 @requires_db
-def test_new_reviews_are_never_routed_stub_mode(client, force_stub_mode, account_factory) -> None:
+def test_stub_reviews_are_routed_but_a_solo_owner_still_signs_off(
+    client, force_stub_mode, account_factory
+) -> None:
+    """Round 3 routing (risk_policy.py): with no AI provider nothing was checked, so the draft is
+    medium risk and routed to a reviewer. Alone in their workspace, the owner's approval also
+    stands in for that review (DECISIONS_PENDING.md P4), so today's flow keeps working."""
     owner = account_factory("owner")
     review = owner.submit()
     assert review["status"] == "needs_human_review"
-    assert review["required_reviewer_role"] is None
+    assert (review["risk_level"], review["required_reviewer_role"]) == ("medium", "reviewer")
+    assert review["routing_reason"]["code"] == "not_checked"
+    assert "approve" in review["allowed_actions"]
+    assert _approve(client, owner, review["content_version_id"]).status_code == 201
 
 
 @requires_db
-def test_high_severity_review_is_not_routed(client, monkeypatch, account_factory) -> None:
-    """A real CONTRADICTED verdict (severity high) - under Phase 9 this went to legal_reviewer."""
+def test_high_severity_review_is_routed_to_a_reviewer(client, monkeypatch, account_factory) -> None:
+    """A real CONTRADICTED verdict (contracts.md section 19): high risk, reviewer first."""
     use_scripted_provider(monkeypatch, CONTRADICTION_RULES)
     owner = account_factory("owner")
     review = owner.submit("Lumen Pods offer up to 24 hours of playback per charge.")
     [finding] = review["findings"]
     assert finding["verification_status"] == "contradicted"
     assert finding["severity"] == "high"
-    assert review["required_reviewer_role"] is None
-    assert (
-        client.get(f"/api/reviews/{review['id']}", headers=owner.headers).json()[
-            "required_reviewer_role"
+    fetched = client.get(f"/api/reviews/{review['id']}", headers=owner.headers).json()
+    for body in (review, fetched):
+        assert (body["risk_level"], body["required_reviewer_role"]) == ("high", "reviewer")
+        assert body["routing_reason"]["code"] == "contradicted_claim"
+        assert [t["finding_id"] for t in body["routing_reason"]["triggered_by"]] == [
+            finding["finding_id"]
         ]
-        is None
-    )
 
 
 @requires_db
@@ -166,7 +174,9 @@ def test_legacy_role_names_map_to_team_roles(
             headers=owner.headers,
         )
         assert submitted.status_code == (201 if create else 403), (legacy_role, submitted.text)
-        assert approved.status_code == (201 if approve else 403), (legacy_role, approved.text)
+        # Allowed by role = anything but 403 (an approver alone can't review, so a stub draft
+        # is REVIEW_REQUIRED for them: that is routing, not a permission refusal).
+        assert (approved.status_code != 403) is approve, (legacy_role, approved.text)
         assert upload.status_code == (201 if upload_docs else 403), (legacy_role, upload.text)
 
 

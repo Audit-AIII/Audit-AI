@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -63,4 +63,9 @@ class AuditEvent(Base):
     # Structured, safe details only (no secrets, no raw provider errors) — same rule as errors.py.
     details: Mapped[dict | None] = mapped_column(JSONB)
     request_id: Mapped[str | None] = mapped_column(String(128))
+    # Round 3 (migration 0015): which draft this event is about, the version number it applied
+    # to, and the person's own note - so a draft's audit history is one indexed query.
+    content_item_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    version_number: Mapped[int | None] = mapped_column(Integer)
+    note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = created_at_column()

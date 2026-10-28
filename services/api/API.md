@@ -119,7 +119,8 @@ invitation (section "Workspaces, members and invitations" below, and
 owner. Roles are enforced on every route (403 `FORBIDDEN`, message "your role in this workspace
 cannot ..."); the role x action table is in `docs/governance.md` section 5, and every review carries
 `allowed_actions` (what the signed-in user may do with it) and `is_current_version`. A writer edits,
-re-checks and sets locks only on drafts they wrote. Risk-based routing is still off, so `required_reviewer_role` is `null` on every new review (the
+re-checks and sets locks only on drafts they wrote. Risk-based routing is on (section
+"Workflow and routing" below), so `required_reviewer_role` is `null` on every new review (the
 UI shows "Any approver"). The user approves their own content. Guards that still apply on approve
 (409): the review must be finished (`completed` / `needs_human_review`), the version must be the
 current one, and no cited source may have been withdrawn or replaced since the review ran.
@@ -162,6 +163,10 @@ current one, and no cited source may have been withdrawn or replaced since the r
 | `POST` / `GET /api/workspace/invitations` | **Round 3.** Invite by email + role / list invitations (owner) |
 | `POST /api/workspace/invitations/{invitation_id}/revoke` | **Round 3.** Withdraw an invitation (owner) |
 | `POST /api/invitations/accept` | **Round 3.** Accept an invitation with its token |
+| `POST /api/content/{content_item_id}/submit` | **Round 3.** Submit a draft: routed to a reviewer or straight to an approver |
+| `POST /api/content/{content_item_id}/assign` | **Round 3.** Assign (or clear) the draft's reviewer |
+| `POST /api/content/{content_item_id}/mark-reviewed` | **Round 3.** A reviewer marks the current version reviewed |
+| `POST /api/content-versions/{content_version_id}/publish` | **Round 3.** Publish approved content |
 
 ### `POST /api/auth/register`
 
@@ -210,6 +215,33 @@ the codes in `docs/governance.md` section 8.
   untouched. A removed member can be invited back.
 - Every change is in the audit log: `invite_created`, `invite_accepted`, `invite_revoked`,
   `member_role_changed` (before/after), `member_removed`.
+
+### Workflow and routing (Round 3)
+
+Every draft has a `workflow_status`: `draft`, `submitted` (clean, waiting for an approver),
+`in_review` (waiting for a reviewer), `needs_changes`, `reviewed`, `approved`, `rejected`,
+`published`, `blocked` (the AI check failed or a cited source changed: re-check first). Every
+review response carries it, with `risk_level` (`clean` | `low` | `medium` | `high`),
+`required_reviewer_role` (`reviewer` | `approver`), `routing_reason` (`{code, text,
+triggered_by[]}`), `author`, `owner`, `assigned_reviewer` (null when nobody is assigned),
+`workspace`, `summary_counts` and `allowed_actions`. Rules: `docs/governance.md` sections 6-7;
+the risk mapping is contracts.md section 19 (`risk_policy.py`).
+
+- `POST /api/content/{id}/submit {"content_version_id"}` -> the draft's new state
+  (`WorkflowActionOut`). Writers submit only their own drafts. 409 `INVALID_TRANSITION` unless the
+  draft is `draft`; 409 `CONFLICT` for an older version.
+- `POST /api/content/{id}/assign {"reviewer_user_id" | null}`: approvers and owners assign anyone
+  who can review (never the author: 422); a reviewer only takes it themself.
+- `POST /api/content/{id}/mark-reviewed {"content_version_id", "note"?}`: `in_review` ->
+  `reviewed`. The author can't (403 `SELF_REVIEW_FORBIDDEN`) unless nobody else could.
+- Approve: 409 `REVIEW_REQUIRED` while a reviewer's check is still needed; 403
+  `SAME_REVIEWER_APPROVER_FORBIDDEN` for the person who marked it reviewed (unless nobody else
+  could approve). Approve / send back / reject on a `draft` submit it first. Refusals of approve
+  and publish write an `approval_denied` audit event and change nothing else.
+- `POST /api/content-versions/{id}/publish` -> `approved` -> `published`; same self-approval
+  rule as approve.
+- A new version always starts again from `draft`; a new finished check re-routes a submitted
+  draft and re-opens a decided one.
 
 ### `GET /api/brands` — dashboard list
 

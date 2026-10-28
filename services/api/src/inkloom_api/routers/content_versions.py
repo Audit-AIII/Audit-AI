@@ -1,13 +1,24 @@
-"""POST /api/content-versions/{id}/approve, POST /api/content-versions/{id}/request-changes.
+"""POST /api/content-versions/{id}/approve, .../request-changes, .../publish (and Intent-lock).
 
-Who may decide (auth/permissions.py): approve and reject need an approver or owner; sending back
-(`changes_requested`) also a reviewer. A content version outside the caller's workspace is a 404.
+Who may decide (auth/permissions.py): approve, reject and publish need an approver or owner;
+sending back (`changes_requested`) also a reviewer. A content version outside the caller's
+workspace is a 404.
 
-`approve` runs every guard in task 4: not yet decidable, stale, or a cited source superseded
-since the review ran - all reported as a safe 409. The Phase 9 risk-based routing guard was
-removed (no reviewer tiers in a one-person account). `request-changes` only checks that the
-review is in a decidable state - staleness and source drift don't matter when the answer is
-"no", only when it's "yes".
+Every decision runs, in order, inside one transaction with the draft and its latest review
+row-locked:
+1. the role (403 FORBIDDEN);
+2. approve only: the author can't approve their own work unless nobody else could (403
+   SELF_APPROVAL_FORBIDDEN, decision D1);
+3. the workflow (workflow.check_decision): a draft that needs a reviewer can't be approved yet
+   (409 REVIEW_REQUIRED), the person who reviewed it doesn't approve it (403
+   SAME_REVIEWER_APPROVER_FORBIDDEN), other states are 409 INVALID_TRANSITION, an older version
+   is 409 CONFLICT;
+4. the review's own guards from task 4: not yet decidable, or (approve) a cited source superseded
+   since it ran - 409 CONFLICT;
+5. a decision on a `draft` submits it first (D4), then the decision is recorded.
+
+A refused approve or publish leaves the draft exactly as it was and writes one `approval_denied`
+audit event (workflow.deny).
 """
 
 from __future__ import annotations
@@ -20,6 +31,7 @@ from inkloom_verify.intent_lock import IntentLockError, validate_locks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from .. import workflow
 from ..approval_rules import (
     InvalidReviewTransitionError,
     StaleApprovalError,
@@ -39,11 +51,21 @@ from ..db import get_db
 from ..errors import ApiException, ErrorCode
 from ..models import ContentItem, Review
 from ..request_text import NUL, StoredText
-from ..schemas import ApprovalEventOut
+from ..schemas import ApprovalEventOut, WorkflowActionOut
 from ..statuses import ApprovalAction
 from ..tenancy import get_content_version_or_404, not_found
 
 router = APIRouter(prefix="/api/content-versions", tags=["content-versions"])
+
+# Refusals of these are recorded as `approval_denied` (Phases 3-4): an attempt to approve or
+# publish something the rules don't allow is worth keeping in the audit trail.
+_DENIAL_CODES = frozenset(
+    {
+        ErrorCode.SELF_APPROVAL_FORBIDDEN,
+        ErrorCode.REVIEW_REQUIRED,
+        ErrorCode.SAME_REVIEWER_APPROVER_FORBIDDEN,
+    }
+)
 
 
 class RequestChangesBody(BaseModel):
@@ -56,65 +78,45 @@ def _latest_review_or_404(db: Session, content_version_id: uuid.UUID) -> Review:
     the second transaction blocks here until the first commits, then re-reads the now-updated
     status and is correctly rejected by `ensure_decidable` instead of racing it and writing a
     second, contradictory `ApprovalEvent`."""
-    review = (
-        db.query(Review)
-        .filter_by(content_version_id=content_version_id)
-        .order_by(Review.created_at.desc())
-        .with_for_update()
-        .first()
-    )
+    review = workflow.latest_review(db, content_version_id, lock=True)
     if review is None:
         raise not_found("no review exists for this content version yet")
     return review
 
 
-def deny_self_approval(db: Session, auth: AuthContext, content_version, review_id) -> None:
-    """Refuses an author's approval: nothing changes except one `approval_denied` audit event.
-    The rollback drops anything this request had started (and the review's row lock) before the
-    event is written in its own commit, so a refused request never changes the draft."""
-    db.rollback()
-    log_audit_event(
-        db,
-        organisation_id=auth.organisation_id,
-        actor_user_id=auth.user_id,
-        event_type="approval_denied",
-        entity_type="content_version",
-        entity_id=content_version.id,
-        details={
-            "code": ErrorCode.SELF_APPROVAL_FORBIDDEN.value,
-            "reason": "author cannot approve their own content",
-            "review_id": str(review_id),
-            "content_item_id": str(content_version.content_item_id),
-            "version_number": content_version.version_number,
-        },
-    )
-    db.commit()
-    raise ApiException(
-        status.HTTP_403_FORBIDDEN,
-        ErrorCode.SELF_APPROVAL_FORBIDDEN,
-        "you wrote this draft, so someone else has to approve it",
-    )
-
-
-@router.post("/{content_version_id}/approve", response_model=ApprovalEventOut, status_code=201)
-def approve_content_version(
+def _decide(
+    db: Session,
+    auth: AuthContext,
     content_version_id: uuid.UUID,
-    auth: AuthContext = Depends(require_permission(Permission.APPROVE)),
-    db: Session = Depends(get_db),
+    action: ApprovalAction,
+    note: str | None,
 ) -> ApprovalEventOut:
     content_version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
     review = _latest_review_or_404(db, content_version.id)
-    content_item = db.get(ContentItem, content_version.content_item_id)
+    item = workflow.lock_item(db, content_version.content_item_id)
+    item_id = item.id
 
+    self_approval = False
+    if action is ApprovalAction.APPROVED:
+        try:
+            self_approval = check_not_self_approval(
+                db, auth.organisation_id, auth.user_id, item, content_version
+            )
+        except SelfApprovalForbiddenError:
+            workflow.deny(
+                db, auth, item_id, content_version, workflow.self_approval_error(), "approve"
+            )
     try:
-        self_approval = check_not_self_approval(
-            db, auth.organisation_id, auth.user_id, content_item, content_version
-        )
-    except SelfApprovalForbiddenError:
-        deny_self_approval(db, auth, content_version, review.id)
-
-    try:
-        check_approve_guards(db, review, content_version.content_item_id)
+        # The review itself first, with the answers this route has always given (409 CONFLICT
+        # "cannot decide a review in status ..."); then the draft's workflow state.
+        ensure_decidable(review.status)
+        plan = workflow.check_decision(db, auth, item, content_version, review, action.value)
+        if action is ApprovalAction.APPROVED:
+            check_approve_guards(db, review, content_version.content_item_id)
+    except ApiException as error:
+        if action is ApprovalAction.APPROVED and error.code in _DENIAL_CODES:
+            workflow.deny(db, auth, item_id, content_version, error, "approve")
+        raise
     except InvalidReviewTransitionError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
     except StaleApprovalError:
@@ -127,18 +129,35 @@ def approve_content_version(
             "a source this review cited is no longer the brand's approved version; rerun the review first",
         ) from None
 
+    before = item.workflow_status
+    if plan.implicit_submit:
+        workflow.submit(db, auth, item, content_version, review, implicit=True)
+    if plan.solo_review:
+        workflow.solo_review(db, auth, item, content_version, review)
+    after = workflow.finish_decision(item, action.value)
     event = record_decision(
         db,
         review,
         content_version,
         auth.organisation_id,
         auth.user_id,
-        ApprovalAction.APPROVED,
-        note=None,
+        action,
+        note=note,
         self_approval=self_approval,
+        workflow_before=before,
+        workflow_after=after.value,
     )
     db.commit()
     return ApprovalEventOut.from_model(event, content_version.version_number)
+
+
+@router.post("/{content_version_id}/approve", response_model=ApprovalEventOut, status_code=201)
+def approve_content_version(
+    content_version_id: uuid.UUID,
+    auth: AuthContext = Depends(require_permission(Permission.APPROVE)),
+    db: Session = Depends(get_db),
+) -> ApprovalEventOut:
+    return _decide(db, auth, content_version_id, ApprovalAction.APPROVED, None)
 
 
 @router.post(
@@ -152,22 +171,31 @@ def request_changes(
 ) -> ApprovalEventOut:
     # Rejecting is a final "no" (approvers); sending back for changes is also a reviewer's call.
     auth.require(Permission.REJECT if body.decision == "rejected" else Permission.REQUEST_CHANGES)
-    content_version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
-    review = _latest_review_or_404(db, content_version.id)
-
-    try:
-        ensure_decidable(review.status)
-    except InvalidReviewTransitionError as error:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
-
     action = (
         ApprovalAction.REJECTED if body.decision == "rejected" else ApprovalAction.CHANGES_REQUESTED
     )
-    event = record_decision(
-        db, review, content_version, auth.organisation_id, auth.user_id, action, body.note
-    )
+    return _decide(db, auth, content_version_id, action, body.note)
+
+
+@router.post("/{content_version_id}/publish", response_model=WorkflowActionOut)
+def publish_content_version(
+    content_version_id: uuid.UUID,
+    auth: AuthContext = Depends(require_permission(Permission.PUBLISH)),
+    db: Session = Depends(get_db),
+) -> WorkflowActionOut:
+    """approved -> published. Refused (and recorded as `approval_denied`) when the content still
+    needs its review, or the caller wrote it and someone else could publish it."""
+    content_version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
+    item = workflow.lock_item(db, content_version.content_item_id)
+    item_id = item.id
+    try:
+        workflow.publish(db, auth, item, content_version)
+    except ApiException as error:
+        if error.code in _DENIAL_CODES:
+            workflow.deny(db, auth, item_id, content_version, error, "publish")
+        raise
     db.commit()
-    return ApprovalEventOut.from_model(event, content_version.version_number)
+    return WorkflowActionOut.from_item(item, content_version.version_number)
 
 
 # --- Intent-lock (Phase 7) ---------------------------------------------------------------------

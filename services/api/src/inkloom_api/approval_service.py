@@ -72,8 +72,11 @@ class SelfApprovalForbiddenError(Exception):
     someone else in the workspace could approve it instead (Round 3 Phase 3)."""
 
 
-def other_approver_exists(db: Session, organisation_id: uuid.UUID, user_id: uuid.UUID) -> bool:
-    """Whether any other active member of the workspace holds the approve permission."""
+def other_member_can(
+    db: Session, organisation_id: uuid.UUID, user_id: uuid.UUID, permission: Permission
+) -> bool:
+    """Whether any other active member of the workspace holds `permission` (the "could someone
+    else do this?" half of decisions D1 and D6)."""
     roles = (
         db.query(Membership.role)
         .filter(
@@ -83,7 +86,11 @@ def other_approver_exists(db: Session, organisation_id: uuid.UUID, user_id: uuid
         )
         .all()
     )
-    return any(role_has_permission(role, Permission.APPROVE) for (role,) in roles)
+    return any(role_has_permission(role, permission) for (role,) in roles)
+
+
+def other_approver_exists(db: Session, organisation_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    return other_member_can(db, organisation_id, user_id, Permission.APPROVE)
 
 
 def check_not_self_approval(
@@ -120,6 +127,8 @@ def record_decision(
     action: ApprovalAction,
     note: str | None,
     self_approval: bool = False,
+    workflow_before: str | None = None,
+    workflow_after: str | None = None,
 ) -> ApprovalEvent:
     """Applies the decision: updates the review's status, records the `ApprovalEvent`, and logs
     an `AuditEvent` - in the same session/transaction as the caller (task 7: "write the state
@@ -146,8 +155,19 @@ def record_decision(
                 # D1 solo sign-off: the author approved their own work because nobody else in
                 # the workspace could.
                 **({"self_approval": True, "reason": "sole_member"} if self_approval else {}),
+                **(
+                    {
+                        "before": {"workflow_status": workflow_before},
+                        "after": {"workflow_status": workflow_after},
+                    }
+                    if workflow_after
+                    else {}
+                ),
             },
             request_id=review.request_id,
+            content_item_id=content_version.content_item_id,
+            version_number=content_version.version_number,
+            note=note,
         )
     )
     return event
