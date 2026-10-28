@@ -922,9 +922,25 @@ Among the **30 answered records** (derived from the report's confusion matrix):
    **Known limit, measured:** an elision swap still passes. "hot for up to 24 hours" is accepted
    on the same line, because "keeps drinks" ties the claim's 24 to the "cold" clause too
    (`test_n2_elision_swap_is_rejected`, strict xfail; `evaluation/limitations.py`).
-3. **v1-045** "USB-C and a wireless charging pad" accepted on a quote covering only USB-C. **Open:**
-   a compound claim is supported by half its evidence. In the full pipeline, extraction splits
-   compound sentences; the verifier-only run skips extraction.
+3. **v1-045** "USB-C and a wireless charging pad" accepted on a quote covering only USB-C. A
+   compound claim was supported by half its evidence. **Fixed (Round 3 step 04, REG-015):** the
+   guard now refuses a SUPPORTED answer when a part of the claim shares no figure and no exact
+   content word with the quotes (`unsupported_clause`), reading the claim and quotes only. The
+   proof is the unit tests in `tests/test_guard_compound_claims.py` (C1–C6 rejected; D1–D7
+   accepted) and the `v1-045` record test, which cites the record's reference sentence "Charging:
+   USB-C." (the record is NOT_ENOUGH_EVIDENCE, so it has no gold quotes). 0 of 35 dev SUPPORTED
+   records (`dataset.jsonl` and `retrieval_v1`) are rejected on their gold quotes.
+   **Stress run:** false-SUPPORTED for the valid-quote, always-SUPPORTED adversary goes from 16/55
+   to 14/55 (`v1-045` and one other record), and the `eval/baseline.json` gate is tightened to
+   14/55. That adversary is scripted and naive (it always answers SUPPORTED, quoting the first 8
+   words of the top passage), so this is a guard measurement, **not model quality**, and not a
+   held-out result.
+   **Known limit, measured:** a part that shares one incidental word with the quotes counts as
+   covered ("ships in a recycled box" on a quote about recycled steel;
+   `test_a_clause_sharing_one_incidental_word_with_the_quotes_is_rejected`, strict xfail;
+   `evaluation/limitations.py`). The check only catches parts with no support; it never proves a
+   part is supported. `decision_policy.looks_compound` still sends a compound claim that one quote
+   fully covers to a person.
 
 **To complete the measurement:** a compliant model with capacity. Either a paid OpenRouter model
 whose endpoints pass `data_collection: deny`, which costs about $0.01–0.02 for one 80-record

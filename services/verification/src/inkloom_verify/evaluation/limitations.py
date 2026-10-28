@@ -84,6 +84,18 @@ LIMITATIONS: list[Limitation] = [
         ],
     ),
     Limitation(
+        topic="Compound claims with an incidental shared word",
+        status="measured",
+        finding="The compound-claim check refuses a part of a claim that shares no figure and no word with the quotes. "
+        "It is lexical: a part that shares one incidental word counts as covered ('ships in a recycled box' on a "
+        "quote about recycled steel), so it catches unsupported parts with no overlap, and never proves a part "
+        "is supported.",
+        evidence=[
+            "tests/test_guard_compound_claims.py::test_a_clause_sharing_one_incidental_word_with_the_quotes_is_rejected",
+            "EVAL.md",
+        ],
+    ),
+    Limitation(
         topic="Planted false facts in references",
         status="measured",
         finding="A false fact written as ordinary text in a reference is evidence like any other: only instructions "

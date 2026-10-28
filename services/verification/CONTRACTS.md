@@ -261,7 +261,8 @@ Additional rules:
   are also support checks for SUPPORTED answers, which carry no `passage_id`:
   `unsupported_quantity`, `unsupported_date`, `missing_qualifier`, (Phase 4 of the second
   run) `unsupported_name`, (prompts Phase 3) `negation_mismatch`, and (Round 3)
-  `property_mismatch`: a figure in the claim is attached to a different property in the quotes.
+  `property_mismatch`: a figure in the claim is attached to a different property in the quotes;
+  and `unsupported_clause`: a part of the claim is covered by none of the cited quotes.
 
   `instruction_text` (prompts Phase 6) has two uses:
   - **with a `passage_id`:** the quote touches a passage sentence that gives instructions, not

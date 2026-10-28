@@ -424,6 +424,7 @@ SUPPORTED answer stands only if the cited quotes actually carry the claim's figu
 | Every capitalised name in the claim, after its leading subject run, appears in a cited passage. Months and all-capital acronyms ("CEO") are skipped. | `unsupported_name` |
 | The claim and the cited quotes agree on negation: "The bottle is dishwasher safe" is not supported by the exact, complete quote "The bottle is not dishwasher safe" (PROMPTS.md Phase 3; 0 of 45 labelled SUPPORTED records disagree on negation) | `negation_mismatch` |
 | Each figure in the claim belongs to the claimed property: "cold for up to 12 hours" is not supported by "cold for up to 24 hours and hot for up to 12 hours" (Round 3) | `property_mismatch` |
+| Every part of a compound claim is covered by the quotes: "charge over USB-C and include a wireless charging pad" is not supported by "Charging: USB-C." (Round 3) | `unsupported_clause` |
 
 **Why figures are bound to properties (Round 3, REG-014).** The quantity check only asks whether
 a figure is *present* in the quotes, so `v1-036` passed on a quote whose 12 belongs to "hot". For
@@ -437,6 +438,22 @@ line, and 0 of 35 dev SUPPORTED records rejected on their gold quotes. The valid
 stays at 16/55 false-SUPPORTED: its quote for `v1-036` is the fact sheet's title, which the quantity
 check already refused, so it cannot show the flip. Known limit (N2, strict xfail): an elision swap,
 "hot for up to 24 hours" on the same line, still passes.
+
+**Why every part of a compound claim must be covered (Round 3, REG-015).** The support checks look
+at figures, dates, names and negation, so `v1-045` passed: its uncited half, "include a wireless
+charging pad", has none of them. `uncovered_clauses` splits the claim at "and", "but", "while",
+"whereas", "plus", "as well as" and ";". The subject (the leading capitalised words) never counts as
+cover, and a part counts only if it has a content word outside the subject and is not a bare
+capitalised list item ("Graphite, Sand and Teal"); with fewer than two such parts the check does not
+apply. A part is covered by a shared figure, or by a content word matched exactly against the
+quotes' value text, which drops short `Label:` heads so "Charging:" cannot cover "a wireless charging
+pad". It reads the claim and quotes only. Measured: C1–C6 rejected and D1–D7 accepted
+(`tests/test_guard_compound_claims.py`), `v1-045` rejected on "Charging: USB-C.", and 0 of 35 dev
+SUPPORTED records rejected on their gold quotes. Against the scripted adversary that always answers
+SUPPORTED with real passage text, false-SUPPORTED goes from 16/55 to 14/55; that adversary is naive,
+so this says nothing about model quality. `decision_policy.looks_compound` is unchanged: a compound
+claim that one quote fully covers still goes to a person (`compound_under_cited`). Known limit
+(strict xfail): a part sharing one incidental word with the quotes counts as covered.
 
 **Why names are checked against passages, not quotes.** Quotes rarely repeat the claim's subject:
 a quote-level rule would reject 17 of the 20 labelled SUPPORTED records. The subject run ("The
