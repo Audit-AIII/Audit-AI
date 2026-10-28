@@ -18,6 +18,7 @@ engine" (docs/backend.md).
 from __future__ import annotations
 
 import logging
+import traceback
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -225,6 +226,13 @@ def run_review(
         softener = softener_class(provider) if softener_class is not None else None
         content = InputContent(text=content_version.text)
     except Exception as error:  # e.g. RetrievalError/RetrievalLimitError on a malformed corpus
+        # The type and stack frames only, as in errors.py: a message can carry document text.
+        logger.error(
+            "review=%s could not prepare the reference corpus: %s\n%s",
+            review.id,
+            type(error).__name__,
+            "".join(traceback.format_tb(error.__traceback__)),
+        )
         finish(
             ReviewState.FAILED,
             f"Could not prepare the reference corpus: {type(error).__name__}"[:500],
@@ -245,6 +253,13 @@ def run_review(
             # crash the whole request or silently drop the claim.
             result = verify_claim(claim, retriever, verifier)
         except Exception as error:
+            logger.error(
+                "review=%s claim=%s verification failed unexpectedly: %s\n%s",
+                review.id,
+                claim.claim_id,
+                type(error).__name__,
+                "".join(traceback.format_tb(error.__traceback__)),
+            )
             needs_human_review = partial = True
             _write_unexpected_error_finding(db, review, content_version, claim, error)
             continue
