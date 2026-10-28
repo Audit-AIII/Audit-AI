@@ -1,9 +1,16 @@
 # Team governance, permissions and risk-based routing (Round 3)
 
-**Status: DRAFT (Phase 0).** Owner: Darsh (backend). Written 2026-10-28 from `main` at
-`1e416e5`. Nothing in this file has changed code yet. Sections 1–3 describe the code as it is
-today. Sections 4–10 are proposals waiting for Darsh's go-ahead. Section 3 lists the decisions
-that block implementation.
+**Status: Phase 1 done (2026-10-28); Phases 2–6 proposed.** Owner: Darsh (backend). Sections 1–3
+describe the code as found at `1e416e5`; sections 4–10 are the plan. Section 3 lists the open
+decisions.
+
+**Progress**
+
+| Phase | State |
+|---|---|
+| 0. Inspect, plan, contract examples | done (`4326865`) |
+| 1. Workspaces, members, invitations | **done**: migration `0014`, `routers/workspace.py`, `workspace_service.py`, `tests/test_workspace_membership.py`. D2 (`admin` → `owner`) and D5 (link shown once) applied as recommended |
+| 2–6 | not started |
 
 Example payloads for the frontend are in [`contract/examples/`](../contract/examples/), all
 starting with `governance_`. Section 9 explains each one.
@@ -151,7 +158,11 @@ Everything §19 needs is already stored. No pipeline change is required to compu
 8. **Login picks the oldest membership.** Once a user belongs to several workspaces they need a
    way to switch (section 7). Personal workspaces stay the default, because they are always the
    oldest.
-9. **No email sending exists.** An invitation link can't be emailed today. See D5.
+9. **No email sending exists.** An invitation link can't be emailed today. See D5. **No email
+   verification exists either:** sign-up accepts any address unchecked. So "invitee email must
+   match" only means "the account was registered with that address". Whoever holds the link and
+   registers that address first can accept. The link is the real secret until email verification
+   is added (not in Round 3 scope; flagged).
 10. **"Tone" summary count.** There is no tone or brand-voice checker yet. The closest signals
     are the engine's style rules `all_caps_run` and `emoji_run` (`inkloom_verify/rules.py`,
     "Accessibility and tone"). The count will be that, documented as narrow (section 9.4).
@@ -372,7 +383,7 @@ Overall level = the highest one. **clean → `required_reviewer_role = approver`
 | `POST /api/auth/switch-workspace` `{workspace_id}` | member of it | same shape as login (new token) |
 | `GET /api/workspace/members` | any member | `governance_members.json` |
 | `PATCH /api/workspace/members/{user_id}` `{role}` | owner | member |
-| `DELETE /api/workspace/members/{user_id}` | owner | 204 |
+| `DELETE /api/workspace/members/{user_id}` | owner | the removed member (last role) |
 | `POST /api/workspace/invitations` `{email, role}` | owner | invitation + raw `token` once |
 | `GET /api/workspace/invitations` | owner | list (status computed: pending/accepted/revoked/expired) |
 | `POST /api/workspace/invitations/{id}/revoke` | owner | invitation |

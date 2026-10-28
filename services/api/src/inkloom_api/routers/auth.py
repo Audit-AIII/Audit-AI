@@ -4,7 +4,7 @@ behaviour this gives it.
 
 Registration (docs/backend.md, "Self-serve onboarding") is the self-serve onboarding
 entry point: a visitor signs up with any email and gets a private account (an organisation only
-they belong to), an `admin` membership - which now just means "account owner" - and a starter
+they belong to: their personal workspace), an `owner` membership, and a starter
 brand, all in one transaction, with no brand id or invite needed.
 """
 
@@ -34,6 +34,7 @@ from ..schemas import (
     RegisterResponse,
     SessionInfo,
     UserOut,
+    WorkspaceOut,
 )
 from ..statuses import MembershipRole
 
@@ -83,6 +84,7 @@ def login(
         organisation=OrganisationOut.model_validate(membership.organisation),
         role=membership.role,
         expires_in=settings.auth_token_ttl_minutes * 60,
+        workspace=WorkspaceOut.from_model(membership.organisation),
     )
 
 
@@ -155,17 +157,21 @@ def register(
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, _DUPLICATE_EMAIL) from None
 
-    org = Organisation(name=organisation_name, slug=_slugify(organisation_name))
+    # Round 3: this is the person's personal workspace. Others can be invited into it later.
+    org = Organisation(
+        name=organisation_name,
+        slug=_slugify(organisation_name),
+        is_personal=True,
+        created_by_user_id=user.id,
+    )
     db.add(org)
     db.flush()
 
-    # role is always "admin" here - never taken from the request body (RegisterRequest has no
+    # role is always "owner" here - never taken from the request body (RegisterRequest has no
     # role/organisation_id field at all, so even an extra field in the body is silently ignored).
-    # Individual-user mode: "admin" simply means "account owner" - this organisation is this one
-    # person's private account, and roles no longer gate anything (auth/permissions.py).
     db.add(
         Membership(
-            organisation_id=org.id, user_id=user.id, role=MembershipRole.ADMIN.value, is_active=True
+            organisation_id=org.id, user_id=user.id, role=MembershipRole.OWNER.value, is_active=True
         )
     )
 
@@ -193,8 +199,9 @@ def register(
         access_token=token,
         user=UserOut.model_validate(user),
         organisation=OrganisationOut.model_validate(org),
-        role=MembershipRole.ADMIN.value,
+        role=MembershipRole.OWNER.value,
         expires_in=settings.auth_token_ttl_minutes * 60,
+        workspace=WorkspaceOut.from_model(org),
         brand=BrandOut(
             id=brand.id,
             name=brand.name,
@@ -211,4 +218,5 @@ def me(auth: AuthContext = Depends(get_current_membership)) -> SessionInfo:
         user=UserOut.model_validate(auth.user),
         organisation=OrganisationOut.model_validate(auth.organisation),
         role=auth.role,
+        workspace=WorkspaceOut.from_model(auth.organisation),
     )

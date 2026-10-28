@@ -27,10 +27,24 @@ class OrganisationOut(_Out):
     slug: str
 
 
+class WorkspaceOut(BaseModel):
+    """Round 3: the organisation, as the frontend's workspace switcher shows it. `id` is the
+    same value as `organisation.id`."""
+
+    id: uuid.UUID
+    name: str
+    is_personal: bool
+
+    @classmethod
+    def from_model(cls, organisation) -> WorkspaceOut:
+        return cls(id=organisation.id, name=organisation.name, is_personal=organisation.is_personal)
+
+
 class SessionInfo(BaseModel):
     user: UserOut
     organisation: OrganisationOut
     role: str
+    workspace: WorkspaceOut | None = None  # additive (Round 3)
 
 
 class LoginResponse(SessionInfo):
@@ -40,6 +54,61 @@ class LoginResponse(SessionInfo):
     # future replay/cache paths might) still validates. Login and register both set the real
     # value explicitly.
     expires_in: int | None = None
+
+
+class UserRefOut(BaseModel):
+    """A person as other members see them: never their email. `display_name` falls back to the
+    email's local part when the user never set one."""
+
+    id: uuid.UUID
+    display_name: str
+
+    @classmethod
+    def from_model(cls, user) -> UserRefOut:
+        return cls(id=user.id, display_name=user.display_name or user.email.split("@", 1)[0])
+
+
+class WorkspaceMembershipOut(BaseModel):
+    workspace: WorkspaceOut
+    role: str
+    is_current: bool
+
+
+class MemberOut(BaseModel):
+    user: UserRefOut
+    role: str
+    is_you: bool
+    joined_at: datetime
+
+
+class MembersOut(BaseModel):
+    workspace: WorkspaceOut
+    members: list[MemberOut]
+    allowed_actions: list[str]  # "invite" | "change_role" | "remove_member"
+
+
+class InvitationOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    role: str
+    status: str  # pending | accepted | revoked | expired (statuses.InvitationStatus)
+    invited_by: UserRefOut | None
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None
+    revoked_at: datetime | None
+
+
+class InvitationCreatedOut(BaseModel):
+    """`token` is shown here once and never again: only its hash is stored."""
+
+    invitation: InvitationOut
+    token: str
+    accept_path: str
+
+
+class InvitationsOut(BaseModel):
+    items: list[InvitationOut]
 
 
 class BrandOut(BaseModel):

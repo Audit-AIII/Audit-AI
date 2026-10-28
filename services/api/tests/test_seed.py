@@ -61,7 +61,7 @@ def test_seed_creates_two_demo_accounts_covering_every_state(
     for demo in (asha, ben):
         headers = _login(client, seed_module, demo.email)
         me = client.get("/api/auth/me", headers=headers).json()
-        assert me["role"] == "admin"  # account owner
+        assert me["role"] == "owner"  # account owner
         brands = client.get("/api/brands", headers=headers).json()
         assert len(brands) == 2 and all(
             "[SEEDED]" in b["name"] and b["approved_source_count"] >= 1 for b in brands

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     database_url: str
     auth_secret_key: str = ""
     auth_token_ttl_minutes: int = 60 * 12
+    # Round 3: how long a workspace invitation link stays valid (docs/governance.md).
+    invitation_ttl_days: int = 7
     environment: str = "development"
     log_level: str = "INFO"
     cors_allow_origins: str = "http://localhost:3000"

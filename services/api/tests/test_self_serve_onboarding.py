@@ -109,7 +109,7 @@ def test_register_creates_admin_workspace_and_brand(client, force_stub_mode, cle
     )
     cleanup.append((uuid.UUID(body["organisation"]["id"]), uuid.UUID(body["user"]["id"])))
 
-    assert body["role"] == "admin"
+    assert body["role"] == "owner"
     assert body["user"]["email"] == email.lower()
     assert body["organisation"]["name"] == "Ada Co"
     assert body["brand"]["name"] == "Ada Brand"
@@ -118,7 +118,7 @@ def test_register_creates_admin_workspace_and_brand(client, force_stub_mode, cle
 
     me = client.get("/api/auth/me", headers=_auth(body["access_token"]))
     assert me.status_code == 200, me.text
-    assert me.json()["role"] == "admin"
+    assert me.json()["role"] == "owner"
     assert me.json()["organisation"]["id"] == body["organisation"]["id"]
 
 
@@ -155,10 +155,10 @@ def test_register_body_cannot_choose_role_or_organisation(
     body = response.json()
     cleanup.append((uuid.UUID(body["organisation"]["id"]), uuid.UUID(body["user"]["id"])))
 
-    assert body["role"] == "admin"
+    assert body["role"] == "owner"
     assert body["organisation"]["id"] != bogus_org_id
     membership = db_session.query(Membership).filter_by(user_id=uuid.UUID(body["user"]["id"])).one()
-    assert membership.role == "admin"
+    assert membership.role == "owner"
 
 
 @requires_db

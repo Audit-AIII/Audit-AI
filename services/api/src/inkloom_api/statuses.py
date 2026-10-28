@@ -113,11 +113,13 @@ class MembershipRole(str, Enum):
     routing`) — a real contract change (new role names), confirmed with the team before adding,
     not assumed.
 
-    Individual-user mode (2026-10-24): roles no longer grant or restrict anything - every active
-    membership is the account owner and holds every permission (auth/permissions.py). New
-    accounts get `ADMIN`, meaning "account owner". The other names stay valid only so existing
-    rows and the CHECK constraint need no migration."""
+    Round 3 workspaces (migration 0014, docs/governance.md): the four team roles are `OWNER`,
+    `APPROVER`, `REVIEWER` and `WRITER`. Registration makes the user `OWNER` of their personal
+    workspace, and invitations grant one of the four. The older names stay valid so existing rows
+    keep working; `auth/permissions.py` maps each one onto a team role (`ADMIN` means owner)."""
 
+    OWNER = "owner"
+    WRITER = "writer"
     SUBMITTER = "submitter"
     SOURCE_MANAGER = "source_manager"
     REVIEWER = "reviewer"
@@ -125,6 +127,24 @@ class MembershipRole(str, Enum):
     ADMIN = "admin"
     LEGAL_REVIEWER = "legal_reviewer"
     BRAND_MANAGER = "brand_manager"
+
+
+TEAM_ROLES = (
+    MembershipRole.OWNER,
+    MembershipRole.APPROVER,
+    MembershipRole.REVIEWER,
+    MembershipRole.WRITER,
+)
+"""The roles an invitation or a role change may grant (`invitations.role` CHECK)."""
+
+
+class InvitationStatus(str, Enum):
+    """Derived from an invitation's timestamps, never stored."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
 
 
 class ApprovalAction(str, Enum):

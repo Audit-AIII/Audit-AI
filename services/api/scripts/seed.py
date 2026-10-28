@@ -559,15 +559,22 @@ def seed_user(db, demo: DemoUser, start_hours_ago: float) -> None:
     owner = User(
         email=demo.email, display_name=demo.display_name, password_hash=hash_password(DEMO_PASSWORD)
     )
-    org = Organisation(name=demo.account_name, slug=f"seed-{demo.email.split('@')[0]}")
-    db.add_all([owner, org])
+    db.add(owner)
     db.flush()
-    # One membership: this user is the account owner ("admin" now means exactly that).
+    org = Organisation(
+        name=demo.account_name,
+        slug=f"seed-{demo.email.split('@')[0]}",
+        is_personal=True,
+        created_by_user_id=owner.id,
+    )
+    db.add(org)
+    db.flush()
+    # One membership: this user owns their personal workspace.
     db.add(
         Membership(
             organisation_id=org.id,
             user_id=owner.id,
-            role=MembershipRole.ADMIN.value,
+            role=MembershipRole.OWNER.value,
             is_active=True,
         )
     )

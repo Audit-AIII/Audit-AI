@@ -112,9 +112,11 @@ Content sent for review leaves the machine for the configured cloud provider (se
 
 ## Accounts and roles
 
-`POST /api/auth/register` creates a private account (an organisation with one membership) and
-returns `role: "admin"`, which simply means **account owner**. Roles no longer grant or restrict
-anything; risk-based routing is off, so `required_reviewer_role` is `null` on every new review (the
+`POST /api/auth/register` creates a private account: the user's **personal workspace** (an
+organisation with `is_personal: true`) where they are `role: "owner"`. Round 3 adds team members by
+invitation (section "Workspaces, members and invitations" below, and
+[`docs/governance.md`](../../docs/governance.md)). Older rows may still say `admin`, which means
+owner. Until Round 3 Phase 2 lands, roles gate only member management; risk-based routing is off, so `required_reviewer_role` is `null` on every new review (the
 UI shows "Any approver"). The user approves their own content. Guards that still apply on approve
 (409): the review must be finished (`completed` / `needs_human_review`), the version must be the
 current one, and no cited source may have been withdrawn or replaced since the review ran.
@@ -150,6 +152,13 @@ current one, and no cited source may have been withdrawn or replaced since the r
 | `GET /api/analytics/brand-risk` | **New.** Insights numbers |
 | `GET /api/evaluations/latest` | **New.** Latest Trust Scorecard run |
 | `POST /api/evaluations` | **New.** Run the labelled evaluation |
+| `GET /api/workspaces` | **Round 3.** Workspaces I belong to |
+| `POST /api/auth/switch-workspace` | **Round 3.** Token for another of my workspaces |
+| `GET /api/workspace/members` | **Round 3.** Members of the current workspace |
+| `PATCH` / `DELETE /api/workspace/members/{user_id}` | **Round 3.** Change a member's role / remove them (owner) |
+| `POST` / `GET /api/workspace/invitations` | **Round 3.** Invite by email + role / list invitations (owner) |
+| `POST /api/workspace/invitations/{invitation_id}/revoke` | **Round 3.** Withdraw an invitation (owner) |
+| `POST /api/invitations/accept` | **Round 3.** Accept an invitation with its token |
 
 ### `POST /api/auth/register`
 
@@ -161,7 +170,8 @@ characters, ≤ 72 bytes). **201**:
   "access_token": "eyJ...", "token_type": "bearer", "expires_in": 43200,
   "user": {"id": "...", "email": "ada@example.com", "display_name": null},
   "organisation": {"id": "...", "name": "ada's workspace", "slug": "ada-s-workspace-3f9a1c2b"},
-  "role": "admin",
+  "role": "owner",
+  "workspace": {"id": "...", "name": "ada's workspace", "is_personal": true},
   "brand": {"id": "...", "name": "My brand", "description": null, "approved_source_count": 0,
             "created_at": "2026-10-24T10:00:00Z", "review_count": 0, "open_review_count": 0, "last_review_at": null}
 }
@@ -172,7 +182,31 @@ Detail: [`docs/backend.md`](../../docs/backend.md), "Self-serve onboarding".
 ### `POST /api/auth/login` · `GET /api/auth/me`
 
 Login body `{"email", "password"}` → same shape as register minus `brand`. 401 `invalid email or
-password` for any failure (indistinguishable on purpose). `me` → `{"user", "organisation", "role"}`.
+password` for any failure (indistinguishable on purpose). Login signs into the user's oldest
+workspace (always their personal one). `me` → `{"user", "organisation", "role", "workspace"}`.
+
+### Workspaces, members and invitations (Round 3)
+
+The workspace is always the one in the token; `/api/workspace/...` never takes a workspace id.
+Shapes: `contract/examples/governance_members.json`, `governance_invitation_created.json`,
+`governance_invitations_list.json`, `governance_invite_accept.json`. Errors use the usual body with
+the codes in `docs/governance.md` section 8.
+
+- **Roles:** `owner`, `approver`, `reviewer`, `writer`. Only owners invite, revoke, change roles or
+  remove members (403 `FORBIDDEN`). Nobody changes their own role (403 `SELF_ROLE_CHANGE_FORBIDDEN`);
+  only the four team roles can be granted (403 `ROLE_ESCALATION_FORBIDDEN`; an unknown name is 422);
+  a workspace always keeps one owner (409 `LAST_OWNER_REQUIRED`).
+- **Invite:** `POST /api/workspace/invitations {"email", "role"}` → 201 with the invitation, the raw
+  `token` and `accept_path`. No email is sent; the token is shown only here (only its sha256 is
+  stored). Valid 7 days (`INVITATION_TTL_DAYS`). 409 `INVITE_ALREADY_PENDING` / `ALREADY_MEMBER`.
+- **Accept:** `POST /api/invitations/accept {"token"}`, signed in with the invited email → a login
+  response for the invited workspace in the invited role. 404 unknown token; 409 `INVITE_EXPIRED`,
+  `INVITE_REVOKED`, `INVITE_ALREADY_USED`, `ALREADY_MEMBER`; 403 `INVITE_EMAIL_MISMATCH`.
+- **Remove:** `DELETE /api/workspace/members/{user_id}` → the removed member (with their last role).
+  Their token for that workspace stops working on the next request; their personal workspace is
+  untouched. A removed member can be invited back.
+- Every change is in the audit log: `invite_created`, `invite_accepted`, `invite_revoked`,
+  `member_role_changed` (before/after), `member_removed`.
 
 ### `GET /api/brands` — dashboard list
 

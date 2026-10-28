@@ -6,7 +6,7 @@ from .content import ContentItem, ContentVersion
 from .evaluation import EvaluationRun
 from .governance import ApprovalEvent, AuditEvent
 from .ops import ExternalCallLog, IdempotencyKey, ResultCache
-from .organisations import Membership, Organisation, User
+from .organisations import Invitation, Membership, Organisation, User
 from .review import EvidenceLink, Finding, FindingComment, FindingDecision, Review
 
 __all__ = [
@@ -14,6 +14,7 @@ __all__ = [
     "Organisation",
     "User",
     "Membership",
+    "Invitation",
     "BrandProfile",
     "BrandSource",
     "SourceVersion",

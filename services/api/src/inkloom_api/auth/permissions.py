@@ -1,24 +1,23 @@
-"""Permission names, and the rule that decides who holds them.
+"""Permission names, team roles, and the rule that decides who holds them.
 
-Individual-user mode (product decision, 2026-10-24): InkLoom is a one-person-per-account app.
-Every organisation is one user's private account, and that user owns everything in it - there
-are no teammates, reviewer tiers or admins-vs-others. So a role no longer gates anything: every
-active membership holds every permission. Registration still writes `role="admin"`, which now
-simply means "account owner"; the other role names stay valid (the `memberships.role` CHECK
-constraint and migration 0008 are unchanged) so no data or migration has to move, but they grant
-exactly the same as `admin`.
+Round 3 workspaces (docs/governance.md): a membership has one role. The four team roles are
+owner, approver, reviewer and writer; every older role name maps onto one of them (`team_role`),
+so rows written before migration 0014 keep working.
 
-What still protects data is unchanged and is not a role check: the membership must be active
-(auth/dependencies.py) and every lookup is scoped to the membership's own organisation
-(tenancy.py). `Permission` and `require_permission(...)` stay on every route so the intent of each
-route is still readable, and so a future multi-user mode has one place to change.
+Phase 1 enforces workspace management here (`can_manage_members`, `can_grant_role`). Content
+routes still pass for every known role through `role_has_permission` until Phase 2 replaces it
+with the full role x action table in this same module, so there stays one place to change.
+
+What protects data across workspaces is unchanged and is not a role check: the membership must
+be active (auth/dependencies.py) and every lookup is scoped to the token's own workspace
+(tenancy.py).
 """
 
 from __future__ import annotations
 
 from enum import Enum
 
-from ..statuses import MembershipRole
+from ..statuses import TEAM_ROLES, MembershipRole
 
 
 class Permission(str, Enum):
@@ -31,8 +30,41 @@ class Permission(str, Enum):
 
 _KNOWN_ROLES = frozenset(role.value for role in MembershipRole)
 
+_LEGACY_TEAM_ROLE = {
+    MembershipRole.ADMIN.value: MembershipRole.OWNER,
+    MembershipRole.SUBMITTER.value: MembershipRole.WRITER,
+    MembershipRole.SOURCE_MANAGER.value: MembershipRole.WRITER,
+    MembershipRole.LEGAL_REVIEWER.value: MembershipRole.REVIEWER,
+    MembershipRole.BRAND_MANAGER.value: MembershipRole.APPROVER,
+}
+_TEAM_ROLE_VALUES = frozenset(role.value for role in TEAM_ROLES)
+
+
+def team_role(role: str) -> MembershipRole | None:
+    """The team role a stored role string means, or None for an unknown string (which the
+    `memberships.role` CHECK constraint already prevents)."""
+    if role in _TEAM_ROLE_VALUES:
+        return MembershipRole(role)
+    return _LEGACY_TEAM_ROLE.get(role)
+
+
+def is_owner(role: str) -> bool:
+    return team_role(role) is MembershipRole.OWNER
+
+
+def can_manage_members(role: str) -> bool:
+    """Invite, revoke invitations, change roles, remove members: owners only."""
+    return is_owner(role)
+
+
+def can_grant_role(granter_role: str, role: str) -> bool:
+    """Nobody grants a role above their own. Owners hold every role, and only owners manage
+    members, so in practice an owner may grant any of the four team roles and nobody else may
+    grant any. Only the four team roles can be granted, never a legacy name."""
+    return role in _TEAM_ROLE_VALUES and is_owner(granter_role)
+
 
 def role_has_permission(role: str, permission: Permission) -> bool:
-    """True for every known role: the member is the account owner. An unknown role string (which
-    the database CHECK constraint already prevents) is still refused, as a defensive default."""
+    """True for every known role until Phase 2 (see the module docstring). An unknown role string
+    is still refused, as a defensive default."""
     return role in _KNOWN_ROLES and isinstance(permission, Permission)

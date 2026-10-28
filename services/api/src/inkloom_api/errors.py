@@ -33,6 +33,31 @@ class ErrorCode(str, Enum):
     CONFLICT = "CONFLICT"
     RATE_LIMITED = "RATE_LIMITED"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    # Round 3 governance (docs/governance.md, section 8). Raised only through `ApiException`.
+    SELF_APPROVAL_FORBIDDEN = "SELF_APPROVAL_FORBIDDEN"
+    SELF_REVIEW_FORBIDDEN = "SELF_REVIEW_FORBIDDEN"
+    SAME_REVIEWER_APPROVER_FORBIDDEN = "SAME_REVIEWER_APPROVER_FORBIDDEN"
+    SELF_ROLE_CHANGE_FORBIDDEN = "SELF_ROLE_CHANGE_FORBIDDEN"
+    ROLE_ESCALATION_FORBIDDEN = "ROLE_ESCALATION_FORBIDDEN"
+    INVITE_EMAIL_MISMATCH = "INVITE_EMAIL_MISMATCH"
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    INVALID_TRANSITION = "INVALID_TRANSITION"
+    INVITE_EXPIRED = "INVITE_EXPIRED"
+    INVITE_REVOKED = "INVITE_REVOKED"
+    INVITE_ALREADY_USED = "INVITE_ALREADY_USED"
+    INVITE_ALREADY_PENDING = "INVITE_ALREADY_PENDING"
+    ALREADY_MEMBER = "ALREADY_MEMBER"
+    LAST_OWNER_REQUIRED = "LAST_OWNER_REQUIRED"
+
+
+class ApiException(HTTPException):
+    """An HTTP error with its own `code`, for the cases where the status alone is not enough
+    (two different 403s the frontend must tell apart). Every other error still gets its code
+    from the status, exactly as before."""
+
+    def __init__(self, status_code: int, code: ErrorCode, message: str) -> None:
+        super().__init__(status_code=status_code, detail=message)
+        self.code = code
 
 
 class ApiError(BaseModel):
@@ -81,7 +106,7 @@ def install_error_handlers(app: FastAPI) -> None:
     # 404 (no such route) and 405 (wrong method), which otherwise answer a bare {"detail": ...}.
     @app.exception_handler(HTTPException)
     async def _on_http_exception(request: Request, exc: HTTPException) -> JSONResponse:
-        code = {
+        code = getattr(exc, "code", None) or {
             status.HTTP_401_UNAUTHORIZED: ErrorCode.UNAUTHENTICATED,
             status.HTTP_403_FORBIDDEN: ErrorCode.FORBIDDEN,
             status.HTTP_404_NOT_FOUND: ErrorCode.NOT_FOUND,

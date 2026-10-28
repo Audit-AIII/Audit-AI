@@ -29,6 +29,7 @@ from .routers import (  # noqa: E402
     evaluations,
     findings,
     reviews,
+    workspace,
 )
 
 settings = get_settings()
@@ -62,6 +63,7 @@ app.include_router(content_versions.router)
 app.include_router(analytics.router)
 app.include_router(evaluations.router)
 app.include_router(findings.router)
+app.include_router(workspace.router)
 
 
 @app.get("/health")

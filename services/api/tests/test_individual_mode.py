@@ -82,7 +82,7 @@ def test_high_severity_review_is_not_routed(client, monkeypatch, account_factory
 def test_registered_owner_approves_own_content(client, monkeypatch, account_factory) -> None:
     use_scripted_provider(monkeypatch, CONTRADICTION_RULES)
     owner = account_factory("owner")
-    assert owner.role == "admin"  # "admin" now simply means "account owner"
+    assert owner.role == "owner"
     review = owner.submit("Lumen Pods offer up to 24 hours of playback per charge.")
 
     approved = _approve(client, owner, review["content_version_id"])
