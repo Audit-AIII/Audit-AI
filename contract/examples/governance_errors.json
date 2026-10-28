@@ -1,0 +1,20 @@
+[
+  { "http_status": 403, "body": { "error": { "code": "FORBIDDEN", "message": "your role in this workspace cannot approve content", "request_id": "0f1e2d3c4b5a69788796a5b4c3d2e1f0" } } },
+  { "http_status": 403, "body": { "error": { "code": "SELF_APPROVAL_FORBIDDEN", "message": "you wrote this draft, so someone else has to approve it", "request_id": "1a2b3c4d5e6f708192a3b4c5d6e7f809" } } },
+  { "http_status": 403, "body": { "error": { "code": "SELF_REVIEW_FORBIDDEN", "message": "you wrote this draft, so someone else has to review it", "request_id": "2b3c4d5e6f708192a3b4c5d6e7f8091a" } } },
+  { "http_status": 403, "body": { "error": { "code": "SAME_REVIEWER_APPROVER_FORBIDDEN", "message": "you reviewed this version, so a different person has to approve it", "request_id": "3c4d5e6f708192a3b4c5d6e7f8091a2b" } } },
+  { "http_status": 403, "body": { "error": { "code": "SELF_ROLE_CHANGE_FORBIDDEN", "message": "you cannot change your own role", "request_id": "4d5e6f708192a3b4c5d6e7f8091a2b3c" } } },
+  { "http_status": 403, "body": { "error": { "code": "ROLE_ESCALATION_FORBIDDEN", "message": "you cannot give a role you do not hold", "request_id": "5e6f708192a3b4c5d6e7f8091a2b3c4d" } } },
+  { "http_status": 403, "body": { "error": { "code": "INVITE_EMAIL_MISMATCH", "message": "this invitation was sent to a different email address", "request_id": "6f708192a3b4c5d6e7f8091a2b3c4d5e" } } },
+  { "http_status": 404, "body": { "error": { "code": "NOT_FOUND", "message": "content not found", "request_id": "708192a3b4c5d6e7f8091a2b3c4d5e6f" } } },
+  { "http_status": 404, "body": { "error": { "code": "NOT_FOUND", "message": "invitation not found", "request_id": "8192a3b4c5d6e7f8091a2b3c4d5e6f70" } } },
+  { "http_status": 409, "body": { "error": { "code": "REVIEW_REQUIRED", "message": "this draft has a contradicted claim and must be reviewed before approval", "request_id": "92a3b4c5d6e7f8091a2b3c4d5e6f7081" } } },
+  { "http_status": 409, "body": { "error": { "code": "INVALID_TRANSITION", "message": "cannot publish content in status 'reviewed'", "request_id": "a3b4c5d6e7f8091a2b3c4d5e6f708192" } } },
+  { "http_status": 409, "body": { "error": { "code": "CONFLICT", "message": "a newer version of this content exists; this review is stale", "request_id": "b4c5d6e7f8091a2b3c4d5e6f708192a3" } } },
+  { "http_status": 409, "body": { "error": { "code": "INVITE_EXPIRED", "message": "this invitation has expired; ask for a new one", "request_id": "c5d6e7f8091a2b3c4d5e6f708192a3b4" } } },
+  { "http_status": 409, "body": { "error": { "code": "INVITE_REVOKED", "message": "this invitation was withdrawn", "request_id": "d6e7f8091a2b3c4d5e6f708192a3b4c5" } } },
+  { "http_status": 409, "body": { "error": { "code": "INVITE_ALREADY_USED", "message": "this invitation has already been accepted", "request_id": "e7f8091a2b3c4d5e6f708192a3b4c5d6" } } },
+  { "http_status": 409, "body": { "error": { "code": "INVITE_ALREADY_PENDING", "message": "an invitation for this email is already pending", "request_id": "f8091a2b3c4d5e6f708192a3b4c5d6e7" } } },
+  { "http_status": 409, "body": { "error": { "code": "ALREADY_MEMBER", "message": "this person is already a member of the workspace", "request_id": "091a2b3c4d5e6f708192a3b4c5d6e7f8" } } },
+  { "http_status": 409, "body": { "error": { "code": "LAST_OWNER_REQUIRED", "message": "a workspace must keep at least one owner", "request_id": "1a2b3c4d5e6f708192a3b4c5d6e7f8a9" } } }
+]

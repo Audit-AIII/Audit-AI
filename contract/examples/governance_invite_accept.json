@@ -1,0 +1,8 @@
+{
+  "access_token": "<jwt for the invited workspace>",
+  "user": { "id": "22222222-2222-4222-8222-222222222222", "email": "remy@example.com", "display_name": "Remy Reviewer" },
+  "organisation": { "id": "0b8f6a3e-4c21-4d7a-9e5b-3f2a1c0d9e88", "name": "Acme content team", "slug": "acme-content-team-3f9a1c2b" },
+  "role": "reviewer",
+  "expires_in": 3600,
+  "workspace": { "id": "0b8f6a3e-4c21-4d7a-9e5b-3f2a1c0d9e88", "name": "Acme content team", "is_personal": false }
+}
