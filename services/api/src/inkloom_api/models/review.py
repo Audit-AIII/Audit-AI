@@ -38,7 +38,8 @@ class Review(Base):
     __table_args__ = (
         CheckConstraint(f"status IN {tuple(values(ReviewState))}", name="ck_review_status"),
         CheckConstraint(
-            f"required_reviewer_role IN {_ROUTABLE_REVIEWER_ROLES} OR required_reviewer_role IS NULL",
+            f"required_reviewer_role IN {_ROUTABLE_REVIEWER_ROLES} "
+            "OR required_reviewer_role IS NULL",
             name="ck_review_required_reviewer_role",
         ),
         CheckConstraint(

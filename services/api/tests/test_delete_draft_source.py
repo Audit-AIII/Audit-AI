@@ -81,7 +81,8 @@ def test_approved_and_withdrawn_sources_are_refused(client, account_factory) -> 
     refused = client.delete(url, headers=owner.headers)
     assert refused.status_code == 409
     assert refused.json()["error"]["message"] == (
-        "only a document that was never approved can be deleted; withdraw an approved document instead"
+        "only a document that was never approved can be deleted; "
+        "withdraw an approved document instead"
     )
     assert owner.source_id in _source_ids(client, owner)
 

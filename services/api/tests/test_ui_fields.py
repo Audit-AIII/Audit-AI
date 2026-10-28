@@ -36,7 +36,8 @@ RULES = [
     ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE", None, "No document mentions rankings."),
 ]
 MIXED_TEXT = (
-    "Lumen Pods offer up to 24 hours of playback per charge. Lumen Pods come with a 2-year warranty. "
+    "Lumen Pods offer up to 24 hours of playback per charge. "
+    "Lumen Pods come with a 2-year warranty. "
     "Lumen Pods are India's number one earbuds."
 )
 

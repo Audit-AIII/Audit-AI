@@ -207,7 +207,10 @@ def assess(review, findings) -> RiskAssessment | None:
     top = next(t.code for t in triggers if t.risk_level == level.value) if triggers else codes[0]
     parts = [_sentence(code, codes.count(code)) for code in dict.fromkeys([top, *codes])]
     text = "; ".join(parts)
-    text = f"{text[0].upper()}{text[1:]}, so a reviewer must check this draft before it can be approved."
+    text = (
+        f"{text[0].upper()}{text[1:]}, "
+        "so a reviewer must check this draft before it can be approved."
+    )
     return RiskAssessment(level.value, REVIEWER, top, text, triggers[:50])
 
 

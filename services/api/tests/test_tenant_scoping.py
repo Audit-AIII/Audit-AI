@@ -2,7 +2,8 @@
 real Postgres and the real /api/auth/login + /api/brands/{id}/sources routes.
 
 1. Org A cannot read org B's records.                -> test_org_a_cannot_read_org_bs_brand
-2. Changing organisation_id in a query grants nothing. -> test_query_string_organisation_override_is_ignored
+2. Changing organisation_id in a query grants nothing.
+   -> test_query_string_organisation_override_is_ignored
 3. Revoked membership loses access.                    -> test_revoked_membership_loses_access
 4. Guessed IDs return a safe 404.                      -> test_guessed_brand_id_returns_safe_404
 5. Role escalation attempts are denied.                -> unit-tested in test_permissions.py

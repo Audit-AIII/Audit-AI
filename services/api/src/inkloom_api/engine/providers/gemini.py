@@ -69,7 +69,8 @@ class GeminiProvider:
         # when its owner confirms it is on the paid tier. Fails closed (SECURITY.md).
         if env.get(PAID_TIER_VAR, "").strip().lower() != "true":
             raise ProviderNotConfiguredError(
-                f"Gemini disabled: set {PAID_TIER_VAR}=true only for a paid-tier key (free-tier prompts are used "
+                f"Gemini disabled: set {PAID_TIER_VAR}=true only for a paid-tier key "
+                "(free-tier prompts are used "
                 "by Google to improve its products, so customer content is not sent there)."
             )
         register_secret(api_key)

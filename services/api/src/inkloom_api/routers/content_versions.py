@@ -126,7 +126,8 @@ def _decide(
     except SupersededSourceError:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "a source this review cited is no longer the brand's approved version; rerun the review first",
+            "a source this review cited is no longer the brand's approved version; "
+            "rerun the review first",
         ) from None
 
     before = item.workflow_status

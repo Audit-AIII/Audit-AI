@@ -1,6 +1,7 @@
 """Brand knowledge: profiles, sources and the immutable text of each source version.
 
-A `BrandSource` resolves to an organisation via `brand_profile_id -> brand_profiles.organisation_id`.
+A `BrandSource` resolves to an organisation via
+`brand_profile_id -> brand_profiles.organisation_id`.
 """
 
 from __future__ import annotations

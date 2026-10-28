@@ -3,7 +3,8 @@ and idempotency"). Cache, idempotency and rate limits are tested in their own mo
 
 1. Provider returns 429: adapter falls back.   -> test_falls_through_on_rate_limit_to_next_provider
 2. Timeout -> fallback (bounded retry is retry.py's own job, tested there; this proves
-   FallbackProvider treats an exhausted-retry failure the same as any other). -> test_falls_through_on_timeout
+   FallbackProvider treats an exhausted-retry failure the same as any other).
+   -> test_falls_through_on_timeout
 3. Invalid JSON: treated as failure.            -> test_malformed_output_falls_through
 4. All providers down: failure.                 -> test_all_providers_failing_raises
    (also: none configured at all)               -> test_no_providers_configured_raises_immediately

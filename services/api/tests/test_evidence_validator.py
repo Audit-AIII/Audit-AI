@@ -1,12 +1,14 @@
 """Evidence validation (the backend never trusts the engine's citations):
 
 1. Unknown source ID is rejected.                    -> test_unknown_source_is_rejected
-2. Wrong-brand and cross-tenant source IDs rejected.  -> test_source_from_a_different_corpus_is_rejected
+2. Wrong-brand and cross-tenant source IDs rejected.
+   -> test_source_from_a_different_corpus_is_rejected
 3. Quote not in the passage is rejected.               -> test_quote_not_in_source_is_rejected
-4. Valid quote with extra whitespace is accepted.      -> test_quote_with_extra_whitespace_is_accepted
+4. Valid quote with extra whitespace is accepted.
+   -> test_quote_with_extra_whitespace_is_accepted
 5. Draft source is never used as evidence.             -> covered end-to-end in test_reviews.py:
-   `review_runner.latest_approved_sources` only ever selects `status == "approved"`, so a draft source's text
-   can never reach `build_corpus` in the first place.
+   `review_runner.latest_approved_sources` only ever selects `status == "approved"`, so a draft
+   source's text can never reach `build_corpus` in the first place.
 
 None of this needs a database: `validate_citation` only takes plain values (a `CorpusEntry`
 built from a `ReferenceDocument`, and a `Citation`), independent of how either was stored.

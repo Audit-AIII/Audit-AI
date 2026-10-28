@@ -83,7 +83,8 @@ def test_metrics_from_real_rows_and_period(
 
     # Decided 120 minutes after it was created: contradicted + unsupported.
     decided = owner.submit(
-        "Lumen Pods offer up to 24 hours of playback per charge. They are India's number one earbuds."
+        "Lumen Pods offer up to 24 hours of playback per charge. "
+        "They are India's number one earbuds."
     )
     event = client.post(
         f"/api/content-versions/{decided['content_version_id']}/approve", headers=owner.headers

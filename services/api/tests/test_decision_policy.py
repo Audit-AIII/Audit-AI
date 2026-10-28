@@ -80,7 +80,8 @@ def test_review_reasons_for_each_kind_of_finding(client, monkeypatch, account_fa
         ],
     )
     review = account_factory("owner").submit(
-        "Lumen Pods offer up to 24 hours of playback per charge. Lumen Pods are India's number one earbuds. BUY NOW TODAY."
+        "Lumen Pods offer up to 24 hours of playback per charge. "
+        "Lumen Pods are India's number one earbuds. BUY NOW TODAY."
     )
     reasons = {f["category"]: f["review_reasons"] for f in review["findings"]}
     assert reasons["contradicted_claim"] == ["contradicted"]

@@ -265,9 +265,7 @@ def test_clean_draft_goes_to_an_approver_without_a_review_step(client, team, db_
     assert _approve(client, team.approver, draft).status_code == 201
 
     # D4: a clean draft approved straight from `draft` is submitted in the same step.
-    direct = _draft(
-        client, team.writer, team.owner.brand_id, CLEAN_TEXT
-    )
+    direct = _draft(client, team.writer, team.owner.brand_id, CLEAN_TEXT)
     assert _approve(client, team.approver, direct).status_code == 201
     db_session.expire_all()
     submitted_event = (

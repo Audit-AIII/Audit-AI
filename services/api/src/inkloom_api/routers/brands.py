@@ -404,7 +404,8 @@ def delete_brand_source(
     if source.status != BrandSourceStatus.DRAFT.value:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "only a document that was never approved can be deleted; withdraw an approved document instead",
+            "only a document that was never approved can be deleted; "
+            "withdraw an approved document instead",
         )
     storage_path = source.storage_path
     deleted = DeletedSourceOut(id=source.id, title=source.title)

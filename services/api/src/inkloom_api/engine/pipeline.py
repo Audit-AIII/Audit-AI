@@ -180,7 +180,10 @@ def run_review(
     if not provider.configured_providers:
         review.engine_provider = "stub-unconfigured"
         if confidential:
-            reason = "a confidential source is in scope, so only local Ollama was tried, and it is not configured (OLLAMA_MODEL unset)"
+            reason = (
+                "a confidential source is in scope, so only local Ollama was tried, and it is "
+                "not configured (OLLAMA_MODEL unset)"
+            )
         else:
             reason = f"none configured (tried: {', '.join(provider.unconfigured)})"
         _write_stub_finding(db, review, content_version, reason)
@@ -583,7 +586,8 @@ def _write_finding(
 def _review_reasons(result: ClaimResult, verdict: Verdict, requires_review: bool) -> list[str]:
     """The engine's ClaimReviewReason values for the stored verdict. If this backend downgraded
     the claim (its own citation check), the engine's reasons no longer apply: not_enough_evidence.
-    A claim that needs review with no reason recorded (the decision policy itself failed) says error."""
+    A claim that needs review with no reason recorded (the decision policy itself failed) says
+    error."""
     if not requires_review:
         return []
     if verdict is not result.verdict:

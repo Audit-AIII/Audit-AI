@@ -189,13 +189,16 @@ def _limits_note(records: list[EvalRecord], errors: int) -> str:
     note = (
         f"Measured on {len(records)} labelled claims from the engine's own test set "
         f"({labels[Verdict.SUPPORTED]} supported, {labels[Verdict.CONTRADICTED]} contradicted, "
-        f"{labels[Verdict.NOT_ENOUGH_EVIDENCE]} without evidence), against short synthetic brand documents. "
-        "This is a small test set: it shows the checker was tested, not a universal accuracy figure, "
+        f"{labels[Verdict.NOT_ENOUGH_EVIDENCE]} without evidence), "
+        "against short synthetic brand documents. "
+        "This is a small test set: it shows the checker was tested, "
+        "not a universal accuracy figure, "
         "and results on your own documents can differ. Per-check numbers rest on even fewer claims."
     )
     if errors:
         note += (
-            f" {errors} claim(s) got no verdict (a provider failure or the run's call budget); they count as "
+            f" {errors} claim(s) got no verdict (a provider failure or the run's call budget); "
+            "they count as "
             "not flagged, which lowers the catch rate."
         )
     return note

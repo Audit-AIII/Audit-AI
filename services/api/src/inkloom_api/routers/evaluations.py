@@ -215,8 +215,10 @@ def create_evaluation(
             db.commit()
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                f"the AI provider could not answer {failed} of {result.sample_size} test claims (rate limits, "
-                "outages or the time limit), so this run was not saved - its numbers would describe the "
+                f"the AI provider could not answer {failed} of {result.sample_size} test claims "
+                "(rate limits, "
+                "outages or the time limit), so this run was not saved - "
+                "its numbers would describe the "
                 "provider, not the checker. Try again later.",
             )
 

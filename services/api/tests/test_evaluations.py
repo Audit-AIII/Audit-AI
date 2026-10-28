@@ -1,6 +1,9 @@
 """Trust Scorecard: GET /api/evaluations/latest and POST /api/evaluations (step 7).
 
-Runs use the engine's real labelled dataset (services/verification/eval/dataset.jsonl; its size and label split are read from the file, not hardcoded, so the dataset can grow; it grew from 55 to 80 claims in EVAL.md Phase 2) and the engine's real verifier, behind the offline scripted provider - so the numbers below are exactly derivable from the labels.
+Runs use the engine's real labelled dataset (services/verification/eval/dataset.jsonl; its size
+and label split are read from the file, not hardcoded, so the dataset can grow; it grew from 55
+to 80 claims in EVAL.md Phase 2) and the engine's real verifier, behind the offline scripted
+provider - so the numbers below are exactly derivable from the labels.
 
 1. latest before any run -> 404 NOT_FOUND (never 200 with missing numbers);
    -> test_latest_is_404_before_any_run
@@ -49,7 +52,8 @@ EVALUATION_KEYS = {"catch_rate", "false_positive_rate", "per_check", "sample_siz
 
 @pytest.fixture
 def scripted_eval(monkeypatch):
-    """Every evaluation call answered by the scripted provider with no rules: NOT_ENOUGH_EVIDENCE."""
+    """Every evaluation call answered by the scripted provider with no rules:
+    NOT_ENOUGH_EVIDENCE."""
     from inkloom_api.engine.providers.fallback import FallbackProvider
     from inkloom_api.engine.scripted_provider import scripted_provider
     from inkloom_api.routers import evaluations

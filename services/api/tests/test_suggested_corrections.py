@@ -163,7 +163,8 @@ def test_no_correction_call_for_supported_or_unverified(
         monkeypatch, [SUPPORTED_12, ScriptedRule("number one", "NOT_ENOUGH_EVIDENCE")]
     )
     review = account_factory("owner").submit(
-        "Lumen Pods offer up to 12 hours of playback per charge. Lumen Pods are India's number one earbuds."
+        "Lumen Pods offer up to 12 hours of playback per charge. "
+        "Lumen Pods are India's number one earbuds."
     )
     assert all(f["suggested_correction"] is None for f in review["findings"])
     # extraction + two verifications + one softening call for the unverified claim (the scripted

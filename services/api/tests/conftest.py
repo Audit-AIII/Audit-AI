@@ -223,7 +223,8 @@ def join_workspace(client, owner: Account, member: Account, role: str) -> dict:
 
 def use_scripted_provider(monkeypatch, rules) -> None:
     """Routes every review in this test through the offline scripted provider
-    (inkloom_api.engine.scripted_provider) - real engine code, deterministic verdicts, no network."""
+    (inkloom_api.engine.scripted_provider) - real engine code, deterministic verdicts, no
+    network."""
     from inkloom_api.engine import pipeline
     from inkloom_api.engine.providers.fallback import FallbackProvider
     from inkloom_api.engine.scripted_provider import scripted_provider

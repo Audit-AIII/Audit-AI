@@ -83,7 +83,8 @@ def apply_brand_rules(
         )
     if evaluation.truncated:
         notes.append(
-            f"Only the first {len(evaluation.findings)} rule findings are listed; rule_checks has the full counts."
+            f"Only the first {len(evaluation.findings)} rule findings are listed; "
+            "rule_checks has the full counts."
         )
     return RulesOutcome(
         bool(evaluation.findings) or not evaluation.complete, " ".join(notes) or None
