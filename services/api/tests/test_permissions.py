@@ -124,9 +124,12 @@ def test_allowed_actions_on_a_current_decidable_review_follow_can(role: str, own
     actions = allowed_review_actions(
         role, me, item, "needs_human_review", is_latest_review=True, is_current_version=True
     )
-    assert set(actions) == {
+    expected = {
         name for name, permission in _ACTION_PERMISSION.items() if can(role, me, permission, item)
     }
+    if own:  # Phase 3: never approve your own draft in a team
+        expected.discard("approve")
+    assert set(actions) == expected
 
 
 def test_writer_never_gets_approve_on_their_own_draft() -> None:
@@ -148,6 +151,7 @@ def test_decisions_only_on_the_latest_decidable_review() -> None:
             status,
             is_latest_review=latest,
             is_current_version=current,
+            self_approval_allowed=True,  # solo owner of their own draft (D1)
         )
 
     assert {"approve", "request_changes", "reject"} <= set(actions("completed", True, True))
@@ -159,3 +163,24 @@ def test_decisions_only_on_the_latest_decidable_review() -> None:
     assert {"create_version", "rerun", "comment", "dismiss_finding"} <= set(
         actions("failed", False, False)
     )
+
+
+def test_approve_on_own_work_only_as_a_solo_sign_off() -> None:
+    me, writer = uuid.uuid4(), uuid.uuid4()
+
+    def approve_listed(item, version=None, solo=False) -> bool:
+        return "approve" in allowed_review_actions(
+            "owner",
+            me,
+            item,
+            "completed",
+            is_latest_review=True,
+            is_current_version=True,
+            content_version=version,
+            self_approval_allowed=solo,
+        )
+
+    assert approve_listed(_item(writer))
+    assert not approve_listed(_item(me))
+    assert not approve_listed(_item(writer), version=_item(me))  # I wrote this version
+    assert approve_listed(_item(me), solo=True)

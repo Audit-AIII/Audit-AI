@@ -17,8 +17,8 @@ from sqlalchemy.orm import Session
 
 from .approval_rules import DECIDABLE_STATES
 from .auth.dependencies import AuthContext
-from .auth.permissions import allowed_review_actions
-from .models import ContentItem, ContentVersion, Review
+from .auth.permissions import Permission, allowed_review_actions, role_has_permission
+from .models import ContentItem, ContentVersion, Membership, Review
 from .schemas import ReviewOut
 
 
@@ -105,6 +105,15 @@ def review_outs(db: Session, auth: AuthContext, reviews: list[Review]) -> list[R
     """`ReviewOut`s with `allowed_actions` for the caller. Every route returning a review builds
     it here, so no route can forget the field or compute it differently."""
     latest = latest_review_ids(db, {r.content_version_id for r in reviews})
+    approvers = {
+        user_id
+        for user_id, role in db.query(Membership.user_id, Membership.role).filter(
+            Membership.organisation_id == auth.organisation_id, Membership.is_active.is_(True)
+        )
+        if role_has_permission(role, Permission.APPROVE)
+    }
+    # D1: the caller may sign off their own work only while nobody else could approve.
+    self_approval_allowed = not (approvers - {auth.user_id})
     outs = []
     for review in reviews:
         version = review.content_version
@@ -116,10 +125,16 @@ def review_outs(db: Session, auth: AuthContext, reviews: list[Review]) -> list[R
             review.status,
             is_latest_review=review.id in latest,
             is_current_version=version.is_current,
+            content_version=version,
+            self_approval_allowed=self_approval_allowed,
         )
+        approval_mode = "team" if approvers - {item.created_by} else "self"
         outs.append(
             ReviewOut.from_model(
-                review, allowed_actions=actions, is_current_version=version.is_current
+                review,
+                allowed_actions=actions,
+                is_current_version=version.is_current,
+                approval_mode=approval_mode,
             )
         )
     return outs

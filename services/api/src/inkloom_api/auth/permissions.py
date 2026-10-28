@@ -122,6 +122,16 @@ def is_own_draft(content_item, user_id: uuid.UUID) -> bool:
     return content_item is not None and content_item.created_by == user_id
 
 
+def is_author(user_id: uuid.UUID, content_item, content_version=None) -> bool:
+    """Wrote the draft, or wrote the version in question (an owner who edited someone else's
+    draft authored that version). Used by the self-approval rule (approval_service.py)."""
+    authors = {
+        getattr(content_item, "created_by", None),
+        getattr(content_version, "created_by", None),
+    }
+    return user_id in authors
+
+
 def can(role: str, user_id: uuid.UUID, permission: Permission, content_item=None) -> bool:
     """Whether this person may take this action, on this draft when one is given."""
     if not role_has_permission(role, permission):
@@ -157,12 +167,15 @@ def allowed_review_actions(
     *,
     is_latest_review: bool,
     is_current_version: bool,
+    content_version=None,
+    self_approval_allowed: bool = False,
 ) -> list[str]:
     """`allowed_actions[]` for one review, as the frontend gets it (docs/governance.md 9.2), with
     exactly the conditions the routes apply:
 
     - approve: the latest review of the draft's current version, in a decidable state (the
-      approve route refuses anything else as stale or not decidable);
+      approve route refuses anything else as stale or not decidable), and never to the draft's
+      or version's author unless `self_approval_allowed` (D1: nobody else could approve);
     - request_changes / reject: the latest review of its version, decidable;
     - create_version, rerun, comment, dismiss_finding: any review (their routes don't care which).
     """
@@ -176,7 +189,13 @@ def allowed_review_actions(
         actions.append("create_version")
     if ok(Permission.RERUN):
         actions.append("rerun")
-    if decidable and is_current_version and ok(Permission.APPROVE):
+    own_work = is_author(user_id, content_item, content_version)
+    if (
+        decidable
+        and is_current_version
+        and ok(Permission.APPROVE)
+        and (self_approval_allowed or not own_work)
+    ):
         actions.append("approve")
     if decidable and ok(Permission.REQUEST_CHANGES):
         actions.append("request_changes")

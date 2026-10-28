@@ -169,8 +169,8 @@ def main() -> None:
         200,
         "brand-risk",
     )
-    if set(risk) != RISK_KEYS:
-        fail(f"brand-risk keys {sorted(risk)}")
+    if not RISK_KEYS <= set(risk):  # fields are additive: check the required ones are there
+        fail(f"brand-risk is missing {sorted(RISK_KEYS - set(risk))}")
     print(f"  {risk}")
 
     step("latest evaluation (none run yet)")

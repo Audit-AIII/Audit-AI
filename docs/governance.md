@@ -1,6 +1,6 @@
 # Team governance, permissions and risk-based routing (Round 3)
 
-**Status: Phases 1–2 done (2026-10-28); Phases 3–6 proposed.** Owner: Darsh (backend). Sections 1–3
+**Status: Phases 1–3 done (2026-10-28); Phases 4–6 proposed.** Owner: Darsh (backend). Sections 1–3
 describe the code as found at `1e416e5`; sections 4–10 are the plan. Section 3 lists the open
 decisions.
 
@@ -11,7 +11,8 @@ decisions.
 | 0. Inspect, plan, contract examples | done (`4326865`) |
 | 1. Workspaces, members, invitations | **done**: migration `0014`, `routers/workspace.py`, `workspace_service.py`, `tests/test_workspace_membership.py`. D2 (`admin` → `owner`) and D5 (link shown once) applied as recommended |
 | 2. Roles enforced server-side | **done**: role x action table and `can()` in `auth/permissions.py`, used by every route and by `allowed_actions` (`review_queries.review_outs`); `tests/test_permissions.py`, `tests/test_governance_roles.py` |
-| 3–6 | not started |
+| 3. Author cannot approve own content | **done**: `approval_service.check_not_self_approval` on the approve route (and, from Phase 4, on publish and the implicit approve); 403 `SELF_APPROVAL_FORBIDDEN` + `approval_denied` audit event, nothing else changes; D1 solo sign-off recorded as `self_approval: true`; `approval_mode` on reviews; `tests/test_self_approval.py` |
+| 4–6 | not started |
 
 Example payloads for the frontend are in [`contract/examples/`](../contract/examples/), all
 starting with `governance_`. Section 9 explains each one.
@@ -303,7 +304,16 @@ or owner.
 **Implemented in Phase 2** (`auth/permissions.py`, `Permission` names in brackets):
 every row above except submit, assign, mark_reviewed and publish, whose routes arrive in Phases
 3–4. Reading needs only an active membership. The writer's "own" rule covers create_version, locks
-and rerun. "not own" on approve/publish is Phase 3.
+and rerun. "not own" on approve/publish: Phase 3, below.
+
+**Phase 3 rule (implemented):** "own" means the caller wrote the draft (`content_items.created_by`)
+**or** wrote the version being approved (an owner who edited someone's draft authored that
+version). Refused with 403 `SELF_APPROVAL_FORBIDDEN` whenever another active member holds the
+approve permission; writers and reviewers don't count. When nobody else could approve (D1), the
+approval goes through and its audit event carries `self_approval: true, reason: "sole_member"`.
+The check runs before every other approve guard; a refusal rolls the request back and writes only
+the `approval_denied` event. Today the approve route is the only path that can approve (there is
+no PATCH-status or bulk route); Phase 4's publish route and implicit approve call the same check.
 
 "not own" → 403 `SELF_APPROVAL_FORBIDDEN` (D1 solo rule aside), checked on approve, publish,
 the implicit approve of D4, and any future bulk route.

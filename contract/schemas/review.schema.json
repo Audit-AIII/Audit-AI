@@ -248,6 +248,13 @@
         "null"
       ],
       "description": "Round 3: true when this review's content version is the draft's current one. null on idempotency replays recorded before this field existed."
+    },
+    "approval_mode": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Round 3: \"self\" when nobody but the draft's author could approve it, so the author's own sign-off is allowed and recorded as a self-approval (decision D1); \"team\" otherwise, where the author can never approve. null on replays recorded before this field existed."
     }
   }
 }

@@ -338,6 +338,8 @@ class ReviewOut(BaseModel):
     # replays recorded before these fields existed parseable.
     allowed_actions: list[str] = []
     is_current_version: bool | None = None
+    # "self": nobody but the draft's author could approve it (D1 solo sign-off); "team" otherwise.
+    approval_mode: str | None = None
 
     @classmethod
     def from_model(
@@ -345,6 +347,7 @@ class ReviewOut(BaseModel):
         review,
         allowed_actions: list[str] | None = None,
         is_current_version: bool | None = None,
+        approval_mode: str | None = None,
     ) -> ReviewOut:
         engine = (
             EngineInfoOut(
@@ -395,6 +398,7 @@ class ReviewOut(BaseModel):
             locked_phrases=locks if content_version is not None else None,
             allowed_actions=allowed_actions or [],
             is_current_version=is_current_version,
+            approval_mode=approval_mode,
         )
 
 

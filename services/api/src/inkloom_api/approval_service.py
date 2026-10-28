@@ -11,13 +11,16 @@ import uuid
 from sqlalchemy.orm import Session
 
 from .approval_rules import SupersededSourceError, ensure_decidable, ensure_not_stale
+from .auth.permissions import Permission, is_author, role_has_permission
 from .models import (
     ApprovalEvent,
     AuditEvent,
     BrandSource,
+    ContentItem,
     ContentVersion,
     EvidenceLink,
     Finding,
+    Membership,
     Review,
     SourceVersion,
 )
@@ -64,6 +67,43 @@ def _check_sources_not_superseded(db: Session, review: Review) -> None:
             raise SupersededSourceError(str(source_id))
 
 
+class SelfApprovalForbiddenError(Exception):
+    """The person approving (or publishing) wrote the draft or the version being approved, and
+    someone else in the workspace could approve it instead (Round 3 Phase 3)."""
+
+
+def other_approver_exists(db: Session, organisation_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    """Whether any other active member of the workspace holds the approve permission."""
+    roles = (
+        db.query(Membership.role)
+        .filter(
+            Membership.organisation_id == organisation_id,
+            Membership.user_id != user_id,
+            Membership.is_active.is_(True),
+        )
+        .all()
+    )
+    return any(role_has_permission(role, Permission.APPROVE) for (role,) in roles)
+
+
+def check_not_self_approval(
+    db: Session,
+    organisation_id: uuid.UUID,
+    user_id: uuid.UUID,
+    content_item: ContentItem,
+    content_version: ContentVersion,
+) -> bool:
+    """Raises `SelfApprovalForbiddenError` when the approver is the draft's author or wrote the
+    version being approved - owners included. Decision D1 (docs/governance.md): while nobody else
+    in the workspace could approve, the author may sign off their own work; that returns True so
+    the caller records it as a self-approval. Returns False for an ordinary approval."""
+    if not is_author(user_id, content_item, content_version):
+        return False
+    if other_approver_exists(db, organisation_id, user_id):
+        raise SelfApprovalForbiddenError()
+    return True
+
+
 _STATE_FOR_ACTION = {
     ApprovalAction.APPROVED: ReviewState.APPROVED,
     ApprovalAction.REJECTED: ReviewState.REJECTED,
@@ -79,6 +119,7 @@ def record_decision(
     actor_user_id: uuid.UUID,
     action: ApprovalAction,
     note: str | None,
+    self_approval: bool = False,
 ) -> ApprovalEvent:
     """Applies the decision: updates the review's status, records the `ApprovalEvent`, and logs
     an `AuditEvent` - in the same session/transaction as the caller (task 7: "write the state
@@ -99,9 +140,13 @@ def record_decision(
             event_type=f"content_version.{action.value}",
             entity_type="content_version",
             entity_id=str(content_version.id),
-            details={"review_id": str(review.id), "note": note}
-            if note
-            else {"review_id": str(review.id)},
+            details={
+                "review_id": str(review.id),
+                **({"note": note} if note else {}),
+                # D1 solo sign-off: the author approved their own work because nobody else in
+                # the workspace could.
+                **({"self_approval": True, "reason": "sole_member"} if self_approval else {}),
+            },
             request_id=review.request_id,
         )
     )

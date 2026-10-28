@@ -26,11 +26,17 @@ from ..approval_rules import (
     SupersededSourceError,
     ensure_decidable,
 )
-from ..approval_service import check_approve_guards, record_decision
+from ..approval_service import (
+    SelfApprovalForbiddenError,
+    check_approve_guards,
+    check_not_self_approval,
+    record_decision,
+)
 from ..audit import log_audit_event
 from ..auth.dependencies import AuthContext, get_current_membership, require_permission
 from ..auth.permissions import Permission
 from ..db import get_db
+from ..errors import ApiException, ErrorCode
 from ..models import ContentItem, Review
 from ..request_text import NUL, StoredText
 from ..schemas import ApprovalEventOut
@@ -62,6 +68,34 @@ def _latest_review_or_404(db: Session, content_version_id: uuid.UUID) -> Review:
     return review
 
 
+def deny_self_approval(db: Session, auth: AuthContext, content_version, review_id) -> None:
+    """Refuses an author's approval: nothing changes except one `approval_denied` audit event.
+    The rollback drops anything this request had started (and the review's row lock) before the
+    event is written in its own commit, so a refused request never changes the draft."""
+    db.rollback()
+    log_audit_event(
+        db,
+        organisation_id=auth.organisation_id,
+        actor_user_id=auth.user_id,
+        event_type="approval_denied",
+        entity_type="content_version",
+        entity_id=content_version.id,
+        details={
+            "code": ErrorCode.SELF_APPROVAL_FORBIDDEN.value,
+            "reason": "author cannot approve their own content",
+            "review_id": str(review_id),
+            "content_item_id": str(content_version.content_item_id),
+            "version_number": content_version.version_number,
+        },
+    )
+    db.commit()
+    raise ApiException(
+        status.HTTP_403_FORBIDDEN,
+        ErrorCode.SELF_APPROVAL_FORBIDDEN,
+        "you wrote this draft, so someone else has to approve it",
+    )
+
+
 @router.post("/{content_version_id}/approve", response_model=ApprovalEventOut, status_code=201)
 def approve_content_version(
     content_version_id: uuid.UUID,
@@ -70,6 +104,14 @@ def approve_content_version(
 ) -> ApprovalEventOut:
     content_version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
     review = _latest_review_or_404(db, content_version.id)
+    content_item = db.get(ContentItem, content_version.content_item_id)
+
+    try:
+        self_approval = check_not_self_approval(
+            db, auth.organisation_id, auth.user_id, content_item, content_version
+        )
+    except SelfApprovalForbiddenError:
+        deny_self_approval(db, auth, content_version, review.id)
 
     try:
         check_approve_guards(db, review, content_version.content_item_id)
@@ -93,6 +135,7 @@ def approve_content_version(
         auth.user_id,
         ApprovalAction.APPROVED,
         note=None,
+        self_approval=self_approval,
     )
     db.commit()
     return ApprovalEventOut.from_model(event, content_version.version_number)
