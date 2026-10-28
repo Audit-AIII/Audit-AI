@@ -59,7 +59,8 @@ Added by me:
 
 | Fact | Where |
 |---|---|
-| Pipeline order: extract → BM25 retrieve → verify + citation guard → correct (CONTRADICTED only, with re-check) → optional safer wording (NOT_ENOUGH_EVIDENCE) → decision policy | `services/verification/src/inkloom_verify/pipeline.py` `_run` (lines ~136–210) |
+| Pipeline order: extract → BM25 retrieve → verify + citation guard → correct (CONTRADICTED only, with re-check) → safer wording (NOT_ENOUGH_EVIDENCE only) → decision policy. Safer wording is part of the pipeline but **off by default** (`PipelineConfig.suggest_safer_wording = False`) | `services/verification/src/inkloom_verify/pipeline.py` `_run` (lines ~136–210), `PipelineConfig` (L84) |
+| The default extraction prompt is **`extract-claims-v1`**. `extract-claims-v2` is used only when `run_eval.py --prompts v2` pins it | `services/verification/src/inkloom_verify/prompts/extraction.py` L10; `eval/run_eval.py` `PROMPT_SETS` |
 | Full-pipeline evaluator already exists (`--pipeline full` is the default) | `services/verification/eval/run_eval.py`, `evaluation/pipeline_predictor.py` |
 | Dataset: **80 records** (dev 55, held-out 25). Held-out = 10 CONTRADICTED, 8 NOT_ENOUGH_EVIDENCE, **7 SUPPORTED** | `eval/dataset.jsonl` |
 | All labels are AI-written and synthetic (fictional "Lumen Goods"). **Human-reviewed: 0/80** | `EVAL.md` "Dataset v2" |
