@@ -17,6 +17,8 @@ Failing record: `v1-045` (dev). Claim "Lumen Pods charge over USB-C **and includ
 
 Applies to **SUPPORTED answers only** (same place as `support_problems`).
 
+**Works on the quotes alone** (amended 2026-10-28): the rule reads only the claim and the cited quotes. It must not need `passages`: `support_problems(claim, quotes)` with `passages=None` must still return `UNSUPPORTED_CLAUSE` for C1–C6. (The unmerged reference branch `krish/round3-prior-work` only fired when passages were given, and missed every C case without them.)
+
 1. **Split** the claim at `and / but / while / whereas / plus / as well as` and `;` into parts.
 2. **Subject** = the leading run of capitalised words ("Lumen Pods", "The Lumen Bottle"). Its words never count as coverage.
 3. A part is **qualifying** only if it has ≥1 non-subject content word **and** is not a bare list item (all tokens capitalised: "Graphite", "Marks"). If the claim has **fewer than 2 qualifying parts → rule does not apply.**
@@ -64,9 +66,15 @@ File: `services/verification/tests/test_guard_compound_claims.py` (new). Create 
 
 All 13 matched expectations in the prototype.
 
+**Cases the earlier code taught us** (confirmed present above, 2026-10-28). The unmerged reference branch `krish/round3-prior-work` got these wrong, so they must stay in the matrix:
+- **C6** must be rejected (a one-word predicate, "is waterproof", is a whole invented clause);
+- **D1** must be accepted (subject words, "Lumen Pods", never count as uncovered);
+- **D2** must be accepted (a list of capitalised items is not a set of clauses);
+- **D3** must be accepted (a range, "between 2 and 3", is one fact).
+
 ### Dataset-level tests
 
-1. **Record test:** `v1-045` gold quotes → `UNSUPPORTED_CLAUSE` present.
+1. **Record test:** `v1-045` is labelled NOT_ENOUGH_EVIDENCE and has **no gold quotes**, so use its reference line `"Charging: USB-C."` as the quote (load the record, take that line from its reference text, and assert it is there). With the record's claim and that quote alone (no passages) → `UNSUPPORTED_CLAUSE` present.
 2. **No collateral damage:** every dev + `retrieval_v1` record labelled SUPPORTED → rule returns `[]` on its gold quotes. Prototype: **0 of 35** (the earlier, looser version downgraded 23 of 35 and then 1 of 35; the label-exclusion rule fixed the last one).
 3. **Held-out is report-only** (same disclosure as step 03: prototype showed 0 of 15 held-out SUPPORTED newly downgraded; this does not make it tuning-free, which is why step 06 adds fresh records).
 4. **Strict xfail** for the incidental-word limit above.

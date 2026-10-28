@@ -39,7 +39,13 @@ Definitions that matter (each one fixed a real false reject in prototyping):
 
 ### Known limit — write it down, do not hide it
 
-An **elision swap** is *not* caught: claim "hot for up to **24** hours" against "cold for up to 24 hours and hot for up to 12 hours". Here `24`'s own clause contains "cold", not "hot", and nothing else ties "hot" to a different figure *in a way the rule can see without parsing*. In my prototype this was missed (case N2). Record it as a **strict xfail** test and a line in `evaluation/limitations.py` + `EVAL.md` (status `measured`). Do not claim the guard is complete.
+An **elision swap** may not be caught: claim "hot for up to **24** hours" against "cold for up to 24 hours and hot for up to 12 hours". Here `24`'s own clause contains "cold", not "hot", and nothing else ties "hot" to a different figure *in a way the rule can see without parsing*. In my prototype this was missed (case N2).
+
+**Decide N2's test type when the rule is written, not before** (amended 2026-10-28):
+- if the final rule rejects N2, it is a **plain** negative test, like N1;
+- if the final rule misses it, it is a **strict xfail** test plus a line in `evaluation/limitations.py` + `EVAL.md` (status `measured`).
+
+Either way, do not claim the guard is complete. (The unmerged reference branch `krish/round3-prior-work` caught N2, so a generic rule can catch it.)
 
 ## Step 1 — Write the tests FIRST (all of them red)
 
@@ -67,12 +73,17 @@ File: `services/verification/tests/test_guard_property_binding.py` (new). Import
 
 (IDs skip N4/N5/N7/P4/P6 on purpose — those were prototype scratch cases I dropped. Keep the IDs as written so this file and your test names match.)
 
+**Cases the earlier code taught us** (confirmed present above, 2026-10-28). The unmerged reference branch `krish/round3-prior-work` got these wrong, so they must stay in the matrix:
+- **N6** must be rejected (a figure's property is in its `Label:`, "Warranty: 3 years");
+- **N8** must be rejected (count nouns such as "employees" and "stores" are not units, but the figures still have properties);
+- **P3** must be accepted (the fronted "With the charging case," and the label tie 36 hours to the claim's property).
+
 ### Dataset-level tests (the ones judges will trust)
 
 1. **Record test:** load `v1-036` with `load_records(...)`; build its gold quotes + cited passage; assert `support_problems` now contains `PROPERTY_MISMATCH`.
 2. **No collateral damage:** for **every** record in `eval/dataset.jsonl` + `eval/data/retrieval_v1.jsonl` that is labelled `SUPPORTED` **and** `split == "dev"`, assert the new rule returns `[]` on its gold quotes. Measured on the prototype: **0 of 35**.
    Run the same loop for held-out SUPPORTED records **as a report-only script, not an assertion** (see the disclosure in `00-START-HERE.md`; held-out must not steer the rule).
-3. **Strict xfail:** the elision swap (N2) with `@pytest.mark.xfail(strict=True, reason="declared limitation: elision swap; see EVAL.md")`.
+3. **Elision swap (N2):** a plain negative test if the final rule rejects it; otherwise `@pytest.mark.xfail(strict=True, reason="declared limitation: elision swap; see EVAL.md")`. Decided when the rule is written (see "Known limit" above).
 4. **Reproducibility guard:** `grep -rn "Lumen" src/` returns nothing new (the rule must be generic).
 
 ### Run, expect red
@@ -135,7 +146,7 @@ Expected: new tests pass; full suite passes except tests that pin the old behavi
 
 - [ ] Tests existed and failed before the fix (commit order proves it)
 - [ ] N1, N3, N6, N8 rejected; P1–P3, P5, P7, P8 accepted; `v1-036` flips; 0 dev SUPPORTED newly downgraded
-- [ ] N2 recorded as strict xfail + limitation text
+- [ ] N2 recorded as a plain test (rule catches it) or as strict xfail + limitation text (rule misses it)
 - [ ] REG-014 added, schema regenerated, docs updated, Darsh/Chahit told about the new reason
 - [ ] Full suite + both `--check-baseline` runs green
 - [ ] Commits: `test: …(red)` then `fix: guard rejects figures bound to another property` (+ attribution lines)
