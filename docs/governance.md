@@ -169,7 +169,14 @@ Everything §19 needs is already stored. No pipeline change is required to compu
 
 ---
 
-## 3. Decisions needed before Phase 1 (Darsh)
+## 3. Decisions (Darsh)
+
+**All six decided on 2026-10-28, each as recommended below:** D1 solo sign-off allowed (labelled
+self-approval, only while no other member could approve); D2 `admin` → `owner`; D3 drop the
+`verification_status` CHECK, unknown statuses stored as-is and routed as medium risk; D4 approve /
+send back / reject on a draft do an implicit submit; D5 invite link shown once; D6 no self-review
+and reviewer ≠ approver in team workspaces (solo exempt under D1).
+
 
 | # | Question | Recommendation |
 |---|---|---|
