@@ -1196,6 +1196,9 @@ class GuardRejectionReason(str, Enum):
     PROPERTY_MISMATCH = (
         "property_mismatch"  # a figure in the claim is attached to a different property in the quotes
     )
+    UNSUPPORTED_CLAUSE = (
+        "unsupported_clause"  # a part of the claim is covered by none of the cited quotes
+    )
     # Applied to SUPPORTED and CONTRADICTED answers that passed every other check; passage_id is
     # the passage from another document that gives a different value:
     CONFLICTING_EVIDENCE = (
