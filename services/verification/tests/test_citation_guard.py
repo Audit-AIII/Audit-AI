@@ -19,6 +19,7 @@ from inkloom_verify.schemas import (
     EvidencePassage,
     GuardRejectionReason,
     ReferenceDocument,
+    Verdict,
 )
 
 R = GuardRejectionReason
@@ -523,3 +524,199 @@ def test_regression_live_run_a_seconds_claim_is_not_supported_by_a_minutes_quote
     ]
     same = "A 10-minute charge gives Lumen Pods up to 2 hours of playback."
     assert support_problems(same, [quote], [passage]) == []
+
+
+# --- Numeric property binding: the figure must belong to the claim's property --------------------
+#
+# A quote can contain the claim's exact figure while attaching it to another property: "cold for up
+# to 24 hours and hot for up to 12 hours" holds "12 hours", but as the hot figure. Only quotes that
+# give several values of the same unit are affected; a quote with one value is never re-read.
+
+
+@pytest.mark.parametrize(
+    ("claim", "quote"),
+    [
+        (  # the claim takes the second property's value
+            "The flask keeps drinks cold for up to 12 hours.",
+            "keeps drinks cold for up to 24 hours and hot for up to 12 hours",
+        ),
+        (  # the claim takes the first property's value
+            "The flask keeps drinks hot for up to 24 hours.",
+            "keeps drinks hot for up to 12 hours and cold for up to 24 hours",
+        ),
+        (  # (Round 3 Phase 5) the claim takes the first value; the clause's subject is shared
+            "The flask keeps drinks hot for up to 24 hours.",
+            "keeps drinks cold for up to 24 hours and hot for up to 12 hours",
+        ),
+        (  # values in separate clauses of one quote
+            "Each earbud weighs 48 g.",
+            "Weight: 5.2 g per earbud; charging case 48 g.",
+        ),
+    ],
+)
+def test_a_figure_bound_to_another_property_is_unsupported(claim, quote):
+    assert support_problems(claim, [quote]) == [R.UNSUPPORTED_QUANTITY]
+
+
+@pytest.mark.parametrize(
+    ("claim", "quote"),
+    [
+        (  # the right property for each figure
+            "The flask keeps drinks cold for up to 24 hours.",
+            "keeps drinks cold for up to 24 hours and hot for up to 12 hours",
+        ),
+        (
+            "The flask keeps drinks hot for up to 12 hours.",
+            "keeps drinks cold for up to 24 hours and hot for up to 12 hours",
+        ),
+        (  # both figures, both properties
+            "The flask keeps drinks cold for up to 24 hours and hot for up to 12 hours.",
+            "keeps drinks cold for up to 24 hours and hot for up to 12 hours",
+        ),
+        (  # a label in its own clause, the property after the figure
+            "The charging case weighs 48 g.",
+            "Weight: 5.2 g per earbud; charging case 48 g.",
+        ),
+        (
+            "The earbuds weigh 5.2 g per earbud.",
+            "Weight: 5.2 g per earbud; charging case 48 g.",
+        ),
+        (  # a paraphrase that shares no property word with either value: nothing to compare
+            "The earbuds play for up to 36 hours with their case.",
+            "up to 12 hours of playback per charge; up to 36 hours with the charging case",
+        ),
+        (  # the property is fronted before a comma (v1-002 shape, quoted as the whole line)
+            "With the charging case, the earbuds provide up to 36 hours of playback.",
+            "Battery life: up to 12 hours of playback per charge; "
+            "up to 36 hours with the charging case.",
+        ),
+        (  # one value of the unit: a paraphrase is never re-read
+            "The battery lasts up to 12 hours.",
+            "Battery life: up to 12 hours of playback per charge",
+        ),
+        (  # different units do not compete
+            "The bottle weighs 340 g.",
+            "Capacity: 750 ml. Weight: 340 g.",
+        ),
+    ],
+)
+def test_a_figure_bound_to_the_claims_property_is_still_supported(claim, quote):
+    assert support_problems(claim, [quote]) == []
+
+
+EVAL_DATASET = Path(__file__).resolve().parents[1] / "eval" / "dataset.jsonl"
+
+
+@pytest.mark.parametrize("dataset", [DATASET, EVAL_DATASET], ids=lambda p: p.name)
+def test_every_gold_quote_still_supports_its_supported_claim(dataset):
+    """No SUPPORTED record of either dataset is downgraded by its own gold evidence."""
+    for record in load_records(dataset):
+        if record.expected_verdict is not Verdict.SUPPORTED:
+            continue
+        quotes = [g.quote for g in record.gold_evidence]
+        passages = [d.text for d in record.references]
+        assert support_problems(record.claim_text, quotes, passages) == [], record.record_id
+
+
+def test_regression_v1_036_the_hot_figure_does_not_support_a_cold_claim():
+    """Phase 1 finding (dev record v1-036): a SUPPORTED answer quoting the whole insulation sentence
+    passed the guard, because "12 hours" is in it, as the hot figure."""
+    from inkloom_verify.evaluation.runner import EngineVerifierPredictor
+    from inkloom_verify.providers.fake import ScriptedProvider
+
+    record = {r.record_id: r for r in load_records(EVAL_DATASET)}["v1-036"]
+    quote = "keeps drinks cold for up to 24 hours and hot for up to 12 hours"
+    answer = {
+        "verdict": "SUPPORTED",
+        "citations": [{"passage": "P1", "quote": quote}],
+        "rationale": "P1.",
+    }
+    prediction = EngineVerifierPredictor(ScriptedProvider(answer)).predict(record)
+    assert prediction.verdict is Verdict.NOT_ENOUGH_EVIDENCE
+
+
+# --- Compound claims: every part must be in the cited documents -----------------------------------
+#
+# A compound claim ("... and ...") can be quoted for one part only: "charge over USB-C and include a
+# wireless charging pad" against "Charging: USB-C.". A part whose content words are mostly absent
+# from every cited passage is an unchecked fact, so the answer is not SUPPORTED. One absent word is
+# ordinary paraphrase ("cost", "come", "rated") and never counts.
+
+SPEAKER_SHEET = (
+    "Speaker - Product Fact Sheet\n\nCharging: USB-C. Battery: up to 10 hours.\n"
+    "Water resistance: IPX7.\nColours: Black, Stone.\nPrice: €89.\n"
+)
+COMPONENT = "unsupported_component"
+
+
+@pytest.mark.parametrize(
+    ("claim", "quotes"),
+    [
+        (  # one part quoted, the other part is in no cited document
+            "The speaker charges over USB-C and includes a wireless charging pad.",
+            ["Charging: USB-C."],
+        ),
+        (  # a second, unrelated quote does not cover the missing part
+            "The speaker charges over USB-C and includes a wireless charging pad.",
+            ["Charging: USB-C.", "Water resistance: IPX7."],
+        ),
+        (  # an added promise after a supported figure
+            "The speaker is rated IPX7 and comes with a lifetime warranty.",
+            ["Water resistance: IPX7."],
+        ),
+    ],
+)
+def test_a_compound_part_missing_from_every_cited_document_is_unsupported(claim, quotes):
+    problems = support_problems(claim, quotes, [SPEAKER_SHEET])
+    assert [p.value for p in problems] == [COMPONENT]
+
+
+@pytest.mark.parametrize(
+    ("claim", "quotes"),
+    [
+        (  # every part supported
+            "The speaker is rated IPX7 and charges over USB-C.",
+            ["Water resistance: IPX7.", "Charging: USB-C."],
+        ),
+        (  # paraphrase: one absent word per part ("come", "cost") is never enough
+            "The speaker comes in Black and Stone and costs €89.",
+            ["Colours: Black, Stone.", "Price: €89."],
+        ),
+        (  # a short part with no content words of its own
+            "The speaker charges over USB-C and more.",
+            ["Charging: USB-C."],
+        ),
+        (  # not compound: a paraphrase is never split or re-read
+            "The speaker delivers impressive outdoor sound.",
+            ["Water resistance: IPX7."],
+        ),
+    ],
+)
+def test_a_compound_claim_with_every_part_in_the_documents_is_still_supported(claim, quotes):
+    assert support_problems(claim, quotes, [SPEAKER_SHEET]) == []
+
+
+def test_without_cited_passages_no_part_is_judged():
+    """Like names, parts are checked against the cited passages; quotes alone are too short."""
+    claim = "The speaker charges over USB-C and includes a wireless charging pad."
+    assert support_problems(claim, ["Charging: USB-C."]) == []
+
+
+@pytest.mark.parametrize(
+    "quotes", [["Charging: USB-C."], ["Charging: USB-C.", "charging case 48 g"]]
+)
+def test_regression_v1_045_usb_c_does_not_support_a_wireless_charging_pad(quotes):
+    """Phase 1 finding (dev record v1-045, NOT_ENOUGH_EVIDENCE): a SUPPORTED answer quoting only
+    the USB-C line was accepted; with a second unrelated quote it would even clear the compound
+    review rule."""
+    from inkloom_verify.evaluation.runner import EngineVerifierPredictor
+    from inkloom_verify.providers.fake import ScriptedProvider
+
+    record = {r.record_id: r for r in load_records(EVAL_DATASET)}["v1-045"]
+    answer = {
+        "verdict": "SUPPORTED",
+        "citations": [{"passage": "P1", "quote": q} for q in quotes],
+        "rationale": "P1.",
+    }
+    prediction = EngineVerifierPredictor(ScriptedProvider(answer)).predict(record)
+    assert prediction.verdict is Verdict.NOT_ENOUGH_EVIDENCE

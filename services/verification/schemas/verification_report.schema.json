@@ -578,6 +578,7 @@
         "missing_qualifier",
         "unsupported_name",
         "negation_mismatch",
+        "unsupported_component",
         "conflicting_evidence"
       ],
       "title": "GuardRejectionReason",

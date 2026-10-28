@@ -8,7 +8,9 @@ The model proposes a replacement; deterministic code decides whether it may be o
   contradiction, nothing else;
 * the replaced text must be found in the claim's own source text;
 * every word, number and currency or unit symbol the replacement adds must appear in the
-  cited quotes (a short list of grammatical words is exempt);
+  cited quotes (a short list of grammatical words is exempt), a figure must be the one the quotes
+  give for the claim's property, and a compound part the replacement writes must be in the cited
+  text;
 * a qualifier ("up to", "about", "only", ...) used by both the original and the evidence
   must survive the edit;
 * the edit must stay within the minimality bound (see ``minimality_limit``);
@@ -31,7 +33,13 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from inkloom_verify.citation_guard import full_dates, quantities
+from inkloom_verify.citation_guard import (
+    absent_from,
+    full_dates,
+    misbound_quantities,
+    quantities,
+)
+from inkloom_verify.decision_policy import compound_part_spans
 from inkloom_verify.extraction import _ATTRIBUTION, QUALIFIERS, describe_validation_error, locate
 from inkloom_verify.intent_lock import check_replacement, validate_locks
 from inkloom_verify.prompts import correction as prompt
@@ -107,12 +115,18 @@ def minimality_limit(original_words: int) -> int:
 
 
 def correction_issues(
-    original: str, replacement: str, quotes: list[str], before: str = "", after: str = ""
+    original: str,
+    replacement: str,
+    quotes: list[str],
+    before: str = "",
+    after: str = "",
+    passages: Sequence[str] = (),
 ) -> list[CorrectionIssue]:
     """Deterministic checks on one proposed replacement. Empty means it may be offered.
 
     ``before`` and ``after`` are the claim's text around ``original``. Figures are compared in that
-    context, because a unit or currency often sits outside the replaced words ("€" + "99")."""
+    context, because a unit or currency often sits outside the replaced words ("€" + "99").
+    ``passages`` are the cited passages; only the compound-part check reads them."""
     if not replacement.strip() or " ".join(replacement.split()) == " ".join(original.split()):
         return [CorrectionIssue(code=CorrectionIssueCode.NO_CHANGE)]
     issues = []
@@ -137,6 +151,20 @@ def correction_issues(
     # A new whole date must be a whole date of the evidence, not a year borrowed from elsewhere.
     new_dates = full_dates(new_text) - full_dates(old_text) - full_dates(" ".join(quotes))
     unpaired = mispaired + sorted(f"{d[1]} {d[0]}" for d in new_dates)
+    # A figure the evidence gives for another property: "hot for 24 hours" from "cold for up to 24
+    # hours and hot for up to 12 hours". The same check the guard applies to SUPPORTED claims.
+    unpaired += sorted(
+        f"{n} {u} (another property)" for n, u in misbound_quantities(new_text, quotes)
+    )
+    # A part of a compound rewrite that no cited text mentions. Only the replacement's own words are
+    # judged: an untouched part is not the correction's statement (the re-check verifies it).
+    start, end = len(before), len(before) + len(replacement)
+    spans = compound_part_spans(new_text)
+    if len(spans) >= 2:
+        for s, e in spans:
+            stated = new_text[max(s, start) : min(e, end)]
+            if s < end and e > start and absent_from(stated, [*quotes, *passages]):
+                unpaired.append(f"{' '.join(stated.split())!r}")
     if has_hidden_characters(replacement):
         unpaired.append("control or invisible characters")
     if added or symbols or unpaired:
@@ -311,12 +339,14 @@ class ClaimCorrector:
         )
         original = target.slice(content.text)
         replacement = output.replacement_text.strip()
+        cited_passages = {c.passage_id for c in cited}
         issues = correction_issues(
             original,
             replacement,
             [c.quote for c in cited],
             before=sentence[: located[0]],
             after=sentence[located[1] :],
+            passages=[p.text for p in result.evidence if p.passage_id in cited_passages],
         )
         if issues:
             return _review(result, issues)
