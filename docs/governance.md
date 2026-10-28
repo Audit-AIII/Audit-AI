@@ -1,6 +1,6 @@
 # Team governance, permissions and risk-based routing (Round 3)
 
-**Status: Phases 1–5 done (2026-10-28); Phase 6 in progress.** Owner: Darsh (backend). Sections 1–3
+**Status: Phases 0–6 done (2026-10-28).** Owner: Darsh (backend). Sections 1–3
 describe the code as found at `1e416e5`; sections 4–10 are the plan. Section 3 lists the open
 decisions.
 
@@ -14,7 +14,7 @@ decisions.
 | 3. Author cannot approve own content | **done**: `approval_service.check_not_self_approval` on the approve route (and, from Phase 4, on publish and the implicit approve); 403 `SELF_APPROVAL_FORBIDDEN` + `approval_denied` audit event, nothing else changes; D1 solo sign-off recorded as `self_approval: true`; `approval_mode` on reviews; `tests/test_self_approval.py` |
 | 4. Risk-based routing and workflow | **done**: migration `0015`; `risk_policy.py` (contracts.md §19, approved by Krish 2026-10-28), `workflow_rules.py` (state machine), `workflow.py` (DB side + hooks); routes `POST /api/content/{id}/submit`, `/assign`, `/mark-reviewed`, `POST /api/content-versions/{id}/publish`; reviews carry workspace, author, owner, assigned_reviewer, workflow_status, risk_level, routing_reason, summary_counts; `tests/test_risk_routing.py` |
 | 5. Audit trail | **done**: migration `0016` (UPDATE on `audit_events` refused by a trigger), `audit_history.py`, `GET /api/content/{id}/audit` (any member) and `GET /api/workspace/audit` (owners); `tests/test_audit_trail.py` |
-| 6. Tests | in progress |
+| 6. Tests | **done**: `tests/test_e2e_governance.py` (full workflow with separate users; at every state each person's `allowed_actions` is exact and every unlisted action is refused without changing state; solo flow; author can't publish own work) on top of the per-phase suites. See section 11 |
 
 Example payloads for the frontend are in [`contract/examples/`](../contract/examples/), all
 starting with `governance_`. Section 9 explains each one.
@@ -303,9 +303,9 @@ or owner.
 | `evaluation.run` | `POST /api/evaluations` | ✘ | ✘ | ✘ | ✔ |
 | `members.manage` | invitations + members endpoints (section 7) | ✘ | ✘ | ✘ | ✔ |
 
-**Implemented in Phase 2** (`auth/permissions.py`, `Permission` names in brackets):
-every row above except submit, assign, mark_reviewed and publish, whose routes arrive in Phases
-3–4. Reading needs only an active membership. The writer's "own" rule covers create_version, locks
+**Implemented** (`auth/permissions.py`): every row above. Phase 2 added the content and
+workspace rows; Phase 4 added submit, assign, mark_reviewed and publish with their routes. On top
+of the role, each workflow action also needs the draft's state to allow it (section 6). Reading needs only an active membership. The writer's "own" rule covers create_version, locks
 and rerun. "not own" on approve/publish: Phase 3, below.
 
 **Phase 3 rule (implemented):** "own" means the caller wrote the draft (`content_items.created_by`)
@@ -599,23 +599,19 @@ One example body per new code, with its HTTP status.
 
 ---
 
-## 11. Test plan (Phase 6, summary)
+## 11. Tests (as delivered)
 
-New fixtures:
-- one team workspace with separate **writer, reviewer, approver, owner** users;
-- an **outsider** in another workspace.
+All in `services/api/tests/`, run against real Postgres (README "Test"). Full suite: 420 passed
+on 2026-10-28.
 
-The current `account_factory` stays for solo flows. Coverage:
-- every role × action in section 5 against the real endpoint;
-- `allowed_actions` == the set of actions that actually succeed;
-- outsider gets 404 on every new and existing id route;
-- invitation lifecycle: create, accept, duplicate, unknown, expired, revoked, reused, wrong email,
-  role escalation, self role change, last owner;
-- self-approval refused on approve, implicit approve and publish, with the state unchanged and
-  an `approval_denied` event written;
-- routing: contradicted → `REVIEW_REQUIRED` until reviewed; clean → approver only; `property_mismatch`,
-  `unsupported_clause` and a made-up reason/status → medium, no crash;
-- an audit event for each action;
-- one end-to-end run with four users;
-- the existing 303 tests, with `test_individual_mode.py` and `test_permissions.py` rewritten to
-  the new solo rules.
+| Requirement | Where |
+|---|---|
+| Role x action matrix (hand-written, independent of the code's table) and legacy role mapping | `test_permissions.py` |
+| Every role x action through the real routes; `allowed_actions` equals what succeeds | `test_governance_roles.py`, `test_e2e_governance.py` (every workflow state) |
+| Tenant isolation: outsider gets 404 on every draft, workflow, audit and member route | `test_governance_roles.py`, `test_workspace_membership.py`, `test_e2e_governance.py`, plus the older `test_tenant_scoping.py` / `test_cross_*` |
+| Invitations: create, accept, duplicate, unknown, expired, revoked, reused, wrong email, escalation, own role, last owner | `test_workspace_membership.py` |
+| Self-approval refused on approve, implicit approve (D4) and publish; state unchanged; `approval_denied` written; solo sign-off (D1) | `test_self_approval.py`, `test_e2e_governance.py` |
+| Risk routing: section 19 mapping, CONTRADICTED can't be approved or published unreviewed, clean is approver-only, unknown statuses and reason codes (`property_mismatch`, `unsupported_clause`, made-up ones) route as medium without crashing, re-routing, blocked drafts | `test_risk_routing.py` |
+| D6 separation of duties, assignment rules | `test_risk_routing.py` |
+| Audit: each governance action writes its event; history order, pagination, scoping, legacy mapping; append-only | `test_audit_trail.py` |
+| End-to-end with separate users; the solo sign-up -> brand -> upload -> check -> approve -> publish flow | `test_e2e_governance.py`; live over HTTP: `scripts/smoke_test.py` |
