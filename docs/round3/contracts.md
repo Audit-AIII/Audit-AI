@@ -5,7 +5,8 @@ on branch `krish/round3`. Sections 1–12 and 14 record what the code does today
 are the Round 3 step 02 proposals (`docs/round3/krish/02-agree-contracts-and-metric-definitions.md`):
 metric definitions, headline rule, payload shape, data path, risk mapping, the two new guard
 reason codes, and the messages to Darsh and Chahit (drafted, **not sent**). Section 22 is the
-acknowledgement log, empty until both reply in writing (STOP C).
+acknowledgement log, empty until both reply in writing (STOP C). Section 23 records answers to
+the frontend's questions; where it differs from sections 15–21, section 23 wins.
 
 **Nothing in this document has changed any payload, schema or production code.**
 
@@ -685,3 +686,22 @@ No payload field changes and no step 08 work until **both** have replied in writ
 |---|---|---|
 | | Darsh | *(none yet; message not sent)* |
 | | Chahit | *(none yet; message not sent)* |
+
+## 23. Answers to frontend questions (DRAFT)
+
+Decisions recorded on 2026-10-28. Still a draft: items 1–3 change the backend's behaviour or
+payload and are **awaiting Darsh**. No code, payload or schema has changed.
+
+| # | Decision | Status |
+|---|---|---|
+| 1 | **`GET /api/evaluations/latest` returns the `EvaluationOut` shape**, with no `contract` key. The `headline` (section 17) lives there. The backend maps the CLI's `summary.json` (section 18, option 1) into `EvaluationOut`; the frontend reads one shape only. | **Awaiting Darsh** |
+| 2 | **The "Run evaluation" button is removed from the main flow.** Any stored run a user triggers is marked `coverage: "verifier_only"` and is **never** served as `/latest`; `/latest` serves only the run mapped from the CLI summary. | **Awaiting Darsh** |
+| 3 | **`per_check[]` gains `catch_rate_ratio` and `false_positive_rate_ratio`**, each `{numerator, denominator, value}`. Additive: the existing `catch_rate` and `false_positive_rate` value fields stay unchanged. | **Awaiting Darsh** |
+| 4 | **Limitations are served, not hardcoded.** Their text, including "held-out SUPPORTED n=7" and "gold quotes already read", arrives in the `limitations` field (section 17), from the runner and `evaluation/limitations.py`. The page renders that field and has no limitation text of its own. | Decision (draft) |
+| 5 | **An empty denominator is `null`.** The page may show "–" or "no cases in this split" for it, never 0% or 100%. This refines the "n/a" display in section 15. | Decision (draft) |
+
+What these change elsewhere in this document:
+- **Section 18:** option 1 is the chosen data path, in the specific form of item 1 (the backend
+  maps `summary.json` into `EvaluationOut`), pending Darsh.
+- **Section 17:** adds the two `per_check` ratio fields from item 3.
+- **Section 21:** the message to Darsh should include items 1–3 before it is sent.
