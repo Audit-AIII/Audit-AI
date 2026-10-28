@@ -423,6 +423,20 @@ SUPPORTED answer stands only if the cited quotes actually carry the claim's figu
 | If a quote qualifies a figure the claim repeats ("up to 12 hours", "about", "at least", "more than", …), the claim keeps that qualifier | `missing_qualifier` |
 | Every capitalised name in the claim, after its leading subject run, appears in a cited passage. Months and all-capital acronyms ("CEO") are skipped. | `unsupported_name` |
 | The claim and the cited quotes agree on negation: "The bottle is dishwasher safe" is not supported by the exact, complete quote "The bottle is not dishwasher safe" (PROMPTS.md Phase 3; 0 of 45 labelled SUPPORTED records disagree on negation) | `negation_mismatch` |
+| Each figure in the claim belongs to the claimed property: "cold for up to 12 hours" is not supported by "cold for up to 24 hours and hot for up to 12 hours" (Round 3) | `property_mismatch` |
+
+**Why figures are bound to properties (Round 3, REG-014).** The quantity check only asks whether
+a figure is *present* in the quotes, so `v1-036` passed on a quote whose 12 belongs to "hot". For
+each figure, `property_mismatch` takes the content words of its clause (plus a preceding clause
+with no figure, "With the charging case, …") and of its sentence's short `Label:`, taken from the
+cited passage's line when the quote omits it. If an occurrence of the same number shares a word,
+the figure is bound correctly; if none does but a different number does, it is refused; anything
+else stays quiet. Measured: N1, N3, N6, N8 rejected and P1–P3, P5, P7, P8 accepted
+(`tests/test_guard_property_binding.py`), `v1-036` rejected when cited with its full reference
+line, and 0 of 35 dev SUPPORTED records rejected on their gold quotes. The valid-quote stress run
+stays at 16/55 false-SUPPORTED: its quote for `v1-036` is the fact sheet's title, which the quantity
+check already refused, so it cannot show the flip. Known limit (N2, strict xfail): an elision swap,
+"hot for up to 24 hours" on the same line, still passes.
 
 **Why names are checked against passages, not quotes.** Quotes rarely repeat the claim's subject:
 a quote-level rule would reject 17 of the 20 labelled SUPPORTED records. The subject run ("The

@@ -72,6 +72,18 @@ LIMITATIONS: list[Limitation] = [
         ],
     ),
     Limitation(
+        topic="Figures swapped between properties",
+        status="measured",
+        finding="The property check ties a figure to the words of its own clause, without parsing. An elision swap "
+        "passes: 'hot for up to 24 hours' is accepted on 'keeps drinks cold for up to 24 hours and hot for up to "
+        "12 hours', because 'keeps drinks' ties the claim to the 24 clause as well. Claims that give a property "
+        "a figure the quotes tie to another property are refused (property_mismatch).",
+        evidence=[
+            "tests/test_guard_property_binding.py::test_n2_elision_swap_is_rejected",
+            "EVAL.md",
+        ],
+    ),
+    Limitation(
         topic="Planted false facts in references",
         status="measured",
         finding="A false fact written as ordinary text in a reference is evidence like any other: only instructions "

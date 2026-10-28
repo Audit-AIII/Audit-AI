@@ -342,6 +342,9 @@ def support_problems(
         if _number(match["num"]) in claim_numbers and match["q"].casefold() not in claim_cf:
             problems.append(GuardRejectionReason.MISSING_QUALIFIER)
             break
+    labels = [_passage_label(quote, passages) for quote in quotes] if passages is not None else None
+    if property_mismatch(claim, quotes, labels):
+        problems.append(GuardRejectionReason.PROPERTY_MISMATCH)
     if passages is not None:
         context = " ".join(passages)
         if any(not re.search(rf"(?<!\w){re.escape(name)}(?!\w)", context) for name in names(claim)):
@@ -352,6 +355,123 @@ def support_problems(
     if (NEGATION.search(claim_cf) is None) != (NEGATION.search(evidence.casefold()) is None):
         problems.append(GuardRejectionReason.NEGATION_MISMATCH)
     return problems
+
+
+# --- Property binding: which property a figure is a figure of -------------------------------------
+# "cold for up to 12 hours" must not pass on "cold for up to 24 hours and hot for up to 12 hours":
+# the 12 is in the quote, but it belongs to "hot". Lexical, no parsing: a figure's property is the
+# content words of its clause, plus its sentence's short "Label:" (a fact sheet's "Warranty: 3
+# years."). Measured (Round 3 step 03): 0 of 35 dev SUPPORTED records (eval/dataset.jsonl and
+# eval/data/retrieval_v1.jsonl) are rejected on their gold quotes.
+
+_PROPERTY_CLAUSE_BREAK = re.compile(
+    r"[;:()–—]|(?<!\d),|,(?!\d)|\b(?:and|but|while|whereas|plus)\b", re.IGNORECASE
+)
+_PROPERTY_SENTENCE = re.compile(r"[.!?](?=\s|$)|\n")
+_MAX_LABEL_WORDS = 4
+_NOT_PROPERTY_WORDS = frozenset(
+    word for qualifier in _FIGURE_QUALIFIERS for word in qualifier.split()
+) | frozenset(unit for unit in _UNITS if " " not in unit)
+
+
+def _property_words(text: str) -> set[str]:
+    """Content words: no numbers, qualifiers, units or stopwords; a plural ``s`` stripped."""
+    words = set()
+    for token in tokenize(text):
+        if any(c.isdigit() for c in token) or token in _NOT_PROPERTY_WORDS:
+            continue
+        if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+            token = token[:-1]
+        words.add(token)
+    return words
+
+
+def _same_word(a: str, b: str) -> bool:
+    """Cheap stemming: equal, a shared 5-letter prefix ("weigh"/"weight"), or one word starting
+    the other when both have at least 4 letters ("play"/"playback")."""
+    if a == b or (len(a) >= 5 and len(b) >= 5 and a[:5] == b[:5]):
+        return True
+    return len(a) >= 4 and len(b) >= 4 and (a.startswith(b) or b.startswith(a))
+
+
+def _overlap(a: set[str], b: set[str]) -> bool:
+    return any(_same_word(x, y) for x in a for y in b)
+
+
+def _label(sentence: str) -> str:
+    """The text before a sentence's first colon, if it is at most four words ("Battery life")."""
+    head, colon, _ = sentence.partition(":")
+    return head if colon and 0 < len(head.split()) <= _MAX_LABEL_WORDS else ""
+
+
+def _passage_label(quote: str, passages: Sequence[str]) -> str:
+    """The label of the passage line holding ``quote``: quotes are substrings and often start
+    after the label ("keeps drinks cold ..." from "Insulation: keeps drinks cold ...")."""
+    for passage in passages:
+        for line in passage.splitlines():
+            if quote.strip() and quote.strip() in line:
+                return _label(line.strip())
+    return ""
+
+
+def _figure_contexts(
+    text: str, label: str = "", *, is_claim: bool = False
+) -> list[tuple[str, str | None, set[str]]]:
+    """(number, unit, property words) for every figure in ``text``.
+
+    The property words are the content words of the figure's clause and of its sentence's label
+    (or ``label``, the passage line's label, for a quote that omits it). In a claim, a preceding
+    clause with no figure ("With the charging case, ...") belongs to the next figure too.
+    """
+    contexts = []
+    extra = _property_words(label)
+    for sentence in _PROPERTY_SENTENCE.split(text):
+        label_words = extra | _property_words(_label(sentence.strip()))
+        lead: set[str] = set()
+        for clause in _PROPERTY_CLAUSE_BREAK.split(sentence):
+            figures = quantities(clause)
+            words = _property_words(clause)
+            if not figures:
+                lead = words if is_claim else set()
+                continue
+            for number, unit in figures:
+                contexts.append((number, unit, words | lead | label_words))
+            lead = set()
+    return contexts
+
+
+def property_mismatch(
+    claim: str, quotes: Sequence[str], labels: Sequence[str] | None = None
+) -> bool:
+    """True if the quotes tie a figure's property in ``claim`` to a different figure.
+
+    For each figure in the claim: if the quotes have the same number (compatible unit) and one of
+    those occurrences shares a property word with the claim's figure, it is bound correctly. If
+    none does but a *different* number shares one, the claim gives that property the wrong
+    figure. Anything else is an unknown relation and stays quiet: a missing figure is
+    ``UNSUPPORTED_QUANTITY``'s job, and differing words are normal paraphrase.
+
+    Known limit: an elision swap ("hot for up to 24 hours" against "cold for up to 24 hours and
+    hot for up to 12 hours") passes, because "keeps drinks" ties the claim to the 24 clause too.
+    """
+    labels = list(labels) if labels is not None else [""] * len(quotes)
+    evidence = [
+        context for quote, label in zip(quotes, labels) for context in _figure_contexts(quote, label)
+    ]
+    for number, unit, words in _figure_contexts(claim, is_claim=True):
+        if not words:
+            continue
+
+        def compatible(other_unit: str | None) -> bool:
+            return unit is None or other_unit is None or other_unit == unit
+
+        same = [w for n, u, w in evidence if n == number and compatible(u)]
+        other = [w for n, u, w in evidence if n != number and compatible(u)]
+        if not same or any(_overlap(words, w) for w in same):
+            continue
+        if any(_overlap(words, w) for w in other):
+            return True
+    return False
 
 
 def full_dates(text: str) -> set[tuple[str, tuple[str, ...]]]:

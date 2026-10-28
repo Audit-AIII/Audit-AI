@@ -4,8 +4,7 @@
 what it is a figure *of*: "cold for up to 12 hours" passes on "cold for up to 24 hours and hot for
 up to 12 hours" (dev record v1-036). The case IDs follow
 docs/round3/krish/03-fix-guard-numeric-property-binding.md; the gaps (N4, N5, N7, P4, P6) are
-prototype cases that were dropped. N2 (the elision swap) is added once the rule exists, as a plain
-test or a strict xfail depending on whether the rule catches it.
+prototype cases that were dropped. N2 (the elision swap) is a strict xfail: the rule misses it.
 """
 
 import re
@@ -66,6 +65,14 @@ def test_a_figure_bound_to_another_property_is_rejected(case):
 def test_a_figure_bound_to_the_claimed_property_is_accepted(case):
     claim, quotes = ACCEPTED[case]
     assert R.PROPERTY_MISMATCH not in support_problems(claim, quotes)
+
+
+@pytest.mark.xfail(strict=True, reason="declared limitation: elision swap; see EVAL.md")
+def test_n2_elision_swap_is_rejected():
+    # The claim's 24 shares "keeps drinks" with the quote's own 24 clause ("cold"), so the rule
+    # counts it as bound correctly and never looks at "hot", which belongs to the 12.
+    claim = "The Lumen Bottle keeps drinks hot for up to 24 hours."
+    assert R.PROPERTY_MISMATCH in support_problems(claim, [COLD_HOT])
 
 
 def _records():

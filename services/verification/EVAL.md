@@ -908,8 +908,20 @@ Among the **30 answered records** (derived from the report's confusion matrix):
    (`eval/reports/20261024T130826Z.md`, a replay, not a new model run), it's now
    NOT_ENOUGH_EVIDENCE, so wrong approvals go from 3 to 2.
 2. **v1-036** "cold for up to 12 hours" accepted on "cold for up to 24 hours and hot for up to 12
-   hours". The figure is present but belongs to another property. **Open:** the guard checks that
-   figures are present, not what they attach to.
+   hours". The figure is present but belongs to another property. **Fixed (Round 3 step 03,
+   REG-014):** the guard now rejects a figure whose own property words the quotes tie to a
+   different number (`property_mismatch`). The proof is the unit tests in
+   `tests/test_guard_property_binding.py` (N1, N3, N6, N8 rejected; P1–P3, P5, P7, P8 accepted)
+   and the `v1-036` record test, which cites the record's full reference line ("Insulation: keeps
+   drinks cold for up to 24 hours and hot for up to 12 hours."). 0 of 35 dev SUPPORTED records
+   (`dataset.jsonl` and `retrieval_v1`) are rejected on their gold quotes.
+   **The false-SUPPORTED gate did not move:** the valid-quote, always-SUPPORTED stress run is
+   16/55 before and after. That adversary quotes the first 8 words of the top passage; for
+   `v1-036` that is the fact sheet's title, which has no 12 and was already refused as
+   `unsupported_quantity`, so the stress run cannot show this flip.
+   **Known limit, measured:** an elision swap still passes. "hot for up to 24 hours" is accepted
+   on the same line, because "keeps drinks" ties the claim's 24 to the "cold" clause too
+   (`test_n2_elision_swap_is_rejected`, strict xfail; `evaluation/limitations.py`).
 3. **v1-045** "USB-C and a wireless charging pad" accepted on a quote covering only USB-C. **Open:**
    a compound claim is supported by half its evidence. In the full pipeline, extraction splits
    compound sentences; the verifier-only run skips extraction.
