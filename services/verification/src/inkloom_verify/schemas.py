@@ -1193,6 +1193,9 @@ class GuardRejectionReason(str, Enum):
     NEGATION_MISMATCH = (
         "negation_mismatch"  # the claim is negated and the quotes are not, or the reverse
     )
+    PROPERTY_MISMATCH = (
+        "property_mismatch"  # a figure in the claim is attached to a different property in the quotes
+    )
     # Applied to SUPPORTED and CONTRADICTED answers that passed every other check; passage_id is
     # the passage from another document that gives a different value:
     CONFLICTING_EVIDENCE = (
