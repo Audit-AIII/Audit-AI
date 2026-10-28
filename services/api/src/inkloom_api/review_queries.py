@@ -16,7 +16,10 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from .approval_rules import DECIDABLE_STATES
+from .auth.dependencies import AuthContext
+from .auth.permissions import allowed_review_actions
 from .models import ContentItem, ContentVersion, Review
+from .schemas import ReviewOut
 
 
 def reviews_in_organisation(organisation_id: uuid.UUID):
@@ -82,3 +85,45 @@ def brand_review_stats(db: Session, organisation_id: uuid.UUID) -> dict[uuid.UUI
         for brand_id, count, last in totals
         if brand_id is not None
     }
+
+
+def latest_review_ids(db: Session, content_version_ids: set[uuid.UUID]) -> set[uuid.UUID]:
+    """The id of the newest review of each of these versions - the one a decision acts on
+    (content_versions router: latest by `created_at`). One query for any number of versions."""
+    if not content_version_ids:
+        return set()
+    rows = db.execute(
+        select(Review.id)
+        .where(Review.content_version_id.in_(content_version_ids))
+        .distinct(Review.content_version_id)
+        .order_by(Review.content_version_id, Review.created_at.desc(), Review.id.desc())
+    ).all()
+    return {row.id for row in rows}
+
+
+def review_outs(db: Session, auth: AuthContext, reviews: list[Review]) -> list[ReviewOut]:
+    """`ReviewOut`s with `allowed_actions` for the caller. Every route returning a review builds
+    it here, so no route can forget the field or compute it differently."""
+    latest = latest_review_ids(db, {r.content_version_id for r in reviews})
+    outs = []
+    for review in reviews:
+        version = review.content_version
+        item = version.content_item
+        actions = allowed_review_actions(
+            auth.role,
+            auth.user_id,
+            item,
+            review.status,
+            is_latest_review=review.id in latest,
+            is_current_version=version.is_current,
+        )
+        outs.append(
+            ReviewOut.from_model(
+                review, allowed_actions=actions, is_current_version=version.is_current
+            )
+        )
+    return outs
+
+
+def review_out(db: Session, auth: AuthContext, review: Review) -> ReviewOut:
+    return review_outs(db, auth, [review])[0]

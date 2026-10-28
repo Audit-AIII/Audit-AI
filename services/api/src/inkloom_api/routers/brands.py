@@ -1,10 +1,9 @@
 """Brand listing/creation, brand source listing, upload and approval.
 
-Individual-user mode: each organisation is one user's private account, so `GET /api/brands` is
-that user's dashboard list of their own brands. Write routes keep `require_permission(...)`,
-which every active membership now satisfies (auth/permissions.py) - the access rule that matters
-is that every brand/source lookup is scoped to the caller's own account (tenancy.py: 404
-otherwise, never a hint that another account's brand exists).
+`GET /api/brands` lists the current workspace's brands for every member. Writes need a role that
+holds the permission (auth/permissions.py: approvers and owners), and every brand/source lookup
+is scoped to the caller's own workspace (tenancy.py: 404 otherwise, never a hint that another
+workspace's brand exists).
 """
 
 from __future__ import annotations
@@ -111,7 +110,7 @@ class BrandCreateRequest(BaseModel):
 @router.post("", response_model=BrandOut, status_code=201)
 def create_brand(
     body: BrandCreateRequest,
-    auth: AuthContext = Depends(require_permission(Permission.MANAGE_SOURCES)),
+    auth: AuthContext = Depends(require_permission(Permission.CREATE_BRAND)),
     db: Session = Depends(get_db),
 ) -> BrandOut:
     # organisation_id comes only from the token - a caller can never create a brand in another
@@ -458,7 +457,7 @@ def get_brand_rules(
 def put_brand_rules(
     brand_id: uuid.UUID,
     body: BrandRulesRequest,
-    auth: AuthContext = Depends(require_permission(Permission.MANAGE_SOURCES)),
+    auth: AuthContext = Depends(require_permission(Permission.EDIT_RULES)),
     db: Session = Depends(get_db),
 ) -> BrandRulesOut:
     """Validated with the engine's own `BrandRules` when saved (RULES_HANDOFF.md section 4), so a

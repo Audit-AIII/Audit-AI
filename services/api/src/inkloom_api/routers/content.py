@@ -20,6 +20,7 @@ from ..auth.permissions import Permission
 from ..db import get_db
 from ..models import ApprovalEvent, ContentVersion, Finding, FindingComment, FindingDecision, Review
 from ..request_text import StoredText
+from ..review_queries import review_out
 from ..review_runner import start_review
 from ..schemas import (
     ApprovalEventOut,
@@ -28,7 +29,6 @@ from ..schemas import (
     FindingEventOut,
     LockWarningOut,
     NewVersionResponse,
-    ReviewOut,
     ReviewSummaryOut,
 )
 from ..tenancy import get_content_item_or_404
@@ -46,10 +46,11 @@ class NewVersionRequest(BaseModel):
 def create_version(
     content_item_id: uuid.UUID,
     body: NewVersionRequest,
-    auth: AuthContext = Depends(require_permission(Permission.SUBMIT)),
+    auth: AuthContext = Depends(require_permission(Permission.EDIT_CONTENT)),
     db: Session = Depends(get_db),
 ) -> NewVersionResponse:
     item = get_content_item_or_404(db, auth.organisation_id, content_item_id)
+    auth.require(Permission.EDIT_CONTENT, item)  # a writer edits only their own drafts
 
     previous_current = (
         db.query(ContentVersion).filter_by(content_item_id=item.id, is_current=True).one_or_none()
@@ -100,7 +101,7 @@ def create_version(
         content_version_id=new_version.id,
         version_number=new_version.version_number,
         is_current=new_version.is_current,
-        review=ReviewOut.from_model(review),
+        review=review_out(db, auth, review),
         lock_warnings=[LockWarningOut(**w.model_dump()) for w in warnings],
     )
 

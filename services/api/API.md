@@ -116,7 +116,10 @@ Content sent for review leaves the machine for the configured cloud provider (se
 organisation with `is_personal: true`) where they are `role: "owner"`. Round 3 adds team members by
 invitation (section "Workspaces, members and invitations" below, and
 [`docs/governance.md`](../../docs/governance.md)). Older rows may still say `admin`, which means
-owner. Until Round 3 Phase 2 lands, roles gate only member management; risk-based routing is off, so `required_reviewer_role` is `null` on every new review (the
+owner. Roles are enforced on every route (403 `FORBIDDEN`, message "your role in this workspace
+cannot ..."); the role x action table is in `docs/governance.md` section 5, and every review carries
+`allowed_actions` (what the signed-in user may do with it) and `is_current_version`. A writer edits,
+re-checks and sets locks only on drafts they wrote. Risk-based routing is still off, so `required_reviewer_role` is `null` on every new review (the
 UI shows "Any approver"). The user approves their own content. Guards that still apply on approve
 (409): the review must be finished (`completed` / `needs_human_review`), the version must be the
 current one, and no cited source may have been withdrawn or replaced since the review ran.

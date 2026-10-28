@@ -208,19 +208,23 @@ def test_get_review_is_scoped_to_organisation(
 
 
 @requires_db
-def test_legacy_reviewer_role_can_submit(
+def test_reviewer_role_cannot_create_drafts(
     client, force_stub_mode, review_fixture: ReviewFixture
 ) -> None:
-    """Individual-user mode (2026-10-24): roles no longer gate anything, so a member with the
-    legacy `reviewer` role (which used to get 403 here, lacking `submit`) is the account owner and
-    may submit. Replaces test_post_reviews_requires_submit_permission."""
+    """Round 3 roles (docs/governance.md section 5): only writers and owners create drafts; a
+    reviewer gets a 403 and nothing is created."""
     token = _login(client, review_fixture.user_reviewer.email)
     response = client.post(
         "/api/reviews",
         json={"brand_id": str(review_fixture.brand_with_source.id), "text": "Some content."},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == 403, response.text
+    assert response.json()["error"] == {
+        "code": "FORBIDDEN",
+        "message": "your role in this workspace cannot create drafts",
+        "request_id": response.json()["error"]["request_id"],
+    }
 
 
 @requires_db

@@ -29,7 +29,7 @@ from ..idempotency import claim, complete, hash_request_body, validated_key
 from ..models import ContentItem, ContentVersion, EvidenceLink, Finding, Review
 from ..rate_limit import rate_limited_submit_permission
 from ..request_text import StoredText
-from ..review_queries import reviews_in_organisation
+from ..review_queries import review_out, review_outs, reviews_in_organisation
 from ..review_runner import start_review
 from ..schemas import ReviewOut
 from ..source_upload import extract_text, file_type_from_name, read_limited
@@ -108,7 +108,7 @@ def _submit_content_and_review(
 
     db.flush()
     db.refresh(review)
-    result = ReviewOut.from_model(review)
+    result = review_out(db, auth, review)
     if idempotency_key:
         complete(
             db, auth.organisation_id, endpoint, idempotency_key, 201, result.model_dump(mode="json")
@@ -227,7 +227,7 @@ def list_reviews(
             selectinload(Review.findings).selectinload(Finding.comments),
         )
     )
-    return [ReviewOut.from_model(review) for review in db.scalars(query).all()]
+    return review_outs(db, auth, list(db.scalars(query).all()))
 
 
 @router.get("/{review_id}", response_model=ReviewOut)
@@ -237,14 +237,14 @@ def get_review(
     db: Session = Depends(get_db),
 ) -> ReviewOut:
     review = get_review_or_404(db, auth.organisation_id, review_id)
-    return ReviewOut.from_model(review)
+    return review_out(db, auth, review)
 
 
 @router.post("/{review_id}/rerun", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
 def rerun_review(
     review_id: uuid.UUID,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    auth: AuthContext = Depends(require_permission(Permission.SUBMIT)),
+    auth: AuthContext = Depends(require_permission(Permission.RERUN)),
     db: Session = Depends(get_db),
 ) -> ReviewOut:
     """Creates and runs a NEW review for the same content_version_id the given review used —
@@ -255,14 +255,16 @@ def rerun_review(
     # target review_id itself is the hashed payload.
     idempotency_key = validated_key(idempotency_key)
     request_hash = hash_request_body({"review_id": str(review_id)}) if idempotency_key else None
+    # Scope and permission first, so a replay can never hand back a result the caller may not
+    # produce themselves.
+    old_review = get_review_or_404(db, auth.organisation_id, review_id)
+    content_version = db.get(ContentVersion, old_review.content_version_id)
+    content_item = db.get(ContentItem, content_version.content_item_id)
+    auth.require(Permission.RERUN, content_item)  # a writer re-checks only their own drafts
     if idempotency_key:
         replay = claim(db, auth.organisation_id, _RERUN_ENDPOINT, idempotency_key, request_hash)
         if replay is not None:
             return ReviewOut(**replay)
-
-    old_review = get_review_or_404(db, auth.organisation_id, review_id)
-    content_version = db.get(ContentVersion, old_review.content_version_id)
-    content_item = db.get(ContentItem, content_version.content_item_id)
 
     new_review = start_review(db, content_version, content_item.brand_profile_id)
     log_audit_event(
@@ -278,7 +280,7 @@ def rerun_review(
 
     db.flush()
     db.refresh(new_review)
-    result = ReviewOut.from_model(new_review)
+    result = review_out(db, auth, new_review)
     if idempotency_key:
         complete(
             db,

@@ -332,9 +332,20 @@ class ReviewOut(BaseModel):
     rules_status: str | None = None
     rule_checks: list[RuleCheckOut] | None = None
     locked_phrases: list[str] | None = None  # Intent-lock list of the reviewed content version
+    # Round 3 (docs/governance.md 9.1-9.2): what the CURRENT caller may do with this review,
+    # computed by auth/permissions.py `allowed_review_actions` - the same rule the routes enforce.
+    # The frontend shows a control only when its action is listed. Defaults keep idempotency
+    # replays recorded before these fields existed parseable.
+    allowed_actions: list[str] = []
+    is_current_version: bool | None = None
 
     @classmethod
-    def from_model(cls, review) -> ReviewOut:
+    def from_model(
+        cls,
+        review,
+        allowed_actions: list[str] | None = None,
+        is_current_version: bool | None = None,
+    ) -> ReviewOut:
         engine = (
             EngineInfoOut(
                 provider=review.engine_provider,
@@ -382,6 +393,8 @@ class ReviewOut(BaseModel):
             rules_status=review.rules_status,
             rule_checks=review.rule_checks,
             locked_phrases=locks if content_version is not None else None,
+            allowed_actions=allowed_actions or [],
+            is_current_version=is_current_version,
         )
 
 

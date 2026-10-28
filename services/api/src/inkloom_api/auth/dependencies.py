@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from ..config import Settings, get_settings
 from ..db import get_db
 from ..models import Membership, Organisation, User
-from .permissions import Permission, role_has_permission
+from .permissions import Permission, can, forbidden_message, role_has_permission
 from .security import TokenError, decode_access_token
 
 _bearer = HTTPBearer(auto_error=False)
@@ -43,12 +43,13 @@ class AuthContext:
     def role(self) -> str:
         return self.membership.role
 
-    def require(self, permission: Permission) -> None:
-        if not role_has_permission(self.role, permission):
-            # Safe 403: names the missing permission, never which other tenant/role could do it.
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN, f"missing permission: {permission.value}"
-            )
+    def require(self, permission: Permission, content_item=None) -> None:
+        """403 unless this member may take the action - on `content_item` when given, which adds
+        the writer's "own drafts only" rule (auth/permissions.py `can`). Load the draft through
+        tenancy.py first, so another workspace's draft is a 404, never a 403."""
+        if not can(self.role, self.user_id, permission, content_item):
+            # Safe 403: names the action, never which other role could do it.
+            raise HTTPException(status.HTTP_403_FORBIDDEN, forbidden_message(permission))
 
 
 def get_current_membership(
@@ -83,7 +84,10 @@ def require_permission(permission: Permission):
     """`Depends(require_permission(Permission.MANAGE_SOURCES))` on any route that needs it."""
 
     def _check(auth: AuthContext = Depends(get_current_membership)) -> AuthContext:
-        auth.require(permission)
+        # Role level only ("may this role ever do it"); a route acting on one draft also calls
+        # `auth.require(permission, item)` once the draft is loaded.
+        if not role_has_permission(auth.role, permission):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, forbidden_message(permission))
         return auth
 
     return _check

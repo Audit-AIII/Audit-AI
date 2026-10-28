@@ -1,9 +1,7 @@
 """POST /api/content-versions/{id}/approve, POST /api/content-versions/{id}/request-changes.
 
-Individual-user mode: the account owner marks their own content "ready to publish" (approve) or
-sends it back (request-changes / reject). Both routes keep their `require_permission(...)`
-dependency, which any active membership now satisfies (auth/permissions.py) - so in practice the
-only access rule is "this content version is in your own account" (404 otherwise).
+Who may decide (auth/permissions.py): approve and reject need an approver or owner; sending back
+(`changes_requested`) also a reviewer. A content version outside the caller's workspace is a 404.
 
 `approve` runs every guard in task 4: not yet decidable, stale, or a cited source superseded
 since the review ran - all reported as a safe 409. The Phase 9 risk-based routing guard was
@@ -33,7 +31,7 @@ from ..audit import log_audit_event
 from ..auth.dependencies import AuthContext, get_current_membership, require_permission
 from ..auth.permissions import Permission
 from ..db import get_db
-from ..models import Review
+from ..models import ContentItem, Review
 from ..request_text import NUL, StoredText
 from ..schemas import ApprovalEventOut
 from ..statuses import ApprovalAction
@@ -106,9 +104,11 @@ def approve_content_version(
 def request_changes(
     content_version_id: uuid.UUID,
     body: RequestChangesBody,
-    auth: AuthContext = Depends(require_permission(Permission.REVIEW)),
+    auth: AuthContext = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ) -> ApprovalEventOut:
+    # Rejecting is a final "no" (approvers); sending back for changes is also a reviewer's call.
+    auth.require(Permission.REJECT if body.decision == "rejected" else Permission.REQUEST_CHANGES)
     content_version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
     review = _latest_review_or_404(db, content_version.id)
 
@@ -155,7 +155,7 @@ def get_locks(
 def put_locks(
     content_version_id: uuid.UUID,
     body: LocksBody,
-    auth: AuthContext = Depends(require_permission(Permission.SUBMIT)),
+    auth: AuthContext = Depends(require_permission(Permission.EDIT_CONTENT)),
     db: Session = Depends(get_db),
 ) -> LocksOut:
     """The writer's must-keep phrases for this version (exact, case-sensitive; the engine's
@@ -163,6 +163,8 @@ def put_locks(
     list. Reviews that run afterwards never get a suggestion that removes one, and a stored
     suggestion that would is withheld when read (`withheld_by_intent_lock`)."""
     version = get_content_version_or_404(db, auth.organisation_id, content_version_id)
+    # A writer sets locks only on their own drafts.
+    auth.require(Permission.EDIT_CONTENT, db.get(ContentItem, version.content_item_id))
     if any(NUL in phrase for phrase in body.locked_phrases):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,

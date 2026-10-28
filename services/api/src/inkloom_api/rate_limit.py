@@ -104,12 +104,12 @@ def enforce_registration_rate_limit(
 
 
 def rate_limited_submit_permission():
-    """`Depends(rate_limited_submit_permission())` - the `submit` permission check, plus the
+    """`Depends(rate_limited_submit_permission())` - the `create_content` permission check, plus the
     rate limit, in one dependency. Permission is checked first: an unauthorized caller
     shouldn't consume rate-limit budget."""
 
     def _check(
-        auth: AuthContext = Depends(require_permission(Permission.SUBMIT)),
+        auth: AuthContext = Depends(require_permission(Permission.CREATE_CONTENT)),
         settings: Settings = Depends(get_settings),
     ) -> AuthContext:
         enforce_submission_rate_limit(auth, settings)

@@ -234,6 +234,20 @@
         "type": "string"
       },
       "description": "Intent-lock: the reviewed version's must-keep phrases (exact, case-sensitive). No suggestion that removes one is offered."
+    },
+    "allowed_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Round 3: what the signed-in user may do with this review, computed by the server with the same rule its routes enforce (docs/governance.md 9.2). Values: create_version, rerun, approve, request_changes, reject, comment, dismiss_finding; Phases 3-4 add submit, resubmit, assign, mark_reviewed, publish. Show a control only when its action is listed; treat unknown values as unknown."
+    },
+    "is_current_version": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "Round 3: true when this review's content version is the draft's current one. null on idempotency replays recorded before this field existed."
     }
   }
 }

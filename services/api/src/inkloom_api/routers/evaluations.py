@@ -25,7 +25,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..audit import log_audit_event
-from ..auth.dependencies import AuthContext, get_current_membership
+from ..auth.dependencies import AuthContext, get_current_membership, require_permission
+from ..auth.permissions import Permission
 from ..config import Settings, get_settings
 from ..db import get_db
 from ..engine.pipeline import external_call_logger
@@ -165,7 +166,8 @@ def _enforce_interval(db: Session, auth: AuthContext, settings: Settings) -> Non
 
 @router.post("", response_model=EvaluationOut, status_code=status.HTTP_201_CREATED)
 def create_evaluation(
-    auth: AuthContext = Depends(get_current_membership),
+    # Owners only: a run spends real provider calls (docs/governance.md section 5).
+    auth: AuthContext = Depends(require_permission(Permission.RUN_EVALUATION)),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> EvaluationOut:

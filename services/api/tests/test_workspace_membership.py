@@ -10,6 +10,7 @@ import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from conftest import join_workspace as _join
 from conftest import requires_db
 from inkloom_api.models import AuditEvent, Invitation, Membership
 
@@ -24,18 +25,6 @@ def _invite(client, owner, email: str, role: str = "writer"):
 
 def _email(account, client) -> str:
     return client.get("/api/auth/me", headers=account.headers).json()["user"]["email"]
-
-
-def _join(client, owner, member, role: str) -> dict:
-    """Invites `member` into `owner`'s workspace and accepts; `member.token` is then for it."""
-    created = _invite(client, owner, _email(member, client), role)
-    assert created.status_code == 201, created.text
-    accepted = client.post(
-        "/api/invitations/accept", json={"token": created.json()["token"]}, headers=member.headers
-    )
-    assert accepted.status_code == 200, accepted.text
-    member.token = accepted.json()["access_token"]
-    return accepted.json()
 
 
 def _code(response) -> str:

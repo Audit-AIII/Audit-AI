@@ -125,7 +125,7 @@ def _decide(
 def dismiss_finding(
     finding_id: uuid.UUID,
     body: DecisionBody | None = None,
-    auth: AuthContext = Depends(require_permission(Permission.REVIEW)),
+    auth: AuthContext = Depends(require_permission(Permission.DISMISS_FINDING)),
     db: Session = Depends(get_db),
 ) -> FindingDecisionOut:
     return _decide(db, auth, finding_id, "dismissed", body.note if body else None)
@@ -137,7 +137,7 @@ def dismiss_finding(
 def restore_finding(
     finding_id: uuid.UUID,
     body: DecisionBody | None = None,
-    auth: AuthContext = Depends(require_permission(Permission.REVIEW)),
+    auth: AuthContext = Depends(require_permission(Permission.DISMISS_FINDING)),
     db: Session = Depends(get_db),
 ) -> FindingDecisionOut:
     return _decide(db, auth, finding_id, "restored", body.note if body else None)
@@ -174,7 +174,7 @@ def list_comments(
 def add_comment(
     finding_id: uuid.UUID,
     body: CommentBody,
-    auth: AuthContext = Depends(require_permission(Permission.REVIEW)),
+    auth: AuthContext = Depends(require_permission(Permission.COMMENT)),
     db: Session = Depends(get_db),
 ) -> FindingCommentOut:
     finding = _finding_or_404(db, auth, finding_id)

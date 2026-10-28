@@ -16,8 +16,8 @@ behaviour instead:
    -> test_owner_can_request_changes_on_own_content
 3. an older review that still carries a routed role no longer restricts approval;
    -> test_legacy_routed_review_is_approvable_by_owner
-4. a member with any legacy role name is treated as the account owner;
-   -> test_legacy_role_names_act_as_account_owner
+4. a member with a legacy role name gets the powers of the team role it maps to (Round 3);
+   -> test_legacy_role_names_map_to_team_roles
 5. the guards that still make sense remain: unfinished/failed review, stale version (both also
    covered in test_content_versioning.py) and a replaced cited source.
    -> test_failed_review_still_cannot_be_approved
@@ -124,35 +124,50 @@ def test_legacy_routed_review_is_approvable_by_owner(
     assert approved.status_code == 201, approved.text
 
 
+# (can create drafts, can approve, can upload brand documents) per stored role string.
+_LEGACY_ROLE_POWERS = {
+    "admin": (True, True, True),  # owner
+    "submitter": (True, False, False),  # writer
+    "source_manager": (True, False, False),  # writer
+    "reviewer": (False, False, False),
+    "legal_reviewer": (False, False, False),  # reviewer
+    "approver": (False, True, True),
+    "brand_manager": (False, True, True),  # approver
+}
+
+
 @requires_db
-def test_legacy_role_names_act_as_account_owner(
+def test_legacy_role_names_map_to_team_roles(
     client, force_stub_mode, db_session, account_factory
 ) -> None:
-    """Old rows may hold submitter/reviewer/... - each now holds every permission (no 403s)."""
+    """Round 3 (docs/governance.md section 5): old rows holding a pre-0014 role name get exactly
+    the powers of the team role it maps to (auth/permissions.py `team_role`)."""
     owner = account_factory("owner")
-    for legacy_role in (
-        "submitter",
-        "reviewer",
-        "source_manager",
-        "approver",
-        "brand_manager",
-        "legal_reviewer",
-    ):
-        membership = db_session.query(Membership).filter_by(user_id=uuid.UUID(owner.user_id)).one()
-        membership.role = legacy_role
+    membership = db_session.query(Membership).filter_by(user_id=uuid.UUID(owner.user_id)).one()
+    for legacy_role, (create, approve, upload_docs) in _LEGACY_ROLE_POWERS.items():
+        membership.role = "owner"
         db_session.commit()
-
         review = owner.submit(
             f"Lumen Pods offer up to 12 hours of playback per charge ({legacy_role})."
         )
-        assert _approve(client, owner, review["content_version_id"]).status_code == 201, legacy_role
+        membership.role = legacy_role
+        db_session.commit()
+
+        submitted = client.post(
+            "/api/reviews",
+            json={"brand_id": owner.brand_id, "text": f"Another draft ({legacy_role})."},
+            headers=owner.headers,
+        )
+        approved = _approve(client, owner, review["content_version_id"])
         upload = client.post(
             f"/api/brands/{owner.brand_id}/sources",
             data={"title": f"Doc {legacy_role}", "approve": "true"},
             files={"file": ("d.txt", io.BytesIO(b"Warranty: 2 years."), "text/plain")},
             headers=owner.headers,
         )
-        assert upload.status_code == 201, (legacy_role, upload.text)
+        assert submitted.status_code == (201 if create else 403), (legacy_role, submitted.text)
+        assert approved.status_code == (201 if approve else 403), (legacy_role, approved.text)
+        assert upload.status_code == (201 if upload_docs else 403), (legacy_role, upload.text)
 
 
 @requires_db

@@ -201,6 +201,26 @@ def account_factory(client, db_session):
     db_session.commit()
 
 
+def join_workspace(client, owner: Account, member: Account, role: str) -> dict:
+    """Round 3: `owner` invites `member` into the owner's workspace with `role`, and `member`
+    accepts through the real routes. Afterwards `member.token` is for the owner's workspace
+    (`member.personal_token` keeps the one for their own). Returns the accept response."""
+    if not hasattr(member, "personal_token"):
+        member.personal_token = member.token
+    email = client.get("/api/auth/me", headers=member.headers).json()["user"]["email"]
+    created = client.post(
+        "/api/workspace/invitations", json={"email": email, "role": role}, headers=owner.headers
+    )
+    assert created.status_code == 201, created.text
+    accepted = client.post(
+        "/api/invitations/accept", json={"token": created.json()["token"]}, headers=member.headers
+    )
+    assert accepted.status_code == 200, accepted.text
+    member.token = accepted.json()["access_token"]
+    member.role = role
+    return accepted.json()
+
+
 def use_scripted_provider(monkeypatch, rules) -> None:
     """Routes every review in this test through the offline scripted provider
     (inkloom_api.engine.scripted_provider) - real engine code, deterministic verdicts, no network."""

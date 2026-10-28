@@ -1,6 +1,6 @@
 # Team governance, permissions and risk-based routing (Round 3)
 
-**Status: Phase 1 done (2026-10-28); Phases 2–6 proposed.** Owner: Darsh (backend). Sections 1–3
+**Status: Phases 1–2 done (2026-10-28); Phases 3–6 proposed.** Owner: Darsh (backend). Sections 1–3
 describe the code as found at `1e416e5`; sections 4–10 are the plan. Section 3 lists the open
 decisions.
 
@@ -10,7 +10,8 @@ decisions.
 |---|---|
 | 0. Inspect, plan, contract examples | done (`4326865`) |
 | 1. Workspaces, members, invitations | **done**: migration `0014`, `routers/workspace.py`, `workspace_service.py`, `tests/test_workspace_membership.py`. D2 (`admin` → `owner`) and D5 (link shown once) applied as recommended |
-| 2–6 | not started |
+| 2. Roles enforced server-side | **done**: role x action table and `can()` in `auth/permissions.py`, used by every route and by `allowed_actions` (`review_queries.review_outs`); `tests/test_permissions.py`, `tests/test_governance_roles.py` |
+| 3–6 | not started |
 
 Example payloads for the frontend are in [`contract/examples/`](../contract/examples/), all
 starting with `governance_`. Section 9 explains each one.
@@ -299,6 +300,11 @@ or owner.
 | `evaluation.run` | `POST /api/evaluations` | ✘ | ✘ | ✘ | ✔ |
 | `members.manage` | invitations + members endpoints (section 7) | ✘ | ✘ | ✘ | ✔ |
 
+**Implemented in Phase 2** (`auth/permissions.py`, `Permission` names in brackets):
+every row above except submit, assign, mark_reviewed and publish, whose routes arrive in Phases
+3–4. Reading needs only an active membership. The writer's "own" rule covers create_version, locks
+and rerun. "not own" on approve/publish is Phase 3.
+
 "not own" → 403 `SELF_APPROVAL_FORBIDDEN` (D1 solo rule aside), checked on approve, publish,
 the implicit approve of D4, and any future bulk route.
 
@@ -465,7 +471,7 @@ is unchanged and omitted from the examples for brevity.
 | `approval_mode` | `"team"` \| `"self"` | `"self"` = D1 solo sign-off |
 | `allowed_actions` | string[] | section 9.2 |
 | `summary_counts` | object | section 9.4 |
-| `is_current_version` | bool | false → `allowed_actions` is `[]` (history) |
+| `is_current_version` | bool \| null | the reviewed version is the draft's current one. On an older version `approve` is never listed; edit, re-check, comment and dismiss still are, because their routes accept them |
 
 Examples:
 - `governance_review_item_team_writer.json`: writer looking at their own high-risk draft
@@ -482,8 +488,21 @@ Exact values, computed by the same `can()` the server enforces:
 - `approve`, `reject`, `publish`
 - `comment`, `dismiss_finding`
 
+Live since Phase 2, each listed only when the role allows it (`can()`) **and** the route would
+accept it now:
+
+| Action | Extra condition (same as the route) |
+|---|---|
+| `create_version`, `rerun` | writers: only on drafts they wrote |
+| `approve` | the latest review of the draft's **current** version, status `completed`/`needs_human_review` |
+| `request_changes`, `reject` | the latest review of its version, status `completed`/`needs_human_review` |
+| `comment`, `dismiss_finding` | none (any review) |
+
+`submit`, `resubmit`, `assign`, `mark_reviewed` and `publish` appear once their routes exist
+(Phases 3–4). Phase 3 also removes `approve` from the author's own drafts.
+
 The frontend shows a control only when its action is in the list, and must still handle a
-403/409 (state can change between load and click).
+403/409 (state can change between load and click). Treat an unknown value as unknown.
 
 ### 9.3 Audit history: `governance_audit_history.json`
 

@@ -110,9 +110,11 @@ def _submit(client, token: str, brand_id, text: str = "Some content.") -> dict:
 
 
 @requires_db
-def test_legacy_reviewer_role_decides_as_account_owner(
+def test_reviewer_sends_back_but_only_an_approver_or_owner_approves(
     client, force_stub_mode, fixture: Fixture
 ) -> None:
+    """Round 3 roles (docs/governance.md section 5): a reviewer may request changes, never approve;
+    the owner (stored as the legacy `admin` here) may."""
     admin_token = _login(client, fixture.admin.email)
     reviewer_token = _login(client, fixture.reviewer.email)
     first = _submit(client, admin_token, fixture.brand.id)
@@ -127,11 +129,17 @@ def test_legacy_reviewer_role_decides_as_account_owner(
     assert changes.json()["action"] == "changes_requested"
 
     second = _submit(client, admin_token, fixture.brand.id, text="Other content.")
-    approved = client.post(
+    refused = client.post(
         f"/api/content-versions/{second['content_version_id']}/approve",
         headers=_auth(reviewer_token),
     )
-    assert approved.status_code == 201, approved.text  # was 403 FORBIDDEN under team roles
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["error"]["code"] == "FORBIDDEN"
+    approved = client.post(
+        f"/api/content-versions/{second['content_version_id']}/approve",
+        headers=_auth(admin_token),
+    )
+    assert approved.status_code == 201, approved.text
 
     from inkloom_api.db import get_session_factory
     from inkloom_api.models import AuditEvent
