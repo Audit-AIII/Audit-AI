@@ -174,6 +174,58 @@
         "tests/test_citation_guard.py::test_regression_live_run_a_seconds_claim_is_not_supported_by_a_minutes_quote"
       ],
       "status": "fixed"
+    },
+    {
+      "id": "REG-014",
+      "found": "2026-10-28",
+      "phase": "Round 3 Phase 3 (numeric property binding)",
+      "category": "numeric_discrepancies",
+      "title": "A figure bound to another property supported the claim (v1-036)",
+      "symptom": "Reproduced offline with a scripted SUPPORTED answer through EngineVerifierPredictor: 'The Lumen Bottle keeps drinks cold for up to 12 hours.' quoting 'keeps drinks cold for up to 24 hours and hot for up to 12 hours' was SUPPORTED (gold CONTRADICTED). support_problems only checked that '12 hours' appeared somewhere in the quotes; there it is the hot figure.",
+      "fix": "citation_guard._misbound_quantity, inside support_problems (unsupported_quantity): when the quotes give another value of the same unit, a claimed figure is rejected if the claim shares a word found only next to the other value and none found only next to its own. Quotes with one value of a unit are never re-read. Measured: no SUPPORTED record of eval/dataset.jsonl (25) or eval/data/verification_v1.jsonl (19) is flagged, with its gold quotes, its full source lines, or its whole reference documents as the quote.",
+      "tests": [
+        "tests/test_citation_guard.py::test_regression_v1_036_the_hot_figure_does_not_support_a_cold_claim",
+        "tests/test_citation_guard.py::test_a_figure_bound_to_another_property_is_unsupported",
+        "tests/test_citation_guard.py::test_a_figure_bound_to_the_claims_property_is_still_supported",
+        "tests/test_citation_guard.py::test_every_gold_quote_still_supports_its_supported_claim"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "REG-015",
+      "found": "2026-10-28",
+      "phase": "Round 3 Phase 4 (compound claims)",
+      "category": "compound_claims",
+      "title": "A compound claim was SUPPORTED on a quote for one of its parts (v1-045)",
+      "symptom": "Reproduced offline with scripted SUPPORTED answers through EngineVerifierPredictor: 'Lumen Pods charge over USB-C and include a wireless charging pad.' (gold NOT_ENOUGH_EVIDENCE) quoting only 'Charging: USB-C.' was SUPPORTED. The decision policy only routed it to review (compound_under_cited, one citation); with a second, unrelated citation ('charging case 48 g') it passed that rule too and could be auto-cleared on strong evidence. No check looked at the second part at all.",
+      "fix": "citation_guard._unsupported_part, inside support_problems (new reason unsupported_component, additive in verification_report.schema.json): the claim is split where decision_policy.looks_compound sees a join (compound_parts); a part is unsupported when at least MIN_ABSENT_PART_WORDS (2) of its content words, and more than half, are in no cited passage. Measured on the retrieved chunks that hold each gold quote: no SUPPORTED record of eval/dataset.jsonl (25) or eval/data/verification_v1.jsonl (19) is flagged; flagged non-SUPPORTED records: v1-045, v3-022 (absent facts) and v3-023/024/025 (injection traps).",
+      "tests": [
+        "tests/test_citation_guard.py::test_regression_v1_045_usb_c_does_not_support_a_wireless_charging_pad",
+        "tests/test_citation_guard.py::test_a_compound_part_missing_from_every_cited_document_is_unsupported",
+        "tests/test_citation_guard.py::test_a_compound_claim_with_every_part_in_the_documents_is_still_supported",
+        "tests/test_citation_guard.py::test_without_cited_passages_no_part_is_judged",
+        "tests/test_citation_guard.py::test_every_gold_quote_still_supports_its_supported_claim"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "REG-016",
+      "found": "2026-10-28",
+      "phase": "Round 3 Phase 5 (evidence-grounded corrections)",
+      "category": "correction_traceability",
+      "title": "A correction could borrow another property's figure, or restate a part no evidence gives",
+      "symptom": "correction_issues only required a new (number, unit) to appear somewhere in the cited quotes, so 'hot for up to 6 hours' -> '24 hours' was offered from 'cold for up to 24 hours and hot for up to 12 hours', and 'each earbud ... 12 hours' -> '36 hours' from '8 hours per earbud, 36 hours with the charging case'. A rewrite whose new words were all in the quotes ('charge over USB-C and include a wireless charging pad') was offered though no evidence mentions the pad. Measured on 6 gap candidates: 1 rejected; 5 offered unless the model re-check happened to refuse them, and with recheck=False nothing did.",
+      "fix": "correction_issues (no new issue code: both are unsupported_addition): (1) citation_guard.misbound_quantities (the Phase 3 binding check, now returning the figures) runs on the corrected sentence; (2) for a compound corrected sentence, each part the replacement writes is checked with citation_guard.absent_from (the Phase 4 rule) against the cited quotes and passages, judging only the replacement's own words. Binding (verification too): in an evidence clause with several figures, the subject words before the first figure's own words are shared by every figure, so 'keeps drinks' no longer marks 24 hours as the hot figure. Labelled corrections_v1 candidates unchanged (28/28 bad rejected, 17/18 good accepted); gap candidates 6/6 rejected, 10/10 good accepted; every gold quote of both verification datasets still supports its SUPPORTED claim.",
+      "tests": [
+        "tests/test_correction_grounding.py::test_a_figure_bound_to_another_property_is_an_unsupported_addition",
+        "tests/test_correction_grounding.py::test_a_figure_bound_to_the_claims_property_is_still_offered",
+        "tests/test_correction_grounding.py::test_a_rewrite_that_restates_an_unsupported_part_is_an_unsupported_addition",
+        "tests/test_correction_grounding.py::test_a_rewrite_whose_parts_are_in_the_evidence_is_still_offered",
+        "tests/test_correction_grounding.py::test_a_borrowed_figure_is_refused_before_any_recheck",
+        "tests/test_correction_grounding.py::test_the_recheck_still_refuses_an_untouched_unsupported_part",
+        "tests/test_citation_guard.py::test_a_figure_bound_to_another_property_is_unsupported"
+      ],
+      "status": "fixed"
     }
   ],
   "coverage": {

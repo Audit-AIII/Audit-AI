@@ -1036,6 +1036,49 @@ set here. Once they are set, the live report gives:
 Unsupported additions can't appear in an accepted proposal, because the checks reject them
 before a proposal is accepted.
 
+## Round 3 Phase 5: evidence-grounded corrections (actual output, 2026-10-28)
+
+**Gaps found** (REG-016). The checks required a new figure to appear *somewhere* in the cited
+quotes, not for the claim's property, and never asked whether a rewritten clause was in the
+evidence. Without a re-check, or with a re-check that answered SUPPORTED, these were offered:
+
+- "hot for up to 6 hours" → "24 hours", from "cold for up to 24 hours and hot for up to 12 hours";
+- "each earbud ... 12 hours" → "36 hours", from "8 hours per earbud, 36 hours with the charging case";
+- a rewrite that swaps both figures to the wrong properties;
+- "charge over micro-USB and include a wireless charging pad" → "charge over USB-C and include a
+  wireless charging pad", when no evidence mentions a pad.
+
+**Fix:** in `correction_issues`, reported as `unsupported_addition`:
+- The Phase 3 binding check runs on the corrected sentence.
+- Each compound part the replacement writes is checked with the Phase 4 absence rule, against the
+  cited quotes and passages.
+- In evidence, a clause's leading subject words are now shared by all of its figures (this also
+  affects verification).
+
+```sh
+PYTHONPATH=src python -m inkloom_verify.evaluation.corrections --cases eval/data/corrections_v1.jsonl
+```
+
+| Candidates | Before (HEAD) | After |
+|---|---|---|
+| corrections_v1, bad edits rejected | 28/28 | 28/28 |
+| corrections_v1, good edits accepted | 17/18 | 17/18 (same `cannot put` miss) |
+| Gap candidates (`tests/test_correction_grounding.py`), bad rejected | 1/6 | 6/6 |
+| Gap candidates, good accepted | 10/10 | 10/10 |
+
+None of the 46 labelled candidates has these shapes. That's why that set doesn't move, and why
+the gap candidates live in tests rather than in the dataset, which includes held-out cases.
+
+**Live:** not run; the provider isn't configured (exit 2).
+
+**Limitations:**
+- Lexical: figure binding uses nearby words without stemming. A part reworded in new words can
+  still be refused, and a false part built from evidence words is left to the re-check.
+- A part the replacement doesn't touch isn't judged by the checks. The re-check does judge it,
+  through the guard, only when re-checking is on.
+- Any figure in the corrected sentence that is bound to the wrong property refuses the
+  correction, including one the edit didn't touch.
+
 ## Phase 6, second run: evaluation harness with extraction (actual output, 2026-10-23)
 
 `python eval/run_eval.py --check-baseline`, exit 0. **17 gates PASS, 3 NOT APPLICABLE**

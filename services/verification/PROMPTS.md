@@ -423,6 +423,7 @@ SUPPORTED answer stands only if the cited quotes actually carry the claim's figu
 | If a quote qualifies a figure the claim repeats ("up to 12 hours", "about", "at least", "more than", …), the claim keeps that qualifier | `missing_qualifier` |
 | Every capitalised name in the claim, after its leading subject run, appears in a cited passage. Months and all-capital acronyms ("CEO") are skipped. | `unsupported_name` |
 | The claim and the cited quotes agree on negation: "The bottle is dishwasher safe" is not supported by the exact, complete quote "The bottle is not dishwasher safe" (PROMPTS.md Phase 3; 0 of 45 labelled SUPPORTED records disagree on negation) | `negation_mismatch` |
+| Every part of a compound claim (split where `looks_compound` sees "and", "but", "plus", a semicolon, …) is in the cited passages: a part is unsupported when at least two of its content words, and more than half of them, appear in no cited passage. Absence only: words that are present never prove a part. Measured (Round 3 Phase 4): no SUPPORTED record of either dataset is flagged on its gold passages; one absent word ("come", "cost") is ordinary paraphrase | `unsupported_component` |
 
 **Why names are checked against passages, not quotes.** Quotes rarely repeat the claim's subject:
 a quote-level rule would reject 17 of the 20 labelled SUPPORTED records. The subject run ("The
