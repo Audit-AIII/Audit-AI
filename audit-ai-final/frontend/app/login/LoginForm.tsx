@@ -50,7 +50,16 @@ export function LoginForm() {
   return signup ? <SignUpForm /> : <SignInForm expired={params.get("expired") === "1"} next={next} />;
 }
 
-function SignInForm({ expired, next }: { expired: boolean; next: string }) {
+/**
+ * Suspense fallback for LoginForm. useSearchParams leaves the boundary empty in the static HTML, so
+ * the card used to appear only after hydration and pushed the wordmark and note around (CLS 0.057
+ * on a phone). An invisible, inert copy of the sign-in card holds its exact space until then.
+ */
+export function LoginFormPlaceholder() {
+  return <SignInForm expired={false} next="/app" placeholder />;
+}
+
+function SignInForm({ expired, next, placeholder = false }: { expired: boolean; next: string; placeholder?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -72,7 +81,12 @@ function SignInForm({ expired, next }: { expired: boolean; next: string }) {
   };
 
   return (
-    <section className="auth__card card" aria-labelledby="auth-title">
+    <section
+      className={placeholder ? "auth__card auth__card--placeholder card" : "auth__card card"}
+      aria-labelledby={placeholder ? undefined : "auth-title"}
+      aria-hidden={placeholder || undefined}
+      inert={placeholder || undefined}
+    >
       <h1 id="auth-title" className="auth__title relief-pressed grain-text" data-text="Sign in">
         Sign in
       </h1>

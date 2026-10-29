@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { LoginForm } from "./LoginForm";
+import { LoginForm, LoginFormPlaceholder } from "./LoginForm";
 
 export const metadata: Metadata = { title: "Sign in — Audit AI" };
 
@@ -11,7 +11,7 @@ export default function LoginPage() {
       <Link className="auth__brand t-wordmark" href="/">
         Audit AI.
       </Link>
-      <Suspense>
+      <Suspense fallback={<LoginFormPlaceholder />}>
         <LoginForm />
       </Suspense>
       <p className="t-body auth__note">
