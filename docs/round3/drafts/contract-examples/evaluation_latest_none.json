@@ -1,4 +1,5 @@
 {
+  "_note": "ILLUSTRATIVE EXAMPLE ONLY. Values are placeholders, not measured results.",
   "_example_only": "GET /api/evaluations/latest when no run exists: HTTP 404, standard error body (current backend behaviour, routers/evaluations.py). The request_id is illustrative.",
   "error": {
     "code": "NOT_FOUND",
