@@ -260,8 +260,9 @@ Additional rules:
   `quote_not_found`, `quote_too_short` and `partial_quote_drops_negation`. Since Phase 4 there
   are also support checks for SUPPORTED answers, which carry no `passage_id`:
   `unsupported_quantity`, `unsupported_date`, `missing_qualifier`, (Phase 4 of the second
-  run) `unsupported_name`, (prompts Phase 3) `negation_mismatch`, and (Round 3 Phase 4)
-  `unsupported_component`.
+  run) `unsupported_name`, (prompts Phase 3) `negation_mismatch`, and (Round 3)
+  `property_mismatch`: a figure in the claim is attached to a different property in the quotes;
+  and `unsupported_clause`: a part of the claim is covered by none of the cited quotes.
 
   `instruction_text` (prompts Phase 6) has two uses:
   - **with a `passage_id`:** the quote touches a passage sentence that gives instructions, not
@@ -296,7 +297,6 @@ Additional rules:
   - a `correction` requires an attempt with status `proposed`, and a `proposed` attempt requires the `correction`;
   - a `proposed` attempt has no issues and no error, and if it was re-checked the re-check was `SUPPORTED`.
 - Issue codes: `model_declined`, `no_citation`, `unknown_citation`, `target_not_found`, `no_change`, `unsupported_addition`, `drops_qualifier`, `drops_unit` (Phase 5, second run), `drops_attribution` (prompts Phase 4), `not_minimal`, `recheck_not_supported`, `recheck_unavailable`, `invalid_correction`. See [PROMPTS.md](PROMPTS.md#prompt-correct-claim-v1).
-  (Round 3 Phase 5) `unsupported_addition` also covers a figure that the cited quotes give for another property, and a part of a compound replacement that is in none of the cited quotes or passages. No code was added.
 
 ### Reports
 

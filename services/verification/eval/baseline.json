@@ -67,9 +67,9 @@
       "name": "false-SUPPORTED (valid-quote, always SUPPORTED)",
       "metric": "enforcement/valid_quote_always_supported/false_supported",
       "op": "<=",
-      "value": 0.2909090909090909,
+      "value": 0.2545454545454545,
       "applies_to": "always",
-      "note": "measured 16/55 on dataset v2"
+      "note": "measured 14/55 after REG-018 (was 16/55 on dataset v2); a scripted always-SUPPORTED adversary, not model quality"
     },
     {
       "name": "correction checker: bad edits rejected",

@@ -200,3 +200,30 @@ no-false-downgrade checks read the gold quotes of every SUPPORTED record in both
 held-out included (`test_every_gold_quote_still_supports_its_supported_claim`), and the step 04
 measurement listed which held-out records the new rule flags (v3-023). This must go into
 `docs/round3/results/RUN_LEDGER.md` (step 07).
+
+## 8. Step 04, step 3: does extraction split a compound claim? (measured 2026-10-29)
+
+Branch `krish/round3-guards` at `2a999c7` (guard rule `unsupported_clause` in place). Scripted
+provider through the real pipeline (`verify_request`, reference `pods-fact-sheet`): extraction
+returns "Lumen Pods charge over USB-C and include a wireless charging pad." as **one** claim, and
+the verifier answers SUPPORTED citing "Charging: USB-C.".
+
+| Stage | Result |
+|---|---|
+| Extraction | **(b) passed through whole**: 1 claim, the full sentence. Nothing after the model splits claims; the deterministic layer only keeps a claim or falls back to the verbatim sentence (`extraction.py` module docstring) |
+| Model verdict | SUPPORTED |
+| Citation guard | downgraded, rejected reason `unsupported_clause` |
+| Final verdict | **NOT_ENOUGH_EVIDENCE**, `requires_human_review: true`, claim reason `not_enough_evidence` |
+| Report | review reasons `unverified_claims`, `citations_rejected` |
+
+**Decision (per the runbook):** (b) and the guard now catches it, so extraction is left alone; no
+atomicity flag is added (that would touch the report contract, STOP C rules).
+
+**Test coverage:** already covered, so no new test.
+`tests/test_decision_policy.py::test_a_compound_claim_on_one_quote_is_not_auto_cleared` runs the
+same path: its scripted model returns each sentence as one unsplit claim, the `[one]` unpacking
+asserts exactly one claim comes out, and it asserts the `unsupported_clause` downgrade. The
+v1-045 sentence itself is covered at guard level
+(`tests/test_guard_compound_claims.py::test_v1_045_charging_pad_clause_is_rejected_on_its_reference_line`).
+This measurement is a scripted run, not model behaviour: a live model may or may not split the
+sentence.

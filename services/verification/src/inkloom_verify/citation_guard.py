@@ -32,7 +32,6 @@ import re
 from collections.abc import Sequence
 
 from inkloom_verify.chunking import sentence_spans
-from inkloom_verify.decision_policy import compound_parts
 from inkloom_verify.extraction import MONTHS, NEGATION
 from inkloom_verify.retrieval import tokenize
 from inkloom_verify.schemas import (
@@ -277,103 +276,6 @@ def quantities(text: str) -> set[tuple[str, str | None]]:
     return found
 
 
-# Clause boundaries for property binding. A comma or full stop ends a clause only before
-# whitespace, so "1,200 mAh" and "5.2 g" stay whole numbers.
-_BINDING_BREAK = re.compile(r"[;:()–—\n]|,(?=\s)|[.!?](?=\s|$)")
-# The claim is split at sentence ends only: a claim often fronts its property before a comma
-# ("With the charging case, the earbuds provide up to 36 hours"), which a clause split would cut
-# off its figure.
-_CLAIM_BREAK = re.compile(r"\n|[.!?](?=\s|$)")
-
-
-def _property_words(
-    text: str, breaks: re.Pattern[str] = _BINDING_BREAK
-) -> list[tuple[tuple[str, str], set[str]]]:
-    """((number, unit), words) for each number with a unit or currency in ``text``.
-
-    A figure's words are those between the previous figure of its clause (or the clause start) and
-    the figure itself; the clause's last figure also takes the words after it. So in "cold for up
-    to 24 hours and hot for up to 12 hours", 24 hours gets "cold" and 12 hours gets "hot".
-
-    In evidence (the default ``breaks``), a clause with several figures usually shares its subject:
-    the first figure owns as many of the words before it as the second figure has ("cold for up
-    to" mirrors "hot for up to"), and the earlier ones ("keeps drinks") are given to every figure
-    of the clause, so they tell none of them apart.
-    """
-    found = []
-    for clause in breaks.split(text):
-        typed = []
-        for m in _QUANTITY.finditer(clause):
-            unit = _CURRENCY.get(m["cur"] or "")
-            if unit is None and m["unit"]:
-                unit = _UNITS.get(m["unit"].casefold())
-            if unit is not None:
-                typed.append((m, unit))
-        shared: set[str] = set()
-        if breaks is _BINDING_BREAK and len(typed) > 1:
-            lead = [t for t in tokenize(clause[: typed[0][0].start()]) if t in _topic(t)]
-            # Parallel clauses: the first figure owns as many words as the second has before it.
-            owned = max(1, len(_topic(clause[typed[0][0].end() : typed[1][0].start()])))
-            shared = set(lead[:-owned]) - set(lead[-owned:])
-        start = 0
-        for i, (m, unit) in enumerate(typed):
-            words = clause[start : m.start()]
-            if i == len(typed) - 1:
-                words += " " + clause[m.end() :]
-            found.append(((_number(m["num"]), unit), _topic(words) | shared))
-            start = m.end()
-    return found
-
-
-def misbound_quantities(claim: str, quotes: list[str]) -> set[tuple[str, str]]:
-    """The claimed figures that the quotes attach to a different property than the claim does.
-
-    Only applies when the quotes give another value of the same unit (otherwise there is nothing to
-    confuse the figure with, and a paraphrase is never re-read). The figure is misbound when the
-    claim shares a word found only next to the other value, and no word found only next to its
-    own value: "cold for up to 12 hours" against "cold for up to 24 hours and hot for up to 12
-    hours" ("cold" belongs to 24 hours; nothing of the 12-hour clause is in the claim).
-    """
-    evidence = [entry for quote in quotes for entry in _property_words(quote)]
-    found = set()
-    for (number, unit), claim_words in _property_words(claim, _CLAIM_BREAK):
-        same = [w for q, w in evidence if q == (number, unit)]
-        other = [w for q, w in evidence if q[1] == unit and q[0] != number]
-        if not same or not other:
-            continue
-        same_words, other_words = set().union(*same), set().union(*other)
-        if claim_words & (other_words - same_words) and not claim_words & (
-            same_words - other_words
-        ):
-            found.add((number, unit))
-    return found
-
-
-# A part of a compound claim is an unchecked fact when at least this many of its content words,
-# and more than half of them, are in no cited passage. Measured on eval/dataset.jsonl and
-# eval/data/verification_v1.jsonl: every part of a SUPPORTED compound claim misses at most one
-# word (paraphrase: "come", "cost", "rated", "over"); the parts labelled unsupported miss three.
-MIN_ABSENT_PART_WORDS = 2
-
-
-def _unsupported_part(claim: str, passages: list[str]) -> bool:
-    """Whether a part of a compound claim is absent from every cited passage.
-
-    Words are evidence of absence only, never of support: a part whose words are all present can
-    still be unsupported, and is then left to the verifier, the other checks and the review policy.
-    """
-    parts = compound_parts(claim)
-    return len(parts) >= 2 and any(absent_from(part, passages) for part in parts)
-
-
-def absent_from(text: str, passages: Sequence[str]) -> bool:
-    """Whether at least ``MIN_ABSENT_PART_WORDS`` of ``text``'s content words, and more than half of
-    them, are in none of ``passages``."""
-    words = _topic(text)
-    absent = words - _topic(" ".join(passages))
-    return len(absent) >= MIN_ABSENT_PART_WORDS and 2 * len(absent) > len(words)
-
-
 def _dates(text: str) -> set[str]:
     """Month names that appear next to a day or year number (so the verb "may" is not a month)."""
     return {m.group(1).casefold()[:3] for m in _DATE.finditer(text) if re.search(r"\d", m.group(0))}
@@ -433,10 +335,6 @@ def support_problems(
         if units is None or (unit is not None and unit not in units and None not in units):
             problems.append(GuardRejectionReason.UNSUPPORTED_QUANTITY)
             break
-    else:
-        # The figure is in the quotes, but it may belong to another property of the same unit.
-        if misbound_quantities(claim, quotes):
-            problems.append(GuardRejectionReason.UNSUPPORTED_QUANTITY)
     if not _dates(claim) <= _dates(evidence):
         problems.append(GuardRejectionReason.UNSUPPORTED_DATE)
     claim_cf, claim_numbers = claim.casefold(), {n for n, _ in claim_quantities}
@@ -444,19 +342,233 @@ def support_problems(
         if _number(match["num"]) in claim_numbers and match["q"].casefold() not in claim_cf:
             problems.append(GuardRejectionReason.MISSING_QUALIFIER)
             break
+    labels = [_passage_label(quote, passages) for quote in quotes] if passages is not None else None
+    if property_mismatch(claim, quotes, labels):
+        problems.append(GuardRejectionReason.PROPERTY_MISMATCH)
+    if uncovered_clauses(claim, quotes):
+        problems.append(GuardRejectionReason.UNSUPPORTED_CLAUSE)
     if passages is not None:
         context = " ".join(passages)
         if any(not re.search(rf"(?<!\w){re.escape(name)}(?!\w)", context) for name in names(claim)):
             problems.append(GuardRejectionReason.UNSUPPORTED_NAME)
-        # "charges over USB-C and includes a wireless charging pad" quoted for USB-C only.
-        if _unsupported_part(claim, passages):
-            problems.append(GuardRejectionReason.UNSUPPORTED_COMPONENT)
     # "The bottle is dishwasher safe" is not supported by "The bottle is not dishwasher safe", even
     # though that quote is exact and complete. Measured (PROMPTS.md Phase 3): 0 of 45 labelled
     # SUPPORTED records have a claim and gold quotes that disagree on negation.
     if (NEGATION.search(claim_cf) is None) != (NEGATION.search(evidence.casefold()) is None):
         problems.append(GuardRejectionReason.NEGATION_MISMATCH)
     return problems
+
+
+# --- Property binding: which property a figure is a figure of -------------------------------------
+# "cold for up to 12 hours" must not pass on "cold for up to 24 hours and hot for up to 12 hours":
+# the 12 is in the quote, but it belongs to "hot". Lexical, no parsing: a figure's property is the
+# content words of its clause, plus its sentence's short "Label:" (a fact sheet's "Warranty: 3
+# years."). Measured (Round 3 step 03): 0 of 35 dev SUPPORTED records (eval/dataset.jsonl and
+# eval/data/retrieval_v1.jsonl) are rejected on their gold quotes.
+
+_PROPERTY_CLAUSE_BREAK = re.compile(
+    r"[;:()–—]|(?<!\d),|,(?!\d)|\b(?:and|but|while|whereas|plus)\b", re.IGNORECASE
+)
+_PROPERTY_SENTENCE = re.compile(r"[.!?](?=\s|$)|\n")
+_MAX_LABEL_WORDS = 4
+_NOT_PROPERTY_WORDS = frozenset(
+    word for qualifier in _FIGURE_QUALIFIERS for word in qualifier.split()
+) | frozenset(unit for unit in _UNITS if " " not in unit)
+
+
+def _ordered_property_words(text: str) -> list[str]:
+    """Content words in order: no numbers, qualifiers, units or stopwords; a plural ``s`` stripped."""
+    words = []
+    for token in tokenize(text):
+        if any(c.isdigit() for c in token) or token in _NOT_PROPERTY_WORDS:
+            continue
+        if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+            token = token[:-1]
+        words.append(token)
+    return words
+
+
+def _property_words(text: str) -> set[str]:
+    return set(_ordered_property_words(text))
+
+
+def _label(sentence: str) -> str:
+    """The text before a sentence's first colon, if it is at most four words ("Battery life")."""
+    head, colon, _ = sentence.partition(":")
+    return head if colon and 0 < len(head.split()) <= _MAX_LABEL_WORDS else ""
+
+
+def _passage_label(quote: str, passages: Sequence[str]) -> str:
+    """The label of the passage line holding ``quote``: quotes are substrings and often start
+    after the label ("keeps drinks cold ..." from "Insulation: keeps drinks cold ...")."""
+    for passage in passages:
+        for line in passage.splitlines():
+            if quote.strip() and quote.strip() in line:
+                return _label(line.strip())
+    return ""
+
+
+def _figure_contexts(
+    text: str, label: str = "", *, is_claim: bool = False
+) -> list[tuple[str, str | None, set[str]]]:
+    """(number, unit, property words) for every figure in ``text``.
+
+    The property words are the content words of the figure's clause and of its sentence's label
+    (or ``label``, the passage line's label, for a quote that omits it). In a claim, a preceding
+    clause with no figure ("With the charging case, ...") belongs to the next figure too.
+
+    In evidence, parallel clauses share their subject: in "keeps drinks cold for up to 24 hours and
+    hot for up to 12 hours" the first figure owns as many of its leading words as the second
+    figure has before it ("cold" mirrors "hot"); the earlier ones ("keeps drinks") belong to every
+    figure of the sentence, so they tell none of them apart.
+    """
+    contexts = []
+    extra = _property_words(label)
+    for sentence in _PROPERTY_SENTENCE.split(text):
+        label_words = extra | _property_words(_label(sentence.strip()))
+        lead: set[str] = set()
+        clauses = []  # (figures, words, content words before the first figure)
+        for clause in _PROPERTY_CLAUSE_BREAK.split(sentence):
+            figures = quantities(clause)
+            words = _property_words(clause)
+            if not figures:
+                lead = words if is_claim else set()
+                continue
+            first = _QUANTITY.search(clause)
+            before = _ordered_property_words(clause[: first.start()]) if first else []
+            clauses.append((figures, words | lead | label_words, before))
+            lead = set()
+        shared: set[str] = set()
+        if not is_claim and len(clauses) >= 2:
+            owned = max(1, len(clauses[1][2]))
+            shared = set(clauses[0][2][:-owned])
+        for figures, words, _ in clauses:
+            for number, unit in figures:
+                contexts.append((number, unit, words | shared))
+    return contexts
+
+
+def property_mismatch(
+    claim: str, quotes: Sequence[str], labels: Sequence[str] | None = None
+) -> bool:
+    """True if the quotes tie a figure's property in ``claim`` to a different figure.
+
+    For each figure in the claim whose number the quotes give, next to at least one other number
+    of a compatible unit: only the *distinguishing* words count, those found next to the same
+    number and not next to any other ("cold" for 24, "hot" for 12), and the reverse. The claim
+    gives its property the wrong figure when it shares more distinguishing words with the other
+    numbers than with its own; ties and no shared words stay quiet (paraphrase). Words match
+    exactly (a plural ``s`` stripped), so "charge" is not "charging case". A missing figure is
+    ``UNSUPPORTED_QUANTITY``'s job.
+
+    A figure is also judged against the figures of other units: "a 3 year battery life" on
+    "Battery life: up to 12 hours ..." and "Warranty: 3 years." is rejected because the claim's
+    words, its subject left out, match none of the words next to the same figure but some next to
+    a figure of another unit; there is no 3 of another property to compare it with. It stays quiet when they match neither, so a synonym
+    ("guaranteed for 2 years" on "Warranty: 2 years.") is accepted, not checked. Measured (Round 3
+    reconcile): 0 of 35 dev SUPPORTED records rejected on their gold quotes; of the probes written
+    after it (R4, A6, A7, A8, in tests/test_guard_probes.py), R4 is rejected and A6-A8 accepted.
+    """
+    labels = list(labels) if labels is not None else [""] * len(quotes)
+    evidence = [
+        context for quote, label in zip(quotes, labels) for context in _figure_contexts(quote, label)
+    ]
+    subject = _claim_subject(claim)
+    for number, unit, words in _figure_contexts(claim, is_claim=True):
+        if not words:
+            continue
+
+        def compatible(other_unit: str | None) -> bool:
+            return unit is None or other_unit is None or other_unit == unit
+
+        same = [w for n, u, w in evidence if n == number and compatible(u)]
+        other = [w for n, u, w in evidence if n != number and compatible(u)]
+        elsewhere = [w for _, u, w in evidence if not compatible(u)]
+        if same and elsewhere:
+            own = words - subject
+            if own and not own & set().union(*same) and own & set().union(*elsewhere):
+                return True
+        if not same or not other:
+            continue
+        same_words, other_words = set().union(*same), set().union(*other)
+        if len(words & (other_words - same_words)) > len(words & (same_words - other_words)):
+            return True
+    return False
+
+
+# --- Compound claims: every part of the claim needs some support -----------------------------------
+# "charge over USB-C and include a wireless charging pad" must not pass on "Charging: USB-C.": half
+# the claim has no support. Lexical, so it only catches parts with *no* support in the quotes; it
+# never proves a part is supported. Measured (Round 3 step 04): 0 of 35 dev SUPPORTED records
+# (eval/dataset.jsonl and eval/data/retrieval_v1.jsonl) are rejected on their gold quotes.
+
+_CLAIM_PART_BREAK = re.compile(r";|\b(?:and|but|while|whereas|plus|as well as)\b", re.IGNORECASE)
+_LEADING_CAPITALISED = re.compile(r"\s*(?:[^\W\d_a-z][\w'’-]*\s+)*[^\W\d_a-z][\w'’-]*")
+_NEXT_WORD = re.compile(r"\s*[\w'’-]+")
+# A subject that is only a determiner ("The", "Each") takes the next word too: "The speaker".
+_DETERMINERS = frozenset({"the", "a", "an", "our", "this", "its", "their", "each"})
+# A part with this many content words needs at least half of them in the quotes, so one shared word
+# ("charging" in "charging case 48 g") cannot cover "include a wireless charging pad".
+_LONG_PART_WORDS = 3
+
+
+def _value_text(quotes: Sequence[str]) -> str:
+    """The quotes without their short ``Label:`` heads: "Charging:" says what a value is about,
+    not that the value is there, so it must not cover "a wireless charging pad"."""
+    values = []
+    for quote in quotes:
+        for sentence in _PROPERTY_SENTENCE.split(quote):
+            label = _label(sentence.strip())
+            values.append(sentence.strip()[len(label) + 1 :] if label else sentence)
+    return " ".join(values)
+
+
+def _claim_subject(claim: str) -> set[str]:
+    """The content words of the claim's subject: its leading run of capitalised words ("The Acme
+    Bottle"), or a determiner and the next word ("The speaker")."""
+    match = _LEADING_CAPITALISED.match(claim)
+    head = match.group(0) if match else ""
+    if head.strip().casefold() in _DETERMINERS:
+        following = _NEXT_WORD.match(claim, len(head))
+        head += following.group(0) if following else ""
+    return _property_words(head)
+
+
+def _bare_list_item(part: str) -> bool:
+    """Every word capitalised ("Teal", "Spencer"): an item of a list or a name, not a clause."""
+    words = _NAME_WORD.findall(part)
+    return bool(words) and all(word[0].isupper() for word in words)
+
+
+def uncovered_clauses(claim: str, quotes: Sequence[str]) -> list[str]:
+    """The parts of ``claim`` that none of the ``quotes`` covers; empty if every part is covered.
+
+    The claim is split at "and", "but", "while", "whereas", "plus", "as well as" and ";". Its
+    subject (the leading run of capitalised words, "The Acme Bottle", or a determiner and the next
+    word, "The speaker") never counts as cover. A part is checked only if it has a content word
+    outside the subject and is not a bare capitalised list item ("Graphite, Sand and Teal"), and
+    only when at least two parts qualify. A qualifying part is covered if it shares a figure with
+    the quotes; otherwise by content words (exact match, no stemming) of their value text: one for
+    a part of one or two words, at least half for a longer part. Reads the claim and quotes only:
+    no passages are needed.
+    """
+    subject = _claim_subject(claim)
+    parts = [
+        (part, words)
+        for part in _CLAIM_PART_BREAK.split(claim)
+        if (words := _property_words(part) - subject) and not _bare_list_item(part)
+    ]
+    if len(parts) < 2:
+        return []
+    figures = {number for number, _ in quantities(" ".join(quotes))}
+    value_words = _property_words(_value_text(quotes)) - subject
+    def covered(part: str, words: set[str]) -> bool:
+        if {number for number, _ in quantities(part)} & figures:
+            return True
+        shared = len(words & value_words)
+        return 2 * shared >= len(words) if len(words) >= _LONG_PART_WORDS else shared >= 1
+
+    return [part.strip() for part, words in parts if not covered(part, words)]
 
 
 def full_dates(text: str) -> set[tuple[str, tuple[str, ...]]]:

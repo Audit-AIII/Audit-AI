@@ -182,12 +182,12 @@
       "category": "numeric_discrepancies",
       "title": "A figure bound to another property supported the claim (v1-036)",
       "symptom": "Reproduced offline with a scripted SUPPORTED answer through EngineVerifierPredictor: 'The Lumen Bottle keeps drinks cold for up to 12 hours.' quoting 'keeps drinks cold for up to 24 hours and hot for up to 12 hours' was SUPPORTED (gold CONTRADICTED). support_problems only checked that '12 hours' appeared somewhere in the quotes; there it is the hot figure.",
-      "fix": "citation_guard._misbound_quantity, inside support_problems (unsupported_quantity): when the quotes give another value of the same unit, a claimed figure is rejected if the claim shares a word found only next to the other value and none found only next to its own. Quotes with one value of a unit are never re-read. Measured: no SUPPORTED record of eval/dataset.jsonl (25) or eval/data/verification_v1.jsonl (19) is flagged, with its gold quotes, its full source lines, or its whole reference documents as the quote.",
+      "fix": "Superseded by the REG-017 rule (citation_guard.property_mismatch, reason property_mismatch); the tests below are REG-017's. Original fix: citation_guard._misbound_quantity, inside support_problems (unsupported_quantity): when the quotes give another value of the same unit, a claimed figure is rejected if the claim shares a word found only next to the other value and none found only next to its own. Quotes with one value of a unit are never re-read. Measured: no SUPPORTED record of eval/dataset.jsonl (25) or eval/data/verification_v1.jsonl (19) is flagged, with its gold quotes, its full source lines, or its whole reference documents as the quote.",
       "tests": [
-        "tests/test_citation_guard.py::test_regression_v1_036_the_hot_figure_does_not_support_a_cold_claim",
-        "tests/test_citation_guard.py::test_a_figure_bound_to_another_property_is_unsupported",
-        "tests/test_citation_guard.py::test_a_figure_bound_to_the_claims_property_is_still_supported",
-        "tests/test_citation_guard.py::test_every_gold_quote_still_supports_its_supported_claim"
+        "tests/test_guard_property_binding.py::test_a_figure_bound_to_another_property_is_rejected",
+        "tests/test_guard_property_binding.py::test_a_figure_bound_to_the_claimed_property_is_accepted",
+        "tests/test_guard_property_binding.py::test_v1_036_cold_figure_cited_from_its_full_reference_line_is_rejected",
+        "tests/test_guard_property_binding.py::test_no_dev_supported_record_is_rejected_for_property_mismatch_on_its_gold_quotes"
       ],
       "status": "fixed"
     },
@@ -198,13 +198,13 @@
       "category": "compound_claims",
       "title": "A compound claim was SUPPORTED on a quote for one of its parts (v1-045)",
       "symptom": "Reproduced offline with scripted SUPPORTED answers through EngineVerifierPredictor: 'Lumen Pods charge over USB-C and include a wireless charging pad.' (gold NOT_ENOUGH_EVIDENCE) quoting only 'Charging: USB-C.' was SUPPORTED. The decision policy only routed it to review (compound_under_cited, one citation); with a second, unrelated citation ('charging case 48 g') it passed that rule too and could be auto-cleared on strong evidence. No check looked at the second part at all.",
-      "fix": "citation_guard._unsupported_part, inside support_problems (new reason unsupported_component, additive in verification_report.schema.json): the claim is split where decision_policy.looks_compound sees a join (compound_parts); a part is unsupported when at least MIN_ABSENT_PART_WORDS (2) of its content words, and more than half, are in no cited passage. Measured on the retrieved chunks that hold each gold quote: no SUPPORTED record of eval/dataset.jsonl (25) or eval/data/verification_v1.jsonl (19) is flagged; flagged non-SUPPORTED records: v1-045, v3-022 (absent facts) and v3-023/024/025 (injection traps).",
+      "fix": "Superseded by the REG-018 rule (citation_guard.uncovered_clauses, reason unsupported_clause); the tests below are REG-018's. Original fix: citation_guard._unsupported_part, inside support_problems (new reason unsupported_component, additive in verification_report.schema.json): the claim is split where decision_policy.looks_compound sees a join (compound_parts); a part is unsupported when at least MIN_ABSENT_PART_WORDS (2) of its content words, and more than half, are in no cited passage. Measured on the retrieved chunks that hold each gold quote: no SUPPORTED record of eval/dataset.jsonl (25) or eval/data/verification_v1.jsonl (19) is flagged; flagged non-SUPPORTED records: v1-045, v3-022 (absent facts) and v3-023/024/025 (injection traps).",
       "tests": [
-        "tests/test_citation_guard.py::test_regression_v1_045_usb_c_does_not_support_a_wireless_charging_pad",
-        "tests/test_citation_guard.py::test_a_compound_part_missing_from_every_cited_document_is_unsupported",
-        "tests/test_citation_guard.py::test_a_compound_claim_with_every_part_in_the_documents_is_still_supported",
-        "tests/test_citation_guard.py::test_without_cited_passages_no_part_is_judged",
-        "tests/test_citation_guard.py::test_every_gold_quote_still_supports_its_supported_claim"
+        "tests/test_guard_compound_claims.py::test_a_claim_part_no_quote_covers_is_rejected",
+        "tests/test_guard_compound_claims.py::test_a_claim_whose_parts_are_all_covered_is_accepted",
+        "tests/test_guard_compound_claims.py::test_v1_045_charging_pad_clause_is_rejected_on_its_reference_line",
+        "tests/test_guard_compound_claims.py::test_no_dev_supported_record_is_rejected_for_an_unsupported_clause_on_its_gold_quotes",
+        "tests/test_decision_policy.py::test_a_compound_claim_on_one_quote_is_not_auto_cleared"
       ],
       "status": "fixed"
     },
@@ -224,6 +224,45 @@
         "tests/test_correction_grounding.py::test_a_borrowed_figure_is_refused_before_any_recheck",
         "tests/test_correction_grounding.py::test_the_recheck_still_refuses_an_untouched_unsupported_part",
         "tests/test_citation_guard.py::test_a_figure_bound_to_another_property_is_unsupported"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "REG-017",
+      "found": "2026-10-24",
+      "phase": "Round 3 step 03",
+      "category": "numeric_discrepancies",
+      "title": "A figure the quotes attach to a different property was accepted (v1-036)",
+      "symptom": "A live verifier-only run accepted SUPPORTED for 'The Lumen Bottle keeps drinks cold for up to 12 hours.' on 'keeps drinks cold for up to 24 hours and hot for up to 12 hours': support_problems checked that the 12 is present in the quotes, not which property it belongs to.",
+      "fix": "citation_guard.property_mismatch, reason property_mismatch; two lexical checks, words matched exactly (a plural s stripped). (1) Same unit: when the quotes give the claim's number and another number of a compatible unit, only distinguishing words count (next to one number and not the other); the claim is rejected when it shares more of the other number's. In parallel evidence clauses the leading subject words ('keeps drinks') belong to every figure. (2) Other units, added at the reconcile merge (2026-10-29) from probe R1: rejected when the claim's words, its subject left out, match none next to the same figure but some next to a figure of another unit; quiet when they match neither. Measured: N1, N2 (elision swap), N3, N6, N8 rejected; P1-P3, P5, P7, P8 accepted; v1-036 rejected when cited with its full reference line; probes R1, R2, R4 rejected and A1-A8 accepted (only R4, A6-A8 written after the rule; R1 shaped check 2); 0 of 35 dev SUPPORTED records rejected on their gold quotes. The valid-quote stress run cannot show the v1-036 flip (its quote is the fact sheet title, already refused by the quantity check). Lexical heuristic, not validated on fresh data (steps 06/07); synonyms are accepted rather than checked, and a claim worded like another unit's label can be falsely rejected (evaluation/limitations.py).",
+      "tests": [
+        "tests/test_guard_property_binding.py::test_a_figure_bound_to_another_property_is_rejected",
+        "tests/test_guard_property_binding.py::test_a_figure_bound_to_the_claimed_property_is_accepted",
+        "tests/test_guard_property_binding.py::test_v1_036_cold_figure_cited_from_its_full_reference_line_is_rejected",
+        "tests/test_guard_property_binding.py::test_no_dev_supported_record_is_rejected_for_property_mismatch_on_its_gold_quotes",
+        "tests/test_guard_property_binding.py::test_n2_elision_swap_is_rejected",
+        "tests/test_guard_probes.py::test_probe_is_rejected",
+        "tests/test_guard_probes.py::test_probe_is_accepted"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "REG-018",
+      "found": "2026-10-24",
+      "phase": "Round 3 step 04",
+      "category": "compound_claims",
+      "title": "A compound claim was accepted on a quote covering only one part (v1-045)",
+      "symptom": "A live verifier-only run accepted SUPPORTED for 'Lumen Pods charge over USB-C and include a wireless charging pad.' on 'Charging: USB-C.': the support checks look at figures, dates, names and negation, and the claim's second clause has none of them. Compound claims only got a review flag (compound_under_cited); the verdict stayed SUPPORTED.",
+      "fix": "citation_guard.uncovered_clauses, reason unsupported_clause: the claim is split at and/but/while/whereas/plus/as well as/';'; its subject (leading capitalised words, or a determiner and the next word) never counts as cover. With at least two qualifying parts, a part is covered by a shared figure, or else by content words matched exactly against the quotes' value text (Label: heads removed): one word for a part of one or two content words, at least half for a part of three or more (strengthened at the reconcile merge, 2026-10-29; 'more than half' was measured and falsely rejected D1). Reads the claim and quotes only. Measured: C1-C6 and the incidental-word case ('ships in a recycled box') rejected; D1-D7 accepted; probe R3 rejected; v1-045 rejected on its reference sentence 'Charging: USB-C.'; 0 of 35 dev SUPPORTED records rejected on their gold quotes. Valid-quote, always-SUPPORTED stress run 16/55 -> 14/55 false-SUPPORTED (a naive scripted adversary, not model quality). decision_policy.looks_compound is unchanged and still flags a compound claim one quote fully covers. Lexical heuristic, not validated on fresh data (steps 06/07); it catches parts lacking support and never proves a part is supported.",
+      "tests": [
+        "tests/test_guard_compound_claims.py::test_a_claim_part_no_quote_covers_is_rejected",
+        "tests/test_guard_compound_claims.py::test_a_claim_whose_parts_are_all_covered_is_accepted",
+        "tests/test_guard_compound_claims.py::test_v1_045_charging_pad_clause_is_rejected_on_its_reference_line",
+        "tests/test_guard_compound_claims.py::test_no_dev_supported_record_is_rejected_for_an_unsupported_clause_on_its_gold_quotes",
+        "tests/test_decision_policy.py::test_a_compound_claim_on_one_quote_is_not_auto_cleared",
+        "tests/test_guard_compound_claims.py::test_a_clause_sharing_one_incidental_word_with_the_quotes_is_rejected",
+        "tests/test_guard_probes.py::test_probe_is_rejected",
+        "tests/test_guard_probes.py::test_probe_is_accepted"
       ],
       "status": "fixed"
     }
@@ -246,7 +285,9 @@
     "compound_claims": [
       "tests/test_eval_regressions.py::test_the_oracle_reproduces_every_gold_label",
       "tests/test_decision_policy.py::test_a_compound_claim_on_one_quote_is_not_auto_cleared",
-      "tests/test_decision_policy.py::test_a_partial_contradiction_in_one_claim_cannot_be_approved"
+      "tests/test_decision_policy.py::test_a_partial_contradiction_in_one_claim_cannot_be_approved",
+      "tests/test_decision_policy.py::test_a_compound_claim_one_quote_fully_covers_is_still_flagged_as_under_cited",
+      "tests/test_guard_compound_claims.py::test_a_claim_part_no_quote_covers_is_rejected"
     ],
     "conflicting_evidence": [
       "tests/test_eval_regressions.py::test_the_oracle_reproduces_every_gold_label",

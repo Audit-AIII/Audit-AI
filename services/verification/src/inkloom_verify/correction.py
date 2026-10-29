@@ -34,12 +34,11 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inkloom_verify.citation_guard import (
-    absent_from,
     full_dates,
-    misbound_quantities,
+    property_mismatch,
     quantities,
+    uncovered_clauses,
 )
-from inkloom_verify.decision_policy import compound_part_spans
 from inkloom_verify.extraction import _ATTRIBUTION, QUALIFIERS, describe_validation_error, locate
 from inkloom_verify.intent_lock import check_replacement, validate_locks
 from inkloom_verify.prompts import correction as prompt
@@ -153,18 +152,18 @@ def correction_issues(
     unpaired = mispaired + sorted(f"{d[1]} {d[0]}" for d in new_dates)
     # A figure the evidence gives for another property: "hot for 24 hours" from "cold for up to 24
     # hours and hot for up to 12 hours". The same check the guard applies to SUPPORTED claims.
-    unpaired += sorted(
-        f"{n} {u} (another property)" for n, u in misbound_quantities(new_text, quotes)
-    )
-    # A part of a compound rewrite that no cited text mentions. Only the replacement's own words are
-    # judged: an untouched part is not the correction's statement (the re-check verifies it).
+    if property_mismatch(new_text, quotes):
+        unpaired.append("a figure the quotes give for another property")
+    # A part of a compound rewrite that no cited text covers (the guard's unsupported_clause rule,
+    # against the quotes and cited passages). Only parts the replacement writes are judged: an
+    # untouched part is not the correction's statement (the re-check verifies it).
     start, end = len(before), len(before) + len(replacement)
-    spans = compound_part_spans(new_text)
-    if len(spans) >= 2:
-        for s, e in spans:
-            stated = new_text[max(s, start) : min(e, end)]
-            if s < end and e > start and absent_from(stated, [*quotes, *passages]):
-                unpaired.append(f"{' '.join(stated.split())!r}")
+    position = 0
+    for part in uncovered_clauses(new_text, [*quotes, *passages]):
+        s = new_text.find(part, position)
+        e, position = s + len(part), s + len(part)
+        if s < end and e > start:
+            unpaired.append(f"{' '.join(new_text[max(s, start) : min(e, end)].split())!r}")
     if has_hidden_characters(replacement):
         unpaired.append("control or invisible characters")
     if added or symbols or unpaired:

@@ -623,7 +623,7 @@ engine's decision policy and routes a whole review to `NEEDS_HUMAN_REVIEW` if an
 review (section 13). It stores `severity` per verdict (section 3) but has no risk tier that uses
 `review_reasons`.
 
-**PROPOSAL:**
+**Status: approved by Krish, followed by Darsh** (2026-10-28; Darsh's reply in section 22).
 
 | Engine signal | Proposed routing input |
 |---|---|
@@ -682,9 +682,9 @@ Not adopted: `unsupported_component` from the unmerged reference branch
 
 No payload field changes and no step 08 work until **both** have replied in writing.
 
-| Date | Name | Reply (verbatim) |
+| Date | Name | Reply |
 |---|---|---|
-| | Darsh | *(none yet; message not sent)* |
+| 2026-10-28 | Darsh | *Summary, not verbatim:* (1) the risk mapping in section 19 is followed as written; (2) the new guard codes `property_mismatch` and `unsupported_clause` are safe for the backend; (3) the backend stores no guard reasons; (4) proposes **D3**: an unknown verdict becomes `unverified` and needs review. **Still awaiting Darsh** on the three Scorecard points in section 23: the `/latest` shape (item 1), the Run button (item 2) and the `per_check` ratios (item 3). |
 | | Chahit | *(none yet; message not sent)* |
 
 ## 23. Answers to frontend questions (DRAFT)
