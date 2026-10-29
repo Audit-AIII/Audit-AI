@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/gabarito";
 import "@fontsource-variable/instrument-sans";
 import "./globals.css";
+import { GrainBake } from "@/components/layout/GrainBake";
 import { ReliefDefs } from "@/components/layout/ReliefDefs";
 import { SandWave } from "@/components/layout/SandWave";
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           Skip to content
         </a>
         <ReliefDefs />
+        <GrainBake />
         {children}
         <SandWave />
       </body>
