@@ -908,11 +908,63 @@ Among the **30 answered records** (derived from the report's confusion matrix):
    (`eval/reports/20261024T130826Z.md`, a replay, not a new model run), it's now
    NOT_ENOUGH_EVIDENCE, so wrong approvals go from 3 to 2.
 2. **v1-036** "cold for up to 12 hours" accepted on "cold for up to 24 hours and hot for up to 12
-   hours". The figure is present but belongs to another property. **Open:** the guard checks that
-   figures are present, not what they attach to.
-3. **v1-045** "USB-C and a wireless charging pad" accepted on a quote covering only USB-C. **Open:**
-   a compound claim is supported by half its evidence. In the full pipeline, extraction splits
-   compound sentences; the verifier-only run skips extraction.
+   hours". The figure is present but belongs to another property. **Fixed (Round 3 step 03,
+   REG-017; strengthened at the reconcile merge, 2026-10-29):** the guard rejects a figure the
+   quotes tie to another property (`property_mismatch`). Two lexical checks, words matched
+   exactly (a plural `s` stripped, so "charge" is not "charging case"):
+   - *Same unit.* When the quotes give the claim's number and another number of a compatible
+     unit, only the *distinguishing* words count: those next to the same number and not the
+     other ("cold" for 24, "hot" for 12), and the reverse. The claim is refused when it shares
+     more of the other number's. In an evidence sentence with parallel clauses, the leading
+     subject words ("keeps drinks") belong to every figure, so they tell none apart.
+   - *Other units* (from probe R1, "a 3 year battery life" on "Battery life: up to 12 hours …"
+     and "Warranty: 3 years."): refused when the claim's words, its subject left out, match none
+     next to the same figure but some next to a figure of another unit; quiet when they match
+     neither.
+
+   Measured: N1, N2 (the elision swap, now caught), N3, N6, N8 rejected; P1–P3, P5, P7, P8
+   accepted (`tests/test_guard_property_binding.py`); main's REG-014 binding tests pass; the
+   `v1-036` record test, which cites the record's full reference line ("Insulation: keeps drinks
+   cold for up to 24 hours and hot for up to 12 hours."), is rejected; 0 of 35 dev SUPPORTED
+   records (`dataset.jsonl` and `retrieval_v1`) are rejected on their gold quotes. Probes
+   (`tests/test_guard_probes.py`): R1, R2, R4 rejected, A1–A8 accepted. **Only R4, A6, A7 and A8
+   were written after the rules; R1 shaped the other-units check.**
+   **The false-SUPPORTED gate did not move:** the valid-quote, always-SUPPORTED stress run is
+   16/55 before and after. That adversary quotes the first 8 words of the top passage; for
+   `v1-036` that is the fact sheet's title, which has no 12 and was already refused as
+   `unsupported_quantity`, so the stress run cannot show this flip.
+   **Known limits, measured** (`evaluation/limitations.py`, "Lexical guard heuristics"):
+   synonyms are accepted rather than checked ("stays chilled for up to 12 hours" passes on the
+   cold/hot line), and a correct claim worded like another unit's label can be falsely rejected
+   ("a 2 year guarantee that covers the battery" next to a "Battery life:" figure).
+3. **v1-045** "USB-C and a wireless charging pad" accepted on a quote covering only USB-C. A
+   compound claim was supported by half its evidence. **Fixed (Round 3 step 04, REG-018):** the
+   guard refuses a SUPPORTED answer when a part of the claim is not covered by the quotes
+   (`unsupported_clause`), reading the claim and quotes only. The subject (the leading
+   capitalised words, or a determiner and the next word, "The speaker") never counts as cover.
+   A part is covered by a shared figure, or else by content words matched exactly against the
+   quotes' value text (short `Label:` heads removed): one word for a part of one or two content
+   words; **at least half** for a part of three or more (strengthened at the reconcile merge;
+   "more than half" was measured and falsely rejected D1, "charge over USB-C", 2 of 4). The
+   proof is the unit tests in `tests/test_guard_compound_claims.py` (C1–C6 and the
+   incidental-word case rejected; D1–D7 accepted), main's REG-015 compound tests, probe R3, and
+   the `v1-045` record test, which cites the record's reference sentence "Charging: USB-C." (the
+   record is NOT_ENOUGH_EVIDENCE, so it has no gold quotes). 0 of 35 dev SUPPORTED records
+   (`dataset.jsonl` and `retrieval_v1`) are rejected on their gold quotes.
+   **Stress run:** false-SUPPORTED for the valid-quote, always-SUPPORTED adversary goes from 16/55
+   to 14/55 (`v1-045` and one other record), and the `eval/baseline.json` gate is tightened to
+   14/55. That adversary is scripted and naive (it always answers SUPPORTED, quoting the first 8
+   words of the top passage), so this is a guard measurement, **not model quality**, and not a
+   held-out result.
+   **Known limit:** the check only catches parts lacking support; it never proves a part is
+   supported, and a part paraphrased in new words can be refused.
+   `decision_policy.looks_compound` still sends a compound claim that one quote fully covers to a
+   person.
+
+   **Status of both rules: lexical heuristics, not validated.** They were tuned on the step 03/04
+   matrix cases, main's REG-014/015 tests and the `v1-036`/`v1-045` records; the 12 probes were
+   checked after, and only R4, A6, A7 and A8 were written after the final rules. They are untested
+   on fresh data until steps 06/07.
 
 **To complete the measurement:** a compliant model with capacity. Either a paid OpenRouter model
 whose endpoints pass `data_collection: deny`, which costs about $0.01–0.02 for one 80-record
@@ -1038,6 +1090,13 @@ before a proposal is accepted.
 
 ## Round 3 Phase 5: evidence-grounded corrections (actual output, 2026-10-28)
 
+> **Superseded mechanism (reconcile merge, 2026-10-29).** The binding and compound-part rules this
+> section describes (`misbound_quantities`, `absent_from`, `unsupported_component`) were replaced
+> by the REG-017/018 rules (`property_mismatch`, `uncovered_clauses`). `correction_issues` now
+> calls those. Re-measured with the new rules on 2026-10-29 (the "After, REG-017/018" column):
+> corrections_v1 from `run_eval.py --check-baseline`, the gap candidates from
+> `tests/test_correction_grounding.py`. The prose below still describes the old mechanism.
+
 **Gaps found** (REG-016). The checks required a new figure to appear *somewhere* in the cited
 quotes, not for the claim's property, and never asked whether a rewritten clause was in the
 evidence. Without a re-check, or with a re-check that answered SUPPORTED, these were offered:
@@ -1059,12 +1118,12 @@ evidence. Without a re-check, or with a re-check that answered SUPPORTED, these 
 PYTHONPATH=src python -m inkloom_verify.evaluation.corrections --cases eval/data/corrections_v1.jsonl
 ```
 
-| Candidates | Before (HEAD) | After |
-|---|---|---|
-| corrections_v1, bad edits rejected | 28/28 | 28/28 |
-| corrections_v1, good edits accepted | 17/18 | 17/18 (same `cannot put` miss) |
-| Gap candidates (`tests/test_correction_grounding.py`), bad rejected | 1/6 | 6/6 |
-| Gap candidates, good accepted | 10/10 | 10/10 |
+| Candidates | Before (HEAD) | After | After, REG-017/018 (2026-10-29) |
+|---|---|---|---|
+| corrections_v1, bad edits rejected | 28/28 | 28/28 | 28/28 |
+| corrections_v1, good edits accepted | 17/18 | 17/18 (same `cannot put` miss) | 17/18 |
+| Gap candidates (`tests/test_correction_grounding.py`), bad rejected | 1/6 | 6/6 | 6/6 |
+| Gap candidates, good accepted | 10/10 | 10/10 | 10/10 |
 
 None of the 46 labelled candidates has these shapes. That's why that set doesn't move, and why
 the gap candidates live in tests rather than in the dataset, which includes held-out cases.

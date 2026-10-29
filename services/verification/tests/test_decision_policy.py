@@ -156,17 +156,32 @@ def test_a_partial_contradiction_in_one_claim_cannot_be_approved():
 
 
 def test_a_compound_claim_on_one_quote_is_not_auto_cleared():
-    """'IPX4' is matched, so the evidence is STRONG; but the second clause is figure-free and
-    uncited. The compound rule sends it to a person; with a quote for each clause it clears."""
+    """The IPX4 quote leaves "charge over USB-C" uncovered, so the citation guard refuses the
+    SUPPORTED answer (Round 3, unsupported_clause) and a person checks it; with a quote for each
+    clause it clears."""
     claim = "Lumen Pods are rated IPX4 and charge over USB-C."
     _, [one] = run(claim, model("SUPPORTED", IPX4))
     assert (
-        one.evidence_strength is S.STRONG
-        and one.review_reasons == [R.COMPOUND_UNDER_CITED]
+        one.verdict is Verdict.NOT_ENOUGH_EVIDENCE
+        and "unsupported_clause" in [r.reason.value for r in one.citation_guard.rejected]
         and one.requires_human_review
     )
     _, [two] = run(claim, model("SUPPORTED", IPX4, USBC))
     assert two.review_reasons == [] and two.requires_human_review is False
+
+
+def test_a_compound_claim_one_quote_fully_covers_is_still_flagged_as_under_cited():
+    """One quote covers both clauses, so the guard accepts it; the compound rule still sends the
+    claim to a person, because one citation for two facts is thin."""
+    claim = "Lumen Pods weigh 5.2 g per earbud and the charging case weighs 48 g."
+    _, [result] = run(claim, model("SUPPORTED", WEIGHT))
+    assert (
+        result.verdict is Verdict.SUPPORTED
+        and not result.citation_guard.downgraded
+        and result.evidence_strength is S.STRONG
+        and result.review_reasons == [R.COMPOUND_UNDER_CITED]
+        and result.requires_human_review
+    )
 
 
 def test_one_contradicted_claim_makes_the_whole_report_need_review():
@@ -216,7 +231,21 @@ def test_malformed_model_output_goes_to_a_person():
 
 
 def test_policy_routing_reaches_the_public_report_and_the_report_score():
+    # The one-quote compound claim is now refused by the citation guard (unsupported_clause), so
+    # it reaches a person as an unverified claim with rejected citations.
     report, _ = run("Lumen Pods are rated IPX4 and charge over USB-C.", model("SUPPORTED", IPX4))
+    assert (
+        ReviewReason.UNVERIFIED_CLAIMS in report.score.review_reasons
+        and ReviewReason.CITATIONS_REJECTED in report.score.review_reasons
+        and report.score.requires_human_review
+    )
+    [claim] = to_public_report(report).claims
+    assert claim.verdict.needs_human_review is True
+    # Policy routing proper: a compound claim the guard accepts on one quote.
+    report, _ = run(
+        "Lumen Pods weigh 5.2 g per earbud and the charging case weighs 48 g.",
+        model("SUPPORTED", WEIGHT),
+    )
     assert (
         ReviewReason.POLICY_THRESHOLD in report.score.review_reasons
         and report.score.requires_human_review

@@ -269,4 +269,4 @@ def test_the_guard_reason_behind_that_recheck_is_the_compound_rule():
     from inkloom_verify.citation_guard import support_problems
 
     claim = "The flask keeps drinks hot for up to 12 hours and includes a lifetime warranty."
-    assert GuardRejectionReason.UNSUPPORTED_COMPONENT in support_problems(claim, FLASK, [SHEET])
+    assert GuardRejectionReason.UNSUPPORTED_CLAUSE in support_problems(claim, FLASK, [SHEET])

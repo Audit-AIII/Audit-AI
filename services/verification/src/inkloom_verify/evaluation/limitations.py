@@ -72,6 +72,25 @@ LIMITATIONS: list[Limitation] = [
         ],
     ),
     Limitation(
+        topic="Lexical guard heuristics",
+        status="measured",
+        finding="The property-binding (property_mismatch) and compound-claim (unsupported_clause) checks are "
+        "lexical heuristics, not validated. They were tuned on the Round 3 step 03/04 matrix cases, the REG-014/015 "
+        "tests and dev records v1-036/v1-045; of 12 probes checked afterwards, only 4 were written after the final "
+        "rules, and one other probe shaped the rule for figures of different units. They are untested on fresh data "
+        "until steps 06/07. Words match exactly: a synonym is accepted rather than checked ('stays chilled for up to "
+        "12 hours' passes on 'cold for up to 24 hours and hot for up to 12 hours'), a correct claim worded like "
+        "another unit's label can be falsely rejected ('a 2 year guarantee that covers the battery' next to "
+        "'Battery life: up to 12 hours'), and a claim part paraphrased in new words can be refused. Two earlier "
+        "limits, the elision swap and a part covered by one incidental shared word, are now caught.",
+        evidence=[
+            "tests/test_known_limitations.py::test_a_synonym_hides_a_figure_bound_to_another_property",
+            "tests/test_known_limitations.py::test_a_claim_worded_like_another_units_label_can_be_falsely_rejected",
+            "tests/test_guard_probes.py",
+            "EVAL.md",
+        ],
+    ),
+    Limitation(
         topic="Planted false facts in references",
         status="measured",
         finding="A false fact written as ordinary text in a reference is evidence like any other: only instructions "

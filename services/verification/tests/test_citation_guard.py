@@ -16,6 +16,7 @@ from inkloom_verify.evaluation.runner import load_records
 from inkloom_verify.retrieval import BM25Retriever
 from inkloom_verify.schemas import (
     Citation,
+    EvalSplit,
     EvidencePassage,
     GuardRejectionReason,
     ReferenceDocument,
@@ -555,7 +556,7 @@ def test_regression_live_run_a_seconds_claim_is_not_supported_by_a_minutes_quote
     ],
 )
 def test_a_figure_bound_to_another_property_is_unsupported(claim, quote):
-    assert support_problems(claim, [quote]) == [R.UNSUPPORTED_QUANTITY]
+    assert support_problems(claim, [quote]) == [R.PROPERTY_MISMATCH]
 
 
 @pytest.mark.parametrize(
@@ -609,9 +610,11 @@ EVAL_DATASET = Path(__file__).resolve().parents[1] / "eval" / "dataset.jsonl"
 
 @pytest.mark.parametrize("dataset", [DATASET, EVAL_DATASET], ids=lambda p: p.name)
 def test_every_gold_quote_still_supports_its_supported_claim(dataset):
-    """No SUPPORTED record of either dataset is downgraded by its own gold evidence."""
+    """No dev SUPPORTED record of either dataset is downgraded by its own gold evidence."""
     for record in load_records(dataset):
-        if record.expected_verdict is not Verdict.SUPPORTED:
+        # Dev only: this test used to read the held-out gold quotes on every run (logged in
+        # docs/round3/results/RUN_LEDGER.md). Held-out records must never steer a guard rule.
+        if record.split is not EvalSplit.DEV or record.expected_verdict is not Verdict.SUPPORTED:
             continue
         quotes = [g.quote for g in record.gold_evidence]
         passages = [d.text for d in record.references]
@@ -646,7 +649,7 @@ SPEAKER_SHEET = (
     "Speaker - Product Fact Sheet\n\nCharging: USB-C. Battery: up to 10 hours.\n"
     "Water resistance: IPX7.\nColours: Black, Stone.\nPrice: €89.\n"
 )
-COMPONENT = "unsupported_component"
+CLAUSE = "unsupported_clause"  # REG-018 (replaced main's unsupported_component)
 
 
 @pytest.mark.parametrize(
@@ -668,7 +671,7 @@ COMPONENT = "unsupported_component"
 )
 def test_a_compound_part_missing_from_every_cited_document_is_unsupported(claim, quotes):
     problems = support_problems(claim, quotes, [SPEAKER_SHEET])
-    assert [p.value for p in problems] == [COMPONENT]
+    assert [p.value for p in problems] == [CLAUSE]
 
 
 @pytest.mark.parametrize(
@@ -696,10 +699,11 @@ def test_a_compound_claim_with_every_part_in_the_documents_is_still_supported(cl
     assert support_problems(claim, quotes, [SPEAKER_SHEET]) == []
 
 
-def test_without_cited_passages_no_part_is_judged():
-    """Like names, parts are checked against the cited passages; quotes alone are too short."""
+def test_without_cited_passages_a_part_is_still_judged():
+    """The compound rule (REG-018) reads the claim and quotes only, so a missing passage list is no
+    blind spot: the uncovered part is refused either way."""
     claim = "The speaker charges over USB-C and includes a wireless charging pad."
-    assert support_problems(claim, ["Charging: USB-C."]) == []
+    assert support_problems(claim, ["Charging: USB-C."]) == [R.UNSUPPORTED_CLAUSE]
 
 
 @pytest.mark.parametrize(

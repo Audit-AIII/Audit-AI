@@ -82,18 +82,6 @@ def looks_compound(statement: str) -> bool:
     return _COMPOUND.search(statement) is not None
 
 
-def compound_parts(statement: str) -> list[str]:
-    """The parts ``looks_compound`` sees in ``statement`` (one part when it is not compound)."""
-    return [statement[start:end] for start, end in compound_part_spans(statement)]
-
-
-def compound_part_spans(statement: str) -> list[tuple[int, int]]:
-    """(start, end) of each part ``compound_parts`` returns."""
-    bounds = [0, *(i for m in _COMPOUND.finditer(statement) for i in m.span()), len(statement)]
-    spans = zip(bounds[::2], bounds[1::2], strict=True)
-    return [(start, end) for start, end in spans if statement[start:end].strip()]
-
-
 def review_reasons(
     verdict: Verdict,
     strength: EvidenceStrength,

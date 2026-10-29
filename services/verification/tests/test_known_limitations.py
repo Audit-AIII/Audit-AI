@@ -105,6 +105,22 @@ def test_paraphrased_wording_can_defeat_lexical_retrieval():
     assert not any("Price" in p.text for p in retriever.retrieve(claim))
 
 
+def test_a_synonym_hides_a_figure_bound_to_another_property():
+    """MEASURED: the binding rules match words exactly, so "chilled" is neither "cold" nor "hot"
+    and the hot figure is accepted for a cold claim. Synonyms are accepted, not checked."""
+    quote = "keeps drinks cold for up to 24 hours and hot for up to 12 hours"
+    assert support_problems("The bottle stays chilled for up to 12 hours.", [quote]) == []
+
+
+def test_a_claim_worded_like_another_units_label_can_be_falsely_rejected():
+    """MEASURED: the 2 years are the warranty, and a guarantee that covers the battery is that
+    warranty; but "guarantee" is not "warranty" and "battery" is the 12-hour figure's label, so a
+    correct claim is refused (property_mismatch)."""
+    quotes = ["Warranty: 2 years.", "Battery life: up to 12 hours per charge."]
+    claim = "Lumen Pods come with a 2 year guarantee that covers the battery."
+    assert support_problems(claim, quotes) == [R.PROPERTY_MISMATCH]
+
+
 def test_reference_documents_have_a_hard_size_limit():
     """MEASURED: a reference over 1,000,000 characters is refused, not truncated."""
     ReferenceDocument(doc_id="max", text="a" * MAX_REFERENCE_CHARS)
