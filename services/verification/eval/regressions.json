@@ -265,6 +265,22 @@
         "tests/test_guard_probes.py::test_probe_is_accepted"
       ],
       "status": "fixed"
+    },
+    {
+      "id": "REG-019",
+      "found": "2026-10-30",
+      "phase": "Round 3 step 05",
+      "category": "correction_traceability",
+      "title": "A correction could delete a figure with no unit instead of fixing it",
+      "symptom": "Reproduced offline (checker and corrector, scripted model): for 'Lumen Pods come in 4 colours.' quoting 'Colours: 3 (Graphite, Sand, Teal).', the edit '4 colours' -> 'colours' got no issue and was proposed, with re-checking off and after a SUPPORTED re-check. 'has 40 employees' -> 'has employees' and 'ranked 3rd' -> 'ranked' also passed. drops_unit only sees figures that have a unit, and once the figure is gone the re-check has nothing to check. Not yet observed from the live correction model: no live run exists.",
+      "fix": "correction_issues: new issue code drops_figure (additive in CorrectionIssueCode and verification_report.schema.json). An edit is refused when it removes a figure with no unit and puts neither a new figure nor any new content word in its place; new content words must already be in the cited quotes (unsupported_addition), so '4 colours' -> 'Graphite, Sand and Teal' is still offered. No existing check was loosened. Checker dataset corrections_v1 extended with 3 dev cases (3 bad, 4 good edits): bad edits rejected 31/31, good accepted 21/22 (the miss is still corr-v1-033), false accepts 0; drops_figure fires on exactly the 3 new bad edits. A checker-level fix that proves traceability, not that a correction is right.",
+      "tests": [
+        "tests/test_correction_gaps.py::test_a_figure_deleted_instead_of_fixed_is_refused",
+        "tests/test_correction_gaps.py::test_a_figure_fixed_or_replaced_by_the_evidence_is_still_offered",
+        "tests/test_correction_gaps.py::test_a_deleted_figure_is_refused_before_any_recheck",
+        "tests/test_correction_engine.py::test_checker_lets_no_labelled_bad_edit_through"
+      ],
+      "status": "fixed"
     }
   ],
   "coverage": {

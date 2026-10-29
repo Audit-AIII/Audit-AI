@@ -105,7 +105,7 @@ def test_report_has_every_required_metric(default_run):
 def test_a_regression_below_a_deterministic_baseline_fails(tmp_path):
     baseline = write_baseline(
         tmp_path, [gate("corrections/checker/correctly_accepted", ">=", 1.0)]
-    )  # measured 17/18
+    )  # measured 21/22
     assert run_eval.main(["--out", str(tmp_path / "out"), "--check-baseline", str(baseline)]) == 1
     report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
     assert report["gates"][0]["status"] == "FAIL"
@@ -365,8 +365,8 @@ def test_a_dry_run_pins_and_records_the_prompt_set(tmp_path, prompt_set):
     assert report["verdicts"]["is_model_quality"] is False
     calls = report["calls"]
     assert set(calls) == {"claim_extraction", "claim_verification", "claim_correction"}
-    # Full pipeline (EVAL Phase 3): 80 records + 24 extraction-set paragraphs; 19 correction cases.
-    assert calls["claim_extraction"]["calls"] == 104 and calls["claim_correction"]["calls"] == 19
+    # Full pipeline (EVAL Phase 3): 80 records + 24 extraction-set paragraphs; 22 correction cases.
+    assert calls["claim_extraction"]["calls"] == 104 and calls["claim_correction"]["calls"] == 22
     assert report["run"]["pipeline"] == "full" and report["cases"]["records"] == 80
     assert all(s["repair_calls"] == 0 and s["errors"] == {} for s in calls.values())
 

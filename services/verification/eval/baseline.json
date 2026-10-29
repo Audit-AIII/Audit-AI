@@ -77,7 +77,7 @@
       "op": ">=",
       "value": 1.0,
       "applies_to": "always",
-      "note": "measured 28/28"
+      "note": "measured 31/31 after REG-019 (was 28/28)"
     },
     {
       "name": "correction checker: false accepts",
@@ -85,15 +85,15 @@
       "op": "<=",
       "value": 0,
       "applies_to": "always",
-      "note": "measured 0"
+      "note": "measured 0 of 31 bad edits after REG-019"
     },
     {
       "name": "correction checker: good edits accepted",
       "metric": "corrections/checker/correctly_accepted",
       "op": ">=",
-      "value": 0.9444444444444444,
+      "value": 0.9545454545454546,
       "applies_to": "always",
-      "note": "measured 17/18"
+      "note": "measured 21/22 after REG-019 (was 17/18; the miss is still corr-v1-033)"
     },
     {
       "name": "fault cases handled",

@@ -571,6 +571,7 @@ is recorded separately as `correction`: `target_span`, `original_text`, `replace
 | A qualifier (`up to`, `about`, `only`, …) used by both the original and the evidence is still in the replacement | `drops_qualifier` |
 | **Figures are compared in the claim's own sentence** (the unit may sit outside the replaced words: `€` + `99`). Every new number that has a unit or currency appears in the cited quotes **with that same unit**: `€36` is rejected when the evidence's 36 is hours. Every new whole date appears in the quotes as that whole date: `2 April 2025` is rejected when the quotes give 2 April 2026 and, elsewhere, 2025. | `unsupported_addition` |
 | No figure loses its unit or currency (`€99` → `129`, `7 g` → `5.2`). A *swapped* unit (`5.2 kg` → `5.2 g`) is allowed when the evidence gives that number with that unit (prompts Phase 4 fixed a false positive here). | `drops_unit` |
+| No figure without a unit is deleted instead of fixed (`come in 4 colours` → `come in colours`, `ranked 3rd` → `ranked`). An edit that puts a new figure, or the evidence's own words, in its place is a fix (`4 colours` → `Graphite, Sand and Teal`). Round 3 step 05, REG-019; a checker-level rule, not yet seen from the live model. | `drops_figure` |
 | No attribution the sentence had ("according to", "says", "reported", …) disappears (prompts Phase 4) | `drops_attribution` |
 | Word-level edit distance ≤ max(4, ⌈original words / 2⌉) | `not_minimal` |
 | The `Correction` contract accepts it (for example, numbers must come from cited quotes) | `invalid_correction` |

@@ -46,7 +46,13 @@ def test_a_figure_deleted_instead_of_fixed_is_refused(original, replacement, quo
     [
         # the figure fixed, not deleted
         ("4 colours", "3 colours", COLOURS, "Lumen Pods come in ", "."),
-        ("40 employees", "48 employees", ["Lumen Goods has 48 employees."], "Lumen Goods has ", "."),
+        (
+            "40 employees",
+            "48 employees",
+            ["Lumen Goods has 48 employees."],
+            "Lumen Goods has ",
+            ".",
+        ),
         # the wrong count replaced by the evidence's own list: nothing is lost
         ("4 colours", "Graphite, Sand and Teal", COLOURS, "Lumen Pods come in ", "."),
     ],

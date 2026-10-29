@@ -128,7 +128,7 @@ lock, invalid baseline, missing credentials for `--verdicts openrouter`).
 |---|---|---|---|
 | Verdicts | `eval/dataset.jsonl` | Accuracy, per-class P/R/F1, confusion matrix, abstention, error and false-SUPPORTED rates, citation validity, grounding, fully correct, by split | **Only** with `--verdicts openrouter` or `--predictions`. The default `abstain` is a floor and is labelled "not model accuracy". |
 | Retrieval | `eval/dataset.jsonl`, `eval/data/retrieval_v1.jsonl` | Recall@1/3/5, separately from verdicts | No: deterministic |
-| Corrections | `eval/data/corrections_v1.jsonl` | Deterministic checks on 46 labelled edits; the live corrector with `--verdicts openrouter` | Live part only |
+| Corrections | `eval/data/corrections_v1.jsonl` | Deterministic checks on 53 labelled edits; the live corrector with `--verdicts openrouter` | Live part only |
 | Claim extraction | `eval/data/extraction_v1.jsonl` | Claim recall and precision, exact spans, atomicity, opinions extracted, slice violations, unsafe rewordings kept: for an oracle replay (code check), three scripted adversaries, and the live model with `--verdicts openrouter` | Live part only |
 | Enforcement | `eval/dataset.jsonl` | Scripted adversaries (fabricator, valid-quote-always-SUPPORTED, valid-quote-always-CONTRADICTED) through the real verifier and citation guard | No: what the code enforces |
 | Error handling | `eval/fault_cases.json` | 18 provider faults (timeout, rate limit, unavailable, malformed JSON, invalid schema, not configured) at extraction, verification and correction | No: deterministic |
@@ -188,7 +188,7 @@ lock, invalid baseline, missing credentials for `--verdicts openrouter`).
 | Fabricated quotes accepted | ≤ 0 | measured |
 | Accepted-citation validity (fabricator; valid-quote, always SUPPORTED) | ≥ 1.0 | measured 2/2, 21/21 |
 | False-SUPPORTED (fabricator; valid-quote, always SUPPORTED) | ≤ 1/35; ≤ 15/35 | measured |
-| Correction checks: bad edits rejected / false accepts / good edits accepted | ≥ 1.0 / ≤ 0 / ≥ 17/18 | measured |
+| Correction checks: bad edits rejected / false accepts / good edits accepted | ≥ 1.0 / ≤ 0 / ≥ 21/22 | measured (31/31, 0, 21/22 after REG-019) |
 | Fault cases handled | ≥ 18/18 | measured |
 | **Citation validity (model run)** | **null: NOT ENFORCED** | no live run has been measured |
 | **CONTRADICTED recall (model run)** | **null: NOT ENFORCED** | no threshold agreed and no live run measured |
@@ -1137,6 +1137,40 @@ the gap candidates live in tests rather than in the dataset, which includes held
   through the guard, only when re-checking is on.
 - Any figure in the corrected sentence that is bound to the wrong property refuses the
   correction, including one the edit didn't touch.
+
+## Round 3 step 05: a deleted figure (actual output, 2026-10-30)
+
+**Gap** (REG-019; table in `docs/round3/krish/corrections-gap-table.md`). Of the runbook's five
+candidates, four were already closed or covered on main (borrowed figures, bare numbers, the
+compound re-check, no correction for NOT_ENOUGH_EVIDENCE). One reproduced: a correction could
+delete a figure that has **no unit** instead of fixing it. "Lumen Pods come in 4 colours." →
+"come in colours" got no issue, and the corrector proposed it, both with re-checking off and
+after a SUPPORTED re-check. `drops_unit` only sees figures with a unit, and once the figure is
+gone the re-check has nothing to check.
+
+**Fix:** new issue code `drops_figure` (additive). An edit is refused when it removes a figure
+with no unit and puts neither a new figure nor any new content word in its place. New content
+words must already be in the cited quotes (`unsupported_addition`), so "4 colours" → "Graphite,
+Sand and Teal" is still offered. No existing check was loosened.
+
+| `corrections_v1` checker | Before | After |
+|---|---|---|
+| Cases / labelled edits | 19 / 46 | 22 / 53 (3 new dev cases: 3 bad, 4 good edits) |
+| Bad edits rejected | 28/28 | **31/31** |
+| Good edits accepted | 17/18 | **21/22** (the miss is still `corr-v1-033`) |
+| False accepts | 0 | **0** |
+
+`drops_figure` fires on exactly the 3 new bad edits; no existing candidate's outcome changed. The
+`eval/baseline.json` "good edits accepted" gate is tightened from 17/18 to 21/22.
+
+**What this does and does not claim:**
+- **It is a checker-level fix, not yet seen from the live model.** The deleted figure was
+  reproduced with a scripted model; no live correction run exists (runbook step 07), so it is
+  unknown how often the live correction prompt makes such an edit.
+- **Corrections are claimed for traceability, not correctness.** The checks prove that an
+  offered edit changes nothing the cited evidence doesn't support. They don't prove the
+  corrected sentence is right. That needs people to read the live run's proposals (step 07),
+  reported with its sample size and who read them.
 
 ## Phase 6, second run: evaluation harness with extraction (actual output, 2026-10-23)
 

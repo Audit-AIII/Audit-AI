@@ -296,7 +296,7 @@ Additional rules:
   - attempts exist only on `CONTRADICTED` results;
   - a `correction` requires an attempt with status `proposed`, and a `proposed` attempt requires the `correction`;
   - a `proposed` attempt has no issues and no error, and if it was re-checked the re-check was `SUPPORTED`.
-- Issue codes: `model_declined`, `no_citation`, `unknown_citation`, `target_not_found`, `no_change`, `unsupported_addition`, `drops_qualifier`, `drops_unit` (Phase 5, second run), `drops_attribution` (prompts Phase 4), `not_minimal`, `recheck_not_supported`, `recheck_unavailable`, `invalid_correction`. See [PROMPTS.md](PROMPTS.md#prompt-correct-claim-v1).
+- Issue codes: `model_declined`, `no_citation`, `unknown_citation`, `target_not_found`, `no_change`, `unsupported_addition`, `drops_qualifier`, `drops_unit` (Phase 5, second run), `drops_figure` (Round 3 step 05, REG-019: a figure with no unit deleted and nothing put in its place; additive), `drops_attribution` (prompts Phase 4), `not_minimal`, `recheck_not_supported`, `recheck_unavailable`, `invalid_correction`. See [PROMPTS.md](PROMPTS.md#prompt-correct-claim-v1).
 
 ### Reports
 
