@@ -99,7 +99,7 @@ const FINDS: Parameters<typeof BeachFind>[0][][] = [
 
 export function Sources() {
   return (
-    <section id="sources" className="section sources" aria-labelledby="sources-title">
+    <section id="sources" className="section sources" aria-labelledby="sources-title" data-loop>
       <Shore shells={SHELLS} />
       <div className="container">
         <div className="sources__head">

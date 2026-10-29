@@ -1,6 +1,7 @@
 import { ApprovalSeal } from "@/components/layout/ApprovalSeal";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
+import { LoopPause } from "@/components/layout/LoopPause";
 import { Reveal } from "@/components/layout/Reveal";
 import { SmoothScroll } from "@/components/layout/SmoothScroll";
 import { Checks } from "@/components/sections/Checks";
@@ -20,6 +21,7 @@ export default function Home() {
     <>
       <SmoothScroll />
       <Reveal />
+      <LoopPause />
       <Header />
       <main id="main" tabIndex={-1}>
         <Hero />
