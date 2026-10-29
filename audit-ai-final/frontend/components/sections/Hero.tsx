@@ -66,6 +66,36 @@ export function Hero() {
     return () => mm.revert();
   }, []);
 
+  // The 16s shadow sway, stepped 10 times a second instead of every frame. Each step moves the
+  // shadows at most ~0.2px, which can't be seen, while every frame of it repainted the four words
+  // (all of the page's idle raster work, PERF_BASELINE.md). Same keyframes and easing: the CSS
+  // animations are paused and their clock is advanced from here. Holds while the hero sinks
+  // (data-sinking) or the tab is hidden. Reduced motion has no sway animation, so nothing runs.
+  useEffect(() => {
+    const el = section.current;
+    if (!el) return;
+    const sway = el
+      .getAnimations({ subtree: true })
+      .filter((a): a is CSSAnimation => a instanceof CSSAnimation && a.animationName.startsWith("hero-sway"));
+    if (!sway.length) return;
+    sway.forEach((a) => a.pause());
+    let t = Number(sway[0].currentTime ?? 0);
+    let last = performance.now();
+    const step = () => {
+      const now = performance.now();
+      if (!el.hasAttribute("data-sinking") && !document.hidden) {
+        t += now - last;
+        sway.forEach((a) => (a.currentTime = t));
+      }
+      last = now;
+    };
+    const timer = window.setInterval(step, 100);
+    return () => {
+      window.clearInterval(timer);
+      sway.forEach((a) => a.play());
+    };
+  }, []);
+
   // Pointer-follow light: eased toward the cursor (fine pointers only, never with reduced motion).
   useEffect(() => {
     const el = section.current;

@@ -164,6 +164,11 @@ body {
   text-transform: uppercase;
 }
 
+/* Endless decorative loops hold while their section is far off screen (components/layout/LoopPause.tsx) */
+[data-loop][data-paused] *,
+[data-loop][data-paused] *::before,
+[data-loop][data-paused] *::after { animation-play-state: paused; }
+
 /* Relief treatments for display type */
 .relief-pressed { color: var(--ink-2); text-shadow: var(--text-pressed); filter: url(#cut-relief); }
 /* Grain inside letters: a copy of the text (data-text) filled with --grain-ink specks, laid over the glyphs */
