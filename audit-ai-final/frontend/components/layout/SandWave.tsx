@@ -1,6 +1,5 @@
 "use client";
 
-import { gsap } from "gsap";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { SAND_EVENT, areaOf, setSandTransitioning, type SandGo } from "@/lib/sandWave";
@@ -29,6 +28,14 @@ const GRAINS = Array.from({ length: 44 }, (_, i) => {
   return { left: round(r(1) * 100), size: round(3 + r(2) * 6), delay: r(3) * 0.2, drift: (r(4) - 0.5) * 60 };
 });
 
+/* GSAP is loaded on demand: this component sits in the root layout, and a static import shipped
+   GSAP (27 kB gzipped) with every workspace and sign-in page, which never use it otherwise. It is
+   fetched while the browser is idle; a transition started before that waits for it. */
+type Gsap = typeof import("gsap").gsap;
+let gsapLib: Gsap | null = null;
+let gsapLoading: Promise<Gsap> | null = null;
+const loadGsap = () => (gsapLoading ??= import("gsap").then((m) => (gsapLib = m.gsap)));
+
 // Whole transition ≈ 1.9 s: cover 0.8 + paint gap ~0.1 + reveal ~1.0 (grains finish last).
 const COVER_S = 0.8;
 const REVEAL_S = 0.75;
@@ -55,6 +62,16 @@ export function SandWave() {
     if (next) goRef.current(next);
   };
 
+  useEffect(() => {
+    const load = () => void loadGsap().catch(() => {});
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(load, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(load, 1000);
+    return () => window.clearTimeout(id);
+  }, []);
+
   // Start a transition: surge in, then navigate once covered.
   useEffect(() => {
     const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -69,6 +86,23 @@ export function SandWave() {
       if (!el || !w || reduced()) {
         beforeNavigate?.();
         router.push(href);
+        return;
+      }
+      const gsap = gsapLib;
+      if (!gsap) {
+        // Not loaded yet (clicked within the first moments): wait for it, or navigate plainly if it fails.
+        busy.current = true;
+        loadGsap().then(
+          () => {
+            busy.current = false;
+            go({ href, beforeNavigate });
+          },
+          () => {
+            busy.current = false;
+            beforeNavigate?.();
+            router.push(href);
+          },
+        );
         return;
       }
       busy.current = true;
@@ -132,7 +166,8 @@ export function SandWave() {
     const el = root.current;
     const w = wave.current;
     const g = grains.current;
-    if (!el || !w || !g) return;
+    const gsap = gsapLib; // loaded: the cover ran on it
+    if (!el || !w || !g || !gsap) return;
     let frame = 0;
     const reveal = () => {
       const h = window.innerHeight;
