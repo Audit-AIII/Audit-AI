@@ -3,8 +3,10 @@ decides which SUPPORTED claims still need a person; the backend no longer clears
 SUPPORTED claim on its own (engine/pipeline.py, _with_decision_policy).
 
 1. a single-fact SUPPORTED claim on strong evidence is cleared: the review completes;
-2. a compound SUPPORTED claim ("... and ...") resting on one quote goes to a person, and so does
-   the review - even though the verdict stays supported;
+2. a compound claim ("... and ...") goes to a person, and so does the review: if its one quote
+   leaves a part uncovered, the engine's citation guard refuses the SUPPORTED answer
+   (unsupported_clause) and the claim is unverified; if one quote covers both parts, the verdict
+   stays supported but one citation for two facts is still flagged (compound_under_cited);
 3. if the policy itself fails, the claim is reviewed (never silently cleared).
 """
 
@@ -21,6 +23,15 @@ ONE_QUOTE = [
         "SUPPORTED",
         "up to 12 hours of playback per charge",
         "The fact sheet states 12 hours.",
+    )
+]
+COVERED = "Lumen Pods offer up to 12 hours of playback per charge and up to 36 hours with the case."
+BOTH_PARTS_QUOTE = [
+    ScriptedRule(
+        "12 hours of playback per charge",
+        "SUPPORTED",
+        "up to 12 hours of playback per charge; up to 36 hours with the charging case",
+        "The fact sheet states 12 and 36 hours.",
     )
 ]
 
@@ -43,7 +54,23 @@ def test_compound_claim_on_one_quote_goes_to_a_person(client, monkeypatch, accou
     use_scripted_provider(monkeypatch, ONE_QUOTE)
     review = account_factory("owner").submit(COMPOUND)
     [finding] = review["findings"]
-    assert finding["verification_status"] == "supported"  # the verdict is unchanged...
+    # "are splash resistant" is in no quote: the engine's guard refuses the SUPPORTED answer
+    # (unsupported_clause, not stored by this backend), so the claim is not auto-cleared...
+    assert finding["verification_status"] == "unverified"
+    assert finding["requires_human_review"] is True  # ...a person decides...
+    assert finding["review_reasons"] == ["not_enough_evidence"]  # ...and the UI can say why
+    assert finding["evidence"] == []  # an unverified claim carries no citation
+    assert review["status"] == "needs_human_review"
+
+
+@requires_db
+def test_compound_claim_one_quote_fully_covers_still_goes_to_a_person(
+    client, monkeypatch, account_factory
+) -> None:
+    use_scripted_provider(monkeypatch, BOTH_PARTS_QUOTE)
+    review = account_factory("owner").submit(COVERED)
+    [finding] = review["findings"]
+    assert finding["verification_status"] == "supported"  # the guard accepts the quote...
     assert finding["requires_human_review"] is True  # ...but one quote doesn't settle two facts
     assert finding["review_reasons"] == ["compound_under_cited"]  # and the UI can say why
     assert review["status"] == "needs_human_review"
