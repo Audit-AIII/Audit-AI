@@ -1,6 +1,6 @@
 # Performance baseline (before any fix)
 
-Measured 2026-10-29 on branch `perf/optimise` at `0bda78f`, against a local production build
+Measured 2026-10-29 on branch `perf/optimise` from `main` at `ebb4c12` (frontend identical to `0bda78f`), against a local production build
 (`npm run build && npm start`, Next 16.4.2 Turbopack). No Vercel URL was given, so the deployed
 site was not measured. Raw data: `qa/out/perf-baseline.json` (git-ignored); scripts are in `qa/`.
 
