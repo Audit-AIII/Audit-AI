@@ -122,10 +122,12 @@ LIMITATIONS: list[Limitation] = [
     ),
     Limitation(
         topic="Backend review routing",
-        status="suspected",
-        finding="The backend (Member 3) routes findings on verdict != SUPPORTED only, so the engine's decision policy "
-        "(weak or under-cited SUPPORTED goes to a person) does not apply in the live app yet. Read from code, "
-        "not tested end to end.",
+        status="unsupported",
+        finding="The backend applies the engine's decision policy to every claim (services/api engine/pipeline.py, "
+        "_with_decision_policy), so a weak or under-cited SUPPORTED claim goes to a person. This evaluation does not "
+        "measure that routing: it is tested only by the backend suite (services/api/tests/test_decision_policy.py), "
+        "which needs PostgreSQL and runs in CI. An earlier entry here said the backend routed on verdict != "
+        "SUPPORTED only; that was out of date.",
         evidence=[],
     ),
 ]
