@@ -145,6 +145,15 @@ export async function retryWhileInFlight<T>(hasKey: boolean, send: () => Promise
   }
 }
 
+/**
+ * Reads (GET) give up after this long, so an API that accepts the connection but never answers
+ * shows the usual "couldn't reach the server" error instead of loading forever. Writes get no limit:
+ * some are long by design (POST /api/evaluations runs for 1-4 minutes, reviews, uploads).
+ */
+export const READ_TIMEOUT_MS = 10_000;
+export const readTimeout = (method: string) =>
+  method === "GET" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(READ_TIMEOUT_MS) : undefined;
+
 type Options = {
   method?: "GET" | "POST" | "PUT";
   body?: unknown;
@@ -173,6 +182,7 @@ async function send<T>(path: string, { method = "GET", body, form, auth = true, 
         ...headers,
       },
       body: form ?? (body !== undefined ? JSON.stringify(body) : undefined),
+      signal: readTimeout(method),
     });
   } catch {
     throw new ApiError(0, "NETWORK_ERROR", "network error", null);
