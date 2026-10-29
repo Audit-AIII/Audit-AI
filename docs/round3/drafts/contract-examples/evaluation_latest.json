@@ -1,0 +1,79 @@
+{
+  "_note": "ILLUSTRATIVE EXAMPLE ONLY. Values are placeholders, not measured results.",
+  "_example_only": "DRAFT shape example for Round 3 (2026-10-28). NOT a measured result: no full-pipeline run exists yet. Every rate is null, every count 0 and every run detail a <placeholder>; only the shape is meaningful. Fields marked new in docs/round3/contracts.md sections 17 and 23 await Darsh.",
+  "catch_rate": null,
+  "false_positive_rate": null,
+  "per_check": [
+    {
+      "check": "verification",
+      "catch_rate": null,
+      "false_positive_rate": null,
+      "n": 0,
+      "catch_rate_ratio": {"numerator": 0, "denominator": 0, "value": null},
+      "false_positive_rate_ratio": {"numerator": 0, "denominator": 0, "value": null}
+    },
+    {
+      "check": "numeric",
+      "catch_rate": null,
+      "false_positive_rate": null,
+      "n": 0,
+      "catch_rate_ratio": {"numerator": 0, "denominator": 0, "value": null},
+      "false_positive_rate_ratio": {"numerator": 0, "denominator": 0, "value": null}
+    },
+    {
+      "check": "absent_fact",
+      "catch_rate": null,
+      "false_positive_rate": null,
+      "n": 0,
+      "catch_rate_ratio": {"numerator": 0, "denominator": 0, "value": null},
+      "false_positive_rate_ratio": {"numerator": 0, "denominator": 0, "value": null}
+    }
+  ],
+  "sample_size": 0,
+  "run_at": "<run date, ISO 8601>",
+  "id": "00000000-0000-4000-8000-000000000001",
+  "status": "<completed | partial>",
+  "engine_prompt_version": "verify-claim-v1",
+  "dataset_version": "<dataset file>@<sha256 prefix>",
+  "limits_note": "<limits note written by the runner>",
+  "latency_ms_p50": null,
+  "provider_failure_rate": null,
+  "coverage": "full_pipeline",
+  "by_split": {
+    "dev": {
+      "n": 0,
+      "catch_rate": {"numerator": 0, "denominator": 0, "value": null},
+      "false_positive_rate": {"numerator": 0, "denominator": 0, "value": null}
+    },
+    "heldout": {
+      "n": 0,
+      "catch_rate": {"numerator": 0, "denominator": 0, "value": null},
+      "false_positive_rate": {"numerator": 0, "denominator": 0, "value": null}
+    }
+  },
+  "provider_mode": "<live | scripted | mixed>",
+  "headline": {
+    "split": "heldout",
+    "n": 0,
+    "catch_rate": {"numerator": 0, "denominator": 0, "value": null},
+    "false_positive_rate": {"numerator": 0, "denominator": 0, "value": null}
+  },
+  "run": {
+    "provider": "<provider>",
+    "provider_mode": "<live | scripted | mixed>",
+    "model_id": "<model id>",
+    "prompt_versions": {
+      "extract_claims": "extract-claims-v1",
+      "verify_claim": "verify-claim-v1",
+      "correct_claim": "correct-claim-v1"
+    },
+    "decision_policy_version": "decision-policy-v1",
+    "dataset": {"version": "<dataset file>@<sha256 prefix>", "records": 0, "dev": 0, "heldout": 0},
+    "git_commit": "<commit>"
+  },
+  "limitations": [
+    {"topic": "Held-out size", "status": "measured", "finding": "<from the runner, e.g. how far one record moves each held-out rate>"},
+    {"topic": "Held-out exposure", "status": "measured", "finding": "The held-out gold quotes have already been read during development (logged in RUN_LEDGER.md), so held-out is not fully unseen."},
+    {"topic": "Tone", "status": "not_implemented", "finding": "Brand tone is not measured: there is no labelled tone test set, so the scorecard has no tone row."}
+  ]
+}
