@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "e2e": "node e2e/run.mjs"
   },
   "dependencies": {
     "@fontsource-variable/gabarito": "^5.3.0",

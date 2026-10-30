@@ -5,7 +5,8 @@ import { RiskBadge, WorkflowBadge } from "@/components/additions/Badges";
 import { EmptyState, ErrorState, LoadingState, NotProvided } from "@/components/additions/States";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { useBrands } from "@/lib/additions/brands";
-import { workflowLook } from "@/lib/additions/governance";
+import { isSolo, workflowLook } from "@/lib/additions/governance";
+import { useMemberCount } from "@/lib/additions/workspace";
 import { loadQueue, type QueueLoad, type QueueRow } from "@/lib/additions/queue";
 
 type Load = { state: "loading" } | { state: "ok"; data: QueueLoad } | { state: "error"; error: unknown };
@@ -70,7 +71,8 @@ export function Queue() {
   const rows = workflow === "all" ? allRows : allRows.filter((r) => r.workflowStatus === workflow);
   const waiting = rows.filter((r) => r.status === "needs_human_review" || r.status === "completed");
   const done = rows.filter((r) => !waiting.includes(r));
-  const team = allRows.some((r) => r.team);
+  const memberCount = useMemberCount();
+  const team = memberCount !== null ? !isSolo(memberCount, {}) : allRows.some((r) => r.team);
 
   return (
     <>

@@ -65,7 +65,9 @@ The GET routes were called live as the signed-in owner and returned 200. The POS
 2. **Solo wording in routing text.** In a personal workspace `routing_reason.text` says "a reviewer must check this draft" and `required_reviewer_role` is `reviewer`, while `approval_mode` is `self` and `approve` is allowed. Showing that text as-is tells a solo user something untrue, so Phase 3 must handle it. Worth raising with Darsh.
 3. **`Session` has no workspace.** `lib/session.ts` stores `organisation` and `role`, though login sends `workspace`. Phases 3 and 6 need it stored as an optional field.
 4. **`workspace.is_personal` doesn't mean "one person".** It stays `true` after someone joins, so it only says how the workspace started. The UI goes by the member count from `GET /api/workspace/members` (`isSolo` in `lib/additions/governance.ts`). `docs/governance.md` 9.1 describes personal workspaces as having no reviewer, which stops being true at that point. Worth raising with Darsh.
-5. **Team examples not verified live.** `assigned_reviewer` objects, the `reviewed`, `in_review` and `published` statuses, and `approval_mode: "team"` appear only in example files until a team workspace is created through real invitations.
+5. **Routing decisions have an actor.** `governance_audit_history.json` shows `routing_decision` with `actor: null`, but live it carries the person who submitted. The timeline handles both.
+6. **`report_status` values.** The engine sends `COMPLETED`, `PARTIAL` or `FAILED`, in capitals, and seeded reviews send `null`. The UI matches `PARTIAL` in any case.
+7. **Team examples, now verified live.** `assigned_reviewer` objects and the `in_review`, `reviewed` and `published` statuses were seen on a real team in `e2e/04-team-workflow.mjs`.
 
 ## Confirmed example JSON
 
