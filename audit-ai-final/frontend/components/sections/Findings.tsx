@@ -78,8 +78,8 @@ const FINDINGS: Finding[] = [
     source: "Readability and tone rules",
     excerpt: "Write buttons in normal case. One exclamation mark at most.",
     title: "“BUY NOW!!!”",
-    copy: "Coming next, not built yet: this is how readability and tone checks will look. All capitals are harder to read for many people, and shouting does not fit the brand’s voice.",
-    spec: { check: "Easy to read, tone (coming next)", source: "Readability and tone rules", result: "Two problems" },
+    copy: "Tone is coming next, not built yet: this is how it will look. All capitals are harder to read for many people, and shouting does not fit the brand’s voice.",
+    spec: { check: "Tone (coming next)", source: "Readability and tone rules", result: "Two problems" },
     snippet: {
       channel: "Email",
       body: (

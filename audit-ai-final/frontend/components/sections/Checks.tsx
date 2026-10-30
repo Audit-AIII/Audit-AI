@@ -9,14 +9,14 @@ import { SandDrift, Shore, type ShellSpot } from "@/components/layout/Shore";
 
 gsap.registerPlugin(ScrollTrigger);
 
-// `soon`: shown on the page as "Coming next" (only Facts and Claims are built today).
+// `soon`: shown on the page as "Coming next" (Tone and Visuals aren't built yet).
 const CHECKS: { kind: CheckKind; title: string; line: string; soon?: boolean }[] = [
   { kind: "tone", title: "Tone", line: "Does it sound like your brand?", soon: true },
-  { kind: "terminology", title: "Wording", line: "Product names and terms, spelled your way.", soon: true },
+  { kind: "terminology", title: "Wording", line: "Product names and terms, spelled your way." },
   { kind: "facts", title: "Facts", line: "Numbers and dates match what you approved." },
   { kind: "claims", title: "Claims", line: "Big promises need proof." },
   { kind: "visual", title: "Visuals", line: "Colours and logos match your brand.", soon: true },
-  { kind: "accessibility", title: "Easy to read", line: "Clear for everyone, first time.", soon: true },
+  { kind: "accessibility", title: "Easy to read", line: "Clear for everyone, first time." },
 ];
 
 // Resting tilt of each card while stacked (deg), so the pile looks hand-dealt.
@@ -79,10 +79,10 @@ export function Checks() {
       <div className="container">
         <div className="head-grid checks__head">
           <Heading id="checks-title" className="checks__title" data-r="up">
-            Six checks, two live today
+            Six checks, four live today
           </Heading>
           <p className="t-lead checks__intro" data-r="up">
-            Facts and Claims check every draft today; the other four are coming next. Each problem we flag tells you which document it came from.
+            Facts, Claims, Wording and Easy to read work today; Tone and Visuals are coming next. Each problem we flag tells you which document it came from.
           </p>
         </div>
         <ul ref={grid} className="checks__grid">

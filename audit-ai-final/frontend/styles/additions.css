@@ -50,8 +50,8 @@
 .add-state__body { margin: 0; font-size: 16px; line-height: 1.5; }
 .add-state__spinner { width: 18px; height: 18px; border-radius: var(--r-round); box-shadow: var(--shadow-well); border: 2px solid var(--ink-2); border-top-color: transparent; animation: add-spin 900ms linear infinite; }
 @keyframes add-spin { to { rotate: 360deg; } }
-.add-absent { color: var(--ink-2); font-style: italic; }
-.add-action-ref { display: block; margin-top: 4px; font-size: 13px; opacity: .8; }
+.add-absent { color: var(--surface); font-style: italic; }
+.add-action-ref { display: block; margin-top: 4px; font-size: 13px; }
 .add-needs { margin: 0; padding: 10px 12px; border-radius: var(--r-ui); outline: 1.5px dashed var(--ink-2); outline-offset: -1px; font-size: 15px; line-height: 1.45; }
 
 /* Brand header line */
@@ -349,8 +349,8 @@
 }
 
 /* ---- Review: summary strip extras, partial state spacing, finding details ---- */
-.add-summary .tally__note { font-size: 14px; }
-.add-summary__style { padding: 0; border: 0; background: none; color: var(--ink-2); font: 600 14px / 1.3 var(--font-body); text-align: left; cursor: pointer; }
+.add-summary .tally__note { color: var(--surface); font-size: 14px; }
+.add-summary__style { padding: 0; border: 0; background: none; color: var(--surface); font: 600 14px / 1.3 var(--font-body); text-align: left; cursor: pointer; }
 .add-summary__style:hover:not(:disabled) { color: var(--ink); }
 .add-summary__style:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .add-partial-wrap { margin-bottom: 20px; }
@@ -401,3 +401,9 @@
 
 /* ---- Accept invitation (on the sign-in card) ---- */
 .auth__card > .btn { justify-self: start; }
+
+/* ---- Phones: controls added in Round 3 meet the 44px tap target ---- */
+@media (max-width: 767px) {
+  .add-team-manage .add-btn-small, .add-assign .add-btn-small, .add-audit-more { min-height: 44px; }
+  .add-run .add-details > summary { display: flex; align-items: center; min-height: 44px; }
+}

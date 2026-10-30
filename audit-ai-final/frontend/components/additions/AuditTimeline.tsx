@@ -106,7 +106,7 @@ export function AuditTimeline({
       </ol>
       <ApiActionError error={moreError} />
       {load.next && (
-        <button type="button" className="add-btn-small" onClick={loadMore} disabled={more} aria-busy={more}>
+        <button type="button" className="add-btn-small add-audit-more" onClick={loadMore} disabled={more} aria-busy={more}>
           {more ? "Loading…" : "Load more"}
         </button>
       )}
