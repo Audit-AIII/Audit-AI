@@ -68,6 +68,7 @@ const routed = "1 claim has no evidence either way, so a reviewer must check thi
 assert.equal(routingText(routed, true), "1 claim has no evidence either way.");
 assert.equal(routingText(routed, false), routed);
 assert.equal(routingText("Something new.", true), "Something new.", "other wording passes through");
+assert.equal(routingText("No AI provider is configured, so nothing was checked, so a reviewer must check this draft before it can be approved.", true), "No AI provider is configured, so nothing was checked.", "only the last clause goes");
 
 // Audit: every example action has plain words, unknown ones stay readable, details stay private.
 for (const e of fixture("audit_history").items) assert.notEqual(auditLook(e.action).glyph, "·", e.action);

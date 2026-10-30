@@ -22,7 +22,7 @@ const login = await (
 ).json();
 const auth = { Authorization: `Bearer ${login.access_token}` };
 const reviews = await (await fetch(`${API}/api/reviews?limit=100`, { headers: auth })).json();
-const base = reviews.find((r) => r.status === "needs_human_review");
+const base = reviews.find((r) => r.status === "needs_human_review" && r.is_current_version && /no evidence either way/.test(r.routing_reason?.text ?? ""));
 const id = base.id;
 const session = { email: login.user.email, name: login.user.display_name, token: login.access_token, userId: login.user.id, organisation: login.organisation, role: login.role };
 const json = (status, body) => ({ status, contentType: "application/json", headers: CORS, body: JSON.stringify(body) });

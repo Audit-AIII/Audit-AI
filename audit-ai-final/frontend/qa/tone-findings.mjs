@@ -18,7 +18,7 @@ const login = await (
   await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "asha@seed.inkloom.demo", password }) })
 ).json();
 const reviews = await (await fetch(`${API}/api/reviews?limit=100`, { headers: { Authorization: `Bearer ${login.access_token}` } })).json();
-const base = reviews.find((r) => r.status === "needs_human_review" && r.text);
+const base = reviews.find((r) => r.status === "needs_human_review" && r.is_current_version && r.text && !/^stub/i.test(r.engine?.provider ?? ""));
 assert.ok(reviews.every((r) => r.findings.every((f) => f.check_type !== "tone")), "the API sends no tone findings today; if this fails, test the real ones");
 const session = { email: login.user.email, name: login.user.display_name, token: login.access_token, userId: login.user.id, organisation: login.organisation, role: login.role };
 

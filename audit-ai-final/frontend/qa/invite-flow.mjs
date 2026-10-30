@@ -39,6 +39,11 @@ const settle = async (p) => {
   await p.waitForTimeout(400);
 };
 
+// An earlier failed run may have left its member behind.
+for (const m of (await (await fetch(`${API}/api/workspace/members`, { headers: auth(asha) })).json()).members.filter((x) => !x.is_you)) {
+  await fetch(`${API}/api/workspace/members/${m.user.id}`, { method: "DELETE", headers: auth(asha) });
+}
+
 // A brand-new person: link, sign up, come back, accept, workspace.
 const newEmail = `qa-invite-${Date.now()}@example.com`;
 const { accept_path: path } = await invite(newEmail);

@@ -4,13 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiActionError } from "@/components/additions/ApiActionError";
 import { WorkflowBadge } from "@/components/additions/Badges";
 import { EmptyState, ErrorState, LoadingState } from "@/components/additions/States";
-import { auditLook, statusChange } from "@/lib/additions/governance";
+import { auditLook, routingText, statusChange } from "@/lib/additions/governance";
 import { ApiError } from "@/lib/api/client";
 import type { AuditEventOut } from "@/lib/api/types";
 import "@/styles/additions.css";
 
 type Page = { items: AuditEventOut[]; next_cursor: string | null };
 type Load = { state: "loading" } | { state: "ok"; items: AuditEventOut[]; next: string | null } | { state: "error"; error: unknown };
+
+/** Events whose note is the server's routing text. */
+const ROUTING_ACTIONS = new Set(["routing_decision", "review_requested"]);
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -23,12 +26,15 @@ export function AuditTimeline({
   emptyTitle,
   emptyBody,
   forbidden,
+  solo = false,
 }: {
   fetchPage: (cursor: string | null) => Promise<Page>;
   emptyTitle: string;
   emptyBody?: string;
   /** Replaces the 403 wording where a page has a specific reason. */
   forbidden?: string;
+  /** Alone in the workspace: a routing note's "a reviewer must check" isn't true for them. */
+  solo?: boolean;
 }) {
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [tick, setTick] = useState(0);
@@ -98,7 +104,7 @@ export function AuditTimeline({
                     <WorkflowBadge status={change.before} /> <span aria-label="changed to">→</span> <WorkflowBadge status={change.after} />
                   </p>
                 )}
-                {e.note && <p className="t-body panel__note add-prewrap">{e.note}</p>}
+                {e.note && <p className="t-body panel__note add-prewrap">{ROUTING_ACTIONS.has(e.action) ? routingText(e.note, solo) : e.note}</p>}
               </div>
             </li>
           );

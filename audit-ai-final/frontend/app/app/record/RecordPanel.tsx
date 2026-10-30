@@ -169,7 +169,7 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
         <Panels cols="wide">
           <Panel n="04" label="History" title="Every step so far">
             {itemId ? (
-              <AuditTimeline fetchPage={fetchPage} emptyTitle="No history yet" emptyBody="Each step on this draft will appear here." />
+              <AuditTimeline fetchPage={fetchPage} emptyTitle="No history yet" emptyBody="Each step on this draft will appear here." solo={solo} />
             ) : (
               <p className="t-body panel__note">
                 <NotProvided />

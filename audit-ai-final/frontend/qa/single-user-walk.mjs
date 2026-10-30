@@ -66,7 +66,7 @@ console.log("ok  Decide     Approve worked after an explicit click");
 await p.goto(`${WEB}/app/record?id=${id}`);
 await p.waitForSelector(".timeline");
 await clean("Record");
-assert.match(await p.locator(".timeline").innerText(), /You[\s\S]*Approved/);
+assert.match(await p.locator(".timeline").first().innerText(), /You[\s\S]*Approved/);
 
 await p.goto(`${WEB}/app/queue`);
 await p.waitForSelector(".add-table, .add-state");
