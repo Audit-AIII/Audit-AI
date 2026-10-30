@@ -1,9 +1,13 @@
 "use client";
 
+import { useCallback } from "react";
+import { AuditTimeline } from "@/components/additions/AuditTimeline";
+import { NotProvided } from "@/components/additions/States";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { isRule, isStub, isStubReview } from "@/components/app/reviewLabels";
 import { useReview, useReviewId } from "@/components/app/useReview";
+import { contentAudit } from "@/lib/additions/workflow";
 import type { ReviewOut } from "@/lib/api/types";
 import { useSession } from "@/lib/session";
 import { getDecision, type SavedDecision } from "@/lib/workspace";
@@ -65,8 +69,10 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
   const localDecision = decision && decision.action === review.status ? decision : null;
   const byYou = localDecision && session && localDecision.actor_user_id === session.userId;
 
+  const itemId = review.content_item_id ?? null;
+  const fetchPage = useCallback((cursor: string | null) => contentAudit(itemId ?? "", cursor), [itemId]);
   const steps: Step[] = [
-    { at: review.created_at, who: "You", what: "Sent the draft for checking" },
+    { at: review.created_at, who: review.workspace?.is_personal === false ? (review.author?.display_name ?? "The author") : "You", what: "Sent the draft for checking" },
     {
       at: review.completed_at ?? review.started_at,
       who: "Audit AI",
@@ -116,7 +122,7 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
             ))}
           </ol>
           {outcome && !localDecision && (
-            <p className="t-caption panel__hint">The decision’s note and exact time were made in another browser, so only the outcome is shown.</p>
+            <p className="t-caption panel__hint">The decision’s note and exact time were made in another browser, so only the outcome is shown here. The history below has every step.</p>
           )}
         </Panel>
 
@@ -156,6 +162,19 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
           </a>
         </Panel>
       </Panels>
+      <div className="add-record-history">
+        <Panels cols="wide">
+          <Panel n="04" label="History" title="Every step so far">
+            {itemId ? (
+              <AuditTimeline fetchPage={fetchPage} emptyTitle="No history yet" emptyBody="Each step on this draft will appear here." />
+            ) : (
+              <p className="t-body panel__note">
+                <NotProvided />
+              </p>
+            )}
+          </Panel>
+        </Panels>
+      </div>
     </>
   );
 }

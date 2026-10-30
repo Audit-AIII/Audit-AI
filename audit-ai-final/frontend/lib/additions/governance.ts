@@ -50,6 +50,46 @@ const INVITATION: Record<string, Look> = {
 };
 export const invitationLook = (status: string): Look => INVITATION[status] ?? { glyph: "?", label: words(status), tone: "dashed" };
 
+const AUDIT: Record<string, Pick<Look, "glyph" | "label">> = {
+  draft_created: { glyph: "…", label: "Draft created" },
+  version_created: { glyph: "…", label: "New version saved" },
+  recheck_requested: { glyph: "↻", label: "Checked again" },
+  locks_updated: { glyph: "🔒", label: "Protected phrases changed" },
+  approval_granted: { glyph: "✓", label: "Approved" },
+  approval_rejected: { glyph: "≠", label: "Rejected" },
+  changes_requested: { glyph: "↩", label: "Sent back for changes" },
+  source_changed: { glyph: "↻", label: "A cited document changed" },
+  evidence_rejected: { glyph: "≠", label: "Evidence failed its check" },
+  finding_dismissed: { glyph: "⊖", label: "Finding dismissed" },
+  finding_restored: { glyph: "↺", label: "Finding restored" },
+  finding_commented: { glyph: "…", label: "Comment added" },
+  draft_submitted: { glyph: "→", label: "Sent for review" },
+  routing_decision: { glyph: "→", label: "Routing decision" },
+  review_requested: { glyph: "●", label: "Review requested" },
+  reviewer_assigned: { glyph: "●", label: "Reviewer assigned" },
+  reviewed: { glyph: "○", label: "Marked as reviewed" },
+  approval_denied: { glyph: "⊘", label: "Approval refused" },
+  published: { glyph: "✓✓", label: "Marked as published" },
+  "account.registered": { glyph: "◆", label: "Account registered" },
+  invite_created: { glyph: "→", label: "Invitation created" },
+  invite_accepted: { glyph: "✓", label: "Invitation accepted" },
+  invite_revoked: { glyph: "⊘", label: "Invitation revoked" },
+  member_role_changed: { glyph: "●", label: "Role changed" },
+  member_removed: { glyph: "⊖", label: "Member removed" },
+};
+/** Unknown actions are passed through by the server, so they stay readable here. */
+export const auditLook = (action: string) => AUDIT[action] ?? { glyph: "·", label: words(action) };
+
+/** The before and after status an audit event carries, if any. Nothing else in details is shown. */
+export function statusChange(details: Record<string, unknown> | null | undefined) {
+  const status = (side: unknown) => (side as { workflow_status?: unknown } | null | undefined)?.workflow_status;
+  const before = status(details?.before);
+  const after = status(details?.after);
+  return typeof before === "string" && typeof after === "string" ? { before, after } : null;
+}
+
+export const isOwner = (role: string | undefined) => role === "owner" || role === "admin"; // admin: legacy name
+
 /**
  * May this control be drawn? Missing allowed_actions means an older backend, so today's behaviour
  * stays; an empty list means nothing is allowed. The server still has the last word.

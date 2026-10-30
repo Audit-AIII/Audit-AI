@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/primitives/Button";
+import { isOwner } from "@/lib/additions/governance";
 import { signOut, useSession } from "@/lib/session";
 import { sandNavigate } from "@/lib/sandWave";
 
@@ -76,7 +77,7 @@ export function AccountNav({ onNavigate, inApp = false }: { onNavigate?: () => v
           {(
             <nav aria-label="More pages" style={{ display: "grid", gap: 6, marginBottom: 6 }}>
               <p className="t-caption account__menu-label">More</p>
-              {MORE.map((m) => (
+              {(isOwner(session.role) ? [...MORE, { href: "/app/audit", label: "Audit log" }] : MORE).map((m) => (
                 <Link
                   key={m.href}
                   className="link link--tap"

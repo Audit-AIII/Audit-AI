@@ -2,7 +2,7 @@
 // Fixtures: copies of contract/examples/governance_*.json (docs/governance.md section 9).
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { actionErrorText, invitationLook, isAllowed, riskLook, roleLook, routingText, workflowLook } from "../../lib/additions/governance.ts";
+import { actionErrorText, auditLook, invitationLook, isAllowed, isOwner, riskLook, roleLook, routingText, statusChange, workflowLook } from "../../lib/additions/governance.ts";
 
 const fixtures = new URL("../fixtures/governance/", import.meta.url);
 const contract = new URL("../../../../contract/examples/", import.meta.url);
@@ -68,5 +68,17 @@ const routed = "1 claim has no evidence either way, so a reviewer must check thi
 assert.equal(routingText(routed, true), "1 claim has no evidence either way.");
 assert.equal(routingText(routed, false), routed);
 assert.equal(routingText("Something new.", true), "Something new.", "other wording passes through");
+
+// Audit: every example action has plain words, unknown ones stay readable, details stay private.
+for (const e of fixture("audit_history").items) assert.notEqual(auditLook(e.action).glyph, "·", e.action);
+assert.equal(auditLook("brand.new_action").label, "Brand new action");
+assert.deepEqual(statusChange({ before: { workflow_status: "draft" }, after: { workflow_status: "in_review" } }), { before: "draft", after: "in_review" });
+assert.equal(statusChange({ workflow_status: "reviewed" }), null);
+assert.equal(statusChange(null), null);
+assert.equal(statusChange({ before: {}, after: { workflow_status: "x" } }), null);
+assert.equal(isOwner("owner"), true);
+assert.equal(isOwner("admin"), true);
+assert.equal(isOwner("writer"), false);
+assert.equal(isOwner(undefined), false);
 
 console.log("governance: all assertions passed");

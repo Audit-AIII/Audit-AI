@@ -376,3 +376,7 @@
   .add-gov__list { display: grid; }
 }
 @media (prefers-reduced-motion: reduce) { .add-gov { animation: none; } }
+
+/* ---- Audit trail ---- */
+.add-record-history { margin-top: 22px; }
+.add-audit-change { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }

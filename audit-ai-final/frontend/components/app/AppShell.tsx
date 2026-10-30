@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AccountNav } from "@/components/layout/AccountNav";
+import { isOwner } from "@/lib/additions/governance";
 import { ApiError, api } from "@/lib/api/client";
 import { getSession, signIn, useSession } from "@/lib/session";
 import { isSandTransitioning } from "@/lib/sandWave";
@@ -19,6 +20,8 @@ const WORKSPACE: WorkspacePage[] = [
   { href: "/app/rules", label: "Rules", hint: "Words to use or avoid, required disclaimers and accessibility settings for this brand." },
   { href: "/app/scorecard", label: "Scorecard", hint: "How well the checker does on a benchmark test set." },
 ];
+/** Owners only, on the server too; hidden so nobody else follows a link to a refusal. */
+const AUDIT_PAGE: WorkspacePage = { href: "/app/audit", label: "Audit log", hint: "Who joined this workspace and whose role changed." };
 /** Exact segment match, so /app/review-edit does not light up the "Review" stage. */
 const inSection = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
 
@@ -31,7 +34,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const session = useSession();
   const current = STAGES.find((s) => inSection(pathname, `/app/${s.slug}`));
-  const page = WORKSPACE.find((w) => inSection(pathname, w.href));
+  const pages = isOwner(session?.role) ? [...WORKSPACE, AUDIT_PAGE] : WORKSPACE;
+  const page = pages.find((w) => inSection(pathname, w.href));
 
   const [offline, setOffline] = useState(false);
 
@@ -75,7 +79,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           Audit AI.
         </Link>
         <StageTrack current={current?.slug} />
-        <WorkspaceMenu pages={WORKSPACE} current={page} />
+        <WorkspaceMenu pages={pages} current={page} />
         <div className="app__account">
           <AccountNav inApp />
         </div>
