@@ -99,6 +99,7 @@ _OPTIONAL_VARS = {
     "base_url": "OPENROUTER_BASE_URL",
     "timeout_seconds": "INKLOOM_LLM_TIMEOUT_SECONDS",
     "max_retries": "INKLOOM_LLM_MAX_RETRIES",
+    "min_interval_seconds": "INKLOOM_LLM_MIN_INTERVAL_SECONDS",
     "seed": "INKLOOM_LLM_SEED",
     "structured_output": "INKLOOM_LLM_STRUCTURED_OUTPUT",
     "data_collection": "INKLOOM_LLM_DATA_COLLECTION",
@@ -116,6 +117,9 @@ class OpenRouterSettings(BaseModel):
     timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     max_retries: int = Field(default=2, ge=0, le=5)
     backoff_seconds: float = Field(default=1.0, ge=0, le=30)
+    # Minimum pause between two requests, to stay under a provider's rate limit in a long run.
+    # 0 (the default) sends requests as fast as the caller asks.
+    min_interval_seconds: float = Field(default=0.0, ge=0, le=30)
     temperature: float = Field(default=0.0, ge=0, le=2)
     seed: int | None = 0
     # "json_schema" asks for schema-constrained output and only routes to endpoints that support
@@ -225,6 +229,7 @@ class OpenRouterProvider:
             timeout=settings.timeout_seconds, follow_redirects=False
         )
         self._sleep = sleep
+        self._last_request_at: float | None = None
         self._secret = settings.api_key.get_secret_value()
         register_secret(self._secret)
         install_redaction(logger)
@@ -348,7 +353,11 @@ class OpenRouterProvider:
     def _call(
         self, model: str, request: JsonCompletionRequest, mode: str | None = None
     ) -> tuple[dict[str, Any], str]:
-        started = time.monotonic()
+        if self.settings.min_interval_seconds and self._last_request_at is not None:
+            wait = self.settings.min_interval_seconds - (time.monotonic() - self._last_request_at)
+            if wait > 0:
+                self._sleep(wait)
+        started = self._last_request_at = time.monotonic()
         try:
             response = self._client.post(
                 f"{self.settings.base_url}/chat/completions",
