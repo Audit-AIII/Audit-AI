@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReviewOut } from "@/lib/api/types";
+import type { ReviewOut, UserRef } from "@/lib/api/types";
 import { request } from "./http";
 
 /**
@@ -15,6 +15,11 @@ export type QueueRow = {
   createdAt: string;
   status: string;
   placeholder: boolean;
+  /** From the API; the browser's own risk above is only for reviews without it. */
+  riskLevel: string | null;
+  workflowStatus: string | null;
+  assignedReviewer: UserRef | null;
+  personal: boolean;
 };
 
 const RISK: Record<string, number> = { critical: 3, high: 3, medium: 2, low: 1 };
@@ -29,6 +34,10 @@ export function toRow(r: ReviewOut): QueueRow {
     createdAt: r.created_at,
     status: r.status,
     placeholder: r.findings.some((f) => f.category === "stub") || /^stub/i.test(r.engine?.provider ?? ""),
+    riskLevel: r.risk_level ?? null,
+    workflowStatus: r.workflow_status ?? null,
+    assignedReviewer: r.assigned_reviewer ?? null,
+    personal: r.workspace?.is_personal ?? true,
   };
 }
 

@@ -2,7 +2,7 @@
 // Fixtures: copies of contract/examples/governance_*.json (docs/governance.md section 9).
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { actionErrorText, invitationLook, isAllowed, riskLook, roleLook, workflowLook } from "../../lib/additions/governance.ts";
+import { actionErrorText, invitationLook, isAllowed, riskLook, roleLook, routingText, workflowLook } from "../../lib/additions/governance.ts";
 
 const fixtures = new URL("../fixtures/governance/", import.meta.url);
 const contract = new URL("../../../../contract/examples/", import.meta.url);
@@ -62,5 +62,11 @@ for (const { http_status, body } of fixture("errors")) {
 assert.equal(actionErrorText({ status: 403, code: "NEW_RULE", message: "your role cannot do this" }, "fallback"), "Your role cannot do this.");
 assert.equal(actionErrorText({ status: 0, code: "NETWORK_ERROR", message: "network error" }, "fallback"), "fallback");
 assert.equal(actionErrorText({ status: 500, code: "INTERNAL_ERROR", message: "boom" }, "fallback"), "fallback");
+
+// Routing text: solo sign-off has no reviewer, so that part isn't shown. A team sees it all.
+const routed = "1 claim has no evidence either way, so a reviewer must check this draft before it can be approved.";
+assert.equal(routingText(routed, true), "1 claim has no evidence either way.");
+assert.equal(routingText(routed, false), routed);
+assert.equal(routingText("Something new.", true), "Something new.", "other wording passes through");
 
 console.log("governance: all assertions passed");

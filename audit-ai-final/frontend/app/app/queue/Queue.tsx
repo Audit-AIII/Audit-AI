@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { EmptyState, ErrorState, LoadingState } from "@/components/additions/States";
+import { RiskBadge, WorkflowBadge } from "@/components/additions/Badges";
+import { EmptyState, ErrorState, LoadingState, NotProvided } from "@/components/additions/States";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { useBrands } from "@/lib/additions/brands";
+import { workflowLook } from "@/lib/additions/governance";
 import { loadQueue, type QueueLoad, type QueueRow } from "@/lib/additions/queue";
 
 type Load = { state: "loading" } | { state: "ok"; data: QueueLoad } | { state: "error"; error: unknown };
@@ -47,6 +49,7 @@ export function Queue() {
   const { value: brands } = useBrands();
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [tick, setTick] = useState(0);
+  const [workflow, setWorkflow] = useState("all");
   useEffect(() => {
     let live = true;
     loadQueue()
@@ -62,9 +65,12 @@ export function Queue() {
     return (id: string | null) => (id ? (map.get(id) ?? "Another brand") : "–");
   }, [brands]);
 
-  const rows = load.state === "ok" ? load.data.rows : [];
+  const allRows = load.state === "ok" ? load.data.rows : [];
+  const workflows = [...new Set(allRows.flatMap((r) => (r.workflowStatus ? [r.workflowStatus] : [])))];
+  const rows = workflow === "all" ? allRows : allRows.filter((r) => r.workflowStatus === workflow);
   const waiting = rows.filter((r) => r.status === "needs_human_review" || r.status === "completed");
   const done = rows.filter((r) => !waiting.includes(r));
+  const team = allRows.some((r) => !r.personal);
 
   return (
     <>
@@ -74,13 +80,27 @@ export function Queue() {
         <Panel n="01" label="Waiting for review" title="Waiting for review">
           {load.state === "loading" && <LoadingState label="Loading reviews…" />}
           {load.state === "error" && <ErrorState error={load.error} onRetry={() => setTick((t) => t + 1)} />}
-          {load.state === "ok" && rows.length === 0 && <EmptyState title="Nothing here yet">Reviews appear here after a draft is checked.</EmptyState>}
+          {workflows.length > 1 && (
+            <label className="add-queue-filter">
+              <span className="t-caption">Workflow</span>
+              <select className="add-select" value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
+                <option value="all">All</option>
+                {workflows.map((w) => (
+                  <option key={w} value={w}>
+                    {workflowLook(w).label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {load.state === "ok" && allRows.length === 0 && <EmptyState title="Nothing here yet">Reviews appear here after a draft is checked.</EmptyState>}
+          {load.state === "ok" && allRows.length > 0 && rows.length === 0 && <EmptyState title="No drafts with this status">Choose another workflow status.</EmptyState>}
           {load.state === "ok" && rows.length > 0 && waiting.length === 0 && <EmptyState title="Nothing waiting">Every review has been decided.</EmptyState>}
-          {waiting.length > 0 && <QueueTable rows={waiting} brandName={brandName} />}
+          {waiting.length > 0 && <QueueTable rows={waiting} brandName={brandName} team={team} />}
           {done.length > 0 && (
             <details className="add-details">
               <summary>Already decided or not decidable ({done.length})</summary>
-              <QueueTable rows={done} brandName={brandName} />
+              <QueueTable rows={done} brandName={brandName} team={team} />
             </details>
           )}
         </Panel>
@@ -90,7 +110,7 @@ export function Queue() {
   );
 }
 
-function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: string | null) => string }) {
+function QueueTable({ rows, brandName, team }: { rows: QueueRow[]; brandName: (id: string | null) => string; team: boolean }) {
   return (
     <div className="add-table__wrap">
       <table className="add-table">
@@ -101,6 +121,8 @@ function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: str
             <th scope="col">Risk</th>
             <th scope="col">Time</th>
             <th scope="col">Status</th>
+            {rows.some((r) => r.workflowStatus) && <th scope="col">Workflow</th>}
+            {team && <th scope="col">Reviewer</th>}
           </tr>
         </thead>
         <tbody>
@@ -116,9 +138,13 @@ function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: str
                 </td>
                 <td>{brandName(r.brandId)}</td>
                 <td>
-                  <span className={`add-badge add-badge--${risk.tone}`}>
-                    <span aria-hidden="true">{risk.glyph}</span> {risk.label}
-                  </span>
+                  {r.riskLevel ? (
+                    <RiskBadge level={r.riskLevel} />
+                  ) : (
+                    <span className={`add-badge add-badge--${risk.tone}`}>
+                      <span aria-hidden="true">{risk.glyph}</span> {risk.label}
+                    </span>
+                  )}
                 </td>
                 <td>
                   <time dateTime={r.createdAt} title={r.createdAt ? new Date(r.createdAt).toLocaleString() : undefined}>
@@ -130,6 +156,12 @@ function QueueTable({ rows, brandName }: { rows: QueueRow[]; brandName: (id: str
                     <span aria-hidden="true">{STATUS_GLYPH[r.status] ?? "·"}</span> {STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " ")}
                   </span>
                 </td>
+                {rows.some((x) => x.workflowStatus) && (
+                  <td>
+                    <WorkflowBadge status={r.workflowStatus} />
+                  </td>
+                )}
+                {team && <td>{r.assignedReviewer ? r.assignedReviewer.display_name : <NotProvided>Not assigned</NotProvided>}</td>}
               </tr>
             );
           })}

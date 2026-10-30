@@ -360,3 +360,19 @@
   .add-summary .tally__total { display: flex; flex-wrap: wrap; gap: 6px 12px; }
   .add-summary .tally__note { white-space: normal; }
 }
+
+/* ---- Governance: where a draft stands, assigning, queue filter ---- */
+.add-gov { display: grid; gap: 10px; margin: 0 0 22px; padding: 16px 22px; animation: app-deal var(--dur-mid) var(--ease-enter) backwards; }
+.add-gov__list { display: flex; flex-wrap: wrap; gap: 14px 32px; margin: 0; }
+.add-gov__list > div { display: grid; align-content: start; gap: 8px; min-width: 0; }
+.add-gov__list dd { margin: 0; font-size: 17px; line-height: 1.4; overflow-wrap: anywhere; }
+.add-gov__reason { flex: 1 1 280px; }
+.add-gov__solo { margin: 0; color: var(--surface); letter-spacing: .02em; text-transform: none; }
+.add-assign { display: grid; gap: 10px; justify-items: start; margin-top: 8px; padding-top: 14px; border-top: 1px dashed color-mix(in srgb, var(--ink-2) 60%, transparent); }
+.add-assign .add-field-row { width: 100%; }
+.add-queue-filter { display: inline-grid; justify-self: start; gap: 6px; margin: 0 0 14px; }
+@media (max-width: 767px) {
+  .add-gov { padding: 14px 16px; }
+  .add-gov__list { display: grid; }
+}
+@media (prefers-reduced-motion: reduce) { .add-gov { animation: none; } }

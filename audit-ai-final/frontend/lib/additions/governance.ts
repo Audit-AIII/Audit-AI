@@ -27,7 +27,7 @@ const RISK: Record<string, Look> = {
   high: { glyph: "●●●", label: "High", tone: "bad" },
   medium: { glyph: "●●○", label: "Medium", tone: "warn" },
   low: { glyph: "●○○", label: "Low", tone: "ok" },
-  clean: { glyph: "○○○", label: "None found", tone: "dashed" },
+  clean: { glyph: "○○○", label: "None found", tone: "none" },
 };
 /** null until the AI check finishes. */
 export const riskLook = (level?: string | null): Look =>
@@ -56,6 +56,12 @@ export const invitationLook = (status: string): Look => INVITATION[status] ?? { 
  */
 export const isAllowed = (allowed: readonly AllowedAction[] | undefined | null, action: AllowedAction) =>
   allowed == null ? true : allowed.includes(action);
+
+/**
+ * The API's routing text ends "..., so a reviewer must check this draft before it can be approved."
+ * With solo sign-off there is no reviewer, so keep the reason and drop what isn't true for them.
+ */
+export const routingText = (text: string, solo: boolean) => (solo ? text.replace(/, so an? \w+ must .*$/, ".") : text);
 
 const ACTION_ERROR: Record<string, string> = {
   SELF_APPROVAL_FORBIDDEN: "You wrote this draft, so someone else has to approve it.",

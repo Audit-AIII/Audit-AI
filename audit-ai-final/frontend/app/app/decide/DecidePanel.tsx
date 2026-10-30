@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 // add- classes (Dismissed badge, buttons, states); this route has no AdditionsFrame.
 import "@/styles/additions.css";
+import { ApiActionError } from "@/components/additions/ApiActionError";
+import { ConfirmDialog } from "@/components/additions/ConfirmDialog";
+import { GovernanceBar } from "@/components/additions/GovernanceBar";
 import { Button } from "@/components/primitives/Button";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
 import { findingChip, isStub, isStubReview, isWholeDraft, suggestionFor } from "@/components/app/reviewLabels";
@@ -10,8 +13,11 @@ import { isDecidable } from "@/components/app/roles";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import { history, itemIdOf } from "@/lib/additions/content";
 import { DISMISSED, isDismissed, openDismissed } from "@/lib/additions/findingState";
-import { ApiError, api } from "@/lib/api/client";
-import type { ApprovalEventOut, ReviewOut } from "@/lib/api/types";
+import { isAllowed, workflowLook } from "@/lib/additions/governance";
+import { assignReviewer, markReviewed, publishVersion, submitDraft } from "@/lib/additions/workflow";
+import { listMembers } from "@/lib/additions/workspace";
+import { api } from "@/lib/api/client";
+import type { ApprovalEventOut, MemberOut, ReviewOut } from "@/lib/api/types";
 import { saveDecision } from "@/lib/workspace";
 
 const NOTE_MAX = 2000; // backend limit for request-changes notes
@@ -61,21 +67,44 @@ function Empty({ title, body, bad = false }: { title: string; body: string; bad?
 
 function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => void }) {
   const [note, setNote] = useState("");
-  const [busy, setBusy] = useState<null | "approve" | "changes_requested" | "rejected">(null);
-  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<null | "approve" | "changes_requested" | "rejected" | "workflow">(null);
+  const [error, setError] = useState<unknown>(null);
   const [done, setDone] = useState<ApprovalEventOut | null>(null);
+  // What a workflow action (submit, assign, mark reviewed, publish) just did. The status shown is the server's.
+  const [moved, setMoved] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<null | "rejected" | "publish">(null);
+  const [members, setMembers] = useState<MemberOut[] | null>(null);
+  const [reviewer, setReviewer] = useState(review.assigned_reviewer?.id ?? "");
+  const allowed = review.allowed_actions;
+  const personal = review.workspace?.is_personal ?? true;
+  const canAssign = !!allowed?.includes("assign");
   const [stubAck, setStubAck] = useState(false);
   // Newer version of the same content item than the one decided here? The backend refuses to
   // approve a stale version (409); say so up front. Unknown (no item id / history failed) = no warning.
   const [newerVersion, setNewerVersion] = useState<number | null>(null);
+  const [newerReviewId, setNewerReviewId] = useState<string | null>(null);
   const itemId = itemIdOf(review);
+  useEffect(() => {
+    if (!canAssign) return;
+    let live = true;
+    listMembers()
+      .then((m) => live && setMembers(m.members))
+      .catch((err) => live && setError(err));
+    return () => {
+      live = false;
+    };
+  }, [canAssign]);
   useEffect(() => {
     if (!itemId || review.version_number == null) return;
     let live = true;
     history(itemId)
       .then((h) => {
         const cur = h.versions.find((v) => v.is_current);
-        if (live && cur && cur.version_number > review.version_number!) setNewerVersion(cur.version_number);
+        if (live && cur && cur.version_number > review.version_number!) {
+          setNewerVersion(cur.version_number);
+          const latest = [...cur.reviews].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+          setNewerReviewId(latest?.id ?? null);
+        }
       })
       .catch(() => {
         /* only drives the warning; the server still enforces staleness */
@@ -92,9 +121,10 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
   // Dismissed findings stay listed and counted; dismissing never unblocks a decision.
   const counts = openDismissed(open);
 
+  const stale = newerVersion !== null || review.is_current_version === false;
   const approveBlock = !decidable
     ? null // the outcome banner explains
-    : newerVersion !== null
+    : stale
       ? "A newer version of this draft exists, so this one can’t be approved."
       : stub && !stubAck
           ? "Tick the box above first: nothing was really checked."
@@ -119,17 +149,54 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
       setDone(event);
       onDecided(); // reload: review.status now carries the outcome
     } catch (err) {
-      setError(err instanceof ApiError ? err.userMessage : "Something went wrong. Please try again.");
+      setError(err); // the note stays, so nothing typed is lost
     } finally {
       setBusy(null);
     }
   };
 
+  /** Runs a workflow action, then reloads: the status shown is always the server's. */
+  const act = async (word: string, run: () => Promise<{ workflow_status: string }>, after?: () => void) => {
+    if (busy) return;
+    setBusy("workflow");
+    setError(null);
+    setMoved(null);
+    try {
+      const out = await run();
+      setMoved(`${word} Status: ${workflowLook(out.workflow_status).label}.`);
+      after?.();
+      onDecided();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(null);
+    }
+  };
+  // Solo sign-off has no one to send a draft to: approving submits it (docs/governance.md D4).
+  const submitAction = personal ? null : allowed?.includes("resubmit") ? "resubmit" : allowed?.includes("submit") ? "submit" : null;
+  const canReview = !!allowed?.includes("mark_reviewed");
+  const canPublish = !!allowed?.includes("publish");
+  const canApproveNow = isAllowed(allowed, "approve");
+  const canSendBack = isAllowed(allowed, "request_changes");
+  const canReject = isAllowed(allowed, "reject");
+  const noteApplies = canSendBack || canReject || canReview;
+  const anyAction = canApproveNow || noteApplies || canPublish || canAssign || !!submitAction;
+
   const outcome = OUTCOME[review.status];
 
   return (
     <>
-      <StageHead title="Decide" status={outcome ?? (decidable ? "Waiting for you" : review.status.replace(/_/g, " "))} />
+      <StageHead title="Decide" status={outcome ?? (decidable ? (personal ? "Waiting for you" : "Waiting for a decision") : review.status.replace(/_/g, " "))} />
+
+      {review.workflow_status !== undefined && <GovernanceBar review={review} />}
+      {moved && (
+        <div className="app-alert app-alert--ok" role="status">
+          <b>Saved.</b> {moved}{" "}
+          <a className="link" href={`/app/record?id=${review.id}`}>
+            See the record
+          </a>
+        </div>
+      )}
 
       {done && (
         <div className="app-alert app-alert--ok" role="status">
@@ -152,10 +219,16 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
           This review can’t be decided on ({review.status.replace(/_/g, " ")}). {review.status === "failed" ? "Fix the problem and check the draft again." : ""}
         </div>
       )}
-      {newerVersion !== null && decidable && (
+      {stale && decidable && (
         <div className="app-alert" role="alert">
-          <b>⚠ A newer version of this draft exists. Approving this one will be refused.</b> This is version {review.version_number}; the
-          latest is version {newerVersion}. You can still send this one back.
+          <b>⚠ A newer version of this draft exists, so this one can’t be approved.</b>{" "}
+          {newerVersion !== null && `This is version ${review.version_number}; the latest is version ${newerVersion}. `}
+          {canSendBack && "You can still send this one back. "}
+          {newerReviewId && (
+            <a className="link" href={`/app/decide?id=${newerReviewId}`}>
+              Open the latest version
+            </a>
+          )}
         </div>
       )}
       {stub && decidable && (
@@ -216,7 +289,7 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
         </Panel>
 
         <Panel n="02" label="Your decision" title="What should happen?">
-          <p className="t-body panel__note">Nothing is published or changed for you. Your choice is saved to the record.</p>
+          <p className="t-body panel__note">{anyAction ? "Nothing is published or changed for you. Your choice is saved to the record." : "There’s nothing for you to do on this draft right now."}</p>
           {stub && decidable && (
             <label className="option">
               <input type="checkbox" className="tick tick--checkbox" checked={stubAck} onChange={(e) => setStubAck(e.target.checked)} />
@@ -226,6 +299,7 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
               </span>
             </label>
           )}
+          {noteApplies && (
           <label className="field">
             <span className="field__label">Note (optional, saved with your decision)</span>
             <textarea
@@ -234,38 +308,101 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
               maxLength={NOTE_MAX}
               onChange={(e) => setNote(e.target.value)}
               placeholder="What should change, and why"
-              disabled={!decidable || !!done}
+              disabled={(!decidable && !canReview) || !!done}
             />
           </label>
-          <p className="t-caption panel__hint">The note is saved with “Send back” or “Reject”. Approvals are saved without a note.</p>
-          {error && (
-            <p className="app-alert app-alert--bad" role="alert">
-              {error}
-            </p>
           )}
+          {noteApplies && <p className="t-caption panel__hint">The note is saved with {canReview ? "“Mark as reviewed”, " : ""}“Send back” or “Reject”. Approvals are saved without a note.</p>}
+          <ApiActionError error={error} />
           <div className="decisions">
+            {submitAction && itemId && (
+              <Button type="button" onClick={() => act("Sent for review.", () => submitDraft(itemId, review.content_version_id))} disabled={!!busy}>
+                {busy === "workflow" ? "Saving…" : submitAction === "resubmit" ? "Send for review again" : "Send for review"}
+              </Button>
+            )}
+            {canReview && itemId && (
+              <Button
+                type="button"
+                onClick={() => act("Marked as reviewed.", () => markReviewed(itemId, review.content_version_id, note.trim() || undefined), () => setNote(""))}
+                disabled={!!busy}
+              >
+                {busy === "workflow" ? "Saving…" : "Mark as reviewed"}
+              </Button>
+            )}
+            {canApproveNow && (
             <Button type="button" onClick={() => decide("approve")} disabled={!decidable || !!done || !!busy || !!approveBlock} aria-describedby="approve-why">
               {busy === "approve" ? "Approving…" : "Approve"}
             </Button>
-            {approveBlock && decidable && !done && (
+            )}
+            {canApproveNow && approveBlock && decidable && !done && (
               <p id="approve-why" className="t-caption decide__why">
                 {approveBlock}
               </p>
             )}
+            {canSendBack && (
             <button type="button" className="decision" onClick={() => decide("changes_requested")} disabled={!decidable || !!done || !!busy}>
               {busy === "changes_requested" ? "Sending…" : "Send back for changes"}
             </button>
-            <button type="button" className="decision" onClick={() => decide("rejected")} disabled={!decidable || !!done || !!busy}>
+            )}
+            {canReject && (
+            <button type="button" className="decision" onClick={() => setConfirm("rejected")} disabled={!decidable || !!done || !!busy}>
               {busy === "rejected" ? "Rejecting…" : "Reject"}
             </button>
+            )}
+            {canPublish && (
+              <Button type="button" onClick={() => setConfirm("publish")} disabled={!!busy}>
+                {busy === "workflow" ? "Saving…" : "Mark as published"}
+              </Button>
+            )}
           </div>
+          {canAssign && itemId && (
+            <div className="add-assign">
+              <label className="add-field-row">
+                <span className="t-caption">Assigned reviewer</span>
+                <select className="add-select" value={reviewer} onChange={(e) => setReviewer(e.target.value)} disabled={!members || !!busy}>
+                  <option value="">Nobody</option>
+                  {members?.map((m) => (
+                    <option key={m.user.id} value={m.user.id}>
+                      {m.user.display_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="add-btn-small"
+                onClick={() => act(reviewer ? "Reviewer assigned." : "Reviewer removed.", () => assignReviewer(itemId, reviewer || null))}
+                disabled={!members || !!busy || reviewer === (review.assigned_reviewer?.id ?? "")}
+              >
+                {reviewer || !review.assigned_reviewer ? "Assign" : "Unassign"}
+              </button>
+            </div>
+          )}
+          <ConfirmDialog
+            open={confirm !== null}
+            title={confirm === "publish" ? "Mark this version as published?" : "Reject this draft?"}
+            confirmLabel={confirm === "publish" ? "Mark as published" : "Reject"}
+            onCancel={() => setConfirm(null)}
+            onConfirm={() => {
+              const kind = confirm;
+              setConfirm(null);
+              if (kind === "rejected") decide("rejected");
+              if (kind === "publish") act("Marked as published.", () => publishVersion(review.content_version_id));
+            }}
+          >
+            <p>
+              {confirm === "publish"
+                ? "Audit AI doesn’t post anything for you. This records that this exact version went out."
+                : "This is saved to the draft’s record, along with your note if you wrote one."}
+            </p>
+          </ConfirmDialog>
         </Panel>
 
         <Panel n="03" label="How this works" title="How this works">
           <dl className="spec">
             <div className="spec__row">
               <dt>Who decides</dt>
-              <dd>You decide on your own content.</dd>
+              <dd>{personal ? "You decide on your own content." : "Your role sets what you can do here. The author can’t approve their own draft while someone else can."}</dd>
             </div>
             <div className="spec__row">
               <dt>Approve</dt>
@@ -273,7 +410,7 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
             </div>
             <div className="spec__row">
               <dt>Send back</dt>
-              <dd>Keeps your note with the decision, so you know what to fix.</dd>
+              <dd>{personal ? "Keeps your note with the decision, so you know what to fix." : "Keeps your note with the decision, so the writer knows what to fix."}</dd>
             </div>
             <div className="spec__row">
               <dt>What changes</dt>
