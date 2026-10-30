@@ -3,6 +3,7 @@
 import { isRule, isStub, verdict } from "@/components/app/reviewLabels";
 import { countText, isStyleRule, toneCount } from "@/lib/additions/summary";
 import { DISMISSED, isDismissed } from "@/lib/additions/findingState";
+import { isTone } from "@/lib/additions/tone";
 import type { FindingOut, SummaryCounts } from "@/lib/api/types";
 
 /** Fixed columns, worst first (same glyphs and words as the finding chips). `api`: its key in summary_counts. */
@@ -13,7 +14,7 @@ const CELLS: { key: string; api?: keyof SummaryCounts; glyph: string; label: str
   { key: "rule", glyph: "§", label: "Brand rule", tone: "rule" },
   { key: "supported", api: "supported", ...verdict("supported") },
 ];
-const cellKey = (f: FindingOut) => (isRule(f) ? "rule" : f.verification_status);
+const cellKey = (f: FindingOut) => (isRule(f) ? "rule" : isTone(f) ? "tone" : f.verification_status);
 
 /**
  * What the checker found, at a glance. Numbers come from the server's summary_counts, and a missing
@@ -36,6 +37,7 @@ export function ReviewSummary({
   const dismissed = real.filter(isDismissed).length;
   const style = toneCount(counts);
   const firstStyle = real.find(isStyleRule);
+  const voice = real.filter(isTone);
   return (
     <section className="tally add-summary card" aria-label="What the checker found">
       <div className="tally__total">
@@ -47,6 +49,12 @@ export function ReviewSummary({
         {style > 0 && (
           <button type="button" className="add-summary__style" onClick={() => firstStyle && onSelect(firstStyle.finding_id)} disabled={!firstStyle}>
             <span aria-hidden="true">§</span> {style} style {style === 1 ? "rule" : "rules"} (capitals, emoji)
+          </button>
+        )}
+        {/* Real brand voice findings, kept apart from the two style rules the API counts as "tone". */}
+        {voice.length > 0 && (
+          <button type="button" className="add-summary__style" onClick={() => onSelect(voice[0].finding_id)}>
+            <span aria-hidden="true">¶</span> {voice.length} brand voice {voice.length === 1 ? "finding" : "findings"}
           </button>
         )}
         {dismissed > 0 && (

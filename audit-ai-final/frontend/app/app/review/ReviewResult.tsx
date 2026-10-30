@@ -35,6 +35,7 @@ import type { FindingOut, ReviewOut, RuleCheck } from "@/lib/api/types";
 import { rerun } from "@/lib/additions/content";
 import { applyComment, applyDecision, commentCountText, DISMISSED, isDismissed } from "@/lib/additions/findingState";
 import { isAllowed, isSolo } from "@/lib/additions/governance";
+import { hiddenToneText, isTone, isUncertainTone, withToneRule } from "@/lib/additions/tone";
 import { useMemberCount } from "@/lib/additions/workspace";
 import { segment, spanLocated } from "@/lib/text/codepoints";
 import { getReviewText, setLastReviewId } from "@/lib/workspace";
@@ -79,7 +80,7 @@ function ReviewLoader({ id }: { id: string }) {
       .then((review) => {
         if (!live) return;
         setLastReviewId(review.id); // Decide / Record pick this up from the stage bar
-        setLoad({ state: "ok", review });
+        setLoad({ state: "ok", review: withToneRule(review) });
       })
       .catch((error) => {
         if (live) setLoad({ state: "error", error });
@@ -302,7 +303,7 @@ function ReviewView({
               text={fullText}
               // "Whole draft" rule findings anchor on line 1 but are about what is missing: not highlighted.
               // Nor is a finding whose span doesn't hold its words: that would mark the wrong text.
-              findings={findings.filter((f) => !isWholeDraft(f) && spanLocated(fullText, f.span, f.original_text))}
+              findings={findings.filter((f) => !isWholeDraft(f) && !isUncertainTone(f) && spanLocated(fullText, f.span, f.original_text))}
               current={current?.finding_id}
               onSelect={pickFromDraft}
             />
@@ -382,6 +383,7 @@ function ReviewView({
               })}
             </ul>
           )}
+          {!!review.hidden_tone_count && <p className="t-caption add-team-help">{hiddenToneText(review.hidden_tone_count)}</p>}
         </Panel>
 
         <Panel n="03" label="Why it was flagged" title={current ? (isStub(current) ? "Placeholder" : findingChip(current).label) : "Nothing flagged"}>
@@ -534,6 +536,37 @@ function FindingDetail({ f, text, personal }: { f: FindingOut; text: string | nu
       </div>
     );
   }
+  if (isTone(f)) {
+    const uncertain = isUncertainTone(f);
+    return (
+      <div className="finding-detail" aria-live="polite">
+        <FindingMeta f={f} />
+        {uncertain && (
+          <p className="app-alert" role="note">
+            <b>Uncertain.</b> The server couldn’t confirm this against the guideline, so it isn’t marked in your draft.
+          </p>
+        )}
+        {!uncertain && <SpanNote f={f} text={text} />}
+        <div className={uncertain ? "evidence evidence--placeholder" : "evidence"}>
+          <p className="t-caption evidence__src">
+            {f.guideline_source_title ?? "Your brand guideline"}
+            {f.guideline_source_version != null ? ` · version ${f.guideline_source_version}` : ""}
+          </p>
+          <p className="evidence__quote">“{f.guideline_quote}”</p>
+        </div>
+        {f.explanation && (
+          <p className="t-body panel__note">
+            <b>Why it doesn’t fit:</b> {f.explanation}
+          </p>
+        )}
+        {f.alternative_wording && (
+          <p className="t-body panel__note">
+            <b>Suggested wording (nothing is changed for you):</b> “{f.alternative_wording}”
+          </p>
+        )}
+      </div>
+    );
+  }
   if (isRule(f)) {
     return (
       <div className="finding-detail" aria-live="polite">
@@ -637,7 +670,7 @@ function HeatText({
         // The placeholder finding spans the whole draft, so any real finding on the same words wins.
         const rank = (f: FindingOut) => (isStub(f) ? 9 : (ORDER[f.verification_status] ?? 2));
         const top = [...p.marks].sort((a, b) => rank(a) - rank(b))[0];
-        const tone = isStub(top) ? "placeholder" : isRule(top) ? "rule" : ({ supported: "ok", contradicted: "bad" }[top.verification_status as string] ?? "warn");
+        const tone = isStub(top) ? "placeholder" : isRule(top) || isTone(top) ? "rule" : ({ supported: "ok", contradicted: "bad" }[top.verification_status as string] ?? "warn");
         const on = p.marks.some((m) => m.finding_id === current);
         const dismissed = !isStub(top) && isDismissed(top);
         // <mark> (not <button>) so the highlight wraps inline with the sentence; still a keyboard stop.

@@ -142,6 +142,12 @@ export type FindingOut = {
   review_reasons?: string[] | null;
   /** Not sent by the API today; shown only if it ever is, never inferred. */
   validation_status?: string | null;
+  /* Brand voice findings (check_type "tone"): a draft proposal, docs/round3/handoff-tone.md. Not sent yet. */
+  guideline_source_id?: string | null;
+  guideline_source_title?: string | null;
+  guideline_source_version?: string | number | null;
+  guideline_quote?: string | null;
+  alternative_wording?: string | null;
   /* Rule findings only (check_type "rule"); null on claim findings, absent on older backends. */
   rule_id?: string | null;
   rule_type?: RuleType | null;
@@ -234,6 +240,8 @@ export type ReviewOut = {
   allowed_actions?: AllowedAction[];
   summary_counts?: SummaryCounts | null;
   is_current_version?: boolean | null;
+  /** Set in the browser, never by the API: brand voice findings kept off the page (lib/additions/tone.ts). */
+  hidden_tone_count?: number;
 };
 
 export type WorkflowStatus = Open<

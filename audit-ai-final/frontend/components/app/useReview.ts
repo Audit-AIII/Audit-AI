@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "@/lib/api/client";
+import { withToneRule } from "@/lib/additions/tone";
 import type { ReviewOut } from "@/lib/api/types";
 import { getLastReviewId, setLastReviewId } from "@/lib/workspace";
 
@@ -34,7 +35,7 @@ export function useReview(id: string | null) {
       .then((review) => {
         if (!live) return;
         setLastReviewId(review.id);
-        setLoad({ state: "ok", review });
+        setLoad({ state: "ok", review: withToneRule(review) });
       })
       .catch((err) => {
         if (!live) return;

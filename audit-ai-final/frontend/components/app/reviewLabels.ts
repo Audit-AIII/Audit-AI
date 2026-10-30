@@ -62,6 +62,7 @@ export const ruleTypeLabel = (t: string | null | undefined) => (t ? (RULE_TYPE[t
 
 /** Chip for any finding: rule findings get a "§ <category> rule" chip, never a claim verdict. */
 export function findingChip(f: FindingOut) {
+  if (f.check_type === "tone") return { glyph: "¶", label: "Brand voice", tone: "rule" };
   if (isRule(f)) return { glyph: "§", label: `${ruleCategoryLabel(f.category)} rule`, tone: "rule" };
   return verdict(f.verification_status);
 }
@@ -152,7 +153,9 @@ export const isStubReview = (r: ReviewOut) => r.findings.some(isStub) || /^stub/
 export const stubReason = (f: FindingOut) => (f.explanation ?? "").replace(/^\[STUB OUTPUT\]\s*/, "");
 
 export const checkName = (f: FindingOut) =>
-  isRule(f)
+  f.check_type === "tone"
+    ? "Brand voice"
+    : isRule(f)
     ? `${ruleCategoryLabel(f.category)} · ${ruleTypeLabel(f.rule_type)}`
     : f.category
       ? human(f.category)

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReviewOut } from "@/lib/api/types";
 import { getLastReviewId, getReviewText } from "@/lib/workspace";
 import { request } from "./http";
+import { withToneRule } from "./tone";
 
 /**
  * Read-only review loader for the additive pages. Unlike components/app/useReview it never
@@ -27,7 +28,7 @@ export function useReviewData(id: string | null) {
     if (!id) return;
     let live = true;
     request<ReviewOut>(`/api/reviews/${encodeURIComponent(id)}`)
-      .then((review) => live && setValue({ state: "ok", review }))
+      .then((review) => live && setValue({ state: "ok", review: withToneRule(review) }))
       .catch((error) => live && setValue({ state: "error", error }));
     return () => {
       live = false;
