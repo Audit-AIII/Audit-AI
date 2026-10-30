@@ -45,7 +45,7 @@ TARGET_SHARES = {
     "adversarial": 0.10,
 }
 SHARE_TOLERANCE = 0.05  # "approximately": each group within 5 points of its target
-SIZE_RANGE = (50, 100)
+SIZE_RANGE = (50, 150)  # Round 3: raised from 100 so held-out can reach ~15 SUPPORTED records
 INJECTION_TAGS = {"injection_in_content", "injection_in_reference"}
 
 # Hard cases EVAL.md requires, each as a predicate over the records.

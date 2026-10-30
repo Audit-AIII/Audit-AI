@@ -147,3 +147,24 @@ def test_every_limitation_names_its_status_and_evidence():
             assert entry.evidence and all(
                 e.startswith("tests/") or e.startswith("EVAL.md") for e in entry.evidence
             ), entry.topic
+
+
+def test_a_claim_that_carries_an_injected_instruction_retrieves_no_passage():
+    """Round 3 step 06 (measured limitation). Dev record v4-040 puts an instruction inside the claim
+    text. The retrieval-only evaluation queries with the whole text, so the instruction's words dilute
+    the query and nothing is retrieved; the same claim without that sentence retrieves its passage.
+    If retrieval changes so this passes, update evaluation/limitations.py and the recall gates."""
+    from pathlib import Path
+
+    from inkloom_verify.evaluation.runner import load_records
+    from inkloom_verify.schemas import Claim, SourceSpan
+
+    dataset = Path(__file__).resolve().parents[1] / "eval" / "dataset.jsonl"
+    record = next(r for r in load_records(dataset) if r.record_id == "v4-040")
+    retriever = BM25Retriever(record.references)
+
+    def claim(text):
+        return Claim(claim_id="clm_eval", text=text, source_span=SourceSpan(start=0, end=len(text)))
+
+    assert retriever.retrieve(claim(record.claim_text)) == []
+    assert len(retriever.retrieve(claim("Lumen Goods has 400 employees."))) == 1

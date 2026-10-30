@@ -126,7 +126,7 @@ def test_a_recorded_run_executes_the_real_pipeline_for_every_record(cassette):
     code, out = cassette
     report, cases = read(out)
     assert code == 0 and report["run"]["pipeline"] == "full"
-    assert len(cases) == len(RECORDS) == report["verdicts"]["examples"] == 80
+    assert len(cases) == len(RECORDS) == report["verdicts"]["examples"]
     v1_027 = cases["v1-027"]  # "Lumen Pods cost €99."
     assert v1_027["predicted"] == "CONTRADICTED" and v1_027["outcome"] == "correct"
     [claim] = v1_027["claims"]
@@ -282,7 +282,7 @@ def test_a_record_with_no_extracted_claim_is_reported_as_skipped_not_dropped(tmp
         skipped["requires_human_review"] is True
         and report["cases"]["reasons"]["no_claim_extracted"] == 1
     )
-    assert report["verdicts"]["examples"] == 80
+    assert report["verdicts"]["examples"] == len(RECORDS)
 
 
 def test_an_unexpected_pipeline_exception_is_an_error_case(tmp_path, monkeypatch):
@@ -440,7 +440,7 @@ def test_a_full_pipeline_run_reports_all_eight_metrics_from_its_own_outcomes(cas
     _, out = cassette
     report, cases = read(out)
     m = report["required_metrics"]
-    assert m["human_review_share"]["denominator"] == 80 == m["review"]["records_with_outcome"]
+    assert m["human_review_share"]["denominator"] == len(RECORDS) == m["review"]["records_with_outcome"]
     routed = sum(1 for c in cases.values() if c["requires_human_review"])
     assert m["human_review_share"]["numerator"] == routed
     assert m["contradicted_precision"] is not None  # the scripted model flags the €99 claims

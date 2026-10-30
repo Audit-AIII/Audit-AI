@@ -361,6 +361,7 @@
         "not_minimal",
         "drops_qualifier",
         "drops_unit",
+        "drops_figure",
         "drops_attribution",
         "recheck_not_supported",
         "recheck_unavailable",

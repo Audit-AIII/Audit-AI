@@ -2,12 +2,12 @@
   "note": "Content hashes (line endings normalised) of every evaluation input. run_eval.py refuses to run if a file differs. Changing labels requires updating this file in the same, reviewed change.",
   "files": {
     "eval/dataset.jsonl": {
-      "sha256": "49d473fda43ee6f147c03497558eba5d3c38d113a39e40be540422da49677209",
-      "records": 80,
+      "sha256": "bb61147b9f48f4b36591c9b447549f864ddd336ce335adf21df856fcf32b0a30",
+      "records": 120,
       "labels": {
-        "CONTRADICTED": 32,
-        "NOT_ENOUGH_EVIDENCE": 23,
-        "SUPPORTED": 25
+        "CONTRADICTED": 49,
+        "NOT_ENOUGH_EVIDENCE": 33,
+        "SUPPORTED": 38
       }
     },
     "eval/data/verification_v1.jsonl": {
@@ -29,7 +29,7 @@
       }
     },
     "eval/data/corrections_v1.jsonl": {
-      "sha256": "7eeac27f73c23aab9becf36c47a0ae507ada5f9cee534a0860d5b2b8d7ab9e80"
+      "sha256": "cf21a08bb03d036bd867156f42a3415587660d3c15f5a825c652f6c18b4f8519"
     },
     "eval/fault_cases.json": {
       "sha256": "18ea6c092a1b0eb288dd5bd3b0eca339132fb78ff70f512fb83226c65203e9a8"
@@ -38,6 +38,18 @@
       "sha256": "92a0a11bd3904bcd6a2df8ac170e0411b7e2f63dc1a9dd3f86c50f818ed93dce",
       "records": 24,
       "claims": 33
+    },
+    "eval/heldout.freeze.json": {
+      "sha256": "795a19cdf48ca38589d18e34660e6b072d41446b3a5de22ac92c66a88c7d885a"
+    },
+    "eval/dev_only.jsonl": {
+      "sha256": "373fe2c99bf8f01f1add3e8d33573bc41828f8d8f5f7a1d6cc4a36b85f20e063",
+      "records": 70,
+      "labels": {
+        "CONTRADICTED": 29,
+        "NOT_ENOUGH_EVIDENCE": 19,
+        "SUPPORTED": 22
+      }
     }
   }
 }

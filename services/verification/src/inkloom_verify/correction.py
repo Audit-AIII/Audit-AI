@@ -185,6 +185,21 @@ def correction_issues(
                 detail=("drops: " + ", ".join(dropped_units))[:300],
             )
         )
+    # A figure with no unit deleted instead of fixed ("come in 4 colours" -> "come in colours"):
+    # drops_unit can't see it and the re-check has no figure left to check. A new figure, or words
+    # in its place (already required to be in the evidence, such as the quote's own list), is a fix.
+    dropped_figures = sorted({n for n, u in old_figures if u is None} - {n for n, _ in new_figures})
+    if (
+        dropped_figures
+        and not new_figures - old_figures
+        and not set(words(replacement)) - set(words(original)) - NEUTRAL_WORDS
+    ):
+        issues.append(
+            CorrectionIssue(
+                code=CorrectionIssueCode.DROPS_FIGURE,
+                detail=("drops: " + ", ".join(dropped_figures))[:300],
+            )
+        )
     # The source a sentence names for its fact must survive the fix.
     if len(_ATTRIBUTION.findall(old_text.casefold())) > len(
         _ATTRIBUTION.findall(new_text.casefold())

@@ -1004,6 +1004,7 @@ class CorrectionIssueCode(str, Enum):
         "drops_qualifier"  # removes a qualifier ("up to", "about") that the evidence also uses
     )
     DROPS_UNIT = "drops_unit"  # removes a unit or currency from a figure ("€99" -> "129")
+    DROPS_FIGURE = "drops_figure"  # deletes a figure with no unit and puts nothing in its place
     DROPS_ATTRIBUTION = (
         "drops_attribution"  # removes "according to", "says", ... that the sentence had
     )

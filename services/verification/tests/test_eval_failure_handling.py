@@ -223,7 +223,7 @@ def _predictions_file(tmp_path, failed: int) -> Path:
     return path
 
 
-@pytest.mark.parametrize(("failed", "code"), [(78, 1), (24, 1), (8, 0)])
+@pytest.mark.parametrize(("failed", "code"), [(78, 1), (36, 1), (12, 0)])
 def test_partial_failures_fail_the_committed_baseline_above_20_percent_and_are_always_reported(
     tmp_path, failed, code
 ):

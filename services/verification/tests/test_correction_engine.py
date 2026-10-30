@@ -443,8 +443,8 @@ def test_score_has_no_confidence_field():
 
 
 def test_correction_dataset_integrity(cases):
-    assert len(cases) == 19
-    assert sum(len(c.candidates) for c in cases.values()) == 46
+    assert len(cases) == 22
+    assert sum(len(c.candidates) for c in cases.values()) == 53
     for case in cases.values():
         for reference in case.reference_corrections:
             assert reference != case.sentence
@@ -464,7 +464,7 @@ def test_run_live_plumbing_with_a_scripted_model(cases):
     """Tests the live scoring code, not model quality: the scripted model always declines."""
     decline = proposal("", "", [], status="needs_human_review", reason="unsure")
     report = run_live(list(cases.values()), ScriptedProvider(*([decline] * len(cases))))
-    assert report.cases == 19
+    assert report.cases == 22
     assert report.proposed_when_correctable.value == 0.0
     assert report.declined_when_needs_review.value == 1.0
     assert report.reference_match.value is None  # no proposals, so no rate

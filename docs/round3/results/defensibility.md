@@ -35,20 +35,25 @@ Three logged looks, all on 2026-10-28, all by Krish's Claude Code sessions
 2. one measurement in that work named held-out record `v3-023`;
 3. a step 04 diagnostic named held-out record `v1-021`; the rule was not changed after it.
 
-Plus the runbook author's prototype look disclosed in `00-START-HERE.md`. No look on 2026-10-29:
-the baseline gates score every record, but no held-out record or held-out result was read.
+Plus the runbook author's prototype look disclosed in `00-START-HERE.md`. **2026-10-29 (step 06):**
+the repository's test suite ran the oracle and the retrieval evaluation over all 120 records,
+including the 25 fresh held-out ones. It surfaced `v4-003` (false guard rejection) and `v4-024`
+(empty retrieval); nothing was changed in response and the details are in the ledger. The fresh
+records are therefore clean only in that no rule or prompt changed after they were seen.
 
 ## Would one more record change the headline? By how much?
 
-No headline exists yet. On today's dataset (80 records; held-out 25: 10 CONTRADICTED,
-8 NOT_ENOUGH_EVIDENCE, 7 SUPPORTED, counted from `eval/dataset.jsonl`), one held-out record
-moves:
+No headline exists yet. On today's dataset (120 records; held-out 50: 20 CONTRADICTED,
+14 NOT_ENOUGH_EVIDENCE, 16 SUPPORTED, counted from `eval/dataset.jsonl`; 25 of them fresh:
+10 CONTRADICTED, 6 NOT_ENOUGH_EVIDENCE, 9 SUPPORTED), one held-out record moves:
 
-- the false-positive rate (denominator 7 SUPPORTED) by 1/7 = **14.3 points**;
-- the catch rate (denominator 18 problematic) by 1/18 = **5.6 points**.
+- the false-positive rate (denominator 16 SUPPORTED) by 1/16 = **6.3 points** (it was 14.3
+  points with the earlier 7 SUPPORTED);
+- the catch rate (denominator 34 problematic) by 1/34 = **2.9 points** (it was 5.6 with 18).
 
-That is the reason for step 06's target of about 50 held-out records with at least 15
-SUPPORTED. Confidence intervals can only be given once a run produces numerators.
+On the 25 fresh records alone the denominators are 9 SUPPORTED (11.1 points) and 16 problematic
+(6.3 points). That is why every figure is printed with its count and an interval. Confidence
+intervals can only be given once a run produces numerators.
 
 ## Is any number on screen typed by a human?
 
