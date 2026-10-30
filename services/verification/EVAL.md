@@ -1193,6 +1193,39 @@ Sand and Teal" is still offered. No existing check was loosened.
   corrected sentence is right. That needs people to read the live run's proposals (step 07),
   reported with its sample size and who read them.
 
+## Round 3 step 07: three live runs (actual output, 2026-10-30)
+
+**Setup.** Full pipeline (extraction, retrieval, verifier with citation guard, corrections,
+decision policy) on the 120-record dataset v4, `openai/gpt-4o-mini` via OpenRouter
+(`data_collection: deny`, temperature 0, seed 0), three runs with nothing tuned between them.
+Reports `20261030T161643Z`, `20261030T163833Z`, `20261030T164545Z` (`eval/reports/`); cassettes
+`eval/cassettes/final-run{1,2,3}.jsonl`. `google/gemini-2.5-flash-lite` was tried first and gave no
+verdicts: every call was rate limited (HTTP 429). Write-up: `docs/round3/results/FINAL_RESULTS.md`.
+
+| Metric (all 120 records) | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| CONTRADICTED recall | 48/49 | 48/49 | 47/49 |
+| CONTRADICTED precision | 48/52 | 48/52 | 47/51 |
+| Citation validity (resolves and supports) | 96/108 (88.9%) | 93/103 (90.3%) | 93/104 (89.4%) |
+| Sent to human review | 96/120 | 97/120 | 96/120 |
+
+Held-out (50 records: 34 problematic, 16 SUPPORTED), counted two ways from the `.cases.jsonl` files:
+
+| Held-out | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| Problematic claims given a non-SUPPORTED verdict | 34/34 | 34/34 | 33/34 |
+| SUPPORTED claims given a non-SUPPORTED verdict | 1/16 | 1/16 | 1/16 |
+| Problematic claims sent to a person | 34/34 | 34/34 | 34/34 |
+| SUPPORTED claims sent to a person (not auto-cleared) | 8/16 | 8/16 | 8/16 |
+
+The second pair is higher because the decision policy also routes a correct SUPPORTED answer to a
+person when its evidence is weak. Quote the verdict rows as model accuracy and the routing rows as
+reviewer workload; they are not the same number.
+
+The `model run: citation validity` gate is set to 0.85, just under the worst run, after seeing these
+runs (`docs/round3/results/RUN_LEDGER.md`). Labels are AI-written and 0/120 are reviewed by a
+person; held-out n is small, so one record moves a held-out rate by 3 to 6 points.
+
 ## Phase 6, second run: evaluation harness with extraction (actual output, 2026-10-23)
 
 `python eval/run_eval.py --check-baseline`, exit 0. **17 gates PASS, 3 NOT APPLICABLE**
