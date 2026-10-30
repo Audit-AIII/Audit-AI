@@ -50,8 +50,8 @@ There are **no three-run results**. Nothing below is a measurement of a live mod
   "False-CONTRADICTED rate" (§15) has **not** been applied.
 - **Model and configuration:** none chosen and run for step 07.
 - **Evaluation dates:** offline gate runs only (2026-10-29, oracle and scripted).
-- **Dataset version:** dataset v2, 80 records, locked (`eval/datasets.lock.json`); 0 of 80
-  human-reviewed.
+- **Dataset version:** dataset v4, 120 records, locked (`eval/datasets.lock.json`); 0 of 120
+  human-reviewed (a 57-item review pack is in `docs/round3/review/`, unanswered).
 - **Held-out exposure history:** three logged looks on 2026-10-28 (`RUN_LEDGER.md`), plus the
   runbook author's disclosed prototype look (`00-START-HERE.md`).
 - **Failed runs:** live attempts with free or flash-lite models on older commits, all failing
