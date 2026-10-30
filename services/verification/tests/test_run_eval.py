@@ -9,6 +9,7 @@ import pytest
 from inkloom_verify.evaluation.runner import load_records
 
 ROOT = Path(__file__).resolve().parents[1]
+N_RECORDS = len(load_records(ROOT / "eval" / "dataset.jsonl"))  # follows the locked dataset
 spec = importlib.util.spec_from_file_location("run_eval", ROOT / "eval" / "run_eval.py")
 run_eval = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run_eval)
@@ -77,13 +78,13 @@ def test_the_abstain_floor_is_never_presented_as_model_accuracy(default_run):
         report["verdicts"]["source"] == "abstain"
         and report["verdicts"]["is_model_quality"] is False
     )
-    assert "not model quality" in text and "Human-reviewed labels: 0/80" in text
+    assert "not model quality" in text and f"Human-reviewed labels: 0/{N_RECORDS}" in text
 
 
 def test_report_has_every_required_metric(default_run):
     _, report, _ = default_run
     v = report["verdicts"]
-    assert v["examples"] == 80
+    assert v["examples"] == N_RECORDS
     assert set(v["per_class"]) == {"SUPPORTED", "CONTRADICTED", "NOT_ENOUGH_EVIDENCE"}
     assert set(v["confusion"]["CONTRADICTED"]) == {
         "SUPPORTED",
@@ -93,9 +94,10 @@ def test_report_has_every_required_metric(default_run):
     }
     for key in ("accuracy", "abstention_rate", "citation_validity", "false_supported_rate"):
         assert {"numerator", "denominator", "value"} <= set(v[key])
-    assert (
-        report["retrieval"]["dataset.jsonl"]["recall_at_5"]["denominator"] == 57
-    )  # records with gold evidence: 25 SUPPORTED + 32 CONTRADICTED
+    with_evidence = sum(
+        1 for r in load_records(ROOT / "eval" / "dataset.jsonl") if r.gold_evidence
+    )  # the SUPPORTED and CONTRADICTED records
+    assert report["retrieval"]["dataset.jsonl"]["recall_at_5"]["denominator"] == with_evidence
     assert report["faults"]["pass_rate"] == {"numerator": 18, "denominator": 18, "value": 1.0}
 
 
@@ -300,7 +302,7 @@ def test_dataset_covers_the_required_cases():
     conflicts = [r for r in records if "conflicting_evidence" in {c.value for c in r.categories}]
     assert [r.expected_verdict.value for r in conflicts].count(
         "NOT_ENOUGH_EVIDENCE"
-    ) == 5  # v2-c01..c04, v3-021
+    ) == 6  # v2-c01..c04, v3-021, v4-022
     assert all(r.label_rationale for r in records)
     assert all(
         r.gold_evidence for r in records if r.expected_verdict.value != "NOT_ENOUGH_EVIDENCE"
@@ -365,9 +367,9 @@ def test_a_dry_run_pins_and_records_the_prompt_set(tmp_path, prompt_set):
     assert report["verdicts"]["is_model_quality"] is False
     calls = report["calls"]
     assert set(calls) == {"claim_extraction", "claim_verification", "claim_correction"}
-    # Full pipeline (EVAL Phase 3): 80 records + 24 extraction-set paragraphs; 22 correction cases.
-    assert calls["claim_extraction"]["calls"] == 104 and calls["claim_correction"]["calls"] == 22
-    assert report["run"]["pipeline"] == "full" and report["cases"]["records"] == 80
+    # Full pipeline (EVAL Phase 3): one extraction call per record + 24 extraction-set paragraphs; 22 correction cases.
+    assert calls["claim_extraction"]["calls"] == N_RECORDS + 24 and calls["claim_correction"]["calls"] == 22
+    assert report["run"]["pipeline"] == "full" and report["cases"]["records"] == N_RECORDS
     assert all(s["repair_calls"] == 0 and s["errors"] == {} for s in calls.values())
 
 
@@ -463,10 +465,10 @@ def test_a_live_run_where_almost_every_record_failed_does_not_pass(tmp_path):
     )
     report = json.loads((tmp_path / "o" / "report.json").read_text(encoding="utf-8"))
     [entry] = [g for g in report["gates"] if g["name"] == FAILURE_GATE["name"]]
-    assert entry["status"] == "FAIL" and entry["measured"] == pytest.approx(78 / 80)
+    assert entry["status"] == "FAIL" and entry["measured"] == pytest.approx(78 / N_RECORDS)
 
 
-@pytest.mark.parametrize(("failed", "code"), [(0, 0), (16, 0), (17, 1)])  # 16/80 = 20% is the limit
+@pytest.mark.parametrize(("failed", "code"), [(0, 0), (24, 0), (25, 1)])  # 24/120 = 20% is the limit
 def test_the_failure_gate_boundary(tmp_path, failed, code):
     baseline = write_baseline(tmp_path, [FAILURE_GATE])
     run = predictions(tmp_path, f"f{failed}.jsonl", errors_for_first(failed))

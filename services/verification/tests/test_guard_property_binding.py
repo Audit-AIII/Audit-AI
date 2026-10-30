@@ -100,7 +100,7 @@ def test_no_dev_supported_record_is_rejected_for_property_mismatch_on_its_gold_q
         for r in _records()
         if r.split is EvalSplit.DEV and r.expected_verdict is Verdict.SUPPORTED
     ]
-    assert len(supported) == 35
+    assert len(supported) == 39  # 35 before Round 3 step 06 + 4 new dev records (v4-026, 027, 028, 039)
     rejected = []
     for record in supported:
         documents = {d.doc_id: d.text for d in record.references}

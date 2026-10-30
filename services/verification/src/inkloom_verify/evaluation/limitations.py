@@ -100,6 +100,30 @@ LIMITATIONS: list[Limitation] = [
         ],
     ),
     Limitation(
+        topic="Guard on a comparative claim across documents",
+        status="measured",
+        finding="The guard can reject a correct SUPPORTED answer whose claim compares figures that come from two "
+        "documents. Held-out record v4-003 ('the Lantern's warranty is longer than the standard 2 year warranty', "
+        "with the 3 year figure in one document and the 2 year figure in another) is rejected as property_mismatch "
+        "even with the right gold quotes. It was found the first time the oracle ran on this fresh held-out record "
+        "(2026-10-29), so the rule was deliberately not changed and the record was not replaced: held-out records "
+        "do not steer the rules. It is a false rejection (a person reviews it), not a wrong approval.",
+        evidence=["tests/test_eval_regressions.py::test_the_oracle_reproduces_every_gold_label"],
+    ),
+    Limitation(
+        topic="Retrieval on a claim that carries an injected instruction",
+        status="measured",
+        finding="The retrieval-only evaluation uses the whole claim text as one query. On the 120-record dataset, "
+        "2 of 87 records with evidence (v4-024 held-out, v4-040 dev) retrieve no passage, because the claim "
+        "itself contains an injected instruction whose words dilute the query below the term-coverage threshold; "
+        "the same claim without that sentence retrieves its passage. Recall@5 is 85/87 (was 37/37 on the "
+        "80-record dataset), so the gate was re-measured, lower, because the dataset grew. The full pipeline "
+        "extracts claims before retrieval and may avoid this; that is not measured until the live run.",
+        evidence=[
+            "tests/test_known_limitations.py::test_a_claim_that_carries_an_injected_instruction_retrieves_no_passage"
+        ],
+    ),
+    Limitation(
         topic="Live model quality",
         status="measured",
         finding="One live run (google/gemini-2.5-flash-lite, verifier only, 80 synthetic claims, 25 held out) gave "
@@ -113,8 +137,8 @@ LIMITATIONS: list[Limitation] = [
         topic="Label review",
         status="measured",
         finding="Every label in eval/dataset.jsonl was written by an AI assistant and checked mechanically; none has "
-        "been reviewed by a person (0/80). The data is synthetic (a fictional company) and small: one "
-        "CONTRADICTED record is about 3 points of recall.",
+        "been reviewed by a person (0/120). The data is synthetic (a fictional company) and small: one "
+        "CONTRADICTED record is about 2 points of recall (1/49).",
         evidence=[
             "tests/test_dataset_validation.py::test_every_record_is_synthetic_and_unreviewed_and_says_so"
         ],

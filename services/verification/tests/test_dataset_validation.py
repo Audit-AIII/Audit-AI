@@ -54,7 +54,7 @@ def report():
 
 def test_the_shipped_dataset_is_valid(report):
     assert report.ok, report.problems
-    assert 50 <= report.records <= 100
+    assert 50 <= report.records <= 150
 
 
 def test_the_class_mix_is_close_to_the_eval_md_targets(report):
@@ -69,7 +69,7 @@ def test_every_required_hard_case_is_covered(report, case):
 
 
 def test_both_injection_locations_are_present_and_labels_are_never_adversarial(report):
-    assert report.injection_locations == {"injection_in_reference": 5, "injection_in_content": 3}
+    assert report.injection_locations == {"injection_in_reference": 7, "injection_in_content": 5}
     assert set(report.labels) == {
         "SUPPORTED",
         "CONTRADICTED",
@@ -82,7 +82,7 @@ def test_content_injections_are_never_labelled_supported():
     """Labelling rule: a claim carrying an instruction is judged on its facts, and only factual
     parts that are wrong or unsupported are used, so the label is never ambiguous."""
     content = [r for r in RECORDS.values() if "injection_in_content" in r["tags"]]
-    assert len(content) == 3 and all(r["expected_verdict"] != "SUPPORTED" for r in content)
+    assert len(content) == 5 and all(r["expected_verdict"] != "SUPPORTED" for r in content)
 
 
 def test_every_record_is_synthetic_and_unreviewed_and_says_so(report):
@@ -270,7 +270,7 @@ def test_a_skewed_or_small_dataset_fails_the_mix_check(tmp_path):
     assert any(p.startswith("SUPPORTED: 0.0%") for p in found)
     assert "no record covers: negation" in found
     small = validate_dataset(write(tmp_path, record())).problems
-    assert "1 records; EVAL.md asks for 50-100" in small
+    assert "1 records; EVAL.md asks for 50-150" in small
 
 
 def test_the_validator_never_changes_the_file(tmp_path):
@@ -280,15 +280,28 @@ def test_the_validator_never_changes_the_file(tmp_path):
     assert path.read_bytes() == before
 
 
+def test_the_size_limit_accepts_120_records_and_rejects_151(tmp_path):
+    """Round 3 raised the limit from 100 to 150 so held-out can reach about 15 SUPPORTED records."""
+
+    def size_problems(n):
+        lines = [record("v3-006", record_id=f"size-{i:03d}") for i in range(n)]
+        return [p for p in validate_dataset(write(tmp_path, *lines)).problems if "EVAL.md asks for" in p]
+
+    assert size_problems(120) == []
+    assert size_problems(150) == []
+    assert size_problems(151) == ["151 records; EVAL.md asks for 50-150"]
+
+
 # --- Command line ---------------------------------------------------------------------------------
 
 
 def test_cli_exit_codes(tmp_path, capsys):
     assert main([str(DATASET)]) == 0
     out = capsys.readouterr().out
-    assert "80 records, VALID" in out and "| CONTRADICTED | 28 | 35.0% | 35% |" in out
+    n = len(DATASET.read_text(encoding="utf-8").splitlines())
+    assert f"{n} records, VALID" in out and "| CONTRADICTED |" in out
     assert main([str(write(tmp_path, "{bad"))]) == 1
     assert main([str(tmp_path / "missing.jsonl")]) == 2
     capsys.readouterr()
     assert main([str(DATASET), "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["groups"]["adversarial"] == 8
+    assert json.loads(capsys.readouterr().out)["groups"]["adversarial"] == 12

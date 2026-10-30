@@ -383,8 +383,12 @@ def test_the_default_run_reports_the_metrics_it_can_measure(tmp_path):
     assert run_eval.main(["--out", str(tmp_path)]) == 0
     report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
     m = report["required_metrics"]
-    assert m["counts"]["evaluated"] == 80 and m["contradicted_recall"]["denominator"] == 32
-    assert m["retrieval_recall_at_5"]["denominator"] == 57
+    locked = load_records(ROOT / "eval" / "dataset.jsonl")
+    assert m["counts"]["evaluated"] == len(locked)
+    assert m["contradicted_recall"]["denominator"] == sum(
+        1 for r in locked if r.expected_verdict.value == "CONTRADICTED"
+    )
+    assert m["retrieval_recall_at_5"]["denominator"] == sum(1 for r in locked if r.gold_evidence)
     assert {
         "contradicted_precision",
         "citation_validity",

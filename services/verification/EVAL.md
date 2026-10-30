@@ -134,8 +134,8 @@ lock, invalid baseline, missing credentials for `--verdicts openrouter`).
 | Error handling | `eval/fault_cases.json` | 18 provider faults (timeout, rate limit, unavailable, malformed JSON, invalid schema, not configured) at extraction, verification and correction | No: deterministic |
 | Gates | `eval/baseline.json` | PASS / FAIL / NOT ENFORCED / NOT APPLICABLE per gate | — |
 
-**The canonical dataset, `eval/dataset.jsonl`:** dataset v2, 80 records. The card is in
-"Dataset v2" below. Its history:
+**The canonical dataset, `eval/dataset.jsonl`:** dataset v4, 120 records (Round 3). The cards are in
+"Dataset v4" and "Dataset v2" below; the v2 card describes its first 80 lines. Its history:
 
 - The first 50 lines are `verification_v1.jsonl`, byte for byte (a test enforces this).
 - The 5 new records (`v2-c01`–`v2-c05`) cover **conflicting evidence**, using four new synthetic
@@ -253,6 +253,26 @@ The exit code is 2 when an input is invalid.
 - **Missing and extra predictions.** A record with no prediction is scored as `ERROR` and
   reported as `missing_prediction`. A prediction whose `record_id` isn't in the dataset is counted
   as `unexpected_predictions` and otherwise ignored.
+
+## Dataset v4 (dataset card, Round 3 step 06)
+
+| | |
+|---|---|
+| File | `eval/dataset.jsonl`, locked in `eval/datasets.lock.json` (sha256 `bb61147b…`). `eval/dev_only.jsonl` is its dev records, for tuning runs (`run_eval.py --dataset eval/dev_only.jsonl`); it sits outside `eval/data/` because the injection-detector test scans that folder. |
+| Size | **120 records**: lines 1–80 are dataset v2, unchanged; lines 81–120 are `v4-001`–`v4-040`, new in Round 3. The size limit in `evaluation/dataset.py` went from 100 to 150 so the held-out split could grow. |
+| Splits | dev 70, **held-out 50**: the 25 earlier held-out records plus **25 fresh** ones (tag `v4_fresh`, ids `v4-001`–`v4-025`). Held-out has 16 SUPPORTED, 20 CONTRADICTED, 14 NOT_ENOUGH_EVIDENCE, so one SUPPORTED record moves a false-positive rate by 6.3 points (it was 14.3 with 7). |
+| Data | **Synthetic.** The same fictional company (Lumen Goods) with ten new invented documents (a lantern and a mug fact sheet, returns, shipping, warranty, stores, app release notes, a 2026 sustainability excerpt, a price notice, a retailer listing) and three injected-instruction documents. No real company, person or customer data. |
+| Human review | **0/120.** `reviewed_by` is empty on every record. A 57-item review pack (the 40 new records plus the 17 earlier held-out SUPPORTED/CONTRADICTED ones) is in `docs/round3/review/`; no reviewer has answered it yet. |
+| Freeze | `eval/heldout.freeze.json` fingerprints the held-out labels; `tests/test_heldout_freeze.py` fails if one changes. It is **provisional until the labels are reviewed**: regenerating it needs a line in `docs/round3/results/RUN_LEDGER.md`. |
+
+**Distribution (validator output):** SUPPORTED 36 (30.0%), CONTRADICTED 42 (35.0%), NOT_ENOUGH_EVIDENCE 30 (25.0%) and adversarial 12 (10.0%), all on target. Labels across all 120 records: SUPPORTED 38, CONTRADICTED 49, NOT_ENOUGH_EVIDENCE 33. Injections: 7 in a reference, 5 in the claim itself.
+Hard-case coverage: near-miss numbers 9, negation 11, dates 6, outdated facts 4, unit mismatches 3, missing evidence 21, compound claims 6, conflicting references 7.
+
+**How the 40 records were written, and what that does not prove.**
+- The labels were written from the documents alone, before any engine or model output existed for these records. They were written by the same AI assistant family that wrote the guard rules, so they are **not independent of the rules**.
+- The first time engine code saw the fresh records was the repository's own test suite (2026-10-29), which runs an oracle over every record. Two things surfaced, both recorded in the ledger and in `evaluation/limitations.py`, and neither was fixed: held-out `v4-003` is falsely rejected by the guard (a comparative claim across two documents), and held-out `v4-024` plus dev `v4-040` retrieve no passage because the claim text carries an injected instruction.
+- Because of that, the 25 fresh records are "clean" only in the sense that no rule or prompt was changed after they were seen. State it that way.
+- Re-measured gates: retrieval recall@5 85/87 (was 37/37) and recall@1 84/87 (was 56/57), **lower because the dataset grew**; the always-SUPPORTED stress gate is tighter (20/82, was 14/55). Every other gate is unchanged.
 
 ## Dataset v2 (dataset card, EVAL.md Phase 2)
 
@@ -586,7 +606,7 @@ reproduces it (`tests/test_known_limitations.py`):
 ### What a report covers, and what it does not (checked 2026-10-24)
 
 **Covers:**
-- **Every record of `eval/dataset.jsonl` in one run:** 80 records, 55 dev and 25 held-out.
+- **Every record of `eval/dataset.jsonl` in one run:** 120 records, 70 dev and 50 held-out.
 - **Pooled metrics (section 11):** precision, recall, false-positive rate, citation validity,
   retrieval, human-review share, correction traceability, provider failure rate and latency.
 - **Per split (section 5, "Per split"), since 2026-10-24:** the same metrics for dev and held-out
@@ -653,7 +673,7 @@ the oracle, 30 gates pass and 5 model-run gates are NOT APPLICABLE; on the absta
 **The gap, stated plainly.** CI can't yet fail on a *live model's* CONTRADICTED recall, because
 nothing has been measured to set it from. Assuming 100% would be inventing a baseline. The plan:
 1. Approve a model and budget (PROMPTS Phase 7 release report).
-2. Have a person review the labels (0/80 today).
+2. Have a person review the labels (0/120 today).
 3. Run stage 4 three times on the same configuration, with the reviewed labels. Each run saves a
    cassette, so the run can be replayed and re-scored offline.
 4. Set `model run: CONTRADICTED recall` to the **lowest** of the three measured values, and
@@ -668,9 +688,10 @@ categories to its tests. `tests/test_regression_registry.py` fails if an entry p
 that doesn't exist.
 
 **Dataset-driven regression tests** (`tests/test_eval_regressions.py`):
-- **The oracle must reproduce all 80 gold labels,** each a separate test case, with citations that
-  resolve and overlap the gold evidence.
-- **No adversary may auto-clear any of the 55 non-SUPPORTED records.**
+- **The oracle must reproduce all 120 gold labels,** each a separate test case, with citations that
+  resolve and overlap the gold evidence. One is a declared exception: held-out `v4-003` is a strict
+  xfail (see "Dataset v4" and `evaluation/limitations.py`).
+- **No adversary may auto-clear any of the 82 non-SUPPORTED records** (55 on the 80-record dataset).
 - **Two sabotage tests prove CI actually fails:**
   - breaking the guard on euro quotes fails the oracle recall gate (exit 1);
   - undoing REG-012 fails the fabricator safety gate.

@@ -46,7 +46,25 @@ def adversary_runs():
 # --- Every record, through the real pipeline ------------------------------------------------------
 
 
-@pytest.mark.parametrize("record_id", sorted(BY_ID))
+# A correct SUPPORTED answer the guard rejects. Found on a fresh held-out record the first time it
+# ran (2026-10-29, Round 3 step 06). Held-out records do not steer the rules, so the rule was not
+# changed and the record was not replaced: it stays as a measured limitation (EVAL.md, ledger).
+# strict=True, so the day the behaviour changes this test says so.
+KNOWN_ORACLE_MISSES = {
+    "v4-003": "property_mismatch rejects a comparative claim ('longer than the standard 2 year "
+    "warranty') whose two figures come from two documents: lexical guard heuristics limit",
+}
+
+
+@pytest.mark.parametrize(
+    "record_id",
+    [
+        pytest.param(i, marks=pytest.mark.xfail(strict=True, reason=KNOWN_ORACLE_MISSES[i]))
+        if i in KNOWN_ORACLE_MISSES
+        else i
+        for i in sorted(BY_ID)
+    ],
+)
 def test_the_oracle_reproduces_every_gold_label(oracle_run, record_id):
     """With correct answers, the engine must reach the gold label with citations that resolve and
     overlap the gold evidence. A failure means the code now rejects a correct answer."""

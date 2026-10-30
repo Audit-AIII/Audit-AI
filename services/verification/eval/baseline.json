@@ -11,17 +11,17 @@
       "name": "retrieval recall@5, eval/dataset.jsonl",
       "metric": "retrieval/dataset.jsonl/recall_at_5",
       "op": ">=",
-      "value": 1.0,
+      "value": 0.9770114942528736,
       "applies_to": "always",
-      "note": "measured 37/37"
+      "note": "re-measured 85/87 on the 120-record dataset (Round 3 step 06; was 37/37 on the 80-record one). This is LOWER than before because the dataset grew, not because retrieval changed: the two misses are v4-024 and v4-040, whose claim text itself carries an injected instruction, so the query is diluted and no passage is retrieved. The full pipeline extracts claims first, which may avoid this; unproven until the live run."
     },
     {
       "name": "retrieval recall@1, eval/dataset.jsonl",
       "metric": "retrieval/dataset.jsonl/recall_at_1",
       "op": ">=",
-      "value": 0.9824561403508771,
+      "value": 0.9655172413793104,
       "applies_to": "always",
-      "note": "measured 56/57 on dataset v2 (80 records)"
+      "note": "re-measured 84/87 on the 120-record dataset (Round 3 step 06; was 56/57 on the 80-record one). Misses: v1-032 (as before) plus v4-024 and v4-040 (injected text in the claim, see the recall@5 note)."
     },
     {
       "name": "retrieval recall@5, retrieval_v1",
@@ -67,9 +67,9 @@
       "name": "false-SUPPORTED (valid-quote, always SUPPORTED)",
       "metric": "enforcement/valid_quote_always_supported/false_supported",
       "op": "<=",
-      "value": 0.2545454545454545,
+      "value": 0.24390243902439024,
       "applies_to": "always",
-      "note": "measured 14/55 after REG-018 (was 16/55 on dataset v2); a scripted always-SUPPORTED adversary, not model quality"
+      "note": "re-measured 20/82 on the 120-record dataset (Round 3 step 06); was 14/55 on the 80-record one (16/55 before REG-018). A scripted always-SUPPORTED adversary, not model quality; a lower share, tightened to it."
     },
     {
       "name": "correction checker: bad edits rejected",
