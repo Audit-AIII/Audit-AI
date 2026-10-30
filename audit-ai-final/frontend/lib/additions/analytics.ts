@@ -69,6 +69,14 @@ export async function latestEvaluation(): Promise<Maybe<LatestEvaluation>> {
     return { available: true, data: parseLatest(await request<unknown>("/api/evaluations/latest")) };
   } catch (err) {
     if (isNoEvaluationYet(err)) {
+      // No run is stored on this server: show the published benchmark (a recorded live run, replayed
+      // by the engine; the file is the engine's own evaluation-summary-v1 report, never edited).
+      try {
+        const res = await fetch("/published-evaluation.json", { cache: "no-store" });
+        if (res.ok) return { available: true, data: { kind: "summary", summary: parseEvaluation(await res.json()) } };
+      } catch {
+        /* fall through to the empty state */
+      }
       return { available: true, data: { kind: "summary", summary: { contract: "evaluation-summary-v1", state: "none", reason: "", how_to_run: "" } } };
     }
     if (isMissingRoute(err)) return { available: false };
