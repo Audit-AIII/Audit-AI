@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 /**
  * Native <dialog> (focus trapped and Escape to close by the browser), drawn as a raised card.
@@ -26,6 +26,7 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -33,8 +34,8 @@ export function ConfirmDialog({
     if (!open && d.open) d.close();
   }, [open]);
   return (
-    <dialog ref={ref} className="add-dialog" aria-labelledby="add-dialog-title" onCancel={(e) => (e.preventDefault(), onCancel())}>
-      <h2 id="add-dialog-title" className="add-dialog__title">
+    <dialog ref={ref} className="add-dialog" aria-labelledby={titleId} onCancel={(e) => (e.preventDefault(), onCancel())}>
+      <h2 id={titleId} className="add-dialog__title">
         {title}
       </h2>
       <div className="add-dialog__body">{children}</div>

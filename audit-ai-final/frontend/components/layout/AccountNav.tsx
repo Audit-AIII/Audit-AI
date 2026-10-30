@@ -14,6 +14,7 @@ const MORE: { href: string; label: string }[] = [
   { href: "/app/rules", label: "Brand rules" },
   { href: "/app/insights", label: "Insights" },
   { href: "/app/scorecard", label: "Trust Scorecard" },
+  { href: "/app/team", label: "Team" },
 ];
 
 /**

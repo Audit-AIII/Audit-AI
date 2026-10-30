@@ -19,6 +19,7 @@ const WORKSPACE: WorkspacePage[] = [
   { href: "/app/guidelines", label: "Guidelines", hint: "Upload, update or withdraw the documents drafts are checked against." },
   { href: "/app/rules", label: "Rules", hint: "Words to use or avoid, required disclaimers and accessibility settings for this brand." },
   { href: "/app/scorecard", label: "Scorecard", hint: "How well the checker does on a benchmark test set." },
+  { href: "/app/team", label: "Team", hint: "Who is in this workspace, and inviting someone new." },
 ];
 /** Owners only, on the server too; hidden so nobody else follows a link to a refusal. */
 const AUDIT_PAGE: WorkspacePage = { href: "/app/audit", label: "Audit log", hint: "Who joined this workspace and whose role changed." };
