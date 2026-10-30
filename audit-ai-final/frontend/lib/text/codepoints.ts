@@ -23,6 +23,16 @@ export function spanToUtf16(text: string, span: { start: number; end: number }) 
   return { start, end };
 }
 
+/**
+ * Does the span really hold this finding's words? Whitespace is compared loosely, because extracted
+ * text can reflow; anything else means highlighting it would mark the wrong words.
+ */
+export function spanLocated(text: string, span: { start: number; end: number }, original: string) {
+  const { start, end } = spanToUtf16(text, span);
+  const squash = (s: string) => s.replace(/\s+/g, " ").trim();
+  return squash(text.slice(start, end)) === squash(original);
+}
+
 export type Segment<T> = { text: string; marks: T[] };
 
 /**

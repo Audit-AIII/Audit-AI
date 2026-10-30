@@ -109,6 +109,39 @@ export function reviewHeadline(r: ReviewOut, stub: boolean) {
   }
 }
 
+/** The check ran, but part of it didn't finish. Rules that never ran have their own message. */
+export const isPartialReview = (r: ReviewOut) =>
+  r.status !== "failed" &&
+  (r.rules_status === "incomplete" || /^partial$/i.test(r.report_status ?? "") || (!!r.error_summary && r.findings.length > 0 && !rulesUnfinished(r)));
+
+/** Still running: there are no results to read yet. */
+export const isChecking = (r: ReviewOut) => r.status === "draft" || r.status === "queued" || r.status === "analysing";
+
+const REVIEW_REASON: Record<string, string> = {
+  contradicted: "An approved document says something different",
+  not_enough_evidence: "No approved document covers this",
+  error: "This claim couldn’t be checked",
+  weak_evidence: "The evidence found is weak",
+  below_policy_strength: "The evidence isn’t strong enough for this kind of claim",
+  compound_under_cited: "Only part of this claim has evidence",
+};
+export const reviewReasonText = (r: string) => REVIEW_REASON[r] ?? human(r);
+
+const VALIDATION: Record<string, { glyph: string; label: string }> = {
+  validated: { glyph: "✓", label: "Quote verified" },
+  downgraded: { glyph: "↓", label: "Downgraded" },
+  span_not_found: { glyph: "?", label: "Quote could not be verified" },
+  unsupported: { glyph: "?", label: "Quote could not be verified" },
+};
+export const validationLook = (v: string) => VALIDATION[v] ?? { glyph: "?", label: human(v) };
+
+const RELATION: Record<string, { glyph: string; label: string }> = {
+  supports: { glyph: "✓", label: "Agrees" },
+  contradicts: { glyph: "≠", label: "Disagrees" },
+  context: { glyph: "–", label: "Related text" },
+};
+export const relationLook = (r: string) => RELATION[r] ?? { glyph: "?", label: human(r) };
+
 export const isStub = (f: FindingOut) => f.category === "stub";
 
 /** Placeholder review: the stub finding, or the engine itself reporting a stub provider

@@ -1,35 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/primitives/Button";
 import { FindingComments } from "@/components/additions/FindingComments";
 import { FindingDismiss } from "@/components/additions/FindingDismiss";
+import { ApiActionError } from "@/components/additions/ApiActionError";
+import { ReviewSummary } from "@/components/additions/ReviewSummary";
+import { EmptyState, ErrorState, PartialState } from "@/components/additions/States";
 import { Panel, Panels, StageHead } from "@/components/app/Stage";
+import { Thinking } from "@/components/app/Thinking";
 import {
   checkName,
   findingChip,
+  isChecking,
+  isPartialReview,
   isRule,
   isStub,
   isStubReview,
   isWholeDraft,
+  relationLook,
   reviewHeadline,
+  reviewReasonText,
   ruleCategoryLabel,
   ruleTypeLabel,
-  rulesUnfinished,
   severity,
   stubReason,
   suggestionFor,
-  verdict,
+  validationLook,
 } from "@/components/app/reviewLabels";
 import { ApiError, api } from "@/lib/api/client";
 import type { FindingOut, ReviewOut, RuleCheck } from "@/lib/api/types";
+import { rerun } from "@/lib/additions/content";
 import { applyComment, applyDecision, commentCountText, DISMISSED, isDismissed } from "@/lib/additions/findingState";
-import { segment } from "@/lib/text/codepoints";
+import { isAllowed } from "@/lib/additions/governance";
+import { segment, spanLocated } from "@/lib/text/codepoints";
 import { getReviewText, setLastReviewId } from "@/lib/workspace";
 
-type Load = { state: "loading" } | { state: "ok"; review: ReviewOut } | { state: "error"; message: string; requestId: string | null };
+type Load = { state: "loading" } | { state: "ok"; review: ReviewOut } | { state: "error"; error: unknown };
+
+/** How often to look again while a check is still running. */
+const CHECKING_POLL_MS = 3000;
 
 const ORDER: Record<string, number> = { contradicted: 0, conflicting_sources: 1, unverified: 2, not_applicable: 3, supported: 4 };
 
@@ -57,6 +69,7 @@ function ReviewLoader({ id }: { id: string }) {
   // Client-only render (AppShell waits for the session), so localStorage is safe to read here.
   const [text] = useState(() => getReviewText(id));
   const [selected, setSelected] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -67,20 +80,21 @@ function ReviewLoader({ id }: { id: string }) {
         setLastReviewId(review.id); // Decide / Record pick this up from the stage bar
         setLoad({ state: "ok", review });
       })
-      .catch((err) => {
-        if (!live) return;
-        const message =
-          err instanceof ApiError && err.status === 404
-            ? "We couldn’t find this review. It may belong to another organisation, or the link is wrong."
-            : err instanceof ApiError
-              ? err.userMessage
-              : "Something went wrong. Please try again.";
-        setLoad({ state: "error", message, requestId: err instanceof ApiError ? err.requestId : null });
+      .catch((error) => {
+        if (live) setLoad({ state: "error", error });
       });
     return () => {
       live = false;
     };
-  }, [id]);
+  }, [id, tick]);
+
+  // Keeps looking while the check runs, so the page never sits on a stale "still checking".
+  const checking = load.state === "ok" && isChecking(load.review);
+  useEffect(() => {
+    if (!checking) return;
+    const timer = window.setTimeout(() => setTick((t) => t + 1), CHECKING_POLL_MS);
+    return () => window.clearTimeout(timer);
+  }, [checking, tick]);
 
   if (load.state === "loading") {
     return (
@@ -93,19 +107,34 @@ function ReviewLoader({ id }: { id: string }) {
     );
   }
   if (load.state === "error") {
+    const missing = load.error instanceof ApiError && load.error.status === 404;
     return (
       <>
         <StageHead title="Review" status="Couldn’t load" />
         <div className="app-empty card">
-          <p className="app-alert app-alert--bad" role="alert">
-            {load.message}
-          </p>
-          {load.requestId && (
-            <p className="t-caption">
-              Reference: <code className="request-id">{load.requestId}</code>
-            </p>
-          )}
+          <ErrorState
+            error={load.error}
+            message={missing ? "We couldn’t find this review. It may belong to another workspace, or the link is wrong." : undefined}
+            onRetry={
+              missing
+                ? undefined
+                : () => {
+                    setLoad({ state: "loading" });
+                    setTick((t) => t + 1);
+                  }
+            }
+          />
           <Button href="/app/draft">Check a draft →</Button>
+        </div>
+      </>
+    );
+  }
+  if (isChecking(load.review)) {
+    return (
+      <>
+        <StageHead title="Review" status="Checking…" />
+        <div className="app-empty card">
+          <Thinking label="Checking your draft" detail="Reading each claim and looking for it in your approved documents." />
         </div>
       </>
     );
@@ -137,6 +166,82 @@ function ReviewView({
   // back to this browser's copy, then the stub finding (its original_text is the whole text).
   const fullText = review.text ?? savedText ?? review.findings.find(isStub)?.original_text ?? null;
   const current = findings.find((f) => f.finding_id === selected) ?? findings[0] ?? null;
+  const personal = review.workspace?.is_personal ?? true;
+  const canRerun = isAllowed(review.allowed_actions, "rerun");
+  const detailRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [rechecking, setRechecking] = useState(false);
+  const [recheckError, setRecheckError] = useState<unknown>(null);
+
+  // A new check is a new review, so this opens it; on failure the page and its message stay.
+  const recheck = async () => {
+    setRechecking(true);
+    setRecheckError(null);
+    try {
+      const r = await rerun(review.id, crypto.randomUUID());
+      router.push(`/app/review?id=${r.id}`);
+    } catch (err) {
+      setRecheckError(err);
+      setRechecking(false);
+    }
+  };
+
+  // Moves the other side into view after a pick. On phones the panels stack, so a pick in the list
+  // stays put rather than jumping up to the draft.
+  const reveal = (selector: string) =>
+    requestAnimationFrame(() => {
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      document.querySelector(selector)?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+    });
+  const pickFromList = (id: string) => {
+    onSelect(id);
+    if (window.matchMedia("(min-width: 768px)").matches) reveal(".heat__mark.is-current");
+  };
+  const pickFromDraft = (id: string) => {
+    onSelect(id);
+    reveal(".problem.is-selected");
+  };
+  // Arrow keys walk the list, Enter opens the details, Esc (there) comes back to the row.
+  const onRowKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      pickFromList(findings[i].finding_id);
+      detailRef.current?.focus();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const next = findings[i + (e.key === "ArrowDown" ? 1 : -1)];
+    if (!next) return;
+    e.preventDefault();
+    pickFromList(next.finding_id);
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-finding="${next.finding_id}"]`)?.focus());
+  };
+  const onDetailKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Escape" || /^(TEXTAREA|INPUT)$/.test((e.target as HTMLElement).tagName)) return;
+    document.querySelector<HTMLElement>(".problem.is-selected")?.focus();
+  };
+
+  if (review.status === "failed" && findings.length === 0) {
+    return (
+      <>
+        <StageHead title="Review" status={reviewHeadline(review, stub)} />
+        <div className="app-empty card">
+          {rechecking ? (
+            <Thinking label="Checking your draft again" />
+          ) : (
+            <ErrorState title="We couldn’t check this draft" message={review.error_summary ?? "The server didn’t say why."} onRetry={canRerun ? recheck : undefined}>
+              {/no approved source/i.test(review.error_summary ?? "") && (
+                <Link className="link" href="/app/sources">
+                  Check the brand’s documents
+                </Link>
+              )}
+            </ErrorState>
+          )}
+          <ApiActionError error={recheckError} />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -148,10 +253,32 @@ function ReviewView({
           is a fixed test result that proves the connection works.
         </div>
       )}
-      {rulesUnfinished(review) && (
+      {review.rules_status === "not_applied" && (
         <div className="app-alert app-alert--bad" role="alert">
-          <b>{review.rules_status === "not_applied" ? "Your brand rules didn’t run on this draft." : "Some brand rule checks didn’t finish."}</b>{" "}
-          So this draft is not shown as passing your brand rules. {review.status !== "failed" && review.error_summary ? review.error_summary : ""}
+          <b>Your brand rules didn’t run on this draft.</b> So this draft is not shown as passing your brand rules.{" "}
+          {review.status !== "failed" && review.error_summary ? review.error_summary : ""}
+        </div>
+      )}
+      {isPartialReview(review) && (
+        <div className="add-partial-wrap">
+          {rechecking ? (
+            <Thinking label="Checking your draft again" />
+          ) : (
+            <PartialState
+              title="This check didn’t finish"
+              missing={
+                <>
+                  {review.rules_status === "incomplete"
+                    ? "Some brand rule checks didn’t finish, so this draft is not shown as passing your brand rules. "
+                    : "Some claims couldn’t be checked. "}
+                  {review.error_summary ?? ""}
+                </>
+              }
+              shown={findings.length ? "The results below are real, but there may be more to find." : "Nothing else came back from this check."}
+              onRetry={canRerun ? recheck : undefined}
+            />
+          )}
+          <ApiActionError error={recheckError} />
         </div>
       )}
       {review.status === "failed" && (
@@ -165,7 +292,7 @@ function ReviewView({
         </div>
       )}
 
-      {!stub && findings.length > 0 && <Tally findings={findings} current={current?.finding_id} onSelect={onSelect} />}
+      {!stub && findings.length > 0 && <ReviewSummary findings={findings} counts={review.summary_counts} current={current?.finding_id} onSelect={pickFromDraft} />}
 
       <Panels>
         <Panel n="01" label="Your draft" title="Problems marked">
@@ -173,9 +300,10 @@ function ReviewView({
             <HeatText
               text={fullText}
               // "Whole draft" rule findings anchor on line 1 but are about what is missing: not highlighted.
-              findings={findings.filter((f) => !isWholeDraft(f))}
+              // Nor is a finding whose span doesn't hold its words: that would mark the wrong text.
+              findings={findings.filter((f) => !isWholeDraft(f) && spanLocated(fullText, f.span, f.original_text))}
               current={current?.finding_id}
-              onSelect={onSelect}
+              onSelect={pickFromDraft}
             />
           ) : (
             <p className="app-alert" role="note">
@@ -193,7 +321,7 @@ function ReviewView({
             <ul className="whole-draft" aria-label="About the whole draft">
               {findings.filter(isWholeDraft).map((f) => (
                 <li key={f.finding_id}>
-                  <button type="button" className="whole-draft__item" onClick={() => onSelect(f.finding_id)}>
+                  <button type="button" className="whole-draft__item" onClick={() => pickFromDraft(f.finding_id)}>
                     <span aria-hidden="true">§</span> Whole draft: {f.explanation ?? ruleTypeLabel(f.rule_type)}
                   </button>
                 </li>
@@ -204,10 +332,12 @@ function ReviewView({
 
         <Panel n="02" label="Problems found" title={findings.length ? `${findings.length} to look at` : "Nothing found"}>
           {findings.length === 0 ? (
-            <p className="t-body panel__note">{review.status === "failed" ? "No results, see the note above." : "No problems found in this draft."}</p>
+            <EmptyState title="No problems were flagged">
+              <NothingFlagged review={review} />
+            </EmptyState>
           ) : (
             <ul className="rows" aria-label="Problems">
-              {findings.map((f) => {
+              {findings.map((f, i) => {
                 const v = findingChip(f);
                 const sev = severity(f.severity);
                 const on = f.finding_id === current?.finding_id;
@@ -217,7 +347,9 @@ function ReviewView({
                       type="button"
                       className={`rows__item problem${on ? " is-selected" : ""}${isStub(f) ? " problem--stub" : ""}`}
                       aria-pressed={on}
-                      onClick={() => onSelect(f.finding_id)}
+                      data-finding={f.finding_id}
+                      onClick={() => pickFromList(f.finding_id)}
+                      onKeyDown={(e) => onRowKey(e, i)}
                     >
                       <span>
                         <span className="t-caption">{isStub(f) ? "Placeholder" : checkName(f)}</span>
@@ -251,77 +383,32 @@ function ReviewView({
           )}
         </Panel>
 
-        <Panel n="03" label="Why it was flagged" title={current ? (isStub(current) ? "Placeholder" : findingChip(current).label) : "–"}>
-          {current ? <FindingDetail f={current} /> : <p className="t-body panel__note">Pick a problem to see why.</p>}
-          {current && !isStub(current) && (
-            <>
-              <FindingDismiss key={current.finding_id} f={current} onDecided={(d) => onReview((r) => applyDecision(r, d))} />
-              <FindingComments key={`c-${current.finding_id}`} findingId={current.finding_id} onAdded={(c) => onReview((r) => applyComment(r, c))} />
-            </>
-          )}
+        <Panel n="03" label="Why it was flagged" title={current ? (isStub(current) ? "Placeholder" : findingChip(current).label) : "Nothing flagged"}>
+          <div ref={detailRef} className="add-detail" tabIndex={-1} onKeyDown={onDetailKey}>
+            {current ? <FindingDetail f={current} text={fullText} personal={personal} /> : <p className="t-body panel__note">There’s nothing to explain on this draft.</p>}
+            {current && !isStub(current) && (
+              <>
+                {isAllowed(review.allowed_actions, "dismiss_finding") && (
+                  <FindingDismiss key={current.finding_id} f={current} onDecided={(d) => onReview((r) => applyDecision(r, d))} />
+                )}
+                <FindingComments
+                  key={`c-${current.finding_id}`}
+                  findingId={current.finding_id}
+                  onAdded={(c) => onReview((r) => applyComment(r, c))}
+                  canAdd={isAllowed(review.allowed_actions, "comment")}
+                  personal={personal}
+                />
+              </>
+            )}
+          </div>
           <EngineNote review={review} stub={stub} />
-          <a className="link" href={`/app/review-edit?id=${review.id}`}>Fix the wording →</a>
+          {isAllowed(review.allowed_actions, "create_version") && <a className="link" href={`/app/review-edit?id=${review.id}`}>Fix the wording →</a>}
           <a className="link" href={`/app/coverage?id=${review.id}`}>See evidence coverage →</a>
           <Button href={`/app/decide?id=${review.id}`}>Choose what to do →</Button>
         </Panel>
       </Panels>
       <RuleChecks review={review} />
     </>
-  );
-}
-
-/** The summary row's fixed columns, worst first (same glyphs and words as the finding chips). */
-const TALLY: { key: string; glyph: string; label: string; tone: string }[] = [
-  { key: "contradicted", ...verdict("contradicted") },
-  { key: "conflicting_sources", glyph: "⇄", label: "Documents disagree", tone: "unverified" },
-  { key: "unverified", ...verdict("unverified") },
-  { key: "rule", glyph: "§", label: "Brand rule", tone: "rule" },
-  { key: "supported", ...verdict("supported") },
-];
-const tallyKey = (f: FindingOut) => (isRule(f) ? "rule" : f.verification_status);
-
-/**
- * What the checker found, at a glance: one card the width of the panels, the total on the left
- * and a fixed row of five equal cells (zero cells stay, dimmed, so the layout never shifts). A
- * cell jumps to the first finding of that kind. Dismissed findings stay counted in their kind.
- */
-function Tally({ findings, current, onSelect }: { findings: FindingOut[]; current?: string; onSelect: (id: string) => void }) {
-  const real = findings.filter((f) => !isStub(f));
-  const dismissed = real.filter(isDismissed).length;
-  return (
-    <section className="tally card" aria-label="What the checker found">
-      <div className="tally__total">
-        <span className="tally__count">{real.length}</span>
-        <span className="t-caption">{real.length === 1 ? "finding" : "findings"}</span>
-        {dismissed > 0 && (
-          <span className="tally__note">
-            <span aria-hidden="true">{DISMISSED.glyph}</span> {dismissed} dismissed
-          </span>
-        )}
-      </div>
-      <ul className="tally__list">
-        {TALLY.map((k) => {
-          const items = real.filter((f) => tallyKey(f) === k.key);
-          const on = items.some((f) => f.finding_id === current);
-          return (
-            <li key={k.key}>
-              <button
-                type="button"
-                className={`tally__cell${on ? " is-on" : ""}`}
-                onClick={() => items[0] && onSelect(items[0].finding_id)}
-                disabled={items.length === 0}
-                aria-pressed={on}
-              >
-                <span className="tally__count">{items.length}</span>
-                <span className={`chip chip--${k.tone}`}>
-                  {k.glyph} {k.label}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }
 
@@ -375,7 +462,69 @@ function RuleChecks({ review }: { review: ReviewOut }) {
   );
 }
 
-function FindingDetail({ f }: { f: FindingOut }) {
+/** What was checked on a draft with no findings, so an empty result never looks like a blank one. */
+function NothingFlagged({ review }: { review: ReviewOut }) {
+  const passed = (review.rule_checks ?? []).filter((c) => c.status === "passed").map((c) => ruleTypeLabel(c.rule_type));
+  return (
+    <>
+      <p className="add-state__body">We looked for claims to check against your approved documents and found nothing to flag.</p>
+      {passed.length > 0 && <p className="add-state__body">Brand rules passed: {passed.join(", ")}.</p>}
+    </>
+  );
+}
+
+/** Verdict, severity and (only if the API sends it) validation, each with a glyph and a word. */
+function FindingMeta({ f }: { f: FindingOut }) {
+  const v = findingChip(f);
+  const sev = severity(f.severity);
+  const check = f.validation_status ? validationLook(f.validation_status) : null;
+  return (
+    <p className="rows__meta">
+      <span className={`chip chip--${v.tone}`}>
+        {v.glyph} {v.label}
+      </span>{" "}
+      <span className="sev" aria-label={`${sev.word} severity`}>
+        {sev.marks} {sev.word}
+      </span>{" "}
+      {check && (
+        <span className="chip chip--neutral">
+          {check.glyph} {check.label}
+        </span>
+      )}
+    </p>
+  );
+}
+
+/** The span doesn't hold the finding's words: say so rather than highlight the wrong text. */
+function SpanNote({ f, text }: { f: FindingOut; text: string | null }) {
+  if (text === null || isWholeDraft(f) || spanLocated(text, f.span, f.original_text)) return null;
+  return (
+    <p className="app-alert" role="note">
+      <b>Span could not be located.</b> This finding isn’t marked in your draft because its position doesn’t match the text. It’s about: “{clip(f.original_text)}”
+    </p>
+  );
+}
+
+/** One evidence quote in the die-cut window, with the document, its version and how it relates. */
+function Evidence({ e, showRelation }: { e: FindingOut["evidence"][number]; showRelation: boolean }) {
+  const relation = relationLook(e.relation);
+  return (
+    <div className="evidence">
+      <p className="t-caption evidence__src">
+        {e.source_title ?? "Your approved document"}
+        {e.source_version_number != null ? ` · version ${e.source_version_number}` : ""}
+      </p>
+      {showRelation && (
+        <p className="t-caption">
+          <span aria-hidden="true">{relation.glyph}</span> {relation.label}
+        </p>
+      )}
+      <p className="evidence__quote">“{e.quote}”</p>
+    </div>
+  );
+}
+
+function FindingDetail({ f, text, personal }: { f: FindingOut; text: string | null; personal: boolean }) {
   if (isStub(f)) {
     return (
       <div className="evidence evidence--placeholder" aria-live="polite">
@@ -391,33 +540,30 @@ function FindingDetail({ f }: { f: FindingOut }) {
           {checkName(f)}
           {isWholeDraft(f) ? " · about the whole draft" : ""}
         </p>
+        <FindingMeta f={f} />
+        <SpanNote f={f} text={text} />
         {f.explanation && (
           <p className="t-body panel__note">
             <b>The problem:</b> {f.explanation}
           </p>
         )}
         {f.evidence.map((e) => (
-          <div className="evidence" key={e.id}>
-            <p className="t-caption evidence__src">{e.source_title ? `From ${e.source_title}` : "From an approved document"}</p>
-            <p className="evidence__quote">“{e.quote}”</p>
-          </div>
+          <Evidence key={e.id} e={e} showRelation={false} />
         ))}
         <Suggestion f={f} />
-        <p className="t-caption">This is a brand rule, not a fact check. You decide on it.</p>
+        <p className="t-caption">This is a brand rule, not a fact check. {personal ? "You decide on it." : "A person decides on it."}</p>
       </div>
     );
   }
+  // The note above already says no document covers an unverified claim.
+  const reasons = (f.review_reasons ?? []).filter((r) => !(r === "not_enough_evidence" && f.verification_status === "unverified"));
   return (
     <div className="finding-detail" aria-live="polite">
-      {f.evidence.length > 0 ? (
-        f.evidence.map((e) => (
-          <div className="evidence" key={e.id}>
-            <p className="t-caption evidence__src">
-              {e.relation === "supports" ? "Your document says (agrees)" : e.relation === "contradicts" ? "Your document says (disagrees)" : "Related text in your documents"}
-            </p>
-            <p className="evidence__quote">“{e.quote}”</p>
-          </div>
-        ))
+      <FindingMeta f={f} />
+      <SpanNote f={f} text={text} />
+      {/* An unverified claim has no proof either way, so no quote is shown as if it were one. */}
+      {f.evidence.length > 0 && f.verification_status !== "unverified" ? (
+        f.evidence.map((e) => <Evidence key={e.id} e={e} showRelation />)
       ) : (
         <p className="app-alert" role="note">
           None of your approved documents cover this. That means it isn’t proven yet, not that it’s wrong.
@@ -425,11 +571,18 @@ function FindingDetail({ f }: { f: FindingOut }) {
       )}
       {f.explanation && (
         <p className="t-body panel__note">
-          <b>The problem:</b> {f.explanation}
+          <b>{f.verification_status === "supported" ? "Why it matches:" : "The problem:"}</b> {f.explanation}
         </p>
       )}
       <Suggestion f={f} />
-      {f.requires_human_review && <p className="t-caption">You need to decide on this one.</p>}
+      {f.requires_human_review && <p className="t-caption">{personal ? "You need to decide on this one." : "A person needs to decide on this one."}</p>}
+      {reasons.length > 0 && (
+        <ul className="add-reasons" aria-label="Why a person needs to decide">
+          {reasons.map((r) => (
+            <li key={r}>{reviewReasonText(r)}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

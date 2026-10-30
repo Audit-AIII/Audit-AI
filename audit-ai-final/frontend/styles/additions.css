@@ -346,3 +346,17 @@
   .add-mix__seg, .add-cols__bar > span { animation: none; }
   .add-table tbody tr { transition: none; }
 }
+
+/* ---- Review: summary strip extras, partial state spacing, finding details ---- */
+.add-summary .tally__note { font-size: 14px; }
+.add-summary__style { padding: 0; border: 0; background: none; color: var(--ink-2); font: 600 14px / 1.3 var(--font-body); text-align: left; cursor: pointer; }
+.add-summary__style:hover:not(:disabled) { color: var(--ink); }
+.add-summary__style:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.add-partial-wrap { margin-bottom: 20px; }
+.add-detail { display: grid; gap: 14px; border-radius: var(--r-ui); }
+.add-detail:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.add-reasons { margin: 0; padding-left: 18px; list-style: disc; font-size: 15px; line-height: 1.45; }
+@media (max-width: 767px) {
+  .add-summary .tally__total { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+  .add-summary .tally__note { white-space: normal; }
+}

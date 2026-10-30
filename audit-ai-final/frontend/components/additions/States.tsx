@@ -26,16 +26,29 @@ export function LoadingState({ label = "Loading…" }: { label?: string }) {
 }
 
 /** Error with retry. Picks wording for network, permission, missing and server failures. */
-export function ErrorState({ error, message, onRetry }: { error?: unknown; message?: string; onRetry?: () => void }) {
+export function ErrorState({
+  error,
+  message,
+  onRetry,
+  title: customTitle,
+  children,
+}: {
+  error?: unknown;
+  message?: string;
+  onRetry?: () => void;
+  title?: string;
+  children?: ReactNode;
+}) {
   const status = error instanceof ApiError ? error.status : null;
-  const kind = status === 0 ? "network" : status === 403 ? "permission" : status === 404 ? "missing" : "error";
-  const title = { network: "Can’t reach the server", permission: "You don’t have access", missing: "Not found", error: "Something went wrong" }[kind];
+  const kind = status === 0 ? "network" : status === 403 ? "permission" : status === 404 ? "missing" : status === 429 ? "busy" : "error";
+  const title = customTitle ?? { network: "Can’t reach the server", permission: "You don’t have access", missing: "Not found", busy: "Too many requests", error: "Something went wrong" }[kind];
   const text = message ?? (error instanceof ApiError ? error.userMessage : "Please try again.");
   return (
     <div className="add-state add-state--error" role="alert">
       <span className="add-state__glyph" aria-hidden="true">{kind === "permission" ? "⊘" : "≠"}</span>
       <p className="add-state__title">{title}</p>
       <p className="add-state__body">{text}</p>
+      {children}
       {error instanceof ApiError && error.requestId && (
         <details className="add-details">
           <summary>Details</summary>

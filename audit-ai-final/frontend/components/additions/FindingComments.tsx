@@ -5,17 +5,29 @@ import { useEffect, useId, useState } from "react";
 import "@/styles/additions.css";
 import { EmptyState, ErrorState, LoadingState } from "@/components/additions/States";
 import { api, backendMessage } from "@/lib/api/client";
+import { getSession } from "@/lib/session";
 import type { FindingComment } from "@/lib/api/types";
 import { codePoints, commentProblem, TEXT_MAX } from "@/lib/additions/findingState";
 
 type Load = { state: "loading" } | { state: "ok"; comments: FindingComment[] } | { state: "error"; error: unknown };
 
 /**
- * Comments on one finding (GET / POST /api/findings/{id}/comments), oldest first. Single-user account:
- * the author is always "You". Bodies are plain text, rendered by React (escaped, never HTML), with
+ * Comments on one finding (GET / POST /api/findings/{id}/comments), oldest first. The API sends the
+ * author's id only, so comments read "You" or "Someone in your workspace". Bodies are plain text, rendered by React (escaped, never HTML), with
  * line breaks kept by white-space: pre-wrap. A comment appears only after the 201 response.
  */
-export function FindingComments({ findingId, onAdded }: { findingId: string; onAdded: (c: FindingComment) => void }) {
+export function FindingComments({
+  findingId,
+  onAdded,
+  canAdd = true,
+  personal = true,
+}: {
+  findingId: string;
+  onAdded: (c: FindingComment) => void;
+  canAdd?: boolean;
+  personal?: boolean;
+}) {
+  const me = getSession()?.userId;
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [tick, setTick] = useState(0);
   const [body, setBody] = useState("");
@@ -58,7 +70,7 @@ export function FindingComments({ findingId, onAdded }: { findingId: string; onA
       <h3 id={`${boxId}-title`} className="t-caption">
         Comments
       </h3>
-      <p className="t-caption add-muted">Only you can see these.</p>
+      <p className="t-caption add-muted">{personal ? "Only you can see these." : "Everyone in this workspace can see these."}</p>
       {load.state === "loading" && <LoadingState label="Loading comments…" />}
       {load.state === "error" && <ErrorState error={load.error} onRetry={() => setTick((t) => t + 1)} />}
       {load.state === "ok" &&
@@ -69,7 +81,7 @@ export function FindingComments({ findingId, onAdded }: { findingId: string; onA
             {load.comments.map((c) => (
               <li key={c.id} className="add-comment">
                 <p className="add-comment__meta t-caption">
-                  You · <time dateTime={c.created_at}>{new Date(c.created_at).toLocaleString()}</time>
+                  {personal || c.author_user_id === me ? "You" : "Someone in your workspace"} · <time dateTime={c.created_at}>{new Date(c.created_at).toLocaleString()}</time>
                 </p>
                 <p className="add-comment__body add-prewrap">{c.body}</p>
               </li>
@@ -79,7 +91,7 @@ export function FindingComments({ findingId, onAdded }: { findingId: string; onA
       <p className="add-sr" role="status" aria-live="polite">
         {announce}
       </p>
-      {load.state === "ok" && (
+      {load.state === "ok" && canAdd && (
         <>
           <label className="t-caption" htmlFor={boxId}>
             Add a comment

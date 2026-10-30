@@ -140,6 +140,8 @@ export type FindingOut = {
   evidence: EvidenceOut[];
   /** Why a person must decide; [] when no review is needed, null on rule and stub findings. */
   review_reasons?: string[] | null;
+  /** Not sent by the API today; shown only if it ever is, never inferred. */
+  validation_status?: string | null;
   /* Rule findings only (check_type "rule"); null on claim findings, absent on older backends. */
   rule_id?: string | null;
   rule_type?: RuleType | null;
