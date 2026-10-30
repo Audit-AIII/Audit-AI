@@ -126,11 +126,13 @@ LIMITATIONS: list[Limitation] = [
     Limitation(
         topic="Live model quality",
         status="measured",
-        finding="One live run (google/gemini-2.5-flash-lite, verifier only, 80 synthetic claims, 25 held out) gave "
-        "CONTRADICTED recall 87.5% (28/32), precision 90.3%, false-positive rate 6.2%, and citation validity "
-        "86.7% (52/60), which misses the 100% gate; every quote was found verbatim (60/60). It is one run on "
-        "AI-written labels (0/80 reviewed), so read it as an indication, not a guarantee; the full pipeline "
-        "(extraction and routing) was not run live.",
+        finding="Three recorded live runs of the full pipeline (openai/gpt-4o-mini via OpenRouter, 120 synthetic records, "
+        "2026-10-30) gave CONTRADICTED recall 47-48 of 49 (95.9-98.0%), precision about 92%, a false-positive rate of "
+        "4/71 (5.6%), and citation validity 88.9-90.3% (about 100 citations per run). On the 50 held-out records "
+        "the checker flagged 33-34 of 34 problematic claims and wrongly flagged 1 of 16 correct ones. Labels are "
+        "AI-written (0/120 reviewed by a person), the held-out set is small so the intervals are wide, and this is one "
+        "model on one day: read it as an indication, not a guarantee. An earlier model, google/gemini-2.5-flash-lite, "
+        "could not be measured because the provider rate-limited every call. See docs/round3/results/FINAL_RESULTS.md.",
         evidence=["EVAL.md"],
     ),
     Limitation(
