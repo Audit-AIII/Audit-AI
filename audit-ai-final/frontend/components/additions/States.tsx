@@ -51,6 +51,31 @@ export function ErrorState({ error, message, onRetry }: { error?: unknown; messa
   );
 }
 
+/**
+ * The check finished but is incomplete: says what is missing and what is still shown, so a partial
+ * result never looks like a clean one.
+ */
+export function PartialState({ title, missing, shown, onRetry }: { title: string; missing: ReactNode; shown?: ReactNode; onRetry?: () => void }) {
+  return (
+    <div className="add-state add-state--partial" role="alert">
+      <span className="add-state__glyph" aria-hidden="true">◐</span>
+      <p className="add-state__title">{title}</p>
+      <p className="add-state__body">{missing}</p>
+      {shown && <p className="add-state__body">{shown}</p>}
+      {onRetry && (
+        <Button type="button" onClick={onRetry}>
+          Check again
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Inline absent value: the API didn't send this. Never a guess, never 0. */
+export function NotProvided({ children = "Not provided" }: { children?: ReactNode }) {
+  return <span className="add-absent">{children}</span>;
+}
+
 /** "Sample data" label, reusing the existing placeholder alert as-is. */
 export function SampleNotice({ children }: { children: ReactNode }) {
   return (

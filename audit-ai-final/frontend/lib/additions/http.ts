@@ -10,7 +10,7 @@ import { getSession, signOut } from "@/lib/session";
  * multipart bodies without a hand-set Content-Type, and a 401 on a signed-in call ends the session.
  */
 type Options = {
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   form?: FormData;
   headers?: Record<string, string>;

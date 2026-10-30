@@ -1,4 +1,5 @@
 import { findingChip, isRule } from "@/components/app/reviewLabels";
+import { invitationLook, riskLook, roleLook, workflowLook, type Look } from "@/lib/additions/governance";
 import type { FindingOut } from "@/lib/api/types";
 
 /** Glyph + word + relief for each state (DESIGN §16). Unverified is never shown as false. */
@@ -57,3 +58,15 @@ export function SeverityBadge({ severity }: { severity: string }) {
     </span>
   );
 }
+
+function LookBadge({ look }: { look: Look }) {
+  return (
+    <span className={`add-badge add-badge--${look.tone}`}>
+      <span aria-hidden="true">{look.glyph}</span> {look.label}
+    </span>
+  );
+}
+export const WorkflowBadge = ({ status }: { status?: string | null }) => <LookBadge look={workflowLook(status)} />;
+export const RiskBadge = ({ level }: { level?: string | null }) => <LookBadge look={riskLook(level)} />;
+export const RoleBadge = ({ role }: { role: string }) => <LookBadge look={roleLook(role)} />;
+export const InvitationBadge = ({ status }: { status: string }) => <LookBadge look={invitationLook(status)} />;

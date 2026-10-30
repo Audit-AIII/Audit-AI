@@ -9,14 +9,17 @@
 type Open<T extends string> = T | (string & {});
 
 export type Role = Open<
-  "submitter" | "source_manager" | "reviewer" | "approver" | "admin" | "legal_reviewer" | "brand_manager"
+  "owner" | "approver" | "reviewer" | "writer" | "submitter" | "source_manager" | "admin" | "legal_reviewer" | "brand_manager"
 >;
 
 export type UserOut = { id: string; email: string; display_name: string | null };
 export type OrganisationOut = { id: string; name: string; slug: string };
+/** Round 3 governance (docs/governance.md section 9). */
+export type WorkspaceOut = { id: string; name: string; is_personal: boolean };
+export type UserRef = { id: string; display_name: string };
 
 /** GET /api/auth/me */
-export type SessionInfo = { user: UserOut; organisation: OrganisationOut; role: Role };
+export type SessionInfo = { user: UserOut; organisation: OrganisationOut; role: Role; workspace?: WorkspaceOut };
 
 /** POST /api/auth/login */
 export type LoginResponse = SessionInfo & {
@@ -135,6 +138,8 @@ export type FindingOut = {
   suggested_correction: string | null;
   requires_human_review: boolean;
   evidence: EvidenceOut[];
+  /** Why a person must decide; [] when no review is needed, null on rule and stub findings. */
+  review_reasons?: string[] | null;
   /* Rule findings only (check_type "rule"); null on claim findings, absent on older backends. */
   rule_id?: string | null;
   rule_type?: RuleType | null;
@@ -200,7 +205,7 @@ export type ReviewOut = {
   updated_at: string;
   findings: FindingOut[];
   /** Not in API.md; present in schemas.py (Phase 9). */
-  required_reviewer_role: Open<"legal_reviewer" | "brand_manager"> | null;
+  required_reviewer_role: Open<"reviewer" | "approver" | "legal_reviewer" | "brand_manager"> | null;
   /* Onboarding contract additions; optional until the backend sends them. */
   content_item_id?: string | null;
   brand_id?: string | null;
@@ -214,7 +219,102 @@ export type ReviewOut = {
   rule_checks?: RuleCheck[] | null;
   /** Intent-lock list of the reviewed content version; null/absent on older backends. */
   locked_phrases?: string[] | null;
+  /* Round 3 governance (docs/governance.md 9.1); optional so an older backend still works. */
+  workspace?: WorkspaceOut | null;
+  author?: UserRef | null;
+  owner?: UserRef | null;
+  assigned_reviewer?: UserRef | null;
+  workflow_status?: WorkflowStatus | null;
+  risk_level?: RiskLevel | null;
+  routing_reason?: RoutingReason | null;
+  approval_mode?: Open<"team" | "self"> | null;
+  /** What the current user may do, from the same rule the server enforces. Missing = older backend. */
+  allowed_actions?: AllowedAction[];
+  summary_counts?: SummaryCounts | null;
+  is_current_version?: boolean | null;
 };
+
+export type WorkflowStatus = Open<
+  "draft" | "submitted" | "in_review" | "needs_changes" | "reviewed" | "approved" | "rejected" | "published" | "blocked"
+>;
+export type RiskLevel = Open<"high" | "medium" | "low" | "clean">;
+export type AllowedAction = Open<
+  | "submit"
+  | "resubmit"
+  | "create_version"
+  | "rerun"
+  | "assign"
+  | "mark_reviewed"
+  | "request_changes"
+  | "approve"
+  | "reject"
+  | "publish"
+  | "comment"
+  | "dismiss_finding"
+>;
+export type RoutingReason = {
+  code: string;
+  text: string;
+  triggered_by?: { finding_id: string; verification_status: string; review_reasons: string[] | null; risk_level: string }[];
+};
+/** Counted by the server over this review's findings. `tone` only covers two style rules for now. */
+export type SummaryCounts = {
+  supported: number;
+  contradicted: number;
+  unverified: number;
+  conflicting: number;
+  tone: number;
+  needs_human_review: number;
+};
+
+/** POST /api/content/{id}/submit, /assign, /mark-reviewed and /api/content-versions/{id}/publish */
+export type WorkflowActionOut = {
+  content_item_id: string;
+  version_number: number | null;
+  workflow_status: WorkflowStatus;
+  risk_level: RiskLevel | null;
+  required_reviewer_role: string | null;
+  routing_reason: RoutingReason | null;
+  assigned_reviewer: UserRef | null;
+};
+
+/** One audit entry. actor null = a system event. */
+export type AuditEventOut = {
+  id: string;
+  actor: UserRef | null;
+  action: string;
+  event_type: string;
+  note: string | null;
+  version_number: number | null;
+  created_at: string;
+  details: Record<string, unknown> | null;
+};
+/** GET /api/content/{id}/audit */
+export type AuditHistoryOut = { content_item_id: string; items: AuditEventOut[]; next_cursor: string | null };
+/** GET /api/workspace/audit (owners) */
+export type WorkspaceAuditOut = { items: AuditEventOut[]; next_cursor: string | null };
+
+/** GET /api/workspace/members */
+export type MemberOut = { user: UserRef; role: Role; is_you: boolean; joined_at: string };
+export type MembersOut = { workspace: WorkspaceOut; members: MemberOut[]; allowed_actions: string[] };
+
+export type InvitationOut = {
+  id: string;
+  email: string;
+  role: Role;
+  status: Open<"pending" | "accepted" | "revoked" | "expired">;
+  invited_by: UserRef | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
+};
+/** POST /api/workspace/invitations. The token is shown once and never again. */
+export type InvitationCreatedOut = { invitation: InvitationOut; token: string; accept_path: string };
+export type InvitationsOut = { items: InvitationOut[] };
+
+/** GET /api/workspaces */
+export type WorkspaceMembershipOut = { workspace: WorkspaceOut; role: Role; is_current: boolean };
 
 /** Stored brand rules (BrandRules, services/verification/schemas/brand_rules.schema.json).
  * rule_set_id / version are set by the server and are never sent on PUT. */
@@ -239,7 +339,27 @@ export type RequestChangesBody = { decision: "changes_requested" | "rejected"; n
 export type CreateReviewBody = { brand_id: string; title?: string; text: string };
 
 export type ErrorCode = Open<
-  "VALIDATION_ERROR" | "NOT_FOUND" | "UNAUTHENTICATED" | "FORBIDDEN" | "CONFLICT" | "RATE_LIMITED" | "INTERNAL_ERROR"
+  | "VALIDATION_ERROR"
+  | "NOT_FOUND"
+  | "UNAUTHENTICATED"
+  | "FORBIDDEN"
+  | "CONFLICT"
+  | "RATE_LIMITED"
+  | "INTERNAL_ERROR"
+  | "SELF_APPROVAL_FORBIDDEN"
+  | "SELF_REVIEW_FORBIDDEN"
+  | "SAME_REVIEWER_APPROVER_FORBIDDEN"
+  | "SELF_ROLE_CHANGE_FORBIDDEN"
+  | "ROLE_ESCALATION_FORBIDDEN"
+  | "INVITE_EMAIL_MISMATCH"
+  | "REVIEW_REQUIRED"
+  | "INVALID_TRANSITION"
+  | "INVITE_EXPIRED"
+  | "INVITE_REVOKED"
+  | "INVITE_ALREADY_USED"
+  | "INVITE_ALREADY_PENDING"
+  | "ALREADY_MEMBER"
+  | "LAST_OWNER_REQUIRED"
 >;
 
 /** Every backend error body: {"error": {"code", "message", "request_id"}} */

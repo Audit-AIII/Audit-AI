@@ -1,0 +1,35 @@
+{
+  "id": "8e2a4c6f-1b3d-4e5f-9a7b-2c4d6e8f0a13",
+  "content_version_id": "b4d6f8a0-3c5e-4f7a-8b9c-1d3e5f7a9b24",
+  "content_item_id": "d82f5c3e-0b16-4a4f-a7e9-2b3c4d5e6f71",
+  "status": "completed",
+  "title": "Newsletter intro",
+  "version_number": 1,
+  "is_current_version": true,
+  "workspace": {
+    "id": "9a7b5c3d-1e2f-4a6b-8c0d-4e6f8a0b2c35",
+    "name": "Sam Solo's workspace",
+    "is_personal": true
+  },
+  "author": { "id": "33333333-3333-4333-8333-333333333333", "display_name": "Sam Solo" },
+  "owner": { "id": "33333333-3333-4333-8333-333333333333", "display_name": "Sam Solo" },
+  "assigned_reviewer": null,
+  "workflow_status": "draft",
+  "risk_level": "clean",
+  "required_reviewer_role": "approver",
+  "routing_reason": {
+    "code": "clean",
+    "text": "Every claim is supported by an approved source and nothing was flagged, so no reviewer step is needed.",
+    "triggered_by": []
+  },
+  "approval_mode": "self",
+  "allowed_actions": ["submit", "approve", "request_changes", "reject", "create_version", "rerun", "comment", "dismiss_finding"],
+  "summary_counts": {
+    "supported": 3,
+    "contradicted": 0,
+    "unverified": 0,
+    "conflicting": 0,
+    "tone": 0,
+    "needs_human_review": 0
+  }
+}

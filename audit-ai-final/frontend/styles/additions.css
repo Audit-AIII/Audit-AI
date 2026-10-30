@@ -36,18 +36,22 @@
 .add-badge--bad { background: var(--bad-tint); box-shadow: var(--shadow-well); }
 .add-badge--rule { outline: 1.5px solid var(--ink); outline-offset: -1px; }
 .add-badge--none { outline: 1px solid var(--ink-2); outline-offset: -1px; color: var(--surface); }
+.add-badge--dashed { outline: 1px dashed var(--ink-2); outline-offset: -1px; }
 .add-sev { font-size: 15px; letter-spacing: .04em; white-space: nowrap; }
 
 /* States */
 .add-state { display: grid; justify-items: start; gap: 10px; margin: 0; padding: 22px; border-radius: var(--r-ui); }
 .add-state--empty { outline: 1.5px dashed var(--ink-2); outline-offset: -1px; }
 .add-state--error { background: var(--bad-tint); box-shadow: var(--shadow-well); }
+.add-state--partial { outline: 1.5px dashed var(--warn); outline-offset: -1px; background: var(--warn-tint); }
 .add-state--loading { display: flex; align-items: center; gap: 12px; padding: 14px 0; font-size: 17px; }
 .add-state__glyph { font: 700 24px / 1 var(--font-display); }
 .add-state__title { margin: 0; font: 700 18px / 1.2 var(--font-display); letter-spacing: .04em; text-transform: uppercase; }
 .add-state__body { margin: 0; font-size: 16px; line-height: 1.5; }
 .add-state__spinner { width: 18px; height: 18px; border-radius: var(--r-round); box-shadow: var(--shadow-well); border: 2px solid var(--ink-2); border-top-color: transparent; animation: add-spin 900ms linear infinite; }
 @keyframes add-spin { to { rotate: 360deg; } }
+.add-absent { color: var(--ink-2); font-style: italic; }
+.add-action-ref { display: block; margin-top: 4px; font-size: 13px; opacity: .8; }
 .add-needs { margin: 0; padding: 10px 12px; border-radius: var(--r-ui); outline: 1.5px dashed var(--ink-2); outline-offset: -1px; font-size: 15px; line-height: 1.45; }
 
 /* Brand header line */
