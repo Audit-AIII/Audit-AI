@@ -28,9 +28,9 @@ who, when and which version. Roles, risk routing and invites are deferred to the
 | Source Watch: withdrawing or replacing an approved document sends dependent approvals back for review | |
 | Intent-lock: must-keep phrases saved on the server; no suggestion that removes one is offered, and an edit that drops one is warned about | |
 | Dismiss and restore a finding (the verdict stays as it was), and comments on findings | |
-| Trust Scorecard: run the verifier's labelled evaluation from the page and see the run's numbers (needs an AI provider key; none is configured yet) | |
+| Trust Scorecard: shows the published benchmark of the verifier (3 recorded live runs of openai/gpt-4o-mini on 120 synthetic labelled records, 2026-10-30), with counts, percentages, model, date and limitations. Labels are AI-written, 0 of 120 reviewed by a person. Running a new evaluation needs an AI provider key. | |
 
-The landing page (`components/sections/Checks.tsx`) still marks terminology and accessibility as "Coming next" although they now run on every review; it needs updating (frontend).
+The landing page (`components/sections/Checks.tsx`) shows Facts, Claims, Wording (terminology) and Easy to read (accessibility) as built, since they run on every review, and marks Tone and Visuals as "Coming next".
 
 ## Architecture
 
@@ -154,6 +154,17 @@ writes reports to `services/verification/eval/reports/`. From `services/verifica
 **No live-model accuracy has been established.** The oracle and default runs measure what the code
 enforces, not a model. Live runs so far were blocked by provider availability (see
 [`services/verification/EVAL.md`](services/verification/EVAL.md), "Live evaluation status").
+
+### Reproduce the benchmark
+
+From `services/verification`, replay the first recorded live run. It is offline and needs no key:
+
+```sh
+python eval/run_eval.py --pipeline full --replay eval/cassettes/final-run1.jsonl   # reproduces run 1
+```
+
+The numbers from all three runs and their limitations are in
+[`docs/round3/results/FINAL_RESULTS.md`](docs/round3/results/FINAL_RESULTS.md).
 
 ## AI-assistance disclosure
 
