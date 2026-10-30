@@ -25,6 +25,8 @@ export type RunEvaluation = {
   by_split: Record<string, Split> | null;
   /** "live" | "scripted" | "mixed" | null (no model answered) */
   provider_mode: string | null;
+  /** Proposed in docs/round3/contracts.md 17, not sent yet. Shown as the headline if it ever is. */
+  headline?: { split: string; n: number; catch_rate: Ratio; false_positive_rate: Ratio };
 };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -53,6 +55,10 @@ export function runEvaluationProblem(x: unknown): string | null {
       if (!isObj(s) || !isNum(s.n) || badRatio(s.catch_rate) || badRatio(s.false_positive_rate)) return `by_split.${name} is malformed`;
     }
   }
+  if (x.headline !== undefined) {
+    const h = x.headline;
+    if (!isObj(h) || typeof h.split !== "string" || !isNum(h.n) || badRatio(h.catch_rate) || badRatio(h.false_positive_rate)) return "headline is malformed";
+  }
   return null;
 }
 
@@ -71,6 +77,18 @@ export function formatRate(v: number | null): string {
 
 /** "18 of 18" for a ratio; "–" with "no cases" when the denominator is 0 (value null). */
 export const formatRatio = (r: Ratio) => (r.denominator === 0 ? "no cases in this split" : `${r.numerator} of ${r.denominator}`);
+
+/** Said instead of a number when nothing was measured. Never 0: a real 0 is a result. */
+export const NOT_EVALUATED = "Not evaluated";
+
+/** A rate, or null when nothing was measured: a null value, or a check that covered no claims. */
+export const measured = (v: number | null, n?: number) => (v === null || n === 0 ? null : formatRate(v));
+
+/**
+ * "37 of 40 (92.5%)", with the counts first because they show how little one rate may rest on.
+ * null when there were no cases (denominator 0), so it reads "Not evaluated", never 0%.
+ */
+export const ratioText = (r: Ratio) => (r.denominator === 0 || r.value === null ? null : `${r.numerator} of ${r.denominator} (${formatRate(r.value)})`);
 
 /** Plain words for provider_mode, never colour alone. */
 export function providerModeText(mode: string | null): { label: string; live: boolean } {

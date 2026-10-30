@@ -247,6 +247,7 @@
 .add-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
 .add-metric { display: grid; gap: 6px; padding: 16px; border-radius: var(--r-ui); box-shadow: var(--shadow-well); }
 .add-metric__value { font: 700 34px / 1 var(--font-display); }
+.add-metric__value--absent { justify-self: start; padding: 6px 10px; border-radius: var(--r-tag); outline: 1px dashed var(--ink-2); outline-offset: -1px; font-size: 18px; }
 .add-metric__label { font: 600 var(--fs-caption) / 1.2 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--surface); }
 .add-metric__target { font-size: 14px; }
 .add-bars { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }

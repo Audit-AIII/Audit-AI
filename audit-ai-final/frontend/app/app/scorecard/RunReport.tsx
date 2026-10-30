@@ -2,26 +2,36 @@
 
 import { Metric } from "@/components/additions/Metrics";
 import { Panel, Panels } from "@/components/app/Stage";
-import { formatRate, formatRatio, providerModeText, type Ratio, type RunEvaluation } from "@/lib/additions/evaluationRun";
+import { measured, NOT_EVALUATED, providerModeText, ratioText, type Ratio, type RunEvaluation } from "@/lib/additions/evaluationRun";
 
 /**
  * One stored evaluation run (EvaluationOut from GET /api/evaluations/latest or POST /api/evaluations).
  * Every number is the backend's: nothing is computed, merged, defaulted or judged here. No pass/fail
- * verdict and no target: the backend sends neither. null is "–".
+ * verdict and no target: the backend sends neither. Nothing measured reads "Not evaluated", and a
+ * real 0 stays 0%. Fields the API doesn't send read "Not provided".
  */
-const SPLIT_LABEL: Record<string, string> = { dev: "Development set (dev)", heldout: "Held-out set (heldout)" };
+const SPLIT_LABEL: Record<string, string> = { dev: "Development set (tuned on this data)", heldout: "Held-out set (never used for tuning)" };
+const NOT_PROVIDED = "Not provided";
 const words = (k: string) => k.replace(/_/g, " ");
 
-function RatioCell({ r }: { r: Ratio }) {
+function NotEvaluated() {
   return (
-    <>
-      {formatRate(r.value)} <span className="add-muted">({formatRatio(r)})</span>
-    </>
+    <span className="add-badge add-badge--dashed">
+      <span aria-hidden="true">◌</span> {NOT_EVALUATED}
+    </span>
   );
 }
 
+const RateCell = ({ text }: { text: string | null }) => (text === null ? <NotEvaluated /> : <>{text}</>);
+const RatioCell = ({ r }: { r: Ratio }) => <RateCell text={ratioText(r)} />;
+
 export function RunReport({ run }: { run: RunEvaluation }) {
   const mode = providerModeText(run.provider_mode);
+  const head = run.headline;
+  const catchText = head ? ratioText(head.catch_rate) : measured(run.catch_rate);
+  const falseText = head ? ratioText(head.false_positive_rate) : measured(run.false_positive_rate);
+  // The API has no counts for its combined rates, so they aren't worked out here.
+  const headTarget = head ? `${SPLIT_LABEL[head.split] ?? words(head.split)}, ${head.n} claims` : "Counts not supplied";
   return (
     <div className="add-stack add-run">
       <section className="app-alert app-alert--placeholder" role="note" aria-label="What this measures">
@@ -41,14 +51,27 @@ export function RunReport({ run }: { run: RunEvaluation }) {
 
       <Panel n="01" label="Headline" title="Latest evaluation run">
         <div className="add-metrics">
-          <Metric label="Catch rate" value={formatRate(run.catch_rate)} target={`Sample: ${run.sample_size} labelled claims`} />
-          <Metric label="False-positive rate" value={formatRate(run.false_positive_rate)} target={`Sample: ${run.sample_size} labelled claims`} />
+          <Metric label="Catch rate" value={catchText ?? NOT_EVALUATED} absent={catchText === null} target={headTarget} />
+          <Metric label="False-positive rate" value={falseText ?? NOT_EVALUATED} absent={falseText === null} target={headTarget} />
         </div>
-        <p className="add-note add-muted">
-          <b>Catch rate:</b> claims labelled contradicted or no-evidence that the checker flagged. <b>False-positive rate:</b> claims
-          labelled supported that it flagged anyway. A claim that got no answer counts as not flagged (see provider failure rate). “–”
-          means there were no claims of that kind to measure. Read the two together.
-        </p>
+        {!head && (
+          <p className="add-note">
+            <b>These two rates combine every split, across {run.sample_size} labelled claims.</b>{" "}
+            {run.by_split === null ? "This run has no separate numbers per split." : run.by_split.heldout ? "The development set was used to tune the checker, so the held-out row below is the fairer read." : ""}
+          </p>
+        )}
+        <p className="add-note add-muted">How to read this: look at both rates together, because a checker can catch everything by flagging everything.</p>
+        <details className="add-details">
+          <summary>What do these mean?</summary>
+          <dl className="spec">
+            <Row k="Catch rate" v="Of the claims that really were wrong or had no evidence, how many the checker flagged." />
+            <Row k="False-positive rate" v="Of the claims that were fine, how many it flagged anyway." />
+            <Row k="Sample size" v="How many labelled test claims were used." />
+            <Row k="Held-out" v="Test claims never used to tune the checker." />
+            <Row k={NOT_EVALUATED} v="There was nothing of that kind to measure. It is different from 0%, which is a real result." />
+            <Row k="No answer" v="A claim the AI provider didn’t answer counts as not flagged. See the provider failure rate below." />
+          </dl>
+        </details>
       </Panel>
 
       <Panels cols="2">
@@ -107,8 +130,12 @@ export function RunReport({ run }: { run: RunEvaluation }) {
                     <tr key={c.check}>
                       <th scope="row">{words(c.check)}</th>
                       <td>{c.n}</td>
-                      <td>{formatRate(c.catch_rate)}</td>
-                      <td>{formatRate(c.false_positive_rate)}</td>
+                      <td>
+                        <RateCell text={measured(c.catch_rate, c.n)} />
+                      </td>
+                      <td>
+                        <RateCell text={measured(c.false_positive_rate, c.n)} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -120,13 +147,15 @@ export function RunReport({ run }: { run: RunEvaluation }) {
 
       <Panel n="04" label="Run details" title="How and when it ran">
         <dl className="spec">
-          <Row k="Run at" v={new Date(run.run_at).toLocaleString()} />
+          <Row k="Run at" v={new Date(run.run_at).toLocaleString()} title={run.run_at} />
           <Row k="AI model" v={mode.label} />
           <Row k="Status" v={run.status === "partial" ? "partial (some claims got no answer from the AI provider)" : run.status} />
-          <Row k="Typical answer time (p50)" v={run.latency_ms_p50 === null ? "–" : `${Math.round(run.latency_ms_p50)} ms`} />
-          <Row k="Provider failure rate" v={formatRate(run.provider_failure_rate)} />
+          <Row k="Sample size" v={`${run.sample_size} labelled claims`} />
+          <Row k="Coverage" v={run.coverage} mono />
+          <Row k="Typical answer time (p50)" v={run.latency_ms_p50 === null ? NOT_PROVIDED : `${Math.round(run.latency_ms_p50)} ms`} />
+          <Row k="Provider failure rate" v={measured(run.provider_failure_rate) ?? NOT_PROVIDED} />
           <Row k="Dataset version" v={run.dataset_version} mono />
-          <Row k="Engine prompt version" v={run.engine_prompt_version ?? "–"} mono />
+          <Row k="Engine prompt version" v={run.engine_prompt_version ?? NOT_PROVIDED} mono={run.engine_prompt_version !== null} />
           <Row k="Run id" v={run.id} mono />
         </dl>
       </Panel>
@@ -134,11 +163,13 @@ export function RunReport({ run }: { run: RunEvaluation }) {
   );
 }
 
-function Row({ k, v, mono = false }: { k: string; v: string; mono?: boolean }) {
+function Row({ k, v, mono = false, title }: { k: string; v: string; mono?: boolean; title?: string }) {
   return (
     <div className="spec__row">
       <dt>{k}</dt>
-      <dd className={mono ? "add-mono" : undefined}>{v}</dd>
+      <dd className={mono ? "add-mono" : undefined} title={title}>
+        {v}
+      </dd>
     </div>
   );
 }

@@ -201,7 +201,7 @@ export function Scorecard() {
 function Result({ data, runButton }: { data: EvaluationResponse; runButton: ReactNode }) {
   if (data.state === "none") {
     return (
-      <EmptyState title="No evaluation yet">
+      <EmptyState title="Not evaluated yet">
         <p className="add-note">Results appear here after an evaluation is run. These are benchmark results, not live statistics.</p>
         {data.how_to_run && <code className="add-mono">{data.how_to_run}</code>}
         <div style={{ marginTop: 12 }}>{runButton}</div>

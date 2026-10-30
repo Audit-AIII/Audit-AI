@@ -1,9 +1,12 @@
 /** Number tiles and horizontal bars for Insights / Scorecard. Values are always printed as text too. */
-export function Metric({ label, value, target }: { label: string; value: string; target?: string }) {
+export function Metric({ label, value, target, absent }: { label: string; value: string; target?: string; absent?: boolean }) {
   return (
     <div className="add-metric">
       <span className="add-metric__label">{label}</span>
-      <span className="add-metric__value">{value}</span>
+      <span className={absent ? "add-metric__value add-metric__value--absent" : "add-metric__value"}>
+        {absent && <span aria-hidden="true">◌ </span>}
+        {value}
+      </span>
       {target && <span className="add-metric__target">{target}</span>}
     </div>
   );
