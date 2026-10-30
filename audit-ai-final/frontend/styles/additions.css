@@ -397,3 +397,6 @@
   .add-team-table td { display: block; padding: 0; border: 0; }
   .add-team-table td:empty { display: none; }
 }
+
+/* ---- Accept invitation (on the sign-in card) ---- */
+.auth__card > .btn { justify-self: start; }

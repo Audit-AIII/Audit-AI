@@ -19,7 +19,8 @@ export type QueueRow = {
   riskLevel: string | null;
   workflowStatus: string | null;
   assignedReviewer: UserRef | null;
-  personal: boolean;
+  /** Has team details to show. is_personal alone can't say: it stays true after someone joins. */
+  team: boolean;
 };
 
 const RISK: Record<string, number> = { critical: 3, high: 3, medium: 2, low: 1 };
@@ -37,7 +38,7 @@ export function toRow(r: ReviewOut): QueueRow {
     riskLevel: r.risk_level ?? null,
     workflowStatus: r.workflow_status ?? null,
     assignedReviewer: r.assigned_reviewer ?? null,
-    personal: r.workspace?.is_personal ?? true,
+    team: r.workspace?.is_personal === false || r.approval_mode === "team" || !!r.assigned_reviewer,
   };
 }
 

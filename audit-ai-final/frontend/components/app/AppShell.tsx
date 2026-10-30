@@ -58,8 +58,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       .then((me) => {
         const s = getSession();
         if (!live || !s) return;
-        if (me.role !== s.role || me.organisation.id !== s.organisation.id || me.user.email !== s.email) {
-          signIn({ ...s, email: me.user.email, name: me.user.display_name ?? undefined, organisation: me.organisation, role: me.role });
+        if (me.role !== s.role || me.organisation.id !== s.organisation.id || me.user.email !== s.email || (me.workspace && !s.workspace)) {
+          signIn({ ...s, email: me.user.email, name: me.user.display_name ?? undefined, organisation: me.organisation, role: me.role, workspace: me.workspace ?? s.workspace });
         }
         setOffline(false);
       })

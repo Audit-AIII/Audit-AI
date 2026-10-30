@@ -70,7 +70,7 @@ export function Queue() {
   const rows = workflow === "all" ? allRows : allRows.filter((r) => r.workflowStatus === workflow);
   const waiting = rows.filter((r) => r.status === "needs_human_review" || r.status === "completed");
   const done = rows.filter((r) => !waiting.includes(r));
-  const team = allRows.some((r) => !r.personal);
+  const team = allRows.some((r) => r.team);
 
   return (
     <>
@@ -153,7 +153,7 @@ function QueueTable({ rows, brandName, team }: { rows: QueueRow[]; brandName: (i
                 </td>
                 <td>
                   <span className="add-status">
-                    <span aria-hidden="true">{STATUS_GLYPH[r.status] ?? "·"}</span> {STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " ")}
+                    <span aria-hidden="true">{STATUS_GLYPH[r.status] ?? "·"}</span> {team && r.status === "needs_human_review" ? "Waiting for a decision" : (STATUS_LABEL[r.status] ?? r.status.replace(/_/g, " "))}
                   </span>
                 </td>
                 {rows.some((x) => x.workflowStatus) && (

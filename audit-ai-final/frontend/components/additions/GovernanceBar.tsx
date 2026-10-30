@@ -8,12 +8,10 @@ import type { ReviewOut, UserRef } from "@/lib/api/types";
 const Person = ({ user, absent }: { user?: UserRef | null; absent: string }) => (user ? <>{user.display_name}</> : <NotProvided>{absent}</NotProvided>);
 
 /**
- * Who owns a draft, where it stands and why (docs/governance.md 9.1), all from the API. A personal
- * workspace has one person, so it shows only status, risk and reason.
+ * Who owns a draft, where it stands and why (docs/governance.md 9.1), all from the API. Someone alone
+ * in a workspace sees only status, risk and reason.
  */
-export function GovernanceBar({ review }: { review: ReviewOut }) {
-  const personal = review.workspace?.is_personal ?? true;
-  const solo = review.approval_mode === "self";
+export function GovernanceBar({ review, solo }: { review: ReviewOut; solo: boolean }) {
   const reason = review.routing_reason ? routingText(review.routing_reason.text, solo) : null;
   return (
     <section className="add-gov card" aria-label="Where this draft stands">
@@ -30,7 +28,7 @@ export function GovernanceBar({ review }: { review: ReviewOut }) {
             <RiskBadge level={review.risk_level} />
           </dd>
         </div>
-        {!personal && (
+        {!solo && (
           <>
             <div>
               <dt className="t-caption">Author</dt>
@@ -57,7 +55,9 @@ export function GovernanceBar({ review }: { review: ReviewOut }) {
           <dd>{reason ?? <NotProvided>No reason given yet</NotProvided>}</dd>
         </div>
       </dl>
-      {solo && <p className="t-caption add-gov__solo">Solo sign-off: you are the only member, so you decide.</p>}
+      {review.approval_mode === "self" && (
+        <p className="t-caption add-gov__solo">{solo ? "Solo sign-off: you are the only member, so you decide." : "Solo sign-off: only the author can approve this draft, because nobody else here can."}</p>
+      )}
     </section>
   );
 }

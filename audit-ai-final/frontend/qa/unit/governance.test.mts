@@ -2,7 +2,7 @@
 // Fixtures: copies of contract/examples/governance_*.json (docs/governance.md section 9).
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { actionErrorText, auditLook, invitationLook, isAllowed, isOwner, riskLook, roleLook, routingText, statusChange, workflowLook } from "../../lib/additions/governance.ts";
+import { actionErrorText, auditLook, invitationLook, isAllowed, isOwner, isSolo, riskLook, roleLook, routingText, statusChange, workflowLook } from "../../lib/additions/governance.ts";
 
 const fixtures = new URL("../fixtures/governance/", import.meta.url);
 const contract = new URL("../../../../contract/examples/", import.meta.url);
@@ -80,5 +80,13 @@ assert.equal(isOwner("owner"), true);
 assert.equal(isOwner("admin"), true);
 assert.equal(isOwner("writer"), false);
 assert.equal(isOwner(undefined), false);
+
+// Alone or not: the member count wins, because is_personal stays true after someone joins.
+assert.equal(isSolo(1, { workspace: { is_personal: true }, approval_mode: "self" }), true);
+assert.equal(isSolo(2, { workspace: { is_personal: true }, approval_mode: "self" }), false, "a personal workspace someone joined");
+assert.equal(isSolo(null, { workspace: { is_personal: true }, approval_mode: "self" }), true, "best guess until the count loads");
+assert.equal(isSolo(null, { workspace: { is_personal: true }, approval_mode: "team" }), false);
+assert.equal(isSolo(null, { workspace: { is_personal: false } }), false);
+assert.equal(isSolo(null, {}), true, "older backend: today's page");
 
 console.log("governance: all assertions passed");

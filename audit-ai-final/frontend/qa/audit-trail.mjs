@@ -141,7 +141,7 @@ const record = `/app/record?id=${base.id}`;
 for (const [name, width, height] of [["audit-desktop", 1182, 937], ["audit-mobile", 390, 844]]) {
   const { p, ctx, errors } = await open("/app/audit", { width, height });
   await p.locator(".timeline__item").first().waitFor();
-  assert.match(await p.locator("main").innerText(), /Account registered/i);
+  assert.match(await p.locator("main").innerText(), /Account registered|Invitation (created|revoked|accepted)/i); // newest first, so earlier QA runs may fill the first page
   assert.equal(await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), false, name);
   assert.deepEqual(errors, []);
   await p.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });

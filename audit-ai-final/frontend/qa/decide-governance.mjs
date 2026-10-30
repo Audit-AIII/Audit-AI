@@ -40,6 +40,7 @@ const open = async (over, { width = 1182, height = 937, before } = {}) => {
     state.gets++;
     return route.fulfill(json(200, { ...base, ...state.over }));
   });
+  if (over.workspace?.is_personal === false) await p.route(`${API}/api/workspace/members`, (route) => route.fulfill(json(200, example("members"))));
   await before?.(p);
   await p.goto(`${WEB}/app/decide?id=${id}`, { waitUntil: "networkidle" });
   await p.waitForTimeout(400);

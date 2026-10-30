@@ -8,7 +8,8 @@ import { PasswordField } from "@/components/primitives/PasswordField";
 import { ApiError, api } from "@/lib/api/client";
 import type { LoginResponse } from "@/lib/api/types";
 import { rememberBrand } from "@/lib/brand";
-import { getSession, signIn } from "@/lib/session";
+import { safeNext } from "@/lib/safeNext";
+import { getSession, sessionFrom, signIn } from "@/lib/session";
 import { sandNavigate } from "@/lib/sandWave";
 
 const PASSWORD_MIN = 8;
@@ -17,19 +18,7 @@ const bytes = (s: string) => new TextEncoder().encode(s).length;
 
 /** Stores the session the same way for sign-in and sign-up. */
 function startSession(res: LoginResponse) {
-  signIn({
-    email: res.user.email,
-    name: res.user.display_name ?? undefined,
-    token: res.access_token,
-    userId: res.user.id,
-    organisation: res.organisation,
-    role: res.role,
-  });
-}
-
-/** Where to go after signing in: ?next= when it is a workspace path (never another site), else /app. */
-export function safeNext(raw: string | null): string {
-  return raw && /^\/app(\/|\?|$)/.test(raw) ? raw : "/app";
+  signIn(sessionFrom(res));
 }
 
 const generic = (err: unknown) => (err instanceof ApiError ? err.userMessage : "Something went wrong. Please try again.");
@@ -38,7 +27,10 @@ const generic = (err: unknown) => (err instanceof ApiError ? err.userMessage : "
 export function LoginForm() {
   const params = useSearchParams();
   const signup = params.get("mode") === "signup";
-  const next = safeNext(params.get("next"));
+  const asked = params.get("next");
+  const next = safeNext(asked);
+  // Kept across the sign-in / sign-up links, so an invited person doesn't lose their way back.
+  const carry = asked && safeNext(asked) === asked ? `next=${encodeURIComponent(asked)}` : "";
   const router = useRouter();
   // Already signed in when the page opens (e.g. an old bookmark to /login): don't ask again, go
   // where they were headed. Checked once on open only, so a sign-in made on this page isn't
@@ -47,7 +39,7 @@ export function LoginForm() {
     if (getSession() && !signup) router.replace(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on open only
   }, []);
-  return signup ? <SignUpForm /> : <SignInForm expired={params.get("expired") === "1"} next={next} />;
+  return signup ? <SignUpForm after={carry ? next : "/"} carry={carry} /> : <SignInForm expired={params.get("expired") === "1"} next={next} carry={carry} />;
 }
 
 /**
@@ -59,7 +51,7 @@ export function LoginFormPlaceholder() {
   return <SignInForm expired={false} next="/app" placeholder />;
 }
 
-function SignInForm({ expired, next, placeholder = false }: { expired: boolean; next: string; placeholder?: boolean }) {
+function SignInForm({ expired, next, carry = "", placeholder = false }: { expired: boolean; next: string; carry?: string; placeholder?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -109,7 +101,7 @@ function SignInForm({ expired, next, placeholder = false }: { expired: boolean; 
       </form>
       <p className="t-body auth__switch">
         New to Audit AI?{" "}
-        <a className="link link--tap" href="/login?mode=signup">
+        <a className="link link--tap" href={`/login?mode=signup${carry ? `&${carry}` : ""}`}>
           Create an account
         </a>
       </p>
@@ -117,7 +109,7 @@ function SignInForm({ expired, next, placeholder = false }: { expired: boolean; 
   );
 }
 
-function SignUpForm() {
+function SignUpForm({ after, carry }: { after: string; carry: string }) {
   const [error, setError] = useState<string | null>(null);
   const [exists, setExists] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -147,7 +139,7 @@ function SignUpForm() {
       });
       startSession(res);
       if (res.brand?.id) rememberBrand(res.brand.id);
-      sandNavigate("/");
+      sandNavigate(after);
     } catch (err) {
       setBusy(false);
       if (err instanceof ApiError && err.status === 409) {
@@ -194,7 +186,7 @@ function SignUpForm() {
           <p className="auth__alert auth__alert--bad" role="alert">
             {error}{" "}
             {exists && (
-              <a className="link" href="/login">
+              <a className="link" href={`/login${carry ? `?${carry}` : ""}`}>
                 Go to sign in
               </a>
             )}
@@ -206,7 +198,7 @@ function SignUpForm() {
       </form>
       <p className="t-body auth__switch">
         Already have an account?{" "}
-        <a className="link link--tap" href="/login">
+        <a className="link link--tap" href={`/login${carry ? `?${carry}` : ""}`}>
           Sign in
         </a>
       </p>

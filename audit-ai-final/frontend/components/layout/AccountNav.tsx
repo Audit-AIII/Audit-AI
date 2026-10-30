@@ -3,8 +3,12 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/primitives/Button";
-import { isOwner } from "@/lib/additions/governance";
-import { signOut, useSession } from "@/lib/session";
+import { actionErrorText, isOwner, roleLook } from "@/lib/additions/governance";
+import { listWorkspaces, switchWorkspace } from "@/lib/additions/workspace";
+import { ApiError } from "@/lib/api/client";
+import type { WorkspaceMembershipOut } from "@/lib/api/types";
+import { clearWorkspaceMemory } from "@/lib/workspace";
+import { sessionFrom, signIn, signOut, useSession } from "@/lib/session";
 import { sandNavigate } from "@/lib/sandWave";
 
 /** Extra workspace pages for the account menu's "More" group (single-user: shown to every owner). */
@@ -26,6 +30,39 @@ export function AccountNav({ onNavigate, inApp = false }: { onNavigate?: () => v
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceMembershipOut[]>([]);
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const token = session?.token;
+
+  // Read when the menu opens, so the landing page makes no extra call for people who never open it.
+  useEffect(() => {
+    if (!open || !token) return;
+    let live = true;
+    listWorkspaces()
+      .then((list) => live && setWorkspaces(list))
+      .catch(() => live && setWorkspaces([])); // no switcher; nothing else depends on it
+    return () => {
+      live = false;
+    };
+  }, [open, token]);
+
+  const switchTo = async (id: string) => {
+    setSwitching(true);
+    setSwitchError(null);
+    try {
+      const res = await switchWorkspace(id);
+      clearWorkspaceMemory();
+      signIn(sessionFrom(res));
+      // A full page load, so nothing in memory from the previous workspace survives.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/app");
+    } catch (err) {
+      // The current workspace stays as it was.
+      setSwitchError(err instanceof ApiError ? actionErrorText(err, err.userMessage) : "Something went wrong. Please try again.");
+      setSwitching(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +112,28 @@ export function AccountNav({ onNavigate, inApp = false }: { onNavigate?: () => v
         <div id={menuId} className={`account__menu card${open ? " is-open" : ""}`}>
           <p className="t-caption account__menu-label">Signed in as</p>
           <p className="account__menu-email">{session.email}</p>
+          {workspaces.length > 1 && (
+            <nav aria-label="Switch workspace" style={{ display: "grid", gap: 6, marginBottom: 6 }}>
+              <p className="t-caption account__menu-label">Workspace</p>
+              {workspaces.map((w) =>
+                w.is_current ? (
+                  <p key={w.workspace.id} className="account__menu-email" aria-current="true">
+                    <span aria-hidden="true">✓ </span>
+                    {w.workspace.name} · {roleLook(w.role).label}
+                  </p>
+                ) : (
+                  <button key={w.workspace.id} type="button" className="link link--tap" style={{ textAlign: "left" }} disabled={switching} onClick={() => switchTo(w.workspace.id)}>
+                    {w.workspace.name} · {roleLook(w.role).label}
+                  </button>
+                ),
+              )}
+              {switchError && (
+                <p className="t-caption" role="alert" style={{ textTransform: "none", letterSpacing: 0 }}>
+                  {switchError}
+                </p>
+              )}
+            </nav>
+          )}
           {(
             <nav aria-label="More pages" style={{ display: "grid", gap: 6, marginBottom: 6 }}>
               <p className="t-caption account__menu-label">More</p>

@@ -64,7 +64,8 @@ The GET routes were called live as the signed-in owner and returned 200. The POS
 1. **`/api/auth/me` has no `memberships_count`.** Section 10 lists it as an additive field, but the live response has only `user`, `organisation`, `role` and `workspace`. The workspace switcher must use `GET /api/workspaces`.
 2. **Solo wording in routing text.** In a personal workspace `routing_reason.text` says "a reviewer must check this draft" and `required_reviewer_role` is `reviewer`, while `approval_mode` is `self` and `approve` is allowed. Showing that text as-is tells a solo user something untrue, so Phase 3 must handle it. Worth raising with Darsh.
 3. **`Session` has no workspace.** `lib/session.ts` stores `organisation` and `role`, though login sends `workspace`. Phases 3 and 6 need it stored as an optional field.
-4. **Team examples not verified live.** `assigned_reviewer` objects, the `reviewed`, `in_review` and `published` statuses, and `approval_mode: "team"` appear only in example files until a team workspace is created through real invitations.
+4. **`workspace.is_personal` doesn't mean "one person".** It stays `true` after someone joins, so it only says how the workspace started. The UI goes by the member count from `GET /api/workspace/members` (`isSolo` in `lib/additions/governance.ts`). `docs/governance.md` 9.1 describes personal workspaces as having no reviewer, which stops being true at that point. Worth raising with Darsh.
+5. **Team examples not verified live.** `assigned_reviewer` objects, the `reviewed`, `in_review` and `published` statuses, and `approval_mode: "team"` appear only in example files until a team workspace is created through real invitations.
 
 ## Confirmed example JSON
 

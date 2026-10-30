@@ -7,6 +7,8 @@ import { useSyncExternalStore } from "react";
  * stays signed in. The workspace re-checks it with GET /api/auth/me on load (AppShell) rather
  * than trusting this copy. Components only use useSession().
  */
+import type { LoginResponse, WorkspaceOut } from "./api/types";
+
 export type Session = {
   email: string;
   name?: string;
@@ -15,7 +17,19 @@ export type Session = {
   userId: string;
   organisation: { id: string; name: string; slug: string };
   role: string;
+  workspace?: WorkspaceOut;
 };
+
+/** Same session whichever route answered: sign-in, sign-up, accepting an invitation, switching. */
+export const sessionFrom = (res: LoginResponse): Session => ({
+  email: res.user.email,
+  name: res.user.display_name ?? undefined,
+  token: res.access_token,
+  userId: res.user.id,
+  organisation: res.organisation,
+  role: res.role,
+  workspace: res.workspace,
+});
 
 const KEY = "audit-ai.session";
 const EVENT = "audit-ai:session";

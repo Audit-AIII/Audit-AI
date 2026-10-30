@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type {
   InvitationCreatedOut,
   InvitationOut,
@@ -26,6 +27,23 @@ export const revokeInvitation = (invitationId: string) =>
   request<InvitationOut>(`/api/workspace/invitations/${encodeURIComponent(invitationId)}/revoke`, { method: "POST" });
 /** Needs a signed-in user. Answers a new session for the joined workspace. */
 export const acceptInvitation = (token: string) => request<LoginResponse>("/api/invitations/accept", { method: "POST", body: { token } });
+
+/** How many people are in this workspace, or null until known. A failure leaves it null. */
+export function useMemberCount() {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    listMembers()
+      .then((m) => live && setCount(m.members.length))
+      .catch(() => {
+        /* only picks wording and which details to show; the server still decides everything */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return count;
+}
 
 export const listWorkspaces = () => request<WorkspaceMembershipOut[]>("/api/workspaces");
 export const switchWorkspace = (workspaceId: string) =>

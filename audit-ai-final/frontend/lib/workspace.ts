@@ -27,6 +27,20 @@ function set(key: string, value: string | null) {
 }
 
 
+/**
+ * Forgets everything this browser remembers about the current workspace (selected brand, last review,
+ * draft text, decisions), so nothing from one workspace can appear in another. The session stays.
+ */
+export function clearWorkspaceMemory() {
+  try {
+    const store = window.localStorage;
+    const keys = Array.from({ length: store.length }, (_, i) => store.key(i));
+    for (const key of keys) if (key?.startsWith("audit-ai.") && key !== "audit-ai.session") store.removeItem(key);
+  } catch {
+    /* storage blocked: there is nothing stored to clear */
+  }
+}
+
 export const getReviewText = (reviewId: string) => get(TEXT_KEY(reviewId));
 export function rememberReviewText(reviewId: string, text: string) {
   set(TEXT_KEY(reviewId), text);
