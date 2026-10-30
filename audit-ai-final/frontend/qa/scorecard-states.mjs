@@ -132,6 +132,26 @@ const text = (p) => p.locator("main").innerText();
   console.log("ok  held-out headline");
 }
 
+// Counts behind the combined rates and each check, when the API sends them.
+{
+  const ratio = { numerator: 37, denominator: 40, value: 0.925 };
+  const { p, ctx } = await open(
+    withRun({
+      catch_rate_ratio: ratio,
+      false_positive_rate_ratio: { numerator: 0, denominator: 40, value: 0 },
+      per_check: [{ check: "numeric", catch_rate: 0.925, false_positive_rate: 0, n: 80, catch_rate_ratio: ratio, false_positive_rate_ratio: { numerator: 0, denominator: 40, value: 0 } }],
+    }),
+  );
+  const metrics = await p.locator(".add-metric").allInnerTexts();
+  assert.match(metrics[0], /37 of 40 \(92\.5%\)/);
+  assert.match(metrics[0], /All splits combined/);
+  assert.match(metrics[1], /0 of 40 \(0%\)/);
+  assert.match(await p.getByRole("row").filter({ hasText: "numeric" }).innerText(), /37 of 40/);
+  assert.doesNotMatch(await text(p), /Counts not supplied/);
+  await ctx.close();
+  console.log("ok  counts from the API");
+}
+
 // A wrong shape is an error, never shown as data.
 {
   const { p, ctx } = await open(withRun({ catch_rate: "high" }));

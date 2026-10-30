@@ -83,11 +83,13 @@ assert.equal(isOwner("writer"), false);
 assert.equal(isOwner(undefined), false);
 
 // Alone or not: the member count wins, because is_personal stays true after someone joins.
-assert.equal(isSolo(1, { workspace: { is_personal: true }, approval_mode: "self" }), true);
-assert.equal(isSolo(2, { workspace: { is_personal: true }, approval_mode: "self" }), false, "a personal workspace someone joined");
-assert.equal(isSolo(null, { workspace: { is_personal: true }, approval_mode: "self" }), true, "best guess until the count loads");
-assert.equal(isSolo(null, { workspace: { is_personal: true }, approval_mode: "team" }), false);
-assert.equal(isSolo(null, { workspace: { is_personal: false } }), false);
-assert.equal(isSolo(null, {}), true, "older backend: today's page");
+assert.equal(isSolo({ workspace: { is_personal: true, member_count: 1 }, approval_mode: "self" }), true);
+assert.equal(isSolo({ workspace: { is_personal: true, member_count: 2 }, approval_mode: "self" }), false, "a personal workspace someone joined");
+assert.equal(isSolo({ workspace: { is_personal: true }, approval_mode: "self" }), true, "older backend: best guess");
+assert.equal(isSolo({ workspace: { is_personal: true, member_count: null }, approval_mode: "team" }), false);
+assert.equal(isSolo({ workspace: { is_personal: false } }), false);
+assert.equal(isSolo({}), true, "older backend: today's page");
+for (const name of ["review_item_team_approver", "review_item_team_writer"]) assert.equal(isSolo(fixture(name)), false, name);
+assert.equal(isSolo(fixture("review_item_personal")), true);
 
 console.log("governance: all assertions passed");

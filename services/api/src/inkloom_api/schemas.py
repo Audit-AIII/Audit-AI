@@ -34,11 +34,19 @@ class WorkspaceOut(BaseModel):
 
     id: uuid.UUID
     name: str
+    # How the workspace started, not who is in it: stays true after someone joins. Ask
+    # member_count whether someone is alone.
     is_personal: bool
+    member_count: int | None = None  # active members; null where a route doesn't count them
 
     @classmethod
-    def from_model(cls, organisation) -> WorkspaceOut:
-        return cls(id=organisation.id, name=organisation.name, is_personal=organisation.is_personal)
+    def from_model(cls, organisation, member_count: int | None = None) -> WorkspaceOut:
+        return cls(
+            id=organisation.id,
+            name=organisation.name,
+            is_personal=organisation.is_personal,
+            member_count=member_count,
+        )
 
 
 class SessionInfo(BaseModel):
@@ -46,6 +54,7 @@ class SessionInfo(BaseModel):
     organisation: OrganisationOut
     role: str
     workspace: WorkspaceOut | None = None  # additive (Round 3)
+    memberships_count: int | None = None  # GET /me only: workspaces this user belongs to
 
 
 class LoginResponse(SessionInfo):
@@ -379,6 +388,7 @@ class ReviewOut(BaseModel):
         is_current_version: bool | None = None,
         approval_mode: str | None = None,
         routing=None,
+        member_count: int | None = None,
     ) -> ReviewOut:
         """`routing`: a `risk_policy.RiskAssessment` to show instead of the draft's stored routing
         (which belongs to an older check, e.g. a draft from before Round 3)."""
@@ -439,7 +449,7 @@ class ReviewOut(BaseModel):
             allowed_actions=allowed_actions or [],
             is_current_version=is_current_version,
             approval_mode=approval_mode,
-            workspace=WorkspaceOut.from_model(content_item.organisation)
+            workspace=WorkspaceOut.from_model(content_item.organisation, member_count)
             if content_item is not None
             else None,
             author=_ref(content_item.author) if content_item is not None else None,

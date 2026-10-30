@@ -28,10 +28,11 @@ const RatioCell = ({ r }: { r: Ratio }) => <RateCell text={ratioText(r)} />;
 export function RunReport({ run }: { run: RunEvaluation }) {
   const mode = providerModeText(run.provider_mode);
   const head = run.headline;
-  const catchText = head ? ratioText(head.catch_rate) : measured(run.catch_rate);
-  const falseText = head ? ratioText(head.false_positive_rate) : measured(run.false_positive_rate);
-  // The API has no counts for its combined rates, so they aren't worked out here.
-  const headTarget = head ? `${SPLIT_LABEL[head.split] ?? words(head.split)}, ${head.n} claims` : "Counts not supplied";
+  const rate = (r: Ratio | null | undefined, v: number | null) => (r ? ratioText(r) : measured(v));
+  const catchText = head ? ratioText(head.catch_rate) : rate(run.catch_rate_ratio, run.catch_rate);
+  const falseText = head ? ratioText(head.false_positive_rate) : rate(run.false_positive_rate_ratio, run.false_positive_rate);
+  // An older backend has no counts for its combined rates, so they aren't worked out here.
+  const headTarget = head ? `${SPLIT_LABEL[head.split] ?? words(head.split)}, ${head.n} claims` : run.catch_rate_ratio ? "All splits combined" : "Counts not supplied";
   return (
     <div className="add-stack add-run">
       <section className="app-alert app-alert--placeholder" role="note" aria-label="What this measures">
@@ -54,7 +55,11 @@ export function RunReport({ run }: { run: RunEvaluation }) {
           <Metric label="Catch rate" value={catchText ?? NOT_EVALUATED} absent={catchText === null} target={headTarget} />
           <Metric label="False-positive rate" value={falseText ?? NOT_EVALUATED} absent={falseText === null} target={headTarget} />
         </div>
-        {!head && (
+        {head ? (
+          <p className="add-note">
+            <b>These two rates are the held-out set only.</b> Every run measured {run.sample_size} labelled claims in all; the split table below shows the rest.
+          </p>
+        ) : (
           <p className="add-note">
             <b>These two rates combine every split, across {run.sample_size} labelled claims.</b>{" "}
             {run.by_split === null ? "This run has no separate numbers per split." : run.by_split.heldout ? "The development set was used to tune the checker, so the held-out row below is the fairer read." : ""}
@@ -131,10 +136,10 @@ export function RunReport({ run }: { run: RunEvaluation }) {
                       <th scope="row">{words(c.check)}</th>
                       <td>{c.n}</td>
                       <td>
-                        <RateCell text={measured(c.catch_rate, c.n)} />
+                        <RateCell text={c.n === 0 ? null : rate(c.catch_rate_ratio, c.catch_rate)} />
                       </td>
                       <td>
-                        <RateCell text={measured(c.false_positive_rate, c.n)} />
+                        <RateCell text={c.n === 0 ? null : rate(c.false_positive_rate_ratio, c.false_positive_rate)} />
                       </td>
                     </tr>
                   ))}

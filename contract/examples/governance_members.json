@@ -1,5 +1,5 @@
 {
-  "workspace": { "id": "0b8f6a3e-4c21-4d7a-9e5b-3f2a1c0d9e88", "name": "Acme content team", "is_personal": false },
+  "workspace": { "id": "0b8f6a3e-4c21-4d7a-9e5b-3f2a1c0d9e88", "name": "Acme content team", "is_personal": false, "member_count": 4 },
   "members": [
     { "user": { "id": "55555555-5555-4555-8555-555555555555", "display_name": "Olu Owner" }, "role": "owner", "is_you": true, "joined_at": "2026-10-20T09:00:00Z" },
     { "user": { "id": "44444444-4444-4444-8444-444444444444", "display_name": "Ava Approver" }, "role": "approver", "is_you": false, "joined_at": "2026-10-28T10:05:12Z" },

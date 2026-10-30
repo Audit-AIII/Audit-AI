@@ -104,6 +104,19 @@ list reviews -> fetch the review -> brand stats + analytics -> latest evaluation
 run) -> approve -> history. With a provider configured the review is real; without one the script
 says it ran in stub mode.
 
+## Check every endpoint
+
+With a server running with no AI keys and raised rate limits (the command is in
+`audit-ai-final/frontend/e2e/README.md`):
+
+```sh
+.venv/Scripts/python scripts/check_endpoints.py
+```
+
+Takes the route list from the server's own `/openapi.json` and fails if any route isn't called. Each
+route is called for its success case, and the riskier ones also as someone who must be refused. It
+only runs against localhost, and skips `POST /api/evaluations` if the server has an AI provider.
+
 ## Run
 
 ```sh
@@ -117,9 +130,9 @@ final state (confirmed with the team) — no polling or background jobs in this 
 ## Deploy
 
 **Not deployed yet**: the host and budget are not chosen. Everything a container host needs is
-in the repo and was rehearsed locally on 2026-10-24 (the production start below migrated, served
-`/health` 200, and refused to start with `CORS_ALLOW_ORIGINS=*`). The Docker image itself has
-not been built yet (Docker was not running on the dev machine).
+in the repo. On 2026-10-30 the Docker image was built and run locally in production mode: it applied
+migrations, answered `/health`, sign-in and reviews, ran as a non-root user with no `.env` inside,
+and refused to start without a safe `AUTH_SECRET_KEY`.
 
 **What runs**
 - Image: `services/api/Dockerfile`, built from the **repository root** (it needs the engine too):

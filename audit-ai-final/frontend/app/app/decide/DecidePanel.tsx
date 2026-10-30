@@ -15,7 +15,7 @@ import { history, itemIdOf } from "@/lib/additions/content";
 import { DISMISSED, isDismissed, openDismissed } from "@/lib/additions/findingState";
 import { isAllowed, isSolo, workflowLook } from "@/lib/additions/governance";
 import { assignReviewer, markReviewed, publishVersion, submitDraft } from "@/lib/additions/workflow";
-import { listMembers, useMemberCount } from "@/lib/additions/workspace";
+import { listMembers } from "@/lib/additions/workspace";
 import { api } from "@/lib/api/client";
 import type { ApprovalEventOut, MemberOut, ReviewOut } from "@/lib/api/types";
 import { saveDecision } from "@/lib/workspace";
@@ -76,7 +76,7 @@ function Decide({ review, onDecided }: { review: ReviewOut; onDecided: () => voi
   const [members, setMembers] = useState<MemberOut[] | null>(null);
   const [reviewer, setReviewer] = useState(review.assigned_reviewer?.id ?? "");
   const allowed = review.allowed_actions;
-  const personal = isSolo(useMemberCount(), review);
+  const personal = isSolo(review);
   const canAssign = !!allowed?.includes("assign");
   const [stubAck, setStubAck] = useState(false);
   // Newer version of the same content item than the one decided here? The backend refuses to

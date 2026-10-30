@@ -4,8 +4,16 @@
  * POST /api/evaluations). No runtime imports, so the unit test can load it under plain Node.
  * Nothing here invents or defaults a number: a field of the wrong type rejects the whole response.
  */
-export type PerCheck = { check: string; catch_rate: number | null; false_positive_rate: number | null; n: number };
 export type Ratio = { numerator: number; denominator: number; value: number | null };
+export type PerCheck = {
+  check: string;
+  catch_rate: number | null;
+  false_positive_rate: number | null;
+  n: number;
+  /** Missing or null on runs stored before these were recorded. */
+  catch_rate_ratio?: Ratio | null;
+  false_positive_rate_ratio?: Ratio | null;
+};
 export type Split = { n: number; catch_rate: Ratio; false_positive_rate: Ratio };
 export type RunEvaluation = {
   catch_rate: number | null;
@@ -25,8 +33,11 @@ export type RunEvaluation = {
   by_split: Record<string, Split> | null;
   /** "live" | "scripted" | "mixed" | null (no model answered) */
   provider_mode: string | null;
-  /** Proposed in docs/round3/contracts.md 17, not sent yet. Shown as the headline if it ever is. */
-  headline?: { split: string; n: number; catch_rate: Ratio; false_positive_rate: Ratio };
+  /** Counts behind the two combined rates; missing on an older backend. */
+  catch_rate_ratio?: Ratio | null;
+  false_positive_rate_ratio?: Ratio | null;
+  /** The held-out split, the figure to quote. Null when a run has none. */
+  headline?: { split: string; n: number; catch_rate: Ratio; false_positive_rate: Ratio } | null;
 };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -55,7 +66,8 @@ export function runEvaluationProblem(x: unknown): string | null {
       if (!isObj(s) || !isNum(s.n) || badRatio(s.catch_rate) || badRatio(s.false_positive_rate)) return `by_split.${name} is malformed`;
     }
   }
-  if (x.headline !== undefined) {
+  for (const k of ["catch_rate_ratio", "false_positive_rate_ratio"]) if (x[k] != null && badRatio(x[k])) return `${k} is malformed`;
+  if (x.headline != null) {
     const h = x.headline;
     if (!isObj(h) || typeof h.split !== "string" || !isNum(h.n) || badRatio(h.catch_rate) || badRatio(h.false_positive_rate)) return "headline is malformed";
   }

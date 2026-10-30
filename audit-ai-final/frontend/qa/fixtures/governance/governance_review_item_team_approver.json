@@ -9,7 +9,8 @@
   "workspace": {
     "id": "0b8f6a3e-4c21-4d7a-9e5b-3f2a1c0d9e88",
     "name": "Acme content team",
-    "is_personal": false
+    "is_personal": false,
+    "member_count": 4
   },
   "author": { "id": "11111111-1111-4111-8111-111111111111", "display_name": "Wren Writer" },
   "owner": { "id": "11111111-1111-4111-8111-111111111111", "display_name": "Wren Writer" },

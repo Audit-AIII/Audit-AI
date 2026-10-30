@@ -43,7 +43,9 @@ All are sent by `GET /api/evaluations/latest`, typed in `lib/additions/evaluatio
 
 `catch_rate`, `false_positive_rate`, `per_check`, `sample_size`, `run_at`, `id`, `status`, `engine_prompt_version`, `dataset_version`, `limits_note`, `latency_ms_p50`, `provider_failure_rate`, `coverage`, `by_split`, `provider_mode`.
 
-**NOT SENT:** `headline`, `run`, `limitations`, `guard_regressions`, and numerators and denominators for the top-level rates. These are proposals in `docs/round3/contracts.md` section 17. Numerators and denominators exist inside `by_split`.
+Also sent since 2026-10-30, and shown: `catch_rate_ratio`, `false_positive_rate_ratio`, `headline` (the stored held-out split), and the ratio fields on `per_check[]`.
+
+**NOT SENT:** `run`, `limitations` and `guard_regressions`. These are proposals in `docs/round3/contracts.md` section 17, and need Krish's published run.
 
 ## Routes with no frontend caller
 
@@ -61,11 +63,11 @@ The GET routes were called live as the signed-in owner and returned 200. The POS
 
 ## Where the API differs from `docs/governance.md`, or needs care
 
-1. **`/api/auth/me` has no `memberships_count`.** Section 10 lists it as an additive field, but the live response has only `user`, `organisation`, `role` and `workspace`. The workspace switcher must use `GET /api/workspaces`.
-2. **Solo wording in routing text.** In a personal workspace `routing_reason.text` says "a reviewer must check this draft" and `required_reviewer_role` is `reviewer`, while `approval_mode` is `self` and `approve` is allowed. Showing that text as-is tells a solo user something untrue, so Phase 3 must handle it. Worth raising with Darsh.
+1. **`/api/auth/me` sends `memberships_count`.** Added on 2026-10-30, after this map was first written.
+2. **Solo wording in routing text.** In a personal workspace `routing_reason.text` says "a reviewer must check this draft" and `required_reviewer_role` is `reviewer`, while `approval_mode` is `self` and `approve` is allowed. The UI drops that clause for someone alone in a workspace; the stored text is unchanged.
 3. **`Session` has no workspace.** `lib/session.ts` stores `organisation` and `role`, though login sends `workspace`. Phases 3 and 6 need it stored as an optional field.
-4. **`workspace.is_personal` doesn't mean "one person".** It stays `true` after someone joins, so it only says how the workspace started. The UI goes by the member count from `GET /api/workspace/members` (`isSolo` in `lib/additions/governance.ts`). `docs/governance.md` 9.1 describes personal workspaces as having no reviewer, which stops being true at that point. Worth raising with Darsh.
-5. **Routing decisions have an actor.** `governance_audit_history.json` shows `routing_decision` with `actor: null`, but live it carries the person who submitted. The timeline handles both.
+4. **`workspace.is_personal` doesn't mean "one person".** It stays `true` after someone joins, so it only says how the workspace started. The API now sends `workspace.member_count`, and the UI goes by that (`isSolo` in `lib/additions/governance.ts`).
+5. **Routing decisions have an actor:** the person who submitted. The contract example now shows this, and the timeline still handles a null actor.
 6. **`report_status` values.** The engine sends `COMPLETED`, `PARTIAL` or `FAILED`, in capitals, and seeded reviews send `null`. The UI matches `PARTIAL` in any case.
 7. **Team examples, now verified live.** `assigned_reviewer` objects and the `in_review`, `reviewed` and `published` statuses were seen on a real team in `e2e/04-team-workflow.mjs`.
 

@@ -36,7 +36,6 @@ import { rerun } from "@/lib/additions/content";
 import { applyComment, applyDecision, commentCountText, DISMISSED, isDismissed } from "@/lib/additions/findingState";
 import { isAllowed, isSolo } from "@/lib/additions/governance";
 import { hiddenToneText, isTone, isUncertainTone, withToneRule } from "@/lib/additions/tone";
-import { useMemberCount } from "@/lib/additions/workspace";
 import { segment, spanLocated } from "@/lib/text/codepoints";
 import { getReviewText, setLastReviewId } from "@/lib/workspace";
 
@@ -168,7 +167,7 @@ function ReviewView({
   // back to this browser's copy, then the stub finding (its original_text is the whole text).
   const fullText = review.text ?? savedText ?? review.findings.find(isStub)?.original_text ?? null;
   const current = findings.find((f) => f.finding_id === selected) ?? findings[0] ?? null;
-  const personal = isSolo(useMemberCount(), review);
+  const personal = isSolo(review);
   const canRerun = isAllowed(review.allowed_actions, "rerun");
   const detailRef = useRef<HTMLDivElement>(null);
   const router = useRouter();

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReviewOut, UserRef } from "@/lib/api/types";
+import { isSolo } from "./governance";
 import { request } from "./http";
 
 /**
@@ -19,7 +20,7 @@ export type QueueRow = {
   riskLevel: string | null;
   workflowStatus: string | null;
   assignedReviewer: UserRef | null;
-  /** Has team details to show. is_personal alone can't say: it stays true after someone joins. */
+  /** Has team details to show. */
   team: boolean;
 };
 
@@ -38,7 +39,7 @@ export function toRow(r: ReviewOut): QueueRow {
     riskLevel: r.risk_level ?? null,
     workflowStatus: r.workflow_status ?? null,
     assignedReviewer: r.assigned_reviewer ?? null,
-    team: r.workspace?.is_personal === false || r.approval_mode === "team" || !!r.assigned_reviewer,
+    team: !isSolo(r) || !!r.assigned_reviewer,
   };
 }
 

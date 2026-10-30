@@ -193,7 +193,10 @@ Detail: [`docs/backend.md`](../../docs/backend.md), "Self-serve onboarding".
 
 Login body `{"email", "password"}` → same shape as register minus `brand`. 401 `invalid email or
 password` for any failure (indistinguishable on purpose). Login signs into the user's oldest
-workspace (always their personal one). `me` → `{"user", "organisation", "role", "workspace"}`.
+workspace (always their personal one). `me` → `{"user", "organisation", "role", "workspace", "memberships_count"}`.
+`workspace.is_personal` says how the workspace started and stays `true` after someone joins. Use
+`workspace.member_count` to tell whether someone is alone. `memberships_count` is how many workspaces
+the user belongs to (`/me` only).
 
 ### Workspaces, members and invitations (Round 3)
 
@@ -550,8 +553,8 @@ Query: `brand_id` (the page always sends it; omitted = every brand in the accoun
 ### `GET /api/evaluations/latest` · `POST /api/evaluations` — Trust Scorecard
 
 `POST` runs the engine's labelled claim-verification evaluation
-(`services/verification/eval/dataset.jsonl`, 80 claims: 25 supported, 32 contradicted, 23 without
-evidence; refused if it no longer matches the engine's label lock) synchronously through this
+(`services/verification/eval/dataset.jsonl`; refused if it no longer matches the engine's label
+lock; the example below is from when it held 80 claims) synchronously through this
 backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
 `EVAL_DEADLINE_SECONDS`). Takes ~1–4 minutes. **201**, and `GET .../latest` returns the same:
 
@@ -586,7 +589,15 @@ backend's provider chain, bounded by the engine's call budget (`EVAL_MAX_CALLS`,
       "false_positive_rate": {"numerator": 0, "denominator": 7, "value": 0.0}
     }
   },
-  "provider_mode": "live"
+  "provider_mode": "live",
+  "catch_rate_ratio": {"numerator": 55, "denominator": 55, "value": 1.0},
+  "false_positive_rate_ratio": {"numerator": 0, "denominator": 25, "value": 0.0},
+  "headline": {
+    "split": "heldout",
+    "n": 25,
+    "catch_rate": {"numerator": 18, "denominator": 18, "value": 1.0},
+    "false_positive_rate": {"numerator": 0, "denominator": 7, "value": 0.0}
+  }
 }
 ```
 - `catch_rate` = claims labelled contradicted or no-evidence that were flagged (contradicted or

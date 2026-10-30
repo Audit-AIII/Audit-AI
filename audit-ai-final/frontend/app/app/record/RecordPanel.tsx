@@ -9,7 +9,6 @@ import { isRule, isStub, isStubReview } from "@/components/app/reviewLabels";
 import { useReview, useReviewId } from "@/components/app/useReview";
 import { isSolo } from "@/lib/additions/governance";
 import { contentAudit } from "@/lib/additions/workflow";
-import { useMemberCount } from "@/lib/additions/workspace";
 import type { ReviewOut } from "@/lib/api/types";
 import { useSession } from "@/lib/session";
 import { getDecision, type SavedDecision } from "@/lib/workspace";
@@ -71,7 +70,7 @@ function Record({ review, decision }: { review: ReviewOut; decision: SavedDecisi
   const localDecision = decision && decision.action === review.status ? decision : null;
   const byYou = localDecision && session && localDecision.actor_user_id === session.userId;
 
-  const solo = isSolo(useMemberCount(), review);
+  const solo = isSolo(review);
   const itemId = review.content_item_id ?? null;
   const fetchPage = useCallback((cursor: string | null) => contentAudit(itemId ?? "", cursor), [itemId]);
   const steps: Step[] = [

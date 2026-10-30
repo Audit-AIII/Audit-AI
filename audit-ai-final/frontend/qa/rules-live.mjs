@@ -92,9 +92,9 @@ await p.screenshot({ path: "qa/out/rules-review.png", fullPage: true });
 await p.route(`${API}/api/reviews/${rid}`, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "Access-Control-Allow-Origin": WEB },
   body: JSON.stringify({ ...review, status: "completed", findings: [], engine: { provider: "fallback", model_id: "test", prompt_version: "v", contract_version: "0.2.0" }, rules_status: "incomplete", error_summary: "the accessibility checks failed to run" }) }));
 await p.reload({ waitUntil: "networkidle" });
-await p.waitForSelector(".app-alert--bad");
+await p.waitForSelector(".add-state--partial");
 assert.match(await p.locator(".stage-head__status").innerText(), /rules not fully checked/i);
-assert.match(await alert(), /didn’t finish[\s\S]*not shown as passing[\s\S]*accessibility checks failed to run/);
+assert.match(await p.locator(".add-state--partial").innerText(), /didn’t finish[\s\S]*not shown as passing[\s\S]*accessibility checks failed to run/);
 console.log("ok  rules_status incomplete: headline not rule-clean, error_summary shown");
 await p.unroute(`${API}/api/reviews/${rid}`);
 

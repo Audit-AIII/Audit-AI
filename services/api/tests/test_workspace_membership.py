@@ -54,6 +54,7 @@ def test_registration_creates_a_personal_workspace_owned_by_the_user(
         "id": owner.organisation_id,
         "name": me["organisation"]["name"],
         "is_personal": True,
+        "member_count": 1,
     }
     workspaces = client.get("/api/workspaces", headers=owner.headers).json()
     assert [(w["workspace"]["id"], w["role"], w["is_current"]) for w in workspaces] == [
@@ -420,3 +421,26 @@ def test_outsider_cannot_touch_another_workspace(client, account_factory) -> Non
     assert own == []
     roster = client.get("/api/workspace/members", headers=outsider.headers).json()["members"]
     assert [m["user"]["id"] for m in roster] == [outsider.user_id]
+
+
+@requires_db
+def test_member_count_says_who_is_really_here_while_is_personal_keeps_how_it_started(
+    client, account_factory
+) -> None:
+    owner = account_factory("owner", with_source=False)
+    me = client.get("/api/auth/me", headers=owner.headers).json()
+    assert me["workspace"]["is_personal"] is True
+    assert me["workspace"]["member_count"] == 1
+    assert me["memberships_count"] == 1
+
+    writer = account_factory("owner", with_source=False)
+    joined = _join(client, owner, writer, "writer")
+    assert joined["workspace"]["member_count"] == 2
+
+    me = client.get("/api/auth/me", headers=owner.headers).json()
+    assert me["workspace"]["is_personal"] is True, "how it started doesn't change"
+    assert me["workspace"]["member_count"] == 2
+    assert me["memberships_count"] == 1
+    members = client.get("/api/workspace/members", headers=owner.headers).json()
+    assert members["workspace"]["member_count"] == 2
+    assert client.get("/api/auth/me", headers=writer.headers).json()["memberships_count"] == 2

@@ -485,10 +485,10 @@ is unchanged and omitted from the examples for brevity.
 
 | Field | Type | Notes |
 |---|---|---|
-| `workspace` | `{id, name, is_personal}` | |
+| `workspace` | `{id, name, is_personal, member_count}` | `is_personal` says how the workspace started and stays `true` after someone joins. Use `member_count` to tell whether someone is alone |
 | `author` | `{id, display_name}` \| null | `content_items.created_by`. null only on rows with no author. `display_name` falls back to the email's local part, never the full email |
 | `owner` | `{id, display_name}` \| null | `content_items.owner_user_id` |
-| `assigned_reviewer` | `{id, display_name}` \| null | **null in personal workspaces** and whenever nobody is assigned. Show "not assigned" |
+| `assigned_reviewer` | `{id, display_name}` \| null | null whenever nobody is assigned, which is always the case for someone alone in a workspace. Show "not assigned" |
 | `workflow_status` | one of `draft, submitted, in_review, needs_changes, reviewed, approved, rejected, published, blocked` | treat unknown as "in progress" |
 | `risk_level` | `high, medium, low, clean` \| null | null until the AI check finishes |
 | `routing_reason` | `{code, text, triggered_by: [{finding_id, verification_status, review_reasons, risk_level}]}` \| null | |
@@ -534,7 +534,7 @@ The frontend shows a control only when its action is in the list, and must still
 `GET /api/content/{content_item_id}/audit?limit=20&cursor=<opaque>`. Newest first, `limit`
 1–100 (default 20). `next_cursor` is null on the last page.
 
-Item shape: `{id, actor: {id, display_name} | null (null = system), action, event_type,
+Item shape: `{id, actor: {id, display_name} | null (null = no acting user), action, event_type,
 note, version_number, created_at, details}`.
 
 The existing `GET /api/content/{id}/history` stays unchanged.

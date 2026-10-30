@@ -121,8 +121,21 @@ def test_run_returns_evaluation_shape_and_is_stored(
         "catch_rate": 1.0,
         "false_positive_rate": 1.0,
         "n": N,
+        "catch_rate_ratio": overall["catch_rate_ratio"],
+        "false_positive_rate_ratio": overall["false_positive_rate_ratio"],
     }
-    assert {"check", "catch_rate", "false_positive_rate", "n"} == set(body["per_check"][1])
+    assert overall["catch_rate_ratio"]["value"] == 1.0
+    assert overall["catch_rate_ratio"]["denominator"] + overall["false_positive_rate_ratio"][
+        "denominator"
+    ] == N, "every claim is in exactly one denominator"
+    assert {
+        "check",
+        "catch_rate",
+        "false_positive_rate",
+        "n",
+        "catch_rate_ratio",
+        "false_positive_rate_ratio",
+    } == set(body["per_check"][1])
     assert all(entry["n"] > 0 for entry in body["per_check"])
     assert body["status"] == "completed"
     assert body["provider_failure_rate"] == 0.0
@@ -278,6 +291,59 @@ def test_run_stored_before_new_fields_still_renders(client, db_session, account_
     assert body["coverage"] == "verifier_only"  # the only thing the runner has ever measured
     assert body["by_split"] is None  # not recomputed: per-claim predictions were never stored
     assert body["provider_mode"] == "live"
+    # An older run has no held-out split or per-check counts: absent, never invented.
+    assert body["headline"] is None
+    assert body["catch_rate_ratio"] == ratio
+
+
+@requires_db
+def test_headline_is_the_stored_held_out_split_and_counts_are_served(
+    client, db_session, account_factory
+) -> None:
+    owner = account_factory("owner", with_source=False)
+    ratio = {"numerator": 3, "denominator": 4, "value": 0.75}
+    heldout = {
+        "n": 25,
+        "catch_rate": {"numerator": 18, "denominator": 18, "value": 1.0},
+        "false_positive_rate": {"numerator": 1, "denominator": 7, "value": 1 / 7},
+    }
+    db_session.add(
+        EvaluationRun(
+            organisation_id=uuid.UUID(owner.organisation_id),
+            status="completed",
+            ran_at=datetime.now(UTC),
+            dataset_version="dataset.jsonl@000000000000",
+            sample_size=80,
+            metrics={
+                "catch_rate": ratio,
+                "false_positive_rate": ratio,
+                "per_check": [
+                    {
+                        "check": "verification",
+                        "catch_rate": 0.75,
+                        "false_positive_rate": 0.75,
+                        "n": 80,
+                        "catch_rate_ratio": ratio,
+                        "false_positive_rate_ratio": ratio,
+                    },
+                    {"check": "older", "catch_rate": 0.5, "false_positive_rate": None, "n": 2},
+                ],
+                "by_split": {
+                    "dev": {"n": 55, "catch_rate": ratio, "false_positive_rate": ratio},
+                    "heldout": heldout,
+                },
+                "model_ids": ["gemini-3.5-flash-lite"],
+            },
+            limits_note="a run",
+        )
+    )
+    db_session.commit()
+    body = client.get("/api/evaluations/latest", headers=owner.headers).json()
+    assert body["headline"] == {"split": "heldout", **heldout}, "copied, not computed"
+    assert body["catch_rate_ratio"] == ratio
+    assert body["false_positive_rate_ratio"] == ratio
+    assert body["per_check"][0]["catch_rate_ratio"] == ratio
+    assert body["per_check"][1]["catch_rate_ratio"] is None
 
 
 def test_provider_mode_from_answering_models() -> None:

@@ -37,6 +37,7 @@ from ..schemas import (
     WorkspaceOut,
 )
 from ..statuses import MembershipRole
+from ..workspace_service import active_member_count
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -84,7 +85,9 @@ def login(
         organisation=OrganisationOut.model_validate(membership.organisation),
         role=membership.role,
         expires_in=settings.auth_token_ttl_minutes * 60,
-        workspace=WorkspaceOut.from_model(membership.organisation),
+        workspace=WorkspaceOut.from_model(
+            membership.organisation, active_member_count(db, membership.organisation_id)
+        ),
     )
 
 
@@ -201,7 +204,7 @@ def register(
         organisation=OrganisationOut.model_validate(org),
         role=MembershipRole.OWNER.value,
         expires_in=settings.auth_token_ttl_minutes * 60,
-        workspace=WorkspaceOut.from_model(org),
+        workspace=WorkspaceOut.from_model(org, member_count=1),
         brand=BrandOut(
             id=brand.id,
             name=brand.name,
@@ -213,10 +216,17 @@ def register(
 
 
 @router.get("/me", response_model=SessionInfo)
-def me(auth: AuthContext = Depends(get_current_membership)) -> SessionInfo:
+def me(
+    auth: AuthContext = Depends(get_current_membership), db: Session = Depends(get_db)
+) -> SessionInfo:
     return SessionInfo(
         user=UserOut.model_validate(auth.user),
         organisation=OrganisationOut.model_validate(auth.organisation),
         role=auth.role,
-        workspace=WorkspaceOut.from_model(auth.organisation),
+        workspace=WorkspaceOut.from_model(
+            auth.organisation, active_member_count(db, auth.organisation_id)
+        ),
+        memberships_count=db.query(Membership)
+        .filter(Membership.user_id == auth.user_id, Membership.is_active.is_(True))
+        .count(),
     )

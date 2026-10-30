@@ -40,7 +40,7 @@
     },
     {
       "id": "4f8a9b0c-1d2e-4f3a-9b4c-6d7e8f9a0b1c",
-      "actor": null,
+      "actor": { "id": "11111111-1111-4111-8111-111111111111", "display_name": "Wren Writer" },
       "action": "routing_decision",
       "event_type": "routing_decision",
       "note": "1 claim is contradicted by an approved source, so a reviewer must check this draft before it can be approved.",

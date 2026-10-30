@@ -181,7 +181,7 @@ export function Scorecard() {
         onCancel={() => setRun({ phase: "idle" })}
       >
         <p>
-          This sends about 80 labelled test claims to the AI provider. It takes 1 to 5 minutes, uses provider quota, and can be run once
+          This sends the labelled test claims to the AI provider. It takes 1 to 5 minutes, uses provider quota, and can be run once
           every 10 minutes.
         </p>
       </ConfirmDialog>

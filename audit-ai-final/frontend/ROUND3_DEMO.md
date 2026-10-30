@@ -21,7 +21,7 @@ A 5-minute walkthrough following one draft from check to published. Set up befor
 | 3 to 5, workflow | Works. Approving needs ticking "I understand no real check ran" | Works |
 | 6, Scorecard | "Not evaluated yet" and the no-provider message | Can run an evaluation, which uses provider quota and takes up to 5 minutes |
 
-Run with a key if you can, and practise it first. This script hasn't been run with a live provider yet.
+**No key is set up today**, so new drafts show the placeholder. To use real AI, put a key in `services/api/.env` (`services/api/AI_PROVIDER_KEYS.md` lists the options), restart the API, and run `node qa/live-ai-check.mjs` from `audit-ai-final/frontend`. Practise with it first, because this script hasn't been run with a live provider yet.
 
 ## The script
 

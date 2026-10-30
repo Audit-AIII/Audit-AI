@@ -134,6 +134,8 @@ def _per_check(records: list[EvalRecord], predictions: dict[str, EvalPrediction]
             "check": name,
             "catch_rate": _rate(metrics.catch_rate(confusion)),
             "false_positive_rate": _rate(metrics.false_positive_rate(confusion)),
+            "catch_rate_ratio": _ratio_dict(metrics.catch_rate(confusion)),
+            "false_positive_rate_ratio": _ratio_dict(metrics.false_positive_rate(confusion)),
             "n": len(subset),
         }
 

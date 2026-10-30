@@ -11,5 +11,17 @@ built in the meantime. Governance decisions D1–D6 are already decided (docs/go
 | P5 | 4 | The "tone" summary count: there is no tone or brand-voice checker yet. Today it counts the engine's two style rules (`all_caps_run`, `emoji_run`). | (a) keep that until a tone checker exists; (b) leave tone out of the counts | (a), clearly documented | Nothing; the rule types are one constant in `risk_policy.py` (`TONE_RULE_TYPES`) |
 | P6 | 4 (found on pull) | PR #25 merged `krish/round3-prior-work` (commit 67b25b5) into main. Its own commit message says "kept on this branch for reference only; not to be merged", and contracts.md §20 says its `unsupported_component` reason is *not adopted*. | (a) Krish confirms the merge was intended and updates contracts.md; (b) revert PR #25 and redo steps 03-05 as approved | Ask Krish; it is his area. Not reverted here (never rewrite or undo a teammate's merge without them) | Nothing in governance: the backend stores review reasons as-is and routes any unknown one as medium risk, and it does not read guard reasons at all. Backend tests pass with it merged |
 
+**Decided on 2026-10-30 by Chahit, covering for Darsh, who wasn't available. Darsh can revisit any of these:**
+
+- **P1:** (b). Treat the invite link as the secret for Round 3. Add email verification before real customers.
+- **P3:** partly (a).
+  - **Item 3, done:** `per_check[]` has the ratio fields.
+  - **Also done:** `/latest` serves `catch_rate_ratio`, `false_positive_rate_ratio` and a `headline`, copied from the stored run's `by_split.heldout` (contracts.md §16).
+  - **Items 1 and 2, not done yet:** they need Krish's published full-pipeline `summary.json`, which doesn't exist (step 07), and today's summary has no held-out split. Switching now would leave the Scorecard empty. Until then `/latest` keeps serving stored runs, labelled `verifier_only`, and the Run button stays.
+- **P4:** (a), as built.
+- **P5:** (a), as built.
+
+**Still open:** P6, which is Krish's.
+
 **Resolved:** P2 (contracts.md §19 risk mapping). Krish approved it as written on 2026-10-28, including
 D3 (unknown verdicts → "unverified, needs review"). `risk_policy.py` implements it unchanged.

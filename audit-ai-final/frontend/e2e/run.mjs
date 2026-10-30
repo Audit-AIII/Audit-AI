@@ -20,6 +20,7 @@ const JOURNEYS = [
   "11-errors",
   "12-responsive",
   "13-tone",
+  "14-documents-and-rules",
 ];
 const only = process.argv.slice(2);
 const OUT = "qa/out/e2e";

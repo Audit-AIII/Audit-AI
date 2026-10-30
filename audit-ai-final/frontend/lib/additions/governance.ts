@@ -89,11 +89,13 @@ export function statusChange(details: Record<string, unknown> | null | undefined
 }
 
 /**
- * Is this person alone here? workspace.is_personal can't say: it stays true after someone joins. The
- * member count can; until it loads (or if it fails), the review's own fields are the best guide.
+ * Is this person alone here? workspace.is_personal can't say: it stays true after someone joins.
+ * workspace.member_count can. An older backend doesn't send it, so its other fields are the best guide.
  */
-export const isSolo = (members: number | null, review: { workspace?: { is_personal: boolean } | null; approval_mode?: string | null }) =>
-  members !== null ? members <= 1 : (review.workspace?.is_personal ?? true) && review.approval_mode !== "team";
+export const isSolo = (review: { workspace?: { is_personal: boolean; member_count?: number | null } | null; approval_mode?: string | null }) => {
+  const members = review.workspace?.member_count;
+  return members != null ? members <= 1 : (review.workspace?.is_personal ?? true) && review.approval_mode !== "team";
+};
 
 export const isOwner = (role: string | undefined) => role === "owner" || role === "admin"; // admin: legacy name
 

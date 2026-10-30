@@ -155,6 +155,7 @@ def review_outs(db: Session, auth: AuthContext, reviews: list[Review]) -> list[R
                 is_current_version=version.is_current,
                 approval_mode=approval_mode,
                 routing=routing,
+                member_count=len(members),
             )
         )
     return outs

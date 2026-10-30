@@ -43,6 +43,7 @@ from ..statuses import MembershipRole
 from ..tenancy import not_found
 from ..workspace_service import (
     accept_invitation,
+    active_member_count,
     active_members,
     change_member_role,
     create_invitation,
@@ -59,7 +60,7 @@ _MANAGER_ACTIONS = ["invite", "change_role", "remove_member"]
 
 
 def _session_for(
-    settings: Settings, user: User, organisation: Organisation, role: str
+    db: Session, settings: Settings, user: User, organisation: Organisation, role: str
 ) -> LoginResponse:
     return LoginResponse(
         access_token=create_access_token(settings, user.id, organisation.id),
@@ -67,7 +68,7 @@ def _session_for(
         organisation=OrganisationOut.model_validate(organisation),
         role=role,
         expires_in=settings.auth_token_ttl_minutes * 60,
-        workspace=WorkspaceOut.from_model(organisation),
+        workspace=WorkspaceOut.from_model(organisation, active_member_count(db, organisation.id)),
     )
 
 
@@ -130,7 +131,7 @@ def switch_workspace(
     )
     if membership is None:
         raise not_found("workspace not found")
-    return _session_for(settings, auth.user, membership.organisation, membership.role)
+    return _session_for(db, settings, auth.user, membership.organisation, membership.role)
 
 
 # --- Members -----------------------------------------------------------------------------------
@@ -140,8 +141,9 @@ def switch_workspace(
 def list_members(
     auth: AuthContext = Depends(get_current_membership), db: Session = Depends(get_db)
 ) -> MembersOut:
+    members = active_members(db, auth.organisation_id)
     return MembersOut(
-        workspace=WorkspaceOut.from_model(auth.organisation),
+        workspace=WorkspaceOut.from_model(auth.organisation, len(members)),
         members=[
             MemberOut(
                 user=UserRefOut.from_model(m.user),
@@ -149,7 +151,7 @@ def list_members(
                 is_you=m.user_id == auth.user_id,
                 joined_at=m.created_at,
             )
-            for m in active_members(db, auth.organisation_id)
+            for m in members
         ],
         allowed_actions=_MANAGER_ACTIONS if can_manage_members(auth.role) else [],
     )
@@ -259,7 +261,7 @@ def accept(
     membership = accept_invitation(db, auth.user, body.token)
     db.commit()
     db.refresh(membership)
-    return _session_for(settings, auth.user, membership.organisation, membership.role)
+    return _session_for(db, settings, auth.user, membership.organisation, membership.role)
 
 
 @router.get("/api/workspace/audit", response_model=WorkspaceAuditOut)

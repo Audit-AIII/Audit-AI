@@ -15,11 +15,18 @@ export type Role = Open<
 export type UserOut = { id: string; email: string; display_name: string | null };
 export type OrganisationOut = { id: string; name: string; slug: string };
 /** Round 3 governance (docs/governance.md section 9). */
-export type WorkspaceOut = { id: string; name: string; is_personal: boolean };
+export type WorkspaceOut = {
+  id: string;
+  name: string;
+  /** How the workspace started, not who is in it: stays true after someone joins. */
+  is_personal: boolean;
+  /** Active members. Null or missing where the API doesn't count them. */
+  member_count?: number | null;
+};
 export type UserRef = { id: string; display_name: string };
 
 /** GET /api/auth/me */
-export type SessionInfo = { user: UserOut; organisation: OrganisationOut; role: Role; workspace?: WorkspaceOut };
+export type SessionInfo = { user: UserOut; organisation: OrganisationOut; role: Role; workspace?: WorkspaceOut; memberships_count?: number | null };
 
 /** POST /api/auth/login */
 export type LoginResponse = SessionInfo & {

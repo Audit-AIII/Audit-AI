@@ -80,6 +80,14 @@ def active_members(db: Session, organisation_id: uuid.UUID) -> list[Membership]:
     )
 
 
+def active_member_count(db: Session, organisation_id: uuid.UUID) -> int:
+    return (
+        db.query(Membership)
+        .filter(Membership.organisation_id == organisation_id, Membership.is_active.is_(True))
+        .count()
+    )
+
+
 def _active_member_or_404(
     db: Session, organisation_id: uuid.UUID, user_id: uuid.UUID
 ) -> Membership:

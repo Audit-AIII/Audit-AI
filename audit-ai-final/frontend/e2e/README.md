@@ -50,5 +50,8 @@ Runs add throwaway `e2e-*@example.com` accounts to the local database, and journ
 | 11 | Network failure and recovery; empty review if the seed has one |
 | 12 | Phone width on each core page |
 | 13 | Skipped until the API sends tone findings |
+| 14 | Documents (upload, new version, withdraw), brand rules, the editor's re-check, and Coverage |
+
+`services/api/scripts/check_endpoints.py` calls every API route, and `qa/route-crawl.mjs` opens every page and link. Run both with the same setup.
 
 Not covered here, because they need an AI provider: a stored evaluation run and real AI findings on a new draft. `qa/scorecard-states.mjs` covers the page's handling of a stored run, using the API's documented example.

@@ -50,20 +50,33 @@ _in_flight: set[uuid.UUID] = set()
 _in_flight_lock = threading.Lock()
 
 
-class PerCheckOut(BaseModel):
-    check: str
-    catch_rate: float | None
-    false_positive_rate: float | None
-    n: int
-
-
 class RatioOut(BaseModel):
     numerator: int
     denominator: int
     value: float | None
 
 
+class PerCheckOut(BaseModel):
+    check: str
+    catch_rate: float | None
+    false_positive_rate: float | None
+    n: int
+    # Null on runs stored before these were recorded.
+    catch_rate_ratio: RatioOut | None = None
+    false_positive_rate_ratio: RatioOut | None = None
+
+
 class SplitOut(BaseModel):
+    n: int
+    catch_rate: RatioOut
+    false_positive_rate: RatioOut
+
+
+class HeadlineOut(BaseModel):
+    """The figure to quote: held-out only, because dev records were used to tune the engine
+    (docs/round3/contracts.md section 16). Copied from by_split, never computed here."""
+
+    split: str
     n: int
     catch_rate: RatioOut
     false_positive_rate: RatioOut
@@ -89,10 +102,15 @@ class EvaluationOut(BaseModel):
     coverage: str
     by_split: dict[str, SplitOut] | None  # null for runs stored before per-split metrics existed
     provider_mode: str | None
+    # Counts behind the two pooled rates above; stored all along, now served.
+    catch_rate_ratio: RatioOut | None = None
+    false_positive_rate_ratio: RatioOut | None = None
+    headline: HeadlineOut | None = None  # null when the run has no held-out split
 
     @classmethod
     def from_model(cls, run: EvaluationRun) -> EvaluationOut:
         m = run.metrics
+        heldout = (m.get("by_split") or {}).get("heldout")
         return cls(
             catch_rate=m["catch_rate"]["value"],
             false_positive_rate=m["false_positive_rate"]["value"],
@@ -109,6 +127,9 @@ class EvaluationOut(BaseModel):
             coverage=m.get("coverage", COVERAGE_VERIFIER_ONLY),
             by_split=m.get("by_split"),
             provider_mode=provider_mode(m.get("model_ids", [])),
+            catch_rate_ratio=m["catch_rate"],
+            false_positive_rate_ratio=m["false_positive_rate"],
+            headline=HeadlineOut(split="heldout", **heldout) if heldout else None,
         )
 
 
