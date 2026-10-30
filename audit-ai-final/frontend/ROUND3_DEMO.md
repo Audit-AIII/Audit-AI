@@ -19,7 +19,7 @@ A 5-minute walkthrough following one draft from check to published. Set up befor
 | 1 and 2, seeded findings | Works, labelled as a scripted demo | Works |
 | A new draft | Shows a clearly labelled placeholder, because nothing is really checked | Real AI findings |
 | 3 to 5, workflow | Works. Approving needs ticking "I understand no real check ran" | Works |
-| 6, Scorecard | "Not evaluated yet" and the no-provider message | Can run an evaluation, which uses provider quota and takes up to 5 minutes |
+| 6, Scorecard | Krish's published benchmark, and the no-provider message if you press Run | Same, but pressing Run replaces it for that workspace with a smaller verifier-only run, so don't press it in the demo |
 
 **No key is set up today**, so new drafts show the placeholder. To use real AI, put a key in `services/api/.env` (`services/api/AI_PROVIDER_KEYS.md` lists the options), restart the API, and run `node qa/live-ai-check.mjs` from `audit-ai-final/frontend`. Practise with it first, because this script hasn't been run with a live provider yet.
 
@@ -69,9 +69,9 @@ Say: "Every step, who did it, and the reviewer's note. This log can't be edited.
 
 Open **Workspace > Scorecard**.
 
-With a stored run, point at the limits note first, then the rates, then the counts per split, the date and the model details. Say: "The held-out row is the fairer read, because the checker was never tuned on it."
+It shows the published benchmark from Krish's live runs. Point at where the answers came from, then the metrics, the dataset and the limitations. Quote the held-out numbers from `docs/round3/results/FINAL_RESULTS.md`, not the combined ones.
 
-With no run, say: "It says 'Not evaluated', not 0%. We won't show a number we didn't measure."
+Say: "This is a recorded benchmark, and it says so. The labels were written by AI and no person has reviewed them yet, so we show these numbers with their limits."
 
 ## If you're asked
 

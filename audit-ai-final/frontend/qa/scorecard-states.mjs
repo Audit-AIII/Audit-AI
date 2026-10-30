@@ -21,7 +21,7 @@ const login = await (
 const session = { email: login.user.email, name: login.user.display_name, token: login.access_token, userId: login.user.id, organisation: login.organisation, role: login.role };
 
 const b = await chromium.launch();
-const open = async (respond, { width = 1182, height = 937 } = {}) => {
+const open = async (respond, { width = 1182, height = 937, before } = {}) => {
   const ctx = await b.newContext({ viewport: { width, height } });
   await ctx.addInitScript((s) => window.localStorage.setItem("audit-ai.session", s), JSON.stringify(session));
   const p = await ctx.newPage();
@@ -32,6 +32,7 @@ const open = async (respond, { width = 1182, height = 937 } = {}) => {
     posted++;
     return r.abort();
   });
+  await before?.(p);
   if (respond) await p.route(`${API}/api/evaluations/latest`, respond);
   await p.goto(`${WEB}/app/scorecard`, { waitUntil: "networkidle" });
   await p.waitForTimeout(500);
@@ -40,9 +41,22 @@ const open = async (respond, { width = 1182, height = 937 } = {}) => {
 const withRun = (over) => (r) => r.fulfill(json(200, { ...example, ...over }));
 const text = (p) => p.locator("main").innerText();
 
-// The real API: no run stored yet.
+// The real API with no stored run: the published benchmark, saying what it is.
 {
   const { p, ctx, errors } = await open();
+  const published = JSON.parse(readFileSync("public/published-evaluation.json", "utf8"));
+  const main = await text(p);
+  assert.ok(main.includes(published.report_id), "the published report");
+  assert.match(main, /replayed recording/i);
+  assert.deepEqual(errors, []);
+  await p.screenshot({ path: `${OUT}/published-desktop.png`, fullPage: true });
+  await ctx.close();
+  console.log("ok  no stored run shows the published benchmark");
+}
+
+// No stored run and no published file: Not evaluated, never a number.
+{
+  const { p, ctx, errors } = await open(undefined, { before: (page) => page.route("**/published-evaluation.json", (r) => r.fulfill({ status: 404, body: "" })) });
   assert.match(await text(p), /Not evaluated yet/i);
   assert.deepEqual(errors, []);
   await p.screenshot({ path: `${OUT}/none-desktop.png`, fullPage: true });

@@ -31,7 +31,7 @@ New pages: `/app/team`, `/app/audit`, `/invite/accept`.
 ## Depends on work not shipped
 
 - **Real brand voice checks.** No tone checker exists (`DECISIONS_PENDING.md` P5, `docs/round3/handoff-tone.md`). The UI shows nothing extra today. Its field names follow a draft proposal, so they may need adjusting when a checker ships.
-- **A published full-pipeline run on the Scorecard.** The page shows stored runs, labelled `verifier_only`, with the held-out split as the headline. Showing a published run needs Krish's live runs (`DECISIONS_PENDING.md` P3).
+- **Which Scorecard result comes first.** A workspace with no stored run sees Krish's published benchmark (`docs/round3/results/FINAL_RESULTS.md`). A workspace that has run its own evaluation sees that `verifier_only` run instead (`DECISIONS_PENDING.md` P3).
 - **Validation status on claim findings.** The API doesn't send it, so no badge appears.
 
 ## Points for the backend owner
@@ -60,7 +60,7 @@ Results from 2026-10-30, against a local backend with no AI keys.
 ## Not verified
 
 - **With a live AI provider.** `services/api/.env` has no AI keys, so new drafts get the labelled placeholder result. Real AI findings on a new draft, real safer wording and suggested corrections haven't been exercised. After adding a key (`services/api/AI_PROVIDER_KEYS.md`), restart the API and run `node qa/live-ai-check.mjs`, which uses one short draft of quota.
-- **A stored evaluation run from the real backend.** The Scorecard's run view was tested with the API's documented example, because running one needs a provider.
+- **A stored evaluation run from the real backend.** The Scorecard's stored-run view was tested with the API's documented example, because running one needs a provider. The published benchmark view was tested with Krish's real file.
 - **Screen readers.** Roles and labels are checked by axe and the tests, but no one has listened through it with a real screen reader.
 - **Browsers other than Chromium.**
 - **Deployment.** Everything ran locally. The backend's Docker image was built and run, but no host is chosen, and the frontend has no image.

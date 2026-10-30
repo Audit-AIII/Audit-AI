@@ -46,7 +46,7 @@ Runs add throwaway `e2e-*@example.com` accounts to the local database, and journ
 | 07 | Revoked and wrong-email links, role change, removal, last owner rule |
 | 08 | Workspace switch keeps data apart |
 | 09 | Dismiss, restore, comment, Intent-lock |
-| 10 | Scorecard with no run, and with no provider |
+| 10 | Scorecard with no stored run (the published benchmark), and with no provider |
 | 11 | Network failure and recovery; empty review if the seed has one |
 | 12 | Phone width on each core page |
 | 13 | Skipped until the API sends tone findings |

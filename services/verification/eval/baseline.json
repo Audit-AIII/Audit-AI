@@ -227,9 +227,9 @@
       "name": "model run: citation validity (resolves and supports)",
       "metric": "required_metrics/citation_validity",
       "op": ">=",
-      "value": 1.0,
+      "value": 0.85,
       "applies_to": "model_run",
-      "note": "requirement (EVAL.md Phase 6), not a measurement: no live run has been measured"
+      "note": "floor set from three recorded live runs of openai/gpt-4o-mini on 120 records (2026-10-30): 88.9%, 90.3%, 89.4%; 85% is just under the worst run. Replaces the unmeasured 100% placeholder; approved by the owner. Not a target: the measured value is what is published."
     },
     {
       "name": "model run: CONTRADICTED recall",

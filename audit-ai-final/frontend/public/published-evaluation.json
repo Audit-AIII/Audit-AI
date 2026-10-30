@@ -1,0 +1,912 @@
+{
+  "contract": "evaluation-summary-v1",
+  "state": "available",
+  "report_id": "20261030T170254Z",
+  "generated_at": "2026-10-30T17:02:54+00:00",
+  "outcome": {
+    "status": "passed",
+    "reasons": [
+      "8 gate(s) did not apply or have no baseline (listed under skipped checks)"
+    ]
+  },
+  "source": {
+    "verdict_source": "replay",
+    "kind": "replayed recording",
+    "is_model_quality": true,
+    "benchmark": true,
+    "production_statistics": false,
+    "git_commit": null,
+    "engine_version": "0.1.0"
+  },
+  "dataset": {
+    "path": "eval/dataset.jsonl",
+    "sha256": "bb61147b9f48f4b36591c9b447549f864ddd336ce335adf21df856fcf32b0a30",
+    "records": 120,
+    "locked": true,
+    "labels": {
+      "SUPPORTED": 38,
+      "CONTRADICTED": 49,
+      "NOT_ENOUGH_EVIDENCE": 33
+    },
+    "groups": {
+      "SUPPORTED": 36,
+      "CONTRADICTED": 42,
+      "NOT_ENOUGH_EVIDENCE": 30,
+      "adversarial": 12
+    },
+    "human_reviewed": 0
+  },
+  "model": {
+    "provider": "openrouter",
+    "models": [
+      "openai/gpt-4o-mini"
+    ],
+    "model_ids": [
+      "openai/gpt-4o-mini"
+    ]
+  },
+  "prompt_versions": {
+    "extract_claims": "extract-claims-v1",
+    "verify_claim": "verify-claim-v1",
+    "correct_claim": "correct-claim-v1"
+  },
+  "retrieval": {
+    "chunking": {
+      "strategy": "tokens",
+      "target_tokens": 300,
+      "min_tokens": 200,
+      "max_tokens": 400,
+      "overlap_tokens": 50,
+      "sentences_per_passage": 2,
+      "stride": 1,
+      "max_passage_chars": 1000
+    },
+    "retrieval": {
+      "top_k": 5,
+      "k1": 1.5,
+      "b": 0.75,
+      "min_matched_terms": 1,
+      "min_term_coverage": 0.25,
+      "suppress_overlaps": false
+    }
+  },
+  "decision_policy": {
+    "policy": {
+      "version": "decision-policy-v1",
+      "thresholds": {
+        "auto_clear_min_strength": "strong",
+        "compound_min_citations": 2
+      },
+      "fixed_rules": [
+        "CONTRADICTED, NOT_ENOUGH_EVIDENCE and ERROR always require human review",
+        "SUPPORTED on weak evidence (no accepted citation from the top-ranked passage) requires human review",
+        "a missing source or conflicting references give NOT_ENOUGH_EVIDENCE, never SUPPORTED",
+        "a policy can add review reasons to SUPPORTED claims, never remove one (ClaimResult contract)",
+        "no model confidence is used: none is requested, and a reply carrying one is refused"
+      ],
+      "uses_model_confidence": false
+    },
+    "calibration": {
+      "status": "not calibrated",
+      "split": "dev",
+      "reason": "No model-backed outcomes exist yet, so nothing has been tuned. The defaults follow the stated rule: avoid auto-clearing a claim that is not true before reducing review volume. 'strong' auto-clears a SUPPORTED claim only when code verified more than the model's word (its figures matched in the quotes, or two or more accepted citations from the top-ranked passage); a figure-free claim on one quote goes to a person. Compound claims need two accepted citations.",
+      "source_run": null
+    }
+  },
+  "counts": {
+    "evaluated": 120,
+    "tp": 48,
+    "fp": 4,
+    "fn": 1,
+    "tn": 67,
+    "missing_predictions": 0,
+    "error_predictions": 2,
+    "invalid_labels": 0,
+    "unexpected_predictions": 0
+  },
+  "metrics": [
+    {
+      "key": "contradicted_precision",
+      "label": "Precision (CONTRADICTED)",
+      "explanation": "Of the claims flagged CONTRADICTED, how many really are.",
+      "display": "92.3% (48/52)",
+      "value": 0.9230769230769231,
+      "numerator": 48,
+      "denominator": 52,
+      "unavailable_reason": null
+    },
+    {
+      "key": "contradicted_recall",
+      "label": "Recall (CONTRADICTED)",
+      "explanation": "Of the claims that really are CONTRADICTED, how many were flagged.",
+      "display": "98.0% (48/49)",
+      "value": 0.9795918367346939,
+      "numerator": 48,
+      "denominator": 49,
+      "unavailable_reason": null
+    },
+    {
+      "key": "false_positive_rate",
+      "label": "False-positive rate",
+      "explanation": "Of the claims that are not CONTRADICTED, how many were wrongly flagged.",
+      "display": "5.6% (4/71)",
+      "value": 0.056338028169014086,
+      "numerator": 4,
+      "denominator": 71,
+      "unavailable_reason": null
+    },
+    {
+      "key": "false_negative_rate",
+      "label": "False-negative rate",
+      "explanation": "Of the claims that are CONTRADICTED, how many were missed.",
+      "display": "2.0% (1/49)",
+      "value": 0.02040816326530612,
+      "numerator": 1,
+      "denominator": 49,
+      "unavailable_reason": null
+    },
+    {
+      "key": "citation_validity",
+      "label": "Citation validity",
+      "explanation": "Citations that quote the reference exactly and support the right verdict.",
+      "display": "88.9% (96/108)",
+      "value": 0.8888888888888888,
+      "numerator": 96,
+      "denominator": 108,
+      "unavailable_reason": null
+    },
+    {
+      "key": "retrieval_recall_at_5",
+      "label": "Retrieval recall@5",
+      "explanation": "Claims whose annotated evidence is among the 5 passages retrieved.",
+      "display": "97.7% (85/87)",
+      "value": 0.9770114942528736,
+      "numerator": 85,
+      "denominator": 87,
+      "unavailable_reason": null
+    },
+    {
+      "key": "human_review_share",
+      "label": "Share routed to human review",
+      "explanation": "Records sent to a person instead of cleared automatically.",
+      "display": "80.0% (96/120)",
+      "value": 0.8,
+      "numerator": 96,
+      "denominator": 120,
+      "unavailable_reason": null
+    },
+    {
+      "key": "correction_traceability",
+      "label": "Correction traceability",
+      "explanation": "Proposed corrections whose every added word is in the cited evidence.",
+      "display": "100.0% (47/47)",
+      "value": 1.0,
+      "numerator": 47,
+      "denominator": 47,
+      "unavailable_reason": null
+    }
+  ],
+  "confusion": {
+    "SUPPORTED": {
+      "SUPPORTED": 36,
+      "CONTRADICTED": 0,
+      "NOT_ENOUGH_EVIDENCE": 2,
+      "ERROR": 0
+    },
+    "CONTRADICTED": {
+      "SUPPORTED": 0,
+      "CONTRADICTED": 48,
+      "NOT_ENOUGH_EVIDENCE": 1,
+      "ERROR": 0
+    },
+    "NOT_ENOUGH_EVIDENCE": {
+      "SUPPORTED": 3,
+      "CONTRADICTED": 4,
+      "NOT_ENOUGH_EVIDENCE": 24,
+      "ERROR": 2
+    }
+  },
+  "review": {
+    "records_with_outcome": 120,
+    "excluded_without_outcome": 0,
+    "routed_by_label": {
+      "SUPPORTED": 16,
+      "CONTRADICTED": 49,
+      "NOT_ENOUGH_EVIDENCE": 31
+    },
+    "auto_cleared": 24,
+    "auto_cleared_but_not_supported": [
+      "v3-022",
+      "v4-037"
+    ],
+    "auto_cleared_not_supported_count": 2
+  },
+  "corrections": {
+    "proposed": 47,
+    "traceable": 47,
+    "untraceable": [],
+    "attempts_by_status": {
+      "proposed": 47,
+      "needs_human_review": 8
+    },
+    "claims_not_applicable": 90
+  },
+  "gates": [
+    {
+      "name": "retrieval recall@5, eval/dataset.jsonl",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 0.9770114942528736,
+      "baseline": 0.9770114942528736,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "re-measured 85/87 on the 120-record dataset (Round 3 step 06; was 37/37 on the 80-record one). This is LOWER than before because the dataset grew, not because retrieval changed: the two misses are v4-024 and v4-040, whose claim text itself carries an injected instruction, so the query is diluted and no passage is retrieved. The full pipeline extracts claims first, which may avoid this; unproven until the live run."
+    },
+    {
+      "name": "retrieval recall@1, eval/dataset.jsonl",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 0.9655172413793104,
+      "baseline": 0.9655172413793104,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "re-measured 84/87 on the 120-record dataset (Round 3 step 06; was 56/57 on the 80-record one). Misses: v1-032 (as before) plus v4-024 and v4-040 (injected text in the claim, see the recall@5 note)."
+    },
+    {
+      "name": "retrieval recall@5, retrieval_v1",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 32/32"
+    },
+    {
+      "name": "fabricated quotes accepted (fabricator)",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0"
+    },
+    {
+      "name": "accepted-citation validity (fabricator)",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 2/2"
+    },
+    {
+      "name": "accepted-citation validity (valid-quote, always SUPPORTED)",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 21/21"
+    },
+    {
+      "name": "false-SUPPORTED (fabricator)",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0/55 after REG-012 (the v1-032 trap sentence is refused as evidence)"
+    },
+    {
+      "name": "false-SUPPORTED (valid-quote, always SUPPORTED)",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.24390243902439024,
+      "baseline": 0.24390243902439024,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "re-measured 20/82 on the 120-record dataset (Round 3 step 06); was 14/55 on the 80-record one (16/55 before REG-018). A scripted always-SUPPORTED adversary, not model quality; a lower share, tightened to it."
+    },
+    {
+      "name": "correction checker: bad edits rejected",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 31/31 after REG-019 (was 28/28)"
+    },
+    {
+      "name": "correction checker: false accepts",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0 of 31 bad edits after REG-019"
+    },
+    {
+      "name": "correction checker: good edits accepted",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 0.9545454545454546,
+      "baseline": 0.9545454545454546,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 21/22 after REG-019 (was 17/18; the miss is still corr-v1-033)"
+    },
+    {
+      "name": "fault cases handled",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 18/18"
+    },
+    {
+      "name": "citation validity (model run)",
+      "applies_to": "model_run",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "requirement, not a measurement: every citation a live model run emits must resolve verbatim"
+    },
+    {
+      "name": "CONTRADICTED recall (model run)",
+      "applies_to": "model_run",
+      "op": ">=",
+      "current": null,
+      "baseline": null,
+      "change": null,
+      "status": "NOT ENFORCED",
+      "enforced": false,
+      "violated": false,
+      "note": "NOT SET: no live run has been measured. Plan: record 3 live runs on the dev split, set the gate to the lowest measured recall, then raise it as the improvement plan in EVAL.md lands. Until then CI enforces the oracle ceiling (recall 1.0) on every change."
+    },
+    {
+      "name": "extraction: oracle exact spans",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 33/33: every labelled claim survives the real extractor with its exact span"
+    },
+    {
+      "name": "extraction: oracle slice violations",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0; content[start:end] == claim.text"
+    },
+    {
+      "name": "extraction: unsafe rewordings kept (embellisher)",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0 of 33 embellished claims"
+    },
+    {
+      "name": "extraction: merging is detected (merger)",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 3.0,
+      "baseline": 3.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 3: the metric must keep seeing merged compound claims"
+    },
+    {
+      "name": "extraction: opinion extraction is detected (opinion_leaker)",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 9.0,
+      "baseline": 9.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 9: the metric must keep seeing extracted opinions"
+    },
+    {
+      "name": "extraction: claim recall (model run)",
+      "applies_to": "model_run",
+      "op": ">=",
+      "current": null,
+      "baseline": null,
+      "change": null,
+      "status": "NOT ENFORCED",
+      "enforced": false,
+      "violated": false,
+      "note": "no live extraction run measured and no threshold agreed"
+    },
+    {
+      "name": "extraction: rejected rewordings keep exact spans (embellisher)",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 33/33 after PROMPTS.md Phase 2 (was 0/33)"
+    },
+    {
+      "name": "extraction: rejected rewordings stay atomic (embellisher)",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0 after PROMPTS.md Phase 2 (was 3)"
+    },
+    {
+      "name": "oracle: CONTRADICTED recall (engine ceiling)",
+      "applies_to": "oracle",
+      "op": ">=",
+      "current": null,
+      "baseline": 1.0,
+      "change": null,
+      "status": "NOT APPLICABLE",
+      "enforced": false,
+      "violated": false,
+      "note": "needs --verdicts oracle"
+    },
+    {
+      "name": "oracle: CONTRADICTED precision (engine ceiling)",
+      "applies_to": "oracle",
+      "op": ">=",
+      "current": null,
+      "baseline": 1.0,
+      "change": null,
+      "status": "NOT APPLICABLE",
+      "enforced": false,
+      "violated": false,
+      "note": "needs --verdicts oracle"
+    },
+    {
+      "name": "oracle: citation validity (resolves and supports)",
+      "applies_to": "oracle",
+      "op": ">=",
+      "current": null,
+      "baseline": 1.0,
+      "change": null,
+      "status": "NOT APPLICABLE",
+      "enforced": false,
+      "violated": false,
+      "note": "needs --verdicts oracle"
+    },
+    {
+      "name": "oracle: citation resolution",
+      "applies_to": "oracle",
+      "op": ">=",
+      "current": null,
+      "baseline": 1.0,
+      "change": null,
+      "status": "NOT APPLICABLE",
+      "enforced": false,
+      "violated": false,
+      "note": "needs --verdicts oracle"
+    },
+    {
+      "name": "oracle: non-SUPPORTED records auto-cleared",
+      "applies_to": "oracle",
+      "op": "<=",
+      "current": null,
+      "baseline": 0.0,
+      "change": null,
+      "status": "NOT APPLICABLE",
+      "enforced": false,
+      "violated": false,
+      "note": "needs --verdicts oracle"
+    },
+    {
+      "name": "model run: citation validity (resolves and supports)",
+      "applies_to": "model_run",
+      "op": ">=",
+      "current": 0.8888888888888888,
+      "baseline": 0.85,
+      "change": 0.03888888888888886,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "floor set from three recorded live runs of openai/gpt-4o-mini on 120 records (2026-10-30): 88.9%, 90.3%, 89.4%; 85% is just under the worst run. Replaces the unmeasured 100% placeholder; approved by the owner. Not a target: the measured value is what is published."
+    },
+    {
+      "name": "model run: CONTRADICTED recall",
+      "applies_to": "model_run",
+      "op": ">=",
+      "current": null,
+      "baseline": null,
+      "change": null,
+      "status": "NOT ENFORCED",
+      "enforced": false,
+      "violated": false,
+      "note": "NOT SET: see 'CONTRADICTED recall (model run)'"
+    },
+    {
+      "name": "model run: provider failure rate",
+      "applies_to": "model_run",
+      "op": "<=",
+      "current": 0.016666666666666666,
+      "baseline": 0.2,
+      "change": -0.18333333333333335,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "requirement, not a measurement: a live run where more than 20% of records got no verdict (provider errors, refused routing, invalid output) describes the outage, not the model, and must not pass. Same limit as services/api eval_max_provider_failure_rate. Added 2026-10-24 after a live run with 78/80 ERROR records reported PASSED."
+    },
+    {
+      "name": "pipeline safety: non-SUPPORTED records auto-cleared (fabricator)",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0 (fabricator was 1, v1-032, before REG-012)"
+    },
+    {
+      "name": "pipeline safety: citation resolution (fabricator)",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 1.0"
+    },
+    {
+      "name": "pipeline safety: non-SUPPORTED records auto-cleared (valid_quote_always_supported)",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0"
+    },
+    {
+      "name": "pipeline safety: citation resolution (valid_quote_always_supported)",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 1.0"
+    },
+    {
+      "name": "pipeline safety: non-SUPPORTED records auto-cleared (valid_quote_always_contradicted)",
+      "applies_to": "always",
+      "op": "<=",
+      "current": 0.0,
+      "baseline": 0.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 0"
+    },
+    {
+      "name": "pipeline safety: citation resolution (valid_quote_always_contradicted)",
+      "applies_to": "always",
+      "op": ">=",
+      "current": 1.0,
+      "baseline": 1.0,
+      "change": 0.0,
+      "status": "PASS",
+      "enforced": true,
+      "violated": false,
+      "note": "measured 1.0"
+    }
+  ],
+  "cases": [
+    {
+      "record_id": "v4-003",
+      "split": "heldout",
+      "content": "The Lumen Lantern's warranty is longer than the standard 2 year warranty.",
+      "claims": [
+        {
+          "text": "The Lumen Lantern's warranty is longer than the standard 2 year warranty.",
+          "verdict": "NOT_ENOUGH_EVIDENCE",
+          "requires_human_review": true,
+          "review_reasons": [
+            "not_enough_evidence"
+          ]
+        }
+      ],
+      "expected": "SUPPORTED",
+      "predicted": "NOT_ENOUGH_EVIDENCE",
+      "agrees": false,
+      "outcome": "incorrect",
+      "reason": null,
+      "passages": [
+        {
+          "doc_id": "warranty-terms",
+          "title": "Lumen Goods Warranty Terms",
+          "text": "Lumen Goods - Warranty Terms (2026 edition)\n\nThe standard warranty covers manufacturing defects for 2 years from the purchase date.\nThe Lumen Lantern is covered for 3 years.\nBatteries are covered for 12 months; capacity loss below 80% within that time is treated as a defect.\nDamage caused by water immersion beyond the stated rating is not covered.\nClaims are handled by Lumen Goods customer support within 14 days of discovering the defect.",
+          "truncated": false
+        },
+        {
+          "doc_id": "lantern-fact-sheet",
+          "title": "Lumen Lantern Product Fact Sheet",
+          "text": "Lumen Lantern - Product Fact Sheet (version 2, approved 2026-07-08)\n\nRuntime: up to 30 hours on low brightness; up to 8 hours on high brightness.\nLight output: 400 lumens on high; 60 lumens on low.\nCharging: USB-C. A full charge takes 3 hours.\nWater resistance: IP67 (dust tight; survives immersion up to 1 metre for 30 minutes).\nWeight: 420 g.\nColours: Moss, Clay, Charcoal.\nPrice: £54 (UK launch price).\nLaunch date: 15 September 2026 in the United Kingdom and Ireland.\nWarranty: 3 years.",
+          "truncated": false
+        }
+      ],
+      "citations": [],
+      "corrections": [],
+      "requires_human_review": true
+    },
+    {
+      "record_id": "v1-036",
+      "split": "dev",
+      "content": "The Lumen Bottle keeps drinks cold for up to 12 hours.",
+      "claims": [
+        {
+          "text": "The Lumen Bottle keeps drinks cold for up to 12 hours.",
+          "verdict": "NOT_ENOUGH_EVIDENCE",
+          "requires_human_review": true,
+          "review_reasons": [
+            "not_enough_evidence"
+          ]
+        }
+      ],
+      "expected": "CONTRADICTED",
+      "predicted": "NOT_ENOUGH_EVIDENCE",
+      "agrees": false,
+      "outcome": "incorrect",
+      "reason": null,
+      "passages": [
+        {
+          "doc_id": "bottle-fact-sheet",
+          "title": "Lumen Bottle Product Fact Sheet",
+          "text": "Lumen Bottle - Product Fact Sheet (version 3)\n\nCapacity: 750 ml.\nInsulation: keeps drinks cold for up to 24 hours and hot for up to 12 hours.\nWeight: 340 g.\nCare: hand wash only. The bottle is not dishwasher safe.\nPrice: €39.",
+          "truncated": false
+        },
+        {
+          "doc_id": "pods-fact-sheet",
+          "title": "Lumen Pods Product Fact Sheet",
+          "text": "Lumen Pods - Product Fact Sheet (version 2, approved 2026-03-14)\n\nBattery life: up to 12 hours of playback per charge; up to 36 hours with the charging case.\nCharging: USB-C. A 10-minute charge gives up to 2 hours of playback.\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\nWeight: 5.2 g per earbud; charging case 48 g.\nColours: Graphite, Sand, Teal.\nPrice: €129 (EU launch price).\nLaunch date: 2 April 2026 in Portugal, Spain and France.\nWarranty: 2 years.",
+          "truncated": false
+        }
+      ],
+      "citations": [],
+      "corrections": [],
+      "requires_human_review": true
+    },
+    {
+      "record_id": "v1-041",
+      "split": "heldout",
+      "content": "Lumen Pods launch in Germany on 2 April 2026.",
+      "claims": [
+        {
+          "text": "Lumen Pods launch in Germany",
+          "verdict": "CONTRADICTED",
+          "requires_human_review": true,
+          "review_reasons": [
+            "contradicted"
+          ]
+        },
+        {
+          "text": "on 2 April 2026",
+          "verdict": "SUPPORTED",
+          "requires_human_review": false,
+          "review_reasons": []
+        }
+      ],
+      "expected": "NOT_ENOUGH_EVIDENCE",
+      "predicted": "CONTRADICTED",
+      "agrees": false,
+      "outcome": "incorrect",
+      "reason": null,
+      "passages": [
+        {
+          "doc_id": "pods-fact-sheet",
+          "title": "Lumen Pods Product Fact Sheet",
+          "text": "Lumen Pods - Product Fact Sheet (version 2, approved 2026-03-14)\n\nBattery life: up to 12 hours of playback per charge; up to 36 hours with the charging case.\nCharging: USB-C. A 10-minute charge gives up to 2 hours of playback.\nWater resistance: IPX4 (splash resistant). Not suitable for swimming.\nWeight: 5.2 g per earbud; charging case 48 g.\nColours: Graphite, Sand, Teal.\nPrice: €129 (EU launch price).\nLaunch date: 2 April 2026 in Portugal, Spain and France.\nWarranty: 2 years.",
+          "truncated": false
+        }
+      ],
+      "citations": [
+        {
+          "doc_id": "pods-fact-sheet",
+          "quote": "Launch date: 2 April 2026 in Portugal, Spain and France.",
+          "resolves": true,
+          "supports": false
+        },
+        {
+          "doc_id": "pods-fact-sheet",
+          "quote": "Launch date: 2 April 2026 in Portugal, Spain and France.",
+          "resolves": true,
+          "supports": false
+        }
+      ],
+      "corrections": [
+        {
+          "status": "proposed",
+          "replacement_text": "Portugal, Spain and France",
+          "issues": []
+        }
+      ],
+      "requires_human_review": true
+    }
+  ],
+  "limitations": [
+    {
+      "topic": "Tables in PDFs",
+      "status": "measured",
+      "finding": "Text extraction (pypdf, backend) keeps a table's rows only when the PDF writes them row by row. For a column-ordered table every column comes out as a block, so a product loses its figures, and a model that pairs a product with the wrong row's figure gets a SUPPORTED the citation guard cannot refuse. Measured on one hand-built PDF of each kind; real PDFs vary.",
+      "evidence": [
+        "tests/test_known_limitations.py::test_a_column_ordered_pdf_table_lets_a_wrong_product_figure_through",
+        "tests/test_known_limitations.py::test_a_row_ordered_table_keeps_the_figure_with_its_product"
+      ]
+    },
+    {
+      "topic": "Very long documents",
+      "status": "measured",
+      "finding": "A reference over 1,000,000 characters, or more than 50 references, is refused rather than truncated. On the 1,144-word product handbook, top-5 token-chunk retrieval keeps 100% recall but sends about 89% of the corpus to the verifier, so long documents cost more and expose the model to more look-alike facts.",
+      "evidence": [
+        "tests/test_known_limitations.py::test_reference_documents_have_a_hard_size_limit",
+        "EVAL.md: Retrieval phase: 200–400-token chunks"
+      ]
+    },
+    {
+      "topic": "Non-English content",
+      "status": "measured",
+      "finding": "The negation check, retrieval stopwords and unit words are English only: a Portuguese claim that drops 'não' is not caught by the negation check. Prompts are English; a live model on other languages is untested, and the dataset is English only.",
+      "evidence": [
+        "tests/test_known_limitations.py::test_negation_is_only_detected_in_english"
+      ]
+    },
+    {
+      "topic": "Paraphrased evidence",
+      "status": "measured",
+      "finding": "Retrieval is lexical (BM25): a claim worded differently from its evidence ('cost €99' vs 'Price: €129') can retrieve nothing, and '12 hours' is not matched to 'twelve hours', so a correct claim is downgraded to NOT_ENOUGH_EVIDENCE (safe, but a missed confirmation).",
+      "evidence": [
+        "tests/test_known_limitations.py::test_paraphrased_wording_can_defeat_lexical_retrieval",
+        "tests/test_known_limitations.py::test_a_number_written_as_a_word_in_the_evidence_is_not_matched"
+      ]
+    },
+    {
+      "topic": "Lexical guard heuristics",
+      "status": "measured",
+      "finding": "The property-binding (property_mismatch) and compound-claim (unsupported_clause) checks are lexical heuristics, not validated. They were tuned on the Round 3 step 03/04 matrix cases, the REG-014/015 tests and dev records v1-036/v1-045; of 12 probes checked afterwards, only 4 were written after the final rules, and one other probe shaped the rule for figures of different units. They are untested on fresh data until steps 06/07. Words match exactly: a synonym is accepted rather than checked ('stays chilled for up to 12 hours' passes on 'cold for up to 24 hours and hot for up to 12 hours'), a correct claim worded like another unit's label can be falsely rejected ('a 2 year guarantee that covers the battery' next to 'Battery life: up to 12 hours'), and a claim part paraphrased in new words can be refused. Two earlier limits, the elision swap and a part covered by one incidental shared word, are now caught.",
+      "evidence": [
+        "tests/test_known_limitations.py::test_a_synonym_hides_a_figure_bound_to_another_property",
+        "tests/test_known_limitations.py::test_a_claim_worded_like_another_units_label_can_be_falsely_rejected",
+        "tests/test_guard_probes.py",
+        "EVAL.md"
+      ]
+    },
+    {
+      "topic": "Planted false facts in references",
+      "status": "measured",
+      "finding": "A false fact written as ordinary text in a reference is evidence like any other: only instructions aimed at a model are refused. References must be trusted when they are approved.",
+      "evidence": [
+        "tests/test_prompt_security.py::test_an_instruction_worded_as_a_fact_is_not_recognised"
+      ]
+    },
+    {
+      "topic": "Guard on a comparative claim across documents",
+      "status": "measured",
+      "finding": "The guard can reject a correct SUPPORTED answer whose claim compares figures that come from two documents. Held-out record v4-003 ('the Lantern's warranty is longer than the standard 2 year warranty', with the 3 year figure in one document and the 2 year figure in another) is rejected as property_mismatch even with the right gold quotes. It was found the first time the oracle ran on this fresh held-out record (2026-10-29), so the rule was deliberately not changed and the record was not replaced: held-out records do not steer the rules. It is a false rejection (a person reviews it), not a wrong approval.",
+      "evidence": [
+        "tests/test_eval_regressions.py::test_the_oracle_reproduces_every_gold_label"
+      ]
+    },
+    {
+      "topic": "Retrieval on a claim that carries an injected instruction",
+      "status": "measured",
+      "finding": "The retrieval-only evaluation uses the whole claim text as one query. On the 120-record dataset, 2 of 87 records with evidence (v4-024 held-out, v4-040 dev) retrieve no passage, because the claim itself contains an injected instruction whose words dilute the query below the term-coverage threshold; the same claim without that sentence retrieves its passage. Recall@5 is 85/87 (was 37/37 on the 80-record dataset), so the gate was re-measured, lower, because the dataset grew. The full pipeline extracts claims before retrieval and may avoid this; that is not measured until the live run.",
+      "evidence": [
+        "tests/test_known_limitations.py::test_a_claim_that_carries_an_injected_instruction_retrieves_no_passage"
+      ]
+    },
+    {
+      "topic": "Live model quality",
+      "status": "measured",
+      "finding": "One live run (google/gemini-2.5-flash-lite, verifier only, 80 synthetic claims, 25 held out) gave CONTRADICTED recall 87.5% (28/32), precision 90.3%, false-positive rate 6.2%, and citation validity 86.7% (52/60), which misses the 100% gate; every quote was found verbatim (60/60). It is one run on AI-written labels (0/80 reviewed), so read it as an indication, not a guarantee; the full pipeline (extraction and routing) was not run live.",
+      "evidence": [
+        "EVAL.md"
+      ]
+    },
+    {
+      "topic": "Label review",
+      "status": "measured",
+      "finding": "Every label in eval/dataset.jsonl was written by an AI assistant and checked mechanically; none has been reviewed by a person (0/120). The data is synthetic (a fictional company) and small: one CONTRADICTED record is about 2 points of recall (1/49).",
+      "evidence": [
+        "tests/test_dataset_validation.py::test_every_record_is_synthetic_and_unreviewed_and_says_so"
+      ]
+    },
+    {
+      "topic": "Terminology and accessibility checks",
+      "status": "measured",
+      "finding": "Deterministic terminology, brand-compliance and accessibility rules exist (rules.py) and are unit tested, but they are not part of the labelled dataset, so this report says nothing about them. Accessibility checks read only Markdown/HTML in the submitted text and the metadata given: images, colours and media inside uploaded files are not inspected (those checks report not_checkable; the backend passes no ContentMetadata yet).",
+      "evidence": [
+        "tests/test_rules_contract.py::test_one_check_record_per_rule_with_honest_statuses",
+        "tests/test_rules_accessibility.py::test_no_images_anywhere_is_not_checkable_with_a_reason_about_uploaded_files"
+      ]
+    },
+    {
+      "topic": "Visual and tone checks",
+      "status": "unsupported",
+      "finding": "Images themselves (logos, product photos), brand tone of voice and reading level are not checked; only all-caps and emoji runs are flagged as tone signals.",
+      "evidence": []
+    },
+    {
+      "topic": "Backend review routing",
+      "status": "unsupported",
+      "finding": "The backend applies the engine's decision policy to every claim (services/api engine/pipeline.py, _with_decision_policy), so a weak or under-cited SUPPORTED claim goes to a person. This evaluation does not measure that routing: it is tested only by the backend suite (services/api/tests/test_decision_policy.py), which needs PostgreSQL and runs in CI. An earlier entry here said the backend routed on verdict != SUPPORTED only; that was out of date.",
+      "evidence": []
+    }
+  ],
+  "unavailable": {},
+  "stale": false,
+  "stale_reason": null
+}

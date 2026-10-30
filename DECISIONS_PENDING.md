@@ -17,7 +17,7 @@ built in the meantime. Governance decisions D1–D6 are already decided (docs/go
 - **P3:** partly (a).
   - **Item 3, done:** `per_check[]` has the ratio fields.
   - **Also done:** `/latest` serves `catch_rate_ratio`, `false_positive_rate_ratio` and a `headline`, copied from the stored run's `by_split.heldout` (contracts.md §16).
-  - **Items 1 and 2, not done yet:** they need Krish's published full-pipeline `summary.json`, which doesn't exist (step 07), and today's summary has no held-out split. Switching now would leave the Scorecard empty. Until then `/latest` keeps serving stored runs, labelled `verifier_only`, and the Run button stays.
+  - **Items 1 and 2, not done:** Krish's PR #29 publishes his live run as `public/published-evaluation.json`, and the page shows it when no run is stored. `/latest` still serves a workspace's own stored runs, labelled `verifier_only`, ahead of it, and the Run button stays. Serving the published run from `/latest` and retiring the button remain open.
 - **P4:** (a), as built.
 - **P5:** (a), as built.
 
