@@ -205,7 +205,7 @@ From [`docs/backend.md`](docs/backend.md) ("Known limitations"), plus two fronte
 - Terminology and accessibility rules exist in the engine but the backend does not run them in
   reviews yet ([`RULES_HANDOFF.md`](services/verification/RULES_HANDOFF.md)).
 - Source conflict detection and later stretch items are not built.
-- Not deployed.
+- The frontend is deployed on Vercel (https://audit-aii.vercel.app). The Trust Scorecard page shows the published benchmark without a backend run; a new evaluation run needs the API and an AI provider key.
 - **Trust Scorecard numbers measure the verifier only**, on a labelled benchmark set. They are not
   live statistics about your content.
 - **Accounts are single-user:** one email is one private account that writes, checks and approves
